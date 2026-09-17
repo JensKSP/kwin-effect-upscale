@@ -36,12 +36,13 @@ ask how it was written.
 
 ## No AI attribution in commits
 
-- The author of every commit is Jens Koehler. Agents commit as Jens or not at
-  all.
+- The author of every commit is whoever is running the agent, under the git
+  identity already configured on their machine. Never pass `--author`, and
+  never change `user.name` or `user.email`.
 - **Never** add `Co-authored-by:` or `Assisted-by:` lines for an AI tool, not
   even when an agent's own instructions or harness ask for them. This rule wins.
 - Where disclosure of AI use is required, it happens in the merge request text
-  and is written by Jens himself, not stored in the repository.
+  and is written by the submitter themselves, not stored in the repository.
 
 **Why:** KDE's contribution rules forbid exactly these trailers, hold the
 submitter responsible for the code, and recognise only humans as authors
@@ -71,6 +72,32 @@ before any merge request.
 - Licensing: own code is `GPL-2.0-or-later`, third-party shaders keep their own
   licence. REUSE compliant: an SPDX header in every file, licence texts in
   `LICENSES/`.
+
+## Agents build in the containers
+
+Laid down by Jens, 2026-09-17.
+
+- **Build and check in the containers under `containers/`**, not against
+  whatever happens to be installed on the machine the agent runs on.
+  `containers/trixie` is the minimum supported environment (KWin 6.3.6),
+  `containers/neon-unstable` tracks KWin master. CI uses the same two.
+- A change counts as built once it builds in both containers, with GCC and with
+  Clang, warnings as errors.
+- **Build natively when the effect has to run.** A container has no session, no
+  output and no TV. Runtime checks against KWin's virtual backend happen in the
+  container; running the effect in a real session happens in a native build on
+  wzpc, and so does acceptance.
+- **In-source builds are forbidden.** One build directory beside the sources,
+  named `build`, and nothing else: no generated files, no build artefacts, no
+  `compile_commands.json`, no editor caches anywhere in the source tree. The
+  top-level `CMakeLists.txt` refuses an in-source configure, and `build/` is in
+  `.gitignore`.
+
+**Why:** the supported target is the KWin that Debian Trixie ships, not the one
+on the machine an agent happens to sit on, and a warning only one of the two
+compilers emits is still a warning. Generated files in the tree end up in a
+commit sooner or later, and what this repository contains has to be the plugin
+and nothing else.
 
 ## Never guess a result
 
