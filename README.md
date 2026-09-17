@@ -5,6 +5,9 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 # kwin-effect-upscale
 
+[![CI](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/ci.yml/badge.svg)](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/ci.yml)
+[![Nightly](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/nightly.yml/badge.svg)](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/nightly.yml)
+
 A KWin effect that upscales fullscreen windows rendering below the resolution
 of the output they cover.
 
@@ -47,11 +50,79 @@ What it does, what it deliberately leaves alone, which scalers can be used and
 what is still unanswered about KWin is written down in
 [doc/upscaling.md](doc/upscaling.md).
 
+HDR and variable refresh rate (VRR) support are requirements for the effect,
+including their combined use while upscaling. They are part of the acceptance
+criteria for the first usable implementation; development is still at the
+skeleton stage described below.
+
 This is not an official KDE project.
+
+## Inspiration and references
+
+The design draws on existing free software and published shader implementations:
+
+- [gamescope](https://github.com/ValveSoftware/gamescope) demonstrates scaling
+  the game image in the compositor, with separate handling of overlays,
+  sharpening and output colour management. Its FSR, NIS, SGSR and pixel-filter
+  paths are references for this effect.
+- [AMD FidelityFX Super Resolution 1](https://github.com/GPUOpen-Effects/FidelityFX-FSR)
+  provides the EASU upscaler and RCAS sharpening pass.
+  [AMD FidelityFX CAS](https://github.com/GPUOpen-Effects/FidelityFX-CAS)
+  offers another approach to adaptive sharpening, with optional upscaling.
+- [NVIDIA Image Scaling](https://github.com/NVIDIAGameWorks/NVIDIAImageScaling)
+  combines spatial upscaling and adaptive sharpening and documents their
+  requirements for SDR and HDR input.
+- [Snapdragon Game Super Resolution 1](https://github.com/SnapdragonGameStudios/snapdragon-gsr/tree/main/sgsr/v1)
+  provides a spatial filter that combines upscaling and sharpening in one
+  shader pass, including a GLSL reference implementation.
+- [libplacebo](https://github.com/haasn/libplacebo) provides references for
+  bicubic and Lanczos filters, including EWA variants and anti-ringing.
+- [KWin's own effects](https://invent.kde.org/plasma/kwin/-/tree/master/src/plugins)
+  guide the plugin structure and integration. The zoom effect's
+  [xBRZ shader](https://invent.kde.org/plasma/kwin/-/blob/master/src/plugins/zoom/shaders/upscaler.frag)
+  is also a reference for enlarging pixel graphics.
+
+We also considered [Anime4K](https://github.com/bloc97/Anime4K),
+[FSRCNNX](https://github.com/igv/FSRCNN-TensorFlow) and
+[RAVU](https://github.com/bjin/mpv-prescalers) as further spatial alternatives.
+These references describe the work studied so far; the effect is still a
+skeleton and does not yet implement any of these scalers. Any incorporated
+third-party code will retain its own copyright and licence notices.
 
 ## State
 
 Skeleton. The effect builds, loads and does nothing yet.
+
+## Packages
+
+Packages are built for amd64 and arm64, for Debian Trixie and for Kubuntu
+25.10. Pick the one matching the distribution you run, because a KWin effect is
+built against the KWin it is loaded into.
+
+- **Releases:** <https://github.com/JensKSP/kwin-effect-upscale/releases/latest>
+- **Nightly**, rebuilt from master whenever master moves:
+  <https://github.com/JensKSP/kwin-effect-upscale/releases/tag/nightly>
+
+```bash
+sudo apt install ./kwin-effect-upscale_<version>~<distribution>_<architecture>.deb
+```
+
+Every release also carries the source tarball and its SHA-256 checksum.
+
+### Which build am I running?
+
+The plugin names itself when KWin loads it, so a journal always says exactly
+which build was in the session:
+
+```bash
+journalctl --user -b -u plasma-kwin_wayland -g upscale | head -1
+# upscale 0.1.0+git20260917.ed8f450b4e (branch master), built 2026-09-17T20:50:02Z, Qt 6.8.2
+```
+
+A version with no `+git` suffix is a release; anything else names the commit it
+was built from, and `-dirty` means a development build had uncommitted changes.
+Packaged builds report the complete package version, including the distribution
+suffix. Nightly source archives retain their snapshot version without Git.
 
 ## Requirements
 
@@ -68,20 +139,28 @@ it, so the development files have to belong to the KWin that is actually run.
 | KWin development files | the KWin you run | `kwin-dev` |
 | git, to get the source | — | `git` |
 | libepoxy (KWin's OpenGL headers need it) | — | `libepoxy-dev` |
+| libdrm, Wayland and xkbcommon headers | — | `libdrm-dev`, `libwayland-dev`, `libxkbcommon-dev` |
+| pkg-config, used by KWin's CMake config | — | `pkgconf` |
 | gettext, for `msgfmt` | — | `gettext` |
 | Ninja, optional | — | `ninja-build` |
 | clang-format, only to commit changes | 19, the version CI uses | `clang-format` |
 
-On Debian Trixie or a derivative:
+On Debian Trixie, on Kubuntu, or on a derivative of either:
 
 ```bash
 sudo apt install build-essential cmake extra-cmake-modules qt6-base-dev \
     libkf6config-dev libkf6coreaddons-dev libkf6i18n-dev kwin-dev \
-    libepoxy-dev gettext git
+    libepoxy-dev libdrm-dev libwayland-dev libxkbcommon-dev pkgconf \
+    gettext git
 ```
 
-If you intend to commit changes, add `clang-format` to that list: the
-pre-commit hook runs `git clang-format` and refuses the commit without it.
+The last four are easy to miss on Kubuntu. `KWinConfig.cmake` looks for Libdrm,
+Wayland and XKB through pkg-config, and Debian's `kwin-dev` happens to pull
+those headers in while Ubuntu's does not. Without them the configure step stops
+at `Could NOT find Libdrm`, which sounds like a missing KWin and is not.
+
+If you intend to commit changes, add `clang-format` to that list: the checks
+run `clang-format` and refuse the commit without it.
 
 Other distributions ship the same pieces under their own names: the CMake
 package names to look for are `ECM`, `Qt6`, `KF6` and `KWin`.
@@ -112,7 +191,9 @@ sudo cmake --install build
 
 That installs a single file, the effect plugin:
 
-    <prefix>/lib/<multiarch>/qt6/plugins/kwin/effects/plugins/upscale.so
+```text
+<prefix>/lib/<multiarch>/qt6/plugins/kwin/effects/plugins/upscale.so
+```
 
 The install prefix defaults to the one KDE Frameworks uses, which is `/usr` on
 Debian and is where Qt, and therefore KWin, looks for plugins. **If you install
@@ -147,25 +228,86 @@ sudo xargs rm -v < build/install_manifest.txt
 - `DESTDIR` is honoured: `DESTDIR=/tmp/stage cmake --install build`.
 - The plugin declares KWin's effect API version, so it has to be **rebuilt
   after a KWin upgrade**.
-- There is no `debian/` directory in the tree yet.
+- Debian packages depend on the exact `kwin-common` version they were built
+  against, so a KWin upgrade requires a matching rebuild of this package.
+- `debian/` is in the tree and builds a single binary package with
+  `dpkg-buildpackage -b`. The source format is native, so no orig tarball is
+  needed.
+- Build dependencies live in `debian/control` and nowhere else; CI installs them
+  from it with `mk-build-deps`.
+- The build honours `SOURCE_DATE_EPOCH`, which debhelper sets from the changelog,
+  so packaged builds stay reproducible. Nothing in the build reads the wall clock
+  any other way.
 
 ## Notes for contributors
 
-Configuring on a machine that has the dependencies also installs a pre-commit
-hook (ECM's `KDEGitCommitHooks`) checking formatting, the plugin metadata and
-the repository rules. CI runs the same checks, because a hook can be skipped.
+Contributions are welcome: bug reports, testing on different setups,
+documentation improvements and code. Feel free to open an issue or a pull
+request on GitHub.
+
+We use Codex and Claude to help write code for this project. We aim to keep
+"AI slop" out: unnecessary abstractions, boilerplate and changes we cannot
+explain or verify. The standard is readable code that fits KWin's conventions,
+with human review and checks for correctness. Responsibility stays with us.
+
+Every check in this repository runs from one command:
+
+```bash
+pip install pre-commit    # or: pipx install pre-commit
+pre-commit install        # optional, runs the checks on every commit
+pre-commit run --all-files
+```
+
+That covers KDE's coding style via `clang-format` and KWin's own
+`.clang-format`, CMake formatting and static checks, Python, shell and Markdown
+linting, spelling in documentation and comments, REUSE compliance and a limit on how large a
+source file may grow. CI runs the same command, because a hook can be skipped.
+The CMake linter also checks the plugin folder, with its formatting rules
+disabled to preserve KWin's style. Gersemi formats only the surrounding project.
+
+The file budget allows 400 code lines, with warnings above 300. Comments and
+blank lines are excluded; multiline strings such as embedded shaders count.
+Files that cannot be read or measured fail the check. Regression tests for
+these checks and the build metadata run through the same pre-commit command.
+Install the hook to enforce the checks on ordinary commits; require the CI
+check in branch protection to enforce them when merging.
+
+`clang-tidy` is separate because it needs a configured build:
+
+```bash
+cmake -B build -S . -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+clang-tidy -p build src/plugins/upscale/*.cpp
+```
 
 CI builds in the two container images defined under `containers/`: Debian
 Trixie as the minimum supported environment (KWin 6.3.6) and KDE neon unstable
 to track KWin master, each with GCC and with Clang and with warnings as errors.
 
+## Releasing
+
+A release is a tag, and nothing else is done by hand:
+
+```bash
+# the tag, project(VERSION) and debian/changelog must agree, or CI stops
+git tag -a v0.1.0 -m 'kwin-effect-upscale 0.1.0'
+git push origin v0.1.0
+```
+
+The workflow builds the packages for both architectures and both distributions,
+builds the source tarball, and publishes them as a GitHub release with generated
+notes. `nightly` is one rolling pre-release rebuilt from master whenever master
+moves; its tag is deleted and recreated each time, so it is not a stable URL for
+a fixed build.
+
 ## Layout
 
-    src/plugins/upscale/     the effect, laid out exactly as KWin lays out its own
-    cmake/                   stand-ins for KWin's in-tree build macros
-    containers/              build environments: Trixie minimum, KDE neon unstable
-    tools/                   checks that run in the pre-commit hook and in CI
-    doc/                     what the effect does and why
+```text
+src/plugins/upscale/     the effect, laid out exactly as KWin lays out its own
+cmake/                   stand-ins for KWin's in-tree build macros
+containers/              build environments: Trixie minimum, KDE neon unstable
+tools/                   checks that run in the pre-commit hook and in CI
+doc/                     what the effect does and why
+```
 
 `src/plugins/upscale/` is meant to be copyable into KWin's own `src/plugins/`
 unchanged. Everything that is specific to building this outside KWin lives

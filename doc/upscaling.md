@@ -19,7 +19,7 @@ it RSR, NVIDIA calls it NIS, and the compositor is not involved. On Linux
 
 | Where | What happens |
 | --- | --- |
-| gamescope | It is a compositor of its own. The game gets a virtual screen of the inner size (`-w/-h`) and the finished image is scaled to the output (`-W/-H`) with FSR 1, NIS, bilinear or integer scaling. |
+| gamescope | It is a compositor of its own. The game gets a virtual screen of the inner size (`-w/-h`) and the finished image is scaled to the output (`-W/-H`). Current master offers linear, nearest, pixel, FSR 1, NIS and SGSR filters; integer scaling is a separate geometry setting. |
 | Proton-GE | `WINE_FULLSCREEN_FSR=1` offers smaller resolutions to the game and scales them with FSR 1. |
 | A plain KDE session | Nothing. Steam is an ordinary window, and the image is stretched with whatever filtering the compositor happens to use. |
 
@@ -63,8 +63,10 @@ licence that decides whether the shader may be carried here at all:
 | AMD FSR 1 (EASU + RCAS) | upscale + sharpen | MIT | yes |
 | NVIDIA Image Scaling (NIS) | upscale + sharpen | MIT | yes |
 | Snapdragon GSR 1 | single pass, Lanczos-like 12-tap + adaptive sharpen | BSD-3-Clause | yes |
-| Lanczos, bicubic, integer, xBRZ | classic / pixel art | free | yes |
-| AMD CAS | sharpen only | MIT (not verified) | as an addition |
+| Lanczos, bicubic (libplacebo implementations) | classic | LGPL-2.1-or-later; retain additional source notices | candidates |
+| Nearest / integer scaling | pixel replication / geometry | own implementation | yes |
+| xBRZ (KWin zoom shader) | pixel-art reconstruction | GPL-2.0-or-later | candidate |
+| AMD CAS | sharpen with optional upscale | MIT | candidate |
 | MAKO Scaler | single pass | GPL-3.0-or-later | **no** |
 
 MAKO is ruled out as a source of code, not on quality: this project is
@@ -74,6 +76,61 @@ are used keep their own licence headers; see `LICENSES/`.
 
 For reference, KWin master already carries an xBRZ upscaler in the zoom effect
 (`src/plugins/zoom/shaders/upscaler.frag`).
+
+Filter choice and image geometry are separate: nearest sampling does not by
+itself guarantee an integer scale factor. The implementation, not the name of
+the algorithm, determines the licence for copied code.
+
+[CAS's reference header](https://github.com/GPUOpen-Effects/FidelityFX-CAS/blob/9fabcc9a2c45f958aff55ddfda337e74ef894b7f/ffx-cas/ffx_cas.h)
+documents linear-light input and a maximum fourfold increase in pixel count
+for its scaling path. It is not interchangeable with RCAS, which only sharpens.
+[Gamescope's reviewed renderer](https://github.com/ValveSoftware/gamescope/blob/c50ddfa9b71a75ec8df94bda8cf31d425dbdda24/src/rendervulkan.cpp)
+runs its modified SGSR filter followed by RCAS; that is a different pipeline
+from Qualcomm's single-pass reference. Neither pipeline establishes HDR
+correctness or performance for this KWin effect without separate validation.
+
+## HDR and variable refresh rate
+
+HDR and VRR are required, including simultaneous HDR upscaling and VRR.
+The effect must preserve KWin's colour management and adaptive presentation
+when the client, output and driver support them. SDR content on an HDR output,
+HDR content using PQ or scRGB, and transitions between SDR and HDR belong in
+the acceptance tests. Intermediate formats and colour conversions must retain
+HDR range and sufficient precision.
+
+KWin remains responsible for presentation timing. The effect must not impose
+fixed-rate presentation or continuous repainting merely to run the scaler.
+VRR must be verified while upscaling is active and direct scanout is blocked.
+A configured VRR option or a successful test with the effect disabled does
+not establish this. Display-link limitations are recorded separately and
+leave the corresponding hardware test pending.
+
+## Initial scope
+
+The first implementation will use **FSR 1: EASU with optional RCAS**, starting
+with 1080p and 1440p fullscreen content on a 4K output, supporting SDR, HDR
+and VRR. This choice provides
+a documented reference and a comparable gamescope path; it is not a measured
+quality or performance ranking of the candidates.
+
+The initial path targets opaque RGB surfaces with known colour descriptions,
+their full buffer visible, an unrotated output, matching aspect
+ratios and enlargement of at most two times per axis. Source and destination
+sizes are physical pixels. Unsupported cases use KWin's normal rendering.
+
+The first prerequisites are access to the original buffer in KWin 6.3.6,
+a defined HDR colour path for EASU/RCAS and VRR during active composition.
+FSR 1 remains the selected starting point, subject to these feasibility
+checks. A failure requires revisiting the integration or scaler choice,
+without dropping HDR or VRR from the requirements.
+EASU must replace the enlargement step, and RCAS must be independently
+switchable, initially off. The implementation will start with FP32 fragment
+shaders through KWin's OpenGL abstractions, with GLSL ES support checked.
+Acceptance requires comparison with ordinary KWin scaling, GPU timing of the
+complete rendering path and native tests with a real game on the TV, including
+HDR and VRR together. An SDR-only prototype is an intermediate development
+step. Falling back to ordinary KWin rendering for HDR does not satisfy HDR
+upscaling support.
 
 ## Where the effect has to hook into KWin
 
