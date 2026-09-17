@@ -3,3 +3,13 @@ _build/
 compile_commands.json
 .cache/
 *.kdev4
+
+# dpkg-buildpackage works inside the source tree; none of what it leaves belongs
+# in a commit.
+/obj-*/
+/debian/.debhelper/
+/debian/files
+/debian/debhelper-build-stamp
+/debian/kwin-effect-upscale/
+/debian/*.substvars
+/debian/*.debhelper.log

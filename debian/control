@@ -1,0 +1,39 @@
+Source: kwin-effect-upscale
+Section: kde
+Priority: optional
+Maintainer: Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+Build-Depends: debhelper-compat (= 13),
+               cmake (>= 3.24),
+               extra-cmake-modules (>= 6.13.0),
+               gettext,
+               kwin-dev,
+               libdrm-dev,
+               libepoxy-dev,
+               libkf6config-dev (>= 6.13.0),
+               libkf6configwidgets-dev (>= 6.13.0),
+               libkf6coreaddons-dev (>= 6.13.0),
+               libkf6i18n-dev (>= 6.13.0),
+               libkf6kcmutils-dev (>= 6.13.0),
+               libwayland-dev,
+               libxkbcommon-dev,
+               pkgconf,
+               qt6-base-dev (>= 6.8.0),
+Standards-Version: 4.7.2
+Rules-Requires-Root: no
+Homepage: https://github.com/JensKSP/kwin-effect-upscale
+Vcs-Browser: https://github.com/JensKSP/kwin-effect-upscale
+Vcs-Git: https://github.com/JensKSP/kwin-effect-upscale.git
+
+Package: kwin-effect-upscale
+Architecture: any
+Depends: ${misc:Depends},
+         ${shlibs:Depends},
+         ${kwin:Depends},
+Description: KWin effect that upscales fullscreen windows
+ A KWin effect for windows that render below the resolution of the output they
+ cover, for example a game or a video player running at a lower resolution on a
+ high resolution screen or television. The effect scales such a window up on the
+ GPU instead of leaving the scaling to the display.
+ .
+ The effect is disabled by default and is switched on in the Desktop Effects
+ configuration module.

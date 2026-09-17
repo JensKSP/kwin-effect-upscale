@@ -25,3 +25,12 @@ path = ".gitignore"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "None"
 SPDX-License-Identifier = "CC0-1.0"
+
+# debian/changelog and debian/control have no comment syntax that dpkg and
+# lintian both accept, and debian/copyright carries its licensing in DEP-5 form
+# instead.
+[[annotations]]
+path = "debian/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>"
+SPDX-License-Identifier = "GPL-2.0-or-later"
