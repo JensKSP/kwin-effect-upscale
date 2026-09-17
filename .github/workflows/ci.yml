@@ -38,7 +38,7 @@ jobs:
       - name: Install clang-format
         run: |
           apt-get update
-          apt-get install --no-install-recommends -y clang-format git
+          apt-get install --no-install-recommends -y ca-certificates clang-format git
       - uses: actions/checkout@v4
       - name: clang-format
         run: |
@@ -59,7 +59,7 @@ jobs:
         run: |
           apt-get update
           apt-get install --no-install-recommends -y \
-            build-essential cmake extra-cmake-modules kwin-dev \
+            ca-certificates build-essential cmake extra-cmake-modules kwin-dev \
             libkf6config-dev libkf6configwidgets-dev libkf6coreaddons-dev \
             libkf6i18n-dev libkf6kcmutils-dev qt6-base-dev libepoxy-dev \
             clang clang-format clang-tidy clazy libclang-rt-19-dev git python3 pipx
@@ -78,14 +78,16 @@ jobs:
   build-neon:
     name: KDE neon unstable (KWin master)
     runs-on: ubuntu-latest
-    container: invent-registry.kde.org/neon/docker-images/plasma:unstable
+    container:
+      image: invent-registry.kde.org/neon/docker-images/plasma:unstable
+      options: --user root
     continue-on-error: true
     steps:
       - name: Install build dependencies
         run: |
           apt-get update
           apt-get install --no-install-recommends -y \
-            build-essential cmake extra-cmake-modules kwin-dev \
+            ca-certificates build-essential cmake extra-cmake-modules kwin-dev \
             libkf6config-dev libkf6coreaddons-dev libkf6i18n-dev \
             qt6-base-dev git
       - uses: actions/checkout@v4
