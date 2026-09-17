@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# ruff checks four rules out of the box, which is next to nothing. Everything is
+# switched on here and switched off again one rule at a time, with a reason, so
+# that a rule is never off merely because nobody chose it.
+
+line-length = 100
+target-version = "py311"
+
+[lint]
+select = ["ALL"]
+ignore = [
+    # The formatter owns these; leaving them on makes the two fight.
+    "COM812",
+    "ISC001",
+    # Conflicting docstring conventions: one of each pair has to go.
+    "D203",
+    "D213",
+    # These are command line tools. Printing is how they talk.
+    "T201",
+]
+
+[lint.flake8-copyright]
+# This repository is REUSE compliant, so a copyright notice is an SPDX tag.
+# ruff looks for the word "Copyright" by default and would never find one.
+notice-rgx = "(?i)SPDX-FileCopyrightText:"
+
+[lint.per-file-ignores]
+# A checker prints what it found and exits; that is not a library API.
+"tools/*.py" = ["INP001"]
+# The test hook runs `unittest discover`, so unittest is the style on purpose,
+# and a test asserting its own preconditions is not a security finding. The
+# regression tests also invoke the checker, CMake and Git in temporary
+# directories; those argument lists are built here, never from user input.
+"tools/test_*.py" = ["INP001", "PT009", "PT027", "S101", "S603"]
+
+[format]
+docstring-code-format = true

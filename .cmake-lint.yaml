@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Every pattern ends in $ on purpose: cmakelang anchors a name pattern at the
+# start only, so an unanchored `[a-z][0-9a-z_]*` accepts Bad_Name through its
+# "ad_Name" tail. Without the anchor the naming checks pass everything.
+#
+# cmake-lint overlaps with gersemi on everything about layout, so the layout
+# codes are off and gersemi owns them. What is left has to earn its place: the
+# naming codes are configured to this project's conventions rather than
+# switched off, because a disabled check is a check that never finds anything.
+
+lint:
+  # Names as this project and KWin write them: lower_snake_case for anything
+  # local and for functions, SCREAMING_SNAKE_CASE for cache and public
+  # variables, a leading underscore for the private ones.
+  function_pattern: '[0-9a-z_]+$'
+  macro_pattern: '[0-9a-z_]+$'
+  local_var_pattern: '[a-z][0-9a-z_]*$'
+  argument_var_pattern: '[a-z][0-9a-z_]*$'
+  private_var_pattern: '_[0-9a-z_]+$'
+  # Directory scope holds both kinds: cache and public variables shout, script
+  # local temporaries do not. Both are accepted, and anything mixed - Bad_Name,
+  # camelCase, Capitalised - is not, which is what this check is for.
+  # The _SOURCES and _SRCS tails are KWin's own: src/plugins/blur/CMakeLists.txt
+  # writes set(blur_SOURCES ...) and set(kwin_blur_config_SRCS ...). The plugin
+  # folder follows KWin, so the pattern accepts what KWin writes rather than the
+  # check being switched off for that folder.
+  public_var_pattern: '([A-Z][0-9A-Z_]*|[a-z][0-9a-z_]*(_SOURCES|_SRCS)?)$'
+  global_var_pattern: '([A-Z][0-9A-Z_]*|[a-z][0-9a-z_]*(_SOURCES|_SRCS)?)$'
+  internal_var_pattern: '_[A-Z][0-9A-Z_]*$'
+  keyword_pattern: '[A-Z][0-9A-Z_]*$'
+
+  disabled_codes:
+    # Layout is gersemi's, and .gersemirc is where it is decided.
+    - C0301  # line too long
+    - C0303  # trailing whitespace
+    - C0304  # no newline at end of file
+    - C0305  # too many newlines at end of file
+    - C0306  # tab or wrong indentation
+    - C0307  # bad indentation
+    - C0321  # statements on the same line
+    - C0327  # line endings
+    # Docstrings on every function and macro: the modules here carry prose
+    # comments that say more than a one-line docstring would, and the shim
+    # documents each stand-in against the KWin macro it replaces.
+    - C0111  # missing docstring
+    - C0112  # empty docstring

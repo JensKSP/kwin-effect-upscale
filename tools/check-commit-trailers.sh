@@ -34,4 +34,4 @@ if [[ $status -ne 0 ]]; then
     echo "https://community.kde.org/Guidelines_and_HOWTOs/Maintainers_and_Contributions" >&2
 fi
 
-exit $status
+exit "$status"

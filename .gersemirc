@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Applies to the project shell only. src/plugins/upscale/ is excluded in
+# .pre-commit-config.yaml because gersemi does not write KWin's CMake style.
+#
+# favour-inlining keeps find_package() and friends on one line the way KDE
+# writes them; favour-expansion explodes them over a dozen lines, which is valid
+# CMake that no KDE reviewer has ever seen.
+line_length: 100
+indent: 4
+list_expansion: favour-inlining
+# The KWin macros this project shims are unknown to gersemi by definition.
+warn_about_unknown_commands: false

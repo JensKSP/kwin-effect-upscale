@@ -1,0 +1,131 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# KWin and Plasma ship no .clang-tidy, so there is none to copy from the
+# project this plugin belongs to. Four KDE projects have one: Calligra, Krita,
+# Kdenlive and Akonadi. The check list below follows **Calligra's**, which is
+# the closest to a KDE house style that exists for this tool, with KWin's own
+# conventions layered on top.
+#
+# It lives here at the top level, never inside src/plugins/upscale/: a config
+# file KWin does not have must not travel upstream with the plugin folder.
+#
+# Because of that, every check enabled here has to agree with code KWin already
+# writes. A check that would flag KWin's own effects is not a style we adopt; it
+# is a check we turn off, and each exclusion below says why.
+#
+# clang-tidy is static analysis, not formatting. Formatting is clang-format's
+# job, and .clang-format is KWin's file byte for byte.
+
+Checks: >
+  -*,
+  clang-analyzer-*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-suspicious-include,
+  concurrency-*,
+  misc-*,
+  -misc-include-cleaner,
+  -misc-no-recursion,
+  -misc-non-private-member-variables-in-classes,
+  -misc-use-anonymous-namespace,
+  modernize-*,
+  -modernize-avoid-c-arrays,
+  -modernize-concat-nested-namespaces,
+  -modernize-return-braced-init-list,
+  -modernize-use-designated-initializers,
+  -modernize-use-nodiscard,
+  -modernize-use-trailing-return-type,
+  performance-*,
+  -performance-enum-size,
+  portability-*,
+  readability-*,
+  -readability-identifier-length,
+  -readability-implicit-bool-conversion,
+  -readability-isolate-declaration,
+  -readability-magic-numbers,
+  -readability-named-parameter,
+  -readability-qualified-auto,
+  -readability-redundant-access-specifiers,
+  -readability-uppercase-literal-suffix
+
+# Fixes are written in KWin's format, because .clang-format is KWin's file.
+FormatStyle: file
+
+# Where this leaves Calligra's list, and why:
+#   concurrency-*, portability-*  added: the code has to run wherever KDE runs,
+#                                 which includes the BSDs and arm64
+#   readability-function-cognitive-complexity  kept on, where Calligra turns it
+#                                 off: it is the same concern as the file size
+#                                 limit, one level down
+#   modernize-use-nodiscard, modernize-use-designated-initializers,
+#   performance-enum-size         off: legitimate C++ that KWin never writes
+#   -misc-use-anonymous-namespace off, as in Calligra
+#   -misc-include-cleaner         off: it cannot see through KWin's
+#                                 KWIN_EFFECT_FACTORY_* macros and reports the
+#                                 macro itself as an undeclared include
+#
+# WarningsAsErrors below is stricter than any KDE project: Calligra and Krita
+# let clang-tidy report and carry on. Here a finding stops the build, the same
+# way a compiler warning already does.
+
+# Only our own sources. KWin's and Qt's headers are not ours to fix. The pattern
+# covers src/buildinfo/ as well, which is ours even though it is not the plugin.
+HeaderFilterRegex: 'src/.*\.h$'
+
+# Warnings are errors here for the same reason they are in the build: a warning
+# nobody has to act on is noise that accumulates.
+WarningsAsErrors: '*'
+
+CheckOptions:
+  # KDE Frameworks Coding Style and KWin's own headers: classes CamelCase,
+  # methods camelBack, private and protected members m_, static members s_.
+  # Verified against src/window.h and src/plugins/blur/blur.h of KWin master.
+  - key: readability-identifier-naming.NamespaceCase
+    value: CamelCase
+  - key: readability-identifier-naming.ClassCase
+    value: CamelCase
+  - key: readability-identifier-naming.StructCase
+    value: CamelCase
+  - key: readability-identifier-naming.EnumCase
+    value: CamelCase
+  - key: readability-identifier-naming.EnumConstantCase
+    value: CamelCase
+  - key: readability-identifier-naming.TypeAliasCase
+    value: CamelCase
+  - key: readability-identifier-naming.TypedefCase
+    value: CamelCase
+  - key: readability-identifier-naming.FunctionCase
+    value: camelBack
+  - key: readability-identifier-naming.MethodCase
+    value: camelBack
+  - key: readability-identifier-naming.ParameterCase
+    value: camelBack
+  - key: readability-identifier-naming.VariableCase
+    value: camelBack
+  - key: readability-identifier-naming.PrivateMemberPrefix
+    value: m_
+  - key: readability-identifier-naming.ProtectedMemberPrefix
+    value: m_
+  - key: readability-identifier-naming.ClassMemberPrefix
+    value: s_
+  - key: readability-identifier-naming.StaticVariablePrefix
+    value: s_
+  - key: readability-identifier-naming.MacroDefinitionCase
+    value: UPPER_CASE
+  # Abbreviations are out per AGENTS.md, so short names are not exempt.
+  - key: readability-identifier-naming.IgnoreMainLikeFunctions
+    value: 'false'
+
+  # The counterpart to the file budget in tools/check-file-size.py: a file can
+  # stay under 400 lines and still hold one function nobody can read.
+  - key: readability-function-size.LineThreshold
+    value: '80'
+  - key: readability-function-size.StatementThreshold
+    value: '50'
+  - key: readability-function-size.BranchThreshold
+    value: '15'
+  - key: readability-function-size.ParameterThreshold
+    value: '6'
+  - key: readability-function-size.NestingThreshold
+    value: '4'

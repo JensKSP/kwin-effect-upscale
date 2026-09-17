@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+[codespell]
+skip = ./.git,./build,./LICENSES,./po,./stage,*.png,*.qrc
+# codespell ships six dictionaries and enables two. The rest catch informal
+# spellings, misused words and typos in identifiers, which is most of what goes
+# wrong in comments.
+builtin = clear,rare,informal,usage,code
+check-filenames =
+# Words codespell reads as typos that are correct here. Keep this list short and
+# add to it only with a reason; every entry is a check switched off.
+# Every entry here is a check switched off, so each one has a reason.
+#   master    the branch this project and KWin both develop on
+#   cas       Contrast Adaptive Sharpening, an upscaling term this effect is about
+#   copyable  correct English, and the word the plugin folder rule is written with
+#   assertin  unittest's assertIn, which the code dictionary reads as a typo
+ignore-words-list = nd,ba,te,doubleclick,master,cas,copyable,assertin
+check-hidden = true

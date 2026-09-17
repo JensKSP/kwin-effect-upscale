@@ -58,4 +58,4 @@ if [[ $status -ne 0 ]]; then
     echo "See AGENTS.md, section \"No AI artifacts in this repository\"." >&2
 fi
 
-exit $status
+exit "$status"

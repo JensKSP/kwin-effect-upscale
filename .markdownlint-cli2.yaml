@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+config:
+  # Prose here is wrapped at 80 by hand, but tables and links are not worth
+  # breaking over, and KDE has no line length rule for Markdown.
+  MD013: false
+  # Every file starts with an SPDX comment, not with a heading.
+  MD041: false
+  # The same heading text under different parents is fine.
+  MD024:
+    siblings_only: true
+globs:
+  - "**/*.md"
+ignores:
+  - "LICENSES/**"
+  - "build/**"

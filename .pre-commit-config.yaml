@@ -1,0 +1,156 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# The one place checks are configured. Agents and CI both run
+#
+#     pre-commit run --all-files
+#
+# and there is no second list of linters anywhere. Hook versions are pinned so
+# that a check cannot start failing because an upstream tag moved.
+#
+# Two rules decide what may touch src/plugins/upscale/:
+#   - a formatter runs there only if its output is what KWin itself writes, and
+#   - nothing adds a file or a marker KWin does not have.
+# clang-format qualifies, because .clang-format is KWin's own file. gersemi
+# does not: it rewrites KWin's CMake style (it collapses source lists onto one
+# line and breaks `target_link_libraries(target PRIVATE` apart), so it is kept
+# to the project shell outside the plugin folder.
+
+exclude: ^(LICENSES/|po/|containers/.*\.patch$)
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-symlinks
+      - id: destroyed-symlinks
+      - id: check-executables-have-shebangs
+      - id: check-added-large-files
+        args: [--maxkb=256]
+      - id: check-json
+      - id: check-yaml
+        # .clang-format is a multi-document YAML file: one document per language.
+        args: [--allow-multiple-documents]
+
+  # clang-format 19 is what Debian Trixie ships, and the minimum supported
+  # environment decides. A different major version formats differently, so the
+  # hook would disagree with the container and with CI.
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v19.1.7
+    hooks:
+      - id: clang-format
+        types_or: [c, c++]
+
+  - repo: https://github.com/BlankSpruce/gersemi-pre-commit
+    rev: 0.29.1
+    hooks:
+      - id: gersemi
+        exclude: ^src/plugins/
+
+  # Static checks also cover the plugin's CMake files. Formatting remains with
+  # gersemi outside the plugin and with KWin's conventions inside it.
+  - repo: local
+    hooks:
+      - id: cmake-lint
+        name: CMake static checks
+        entry: cmake-lint
+        language: python
+        # cmakelang reads .cmake-lint.yaml through PyYAML, which it does not
+        # depend on. Without this the hook dies in an internal traceback and
+        # never lints anything.
+        additional_dependencies: [cmakelang==0.6.13, pyyaml==6.0.2]
+        files: (^|/)(CMakeLists\.txt|[^/]+\.cmake)(\.in)?$
+        args: [--config-files, .cmake-lint.yaml, --]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.8
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.3
+    hooks:
+      - id: codespell
+        additional_dependencies: [tomli]
+
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.23.2
+    hooks:
+      - id: markdownlint-cli2
+
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.14.1-1
+    hooks:
+      - id: shfmt
+        args: [--indent=4, --case-indent, --write]
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+        # shellcheck keeps a set of checks off by default: quoting that only
+        # bites on a path with a space, variables that look set but are not,
+        # `which` instead of `command -v`. Those are exactly the ones a checker
+        # should make, so all of them are on and new ones will be too.
+        #
+        # Two are turned back off. SC2250 wants braces around every variable,
+        # which is a house style no KDE script follows. SC2312 wants the exit
+        # code of every command substitution checked, which under `set -e` means
+        # rewriting every readable line into three.
+        # Quoted, because a comma inside an unquoted YAML flow sequence would
+        # split this into two arguments and silently drop the second exclusion.
+        args: [--enable=all, --severity=style, "--exclude=SC2250,SC2312"]
+
+  # The workflows are what publishes packages; a typo in one of them is found
+  # here rather than by a release that does not happen.
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+
+  - repo: https://github.com/fsfe/reuse-tool
+    rev: v6.2.0
+    hooks:
+      - id: reuse
+
+  - repo: local
+    hooks:
+      - id: no-ai-artifacts
+        name: no agent leftovers in the tree
+        entry: tools/check-no-ai-artifacts.sh --all
+        language: script
+        pass_filenames: false
+        always_run: true
+
+      # Spelled out as file names rather than as pre-commit's type tags,
+      # because identify gives .glsl, .frag, .vert and .cpp.in no tags at all
+      # and a hook that is handed no files reports success.
+      - id: file-size
+        name: no oversized source files
+        entry: tools/check-file-size.py
+        language: script
+        files: >-
+          (?x)
+          (^|/)CMakeLists\.txt(\.in)?$
+          |\.(c|cc|cpp|cxx|h|hh|hpp|glsl|frag|vert|cmake|py|sh|bash|yml|yaml|toml|ini)(\.in)?$
+
+      # At push time, not at commit time. The linters look at what changed and
+      # take a moment; the regression tests build things in temporary
+      # directories and need the whole tree, which is exactly what a commit of
+      # part of the tree does not offer. Installed with:
+      #     pre-commit install --hook-type pre-commit --hook-type pre-push
+      - id: tooling-tests
+        name: Build and checker regression tests
+        entry: python3 -B -m unittest discover -s tools
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
