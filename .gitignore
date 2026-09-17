@@ -4,6 +4,16 @@ compile_commands.json
 .cache/
 *.kdev4
 
+# What the Python tooling leaves behind. The pre-push hook runs the tests with
+# python3 -B, but running them by hand writes bytecode all the same. Ruff and
+# mypy do drop a self-ignoring .gitignore into their own cache directories;
+# they are named here so the rule does not depend on the tool doing that.
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.mypy_cache/
+.venv/
+
 # dpkg-buildpackage works inside the source tree; none of what it leaves belongs
 # in a commit.
 /obj-*/

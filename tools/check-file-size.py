@@ -149,14 +149,14 @@ def strip_python(text: str) -> str:
         if ast.get_docstring(node, clean=False) is None:
             continue
         docstring = node.body[0]
-        for row in range(docstring.lineno - 1, docstring.end_lineno):
+        # ast declares the end of a node as optional because a synthesised tree
+        # may leave it out. A parsed one never does, and the fallbacks say so.
+        last_row = docstring.end_lineno or docstring.lineno
+        last_column = docstring.end_col_offset or 0
+        for row in range(docstring.lineno - 1, last_row):
             line = encoded_lines[row]
             start = docstring.col_offset if row == docstring.lineno - 1 else 0
-            end = (
-                docstring.end_col_offset
-                if row == docstring.end_lineno - 1
-                else len(line.rstrip(b"\r\n"))
-            )
+            end = last_column if row == last_row - 1 else len(line.rstrip(b"\r\n"))
             encoded_lines[row] = line[:start] + b" " * (end - start) + line[end:]
     return b"".join(encoded_lines).decode("utf-8")
 

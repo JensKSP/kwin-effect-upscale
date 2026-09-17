@@ -75,6 +75,25 @@ repos:
         args: [--fix]
       - id: ruff-format
 
+  # ruff's flake8-annotations rules require an annotation on every argument and
+  # return; only a type checker says whether those annotations are true. Both
+  # halves are needed for typed Python, so mypy runs in strict mode: no
+  # implicit Any, no untyped call, no unchecked function body.
+  #
+  # A local hook rather than the mypy mirror, so the version is pinned in the
+  # same place as everything else here. It is handed the directory rather than
+  # the changed files, because checking one file of the tools in isolation
+  # cannot resolve the module its siblings import.
+  - repo: local
+    hooks:
+      - id: mypy
+        name: strict type checking
+        entry: mypy --strict --python-version=3.11 tools
+        language: python
+        additional_dependencies: [mypy==2.3.1]
+        files: ^tools/.*\.py$
+        pass_filenames: false
+
   - repo: https://github.com/codespell-project/codespell
     rev: v2.4.3
     hooks:

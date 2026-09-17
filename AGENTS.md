@@ -252,7 +252,10 @@ Laid down by Jens, 2026-09-17.
 - **Build and check in the containers under `containers/`**, not against
   whatever happens to be installed on the machine the agent runs on.
   `containers/trixie` is the minimum supported environment (KWin 6.3.6),
-  `containers/neon-unstable` tracks KWin master. CI uses the same two.
+  `containers/neon-unstable` tracks KWin master. CI builds Trixie on every push
+  and leaves KWin master to the nightly, because master is not this repository's
+  to keep green; an agent still has to build in both before calling a change
+  built.
 - A change counts as built once it builds in both containers, with GCC and with
   Clang, warnings as errors.
 - **Build natively when the effect has to run.** A container has no session, no

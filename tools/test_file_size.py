@@ -22,7 +22,7 @@ class FileSizeTest(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         self.root = Path(directory.name)
 
-    def check_source(self, name: str, content: str | bytes) -> subprocess.CompletedProcess:
+    def check_source(self, name: str, content: str | bytes) -> subprocess.CompletedProcess[str]:
         """Write one fixture and run the same entry point as pre-commit."""
         path = self.root / name
         path.write_bytes(content.encode() if isinstance(content, str) else content)

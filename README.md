@@ -281,7 +281,8 @@ The CMake linter also checks the plugin folder, with its formatting rules
 disabled to preserve KWin's style. Gersemi formats only the surrounding project.
 
 The tooling under `tools/` is Python, and it is the only language here besides
-C++ and CMake. `ruff` lints and formats it with every rule switched on.
+C++ and CMake. `ruff` lints and formats it with every rule switched on, and
+`mypy --strict` type checks it, so an annotation is both required and true.
 
 The file budget allows 400 code lines, with warnings above 300. Comments and
 blank lines are excluded; multiline strings such as embedded shaders count.
@@ -297,9 +298,10 @@ cmake -B build -S . -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 clang-tidy -p build src/plugins/upscale/*.cpp
 ```
 
-CI builds in the two container images defined under `containers/`: Debian
-Trixie as the minimum supported environment (KWin 6.3.6) and KDE neon unstable
-to track KWin master, each with GCC and with Clang and with warnings as errors.
+CI builds Debian Trixie, the minimum supported environment (KWin 6.3.6), with
+GCC and with Clang and with warnings as errors. The nightly additionally builds
+against KDE neon unstable, which tracks KWin master. Both environments are
+defined under `containers/` so the same build can be reproduced locally.
 
 ## Releasing
 

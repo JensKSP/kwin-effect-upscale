@@ -38,14 +38,14 @@ class BuildInfoTest(unittest.TestCase):
         ):
             self.environment.pop(name, None)
 
-    def run_command(self, *arguments: str, **options: object) -> str:
+    def run_command(self, *arguments: str, env: dict[str, str] | None = None) -> str:
         """Run a tool and surface its diagnostics on failure."""
         return subprocess.run(
             arguments,
             check=True,
             capture_output=True,
             text=True,
-            **options,
+            env=env,
         ).stdout.strip()
 
     def git(self, *arguments: str) -> str:
@@ -103,7 +103,8 @@ class BuildInfoTest(unittest.TestCase):
         )
         with tarfile.open(archive) as tar:
             stream = tar.extractfile("upscale/source-version")
-            self.assertIsNotNone(stream)
+            if stream is None:
+                self.fail("the archive does not carry the version metadata")
             version = stream.read()
         shutil.rmtree(self.source / ".git")
         (self.source / "source-version").write_bytes(version)
