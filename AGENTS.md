@@ -45,9 +45,13 @@ private repository.
   other projects, home-directory configuration or skill installations without
   an explicit instruction to do so. Keep working copies and check caches under
   the ignored `build/` directory. Do not use Superpowers workflows here.
-- **One document per slice, directly under `doc/`.** Write it before
-  implementation. It holds the scope, approach and acceptance criteria, then
-  the progress, findings, test results and TODOs as the work proceeds.
+- **`doc/upscaling.md` is the permanent developer handbook.** It holds the
+  human-readable requirements, specification and design rationale. Keep it
+  current as the implementation evolves; it is not a slice document and is
+  not deleted when a slice finishes.
+- **One separate document per major slice, directly under `doc/`.** Write it
+  before implementation. It holds the scope, approach and acceptance criteria,
+  then the progress, findings, test results and TODOs as the work proceeds.
 - Update that same document during implementation. Do not create additional
   plans, progress logs or evidence documents for the slice. Distinguish planned
   checks from results that were actually observed.
@@ -57,9 +61,11 @@ private repository.
 - **Delete the slice document when implementation and required testing are
   complete**, including real-device acceptance where required. Update or remove
   links to it at the same time. Do not delete it while required work or tests
-  remain open, and do not create a replacement permanent specification.
-- **The code is then the specification**, supported by its comments and tests.
-  The completed slice's development history remains in Git.
+  remain open. Before deletion, preserve lasting requirements and design
+  conclusions in the handbook and implementation explanations in source comments.
+- **The code, comments and tests specify the implemented behaviour.** The
+  handbook remains its human-readable requirements and specification, while
+  the completed slice's development history remains in Git.
 
 ## No AI attribution in commits
 

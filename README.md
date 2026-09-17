@@ -46,9 +46,10 @@ interface at full resolution.
 
 ## Technical details
 
-The current implementation slice, its progress, findings and remaining work
-are recorded in
-[doc/upscaling.md](doc/upscaling.md).
+The permanent [developer handbook](doc/upscaling.md) describes requirements,
+specification and design. The current implementation plan, progress, findings
+and remaining work are recorded separately in the
+[FSR 1 slice](doc/slice-fsr1-hdr-vrr.md).
 
 HDR and variable refresh rate (VRR) support are requirements for the effect,
 including their combined use while upscaling. They are part of the acceptance
@@ -250,11 +251,14 @@ We use Codex and Claude to help write code for this project. We aim to keep
 explain or verify. The standard is readable code that fits KWin's conventions,
 with human review and checks for correctness. Responsibility stays with us.
 
-For each slice, we keep one working document under `doc/`: the plan first,
-then progress, findings, test results and remaining tasks in the same file.
+For each major slice, we keep one separate working document under `doc/`:
+the plan first, then progress, findings, test results and remaining tasks in
+the same file.
 Durable explanations belong in source comments. Once implementation and
-required testing are complete, we remove the working document and its links;
-the code, comments and tests are then the specification.
+required testing are complete, we remove that slice's working document and its
+links. The developer handbook remains and is kept current with requirements
+and design conclusions. Code, comments and tests specify the implemented
+behaviour.
 
 Every check in this repository runs from one command:
 

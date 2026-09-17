@@ -3,14 +3,18 @@ SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de
 SPDX-License-Identifier: GPL-2.0-or-later
 -->
 
-# Slice: FSR 1 upscaling with HDR and VRR
+# Upscaling developer handbook
 
-Status: planned; the effect is still an inactive skeleton. This is the single
-working document for the slice, covering the plan, progress, findings, tests
-and remaining tasks. Update it during implementation. Once the slice is
-implemented and all required checks and hardware acceptance are complete,
-remove this document and its links. Keep lasting explanations in source
-comments; the code, comments and tests then specify the behaviour.
+This is the permanent developer handbook for the effect: requirements,
+specification, design rationale and KWin integration constraints. Keep it in
+sync with the implementation and distinguish intended behaviour from features
+that already work. The effect is currently an inactive skeleton.
+
+Each major implementation slice has its own temporary document for its plan,
+progress, findings, TODOs and test results. The current slice is
+[FSR 1 with HDR and VRR](slice-fsr1-hdr-vrr.md). Completing a slice removes only
+its working document; this handbook remains. Durable implementation details
+also belong in source comments and tests.
 
 Statements about KWin below were read in the source at
 `v6.3.6` (commit `b8de432`, the version Debian Trixie ships as `4:6.3.6-1`) and
@@ -111,13 +115,13 @@ A configured VRR option or a successful test with the effect disabled does
 not establish this. Display-link limitations are recorded separately and
 leave the corresponding hardware test pending.
 
-## Initial scope
+## Selected initial approach
 
 The first implementation will use **FSR 1: EASU with optional RCAS**, starting
 with 1080p and 1440p fullscreen content on a 4K output, supporting SDR, HDR
 and VRR. This choice provides a documented reference and a comparable
-gamescope path; it is not a measured
-quality or performance ranking of the candidates.
+gamescope path; it is not a measured quality or performance ranking of the
+candidates.
 
 The initial path targets opaque RGB surfaces with known colour descriptions,
 their full buffer visible, an unrotated output, matching aspect
@@ -152,23 +156,6 @@ upscaling support.
   (`src/wayland/surface.cpp`, `viewport.sourceGeometry`, `destinationSize`)
   must not be scaled twice.
 
-## Open questions
-
-1. Can an effect in 6.3.6 reach the surface texture at **buffer size**, or does
-   the offscreen path always deliver it at target size?
-2. How does blocking direct scanout interact with tearing, HDR and adaptive
-   sync? Blocking it unconditionally would cost more than the scaling gains.
-3. Xwayland games — the Proton default — on 6.3.6, which lacks master's RandR
-   resolution emulation (`_XWAYLAND_RANDR_EMU_MONITOR_RECTS`,
-   `src/x11window.cpp:3469-3474`): does a 1080p fullscreen window arrive as a
-   small buffer with a 4K target size?
-4. Does KWin reject a plugin built against a different effect API version
-   cleanly? 6.3.6 declares version `0.236` (`src/effect/effect.h:101-104`); the
-   place where it is checked at load time has not been found yet.
-
-Question 1 decides whether the effect is possible at all in the supported
-version. Question 4 decides how packaging has to deal with KWin updates.
-
 ## Versions
 
 | | Version | Role |
@@ -182,113 +169,135 @@ compatibility layer rather than in the effect's logic.
 
 ## Configuration
 
-Planned, none of it implemented yet: enabling the effect, choosing the scaler,
-and a sharpening strength for the scalers that have one. It follows KWin's own
-pattern — `upscaleconfig.kcfg` plus a configuration page registered as
-`X-KDE-ConfigModule` — so that it appears in System Settings like any other
-effect.
+Planned, none of it implemented yet. Configuration follows KWin's own pattern:
+`upscaleconfig.kcfg` and a page registered as `X-KDE-ConfigModule` in System
+Settings. The initial slice includes these controls and status information:
 
-For this slice, only the effect switch and independently switchable RCAS with
-documented strength are needed. Selecting among several scalers comes later.
-
-## Implementation plan
-
-1. Establish access to the original buffer, its source rectangle and colour
-   description in KWin 6.3.6. Use a known pixel pattern to detect accidental
-   sampling of an already enlarged image. Check the shader capabilities.
-2. Establish the HDR colour path and VRR behaviour during active composition
-   before committing to the integration. HDR and VRR are requirements of this
-   slice, including their simultaneous use.
-3. Confirm that a real Proton/Xwayland game supplies a smaller buffer with a
-   4K destination. Keep the session on Wayland. Record an unavailable path as
-   a blocker instead of introducing resolution spoofing.
-4. Implement EASU through KWin's OpenGL abstractions, initially using FP32
-   fragment shader arithmetic. Reuse intermediate textures and avoid CPU
-   readback. A controlled SDR path is an intermediate step; complete the HDR
-   conversions and choose intermediate formats with sufficient range and
-   precision within this slice.
-5. Add optional RCAS. Off must bypass sharpening, since AMD's numeric zero
-   means maximum sharpening. Keep separate overlays and the cursor out of the
-   game scaler. Document colour assumptions and conversion boundaries beside
-   the shader code.
-6. Handle resizing, output changes, deactivation and resource failures.
-   Release redirection and any additional direct-scanout restriction when the
-   effect becomes inactive. Preserve KWin's event-driven presentation and VRR;
-   do not add a frame timer or continuous repaint loop.
-7. Complete the checks and acceptance below. Put lasting invariants and
-   explanations in source comments, then remove this document and its links.
-
-FP16 arithmetic, compute shaders, pass fusion and caching scaled results are
-later optimisations driven by measurements. The initial geometry is one
-eligible fullscreen window on one output, with the full buffer visible and
-no buffer transform. Multiple simultaneous candidates fall back to KWin.
-Use physical pixel sizes and capability checks, not fixed resolutions or GPU
-vendor checks.
-
-## Findings
-
-- The implementation in `src/plugins/upscale/` currently reports itself
-  inactive and does not scale anything. Shader integration and runtime
-  acceptance remain open.
-- Gamescope's reviewed FSR path scales the base layer with EASU and combines
-  RCAS with final composition. Separately composited overlays follow the base
-  layer; an in-game HUD is already part of the input buffer.
-- Gamescope's reviewed SGSR path uses a modified filter followed by RCAS. It
-  cannot be treated as Qualcomm's single-pass reference when comparing costs.
-- In the reviewed gamescope code, `update_tmp_images()` allocates an 8-bit
-  intermediate image, and the NIS wrapper leaves its HDR modes at their SDR
-  defaults. These are not a ready-made HDR integration for KWin.
-- FSR's input range and transfer-function assumptions require an explicit HDR
-  conversion design. Raw scRGB must not simply be clamped into an SDR buffer.
-  Using FP32 shader arithmetic does not by itself solve intermediate-format
-  precision or colour management.
-- FSR documents a useful range up to four times the input pixel count. The
-  1080p/1440p to 4K cases fit that range; 720p to 4K is outside this slice.
-- NIS has explicit linear-HDR and PQ modes and remains an alternative if the
-  FSR integration cannot meet the required HDR behaviour. HDR and VRR remain
-  requirements if the scaler choice changes.
-
-These are source-review findings, not measured quality, timing or power
-results for this effect. The reviewed gamescope commit is linked above;
-[AMD's reference](https://github.com/GPUOpen-Effects/FidelityFX-FSR) and
-[NVIDIA's reference](https://github.com/NVIDIAGameWorks/NVIDIAImageScaling)
-document the algorithm inputs. Other sources remain listed in the README.
-
-## Progress and remaining work
-
-- [x] Select FSR 1 with optional RCAS as the initial implementation approach.
-- [x] Make HDR and VRR mandatory, including combined use while scaling.
-- [x] Review gamescope and alternative spatial filters; record findings and
-  references.
-- [x] Consolidate this slice's plan and ongoing record in this document.
-- [ ] Resolve the KWin integration questions above, including HDR and VRR.
-- [ ] Implement and comment the buffer path, EASU and optional RCAS.
-- [ ] Implement HDR colour handling and preserve adaptive presentation.
-- [ ] Test lifecycle changes, fallback behaviour and inactive operation.
-- [ ] Complete container checks, native measurements and TV acceptance.
-- [ ] Remove this document and update its links after completion.
-
-## Validation and acceptance
-
-Record each actual run here with its environment, result and any remaining
-limitation. The following are required checks, not claims of success:
-
-| Area | Required evidence |
+| Control | Behaviour |
 | --- | --- |
-| Repository checks | `pre-commit run --all-files` in the container; inspect the output. |
-| Builds | Trixie and neon unstable, GCC and Clang, warnings as errors; GLSL and GLSL ES shader validation. |
-| Runtime | Tests against KWin's virtual backend in the container; actual original-buffer sizes and pixel mapping. |
-| Real game | Native build on the TV, with a smaller game buffer and 4K destination; 1080p and 1440p patterns, plus the resolutions offered by the game. |
-| Image quality | Compare KWin scaling, EASU, and EASU plus RCAS on identical input; inspect text, HUD, fine edges and camera movement with Jens. |
-| HDR | SDR to SDR, SDR to HDR, PQ and scRGB to HDR, and transitions; gradients, highlights, wide-gamut colours and negative scRGB values without accidental clipping or duplicate colour conversion. |
-| VRR | Verify adaptive presentation with active scaling and blocked direct scanout, both in SDR and HDR, across changing frame rates within the actual output range. An enabled setting alone is insufficient. |
-| Cost | Measure total GPU rendering time, frame times and power at comparable frame rates, including the loss of direct scanout. Fixed 60 Hz is one baseline; test 120 Hz where the output path supports it. |
-| Lifecycle | Native resolution, windowed mode, unsupported geometry, resource failure, output changes and deactivation preserve normal rendering, cursor and overlays; no stale textures or persistent scanout restriction. |
+| Enable upscaling | Enable processing of eligible fullscreen windows; disabling restores normal KWin rendering. |
+| Scaler | Show FSR 1 for the initial implementation. Offer a selector when several scalers are implemented and supported. |
+| Preferred game resolution | Automatic (use the supplied buffer), or a percentage slider with a numeric percentage and live width by height in physical pixels. |
+| Resolution preset | Native, Ultra Quality, Quality, Balanced, Performance, or Custom; changing the slider selects Custom. |
+| Sharpening | RCAS switch, initially off, and a 0–100% strength slider. Zero bypasses sharpening; increasing the value increases strength. The UI must not expose AMD's reversed parameter directly. |
+| Status | Desired input, actual supplied input, destination resolution, active scaler, and a reason when upscaling is inactive. Show HDR and VRR information only to the extent actually known. |
 
-A driver or display-link limitation leaves the corresponding hardware test
-open. It does not remove HDR or VRR from the scope. Falling back for every
-HDR input is not HDR upscaling support, and virtual tests do not replace
-real-display acceptance.
+HDR and VRR follow KWin's display settings. They are mandatory supported paths,
+not optional quality presets. An enabled VRR setting must not be labelled as
+proof of currently variable presentation.
 
-No scaler implementation has yet been built, timed or accepted on the TV.
-Documentation checks do not constitute completion of the slice.
+### Percentage and pixel resolution
+
+The slider expresses the desired input size as a percentage of the covered
+output's physical pixel width and height, independently of Plasma's desktop
+scale. It ranges from 50% to 100% for the initial FSR path, with one-percentage-
+point steps for custom values and keyboard operation. Both dimensions use the
+same factor; there are no independent width and height sliders. Show the
+rounded integer pixel dimensions beside the percentage before applying it.
+At 50%, each dimension is halved: the pixel count is one quarter, not one half.
+
+Presets retain the exact scale ratio rather than deriving dimensions from the
+rounded percentage label. The familiar FSR names and ratios follow
+[AMD's FSR 1 quality modes](https://gpuopen.com/fidelityfx-superresolution/#amd-fidelityfx-super-resolution-quality-modes).
+They select a desired input size, not different EASU shader implementations:
+
+| Preset | Input size per dimension | Example input for 3840 × 2160 output |
+| --- | --- | --- |
+| Native | 100% | 3840 × 2160 |
+| Ultra Quality | 1 / 1.3, approximately 76.9% | 2954 × 1662 |
+| Quality | 1 / 1.5, approximately 66.7% | 2560 × 1440 |
+| Balanced | 1 / 1.7, approximately 58.8% | 2259 × 1271 |
+| Performance | 1 / 2, 50% | 1920 × 1080 |
+| Custom | User-selected percentage; for example 75% | 2880 × 1620 at 75% |
+
+These examples round each dimension to the nearest integer, with halves
+rounded up. Allow the resulting subpixel aspect-ratio rounding discrepancy
+when checking geometry; larger mismatches remain unsupported. A client's
+supported modes or scale granularity may differ. Display any negotiated size
+as such, separately from the calculated wish and the actual committed buffer.
+The example dimensions are calculated targets, not guaranteed game modes.
+
+Automatic is the default and makes no resolution request. Selecting Native
+requests or recommends native input; processing still follows the actual
+buffer until the client changes it. At actual native resolution the initial
+effect bypasses both EASU and RCAS. Turning the effect off is a separate action.
+On an output change, recompute the desired pixels from the stored percentage
+or preset; never change the monitor mode or desktop scale to satisfy the wish.
+
+### What a resolution wish can control
+
+The preferred resolution is a best-effort target. Whenever a supported control
+path is available, attempt to reach it. The actual committed buffer always
+determines scaler input and eligibility. A game with a fixed resolution is
+scaled from that resolution if it is otherwise eligible, even when it differs
+from the wish. A mismatch alone must not disable upscaling. Geometry outside
+the supported range still uses KWin's normal rendering.
+
+The effect receives a finished image. A game's internal 3D render resolution
+can differ from the submitted buffer size, for example when an in-game
+upscaler already produces a native-size image. Label the observed value as
+**supplied input resolution**, not as a measurement of internal rendering.
+Shrinking a completed native-size image and enlarging it again cannot save
+the game's rendering work and must not implement this slider.
+
+| Route | What is possible | Project decision |
+| --- | --- | --- |
+| Game's own settings | The game selects a smaller output buffer or its own internal render scale. An internal scale alone need not produce a smaller submitted buffer. | Always offer the calculated desired pixel size as guidance; verify what buffer actually arrives. |
+| Cooperative native Wayland client | A compositor can suggest a preferred surface scale. The client must support and act on that hint. | Investigate for this slice; enable requests only after the supported KWin integration and client behaviour are verified. |
+| Proton/Xwayland game | Resolution selection and delivery depend on the game and Xwayland integration. The Wayland hint is not a generic control for Windows game render settings. | Verify separately on a real game; otherwise show that the resolution must be selected in the game. |
+| Virtual output or nested compositor | A separate environment can advertise chosen screen modes, as gamescope does. | Outside the current design, which does not spoof output modes or run another compositor. |
+
+The [Wayland fractional-scale protocol](https://gitlab.freedesktop.org/wayland/wayland-protocols/-/blob/main/staging/fractional-scale/fractional-scale-v1.xml)
+defines a preferred scale relative to surface-local dimensions, in units of
+1/120. It is a suggestion, not an acknowledgement of a changed buffer or an
+API for the game's internal render resolution.
+[KWin 6.3.6's SurfaceInterface](https://invent.kde.org/plasma/kwin/-/blob/v6.3.6/src/wayland/surface.h)
+exposes `setPreferredBufferScale()`. That is an integration lead, not evidence
+that an effect can safely override KWin's scale policy. Any implementation must
+account for logical versus physical sizes, protocol quantisation, output
+changes and restoration of KWin's normal scale preference.
+[Gamescope's README](https://github.com/ValveSoftware/gamescope#gamescope-the-micro-compositor-formerly-known-as-steamcompmgr)
+describes its separate virtual-screen approach.
+
+The desired percentage remains usable as a clearly labelled recommendation
+when no verified request mechanism is available. Explain briefly: "Select
+2560 × 1440 in the game", for example. If a supported request is sent, show it
+as pending until a committed buffer confirms the result. Never label a saved
+preference as applied merely because the configuration was accepted. If the
+client ignores or adjusts it, show the actual dimensions and continue scaling
+eligible buffers at their actual size. Do not repeatedly resend an ignored
+request or repaint continuously while waiting. Apply a request on slider
+release or explicit Apply, rather than at every drag position.
+
+## Rendering and lifecycle requirements
+
+EASU replaces the enlargement step and must receive the original buffer, not
+an image already scaled to the destination. The initial geometry permits one
+eligible fullscreen window on one output, with the full buffer visible and
+no buffer transform. Multiple simultaneous candidates use normal KWin
+rendering. Eligibility uses physical pixel sizes and capabilities rather than
+fixed resolutions or GPU vendor checks.
+
+RCAS is initially off and must have a real bypass: AMD's numeric zero means
+maximum sharpening. Separately composited overlays and the cursor retain
+KWin's normal rendering; an in-game HUD is already part of the game buffer.
+Intermediate textures are reused without CPU readback. FP32 arithmetic alone
+does not establish HDR correctness; formats and colour conversions must
+preserve range and precision as well.
+
+Resizing, output changes, deactivation and resource failures must preserve
+normal rendering without stale textures. Release redirection and additional
+direct-scanout restrictions when the effect becomes inactive. KWin owns
+presentation timing; no frame timer or continuous repaint loop is introduced.
+
+## Validation requirements
+
+Validate original-buffer pixel mapping and lifecycle behaviour against KWin's
+virtual backend, and image quality, HDR and VRR on the real output with a real
+game. Compare ordinary KWin scaling, EASU, and EASU with RCAS using identical
+input. Measure the whole rendering path, including the cost of losing direct
+scanout, rather than timing the shader alone.
+
+Record actual results and outstanding checks in the corresponding slice
+document. An SDR prototype, a documentation check or a configured VRR setting
+does not establish completion of the required HDR and VRR support.
