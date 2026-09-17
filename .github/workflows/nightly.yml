@@ -1,0 +1,91 @@
+# SPDX-FileCopyrightText: None
+# SPDX-License-Identifier: CC0-1.0
+
+# One rolling pre-release called "nightly", rebuilt from master each night and
+# only when master actually moved. Its version names the commit it came from, so
+# a downloaded package can always be traced back to a commit.
+
+name: Nightly
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Work out whether to build
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      build: ${{ steps.check.outputs.build }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: check
+        run: |
+          # The same shape the build compiles into the plugin, from the same two
+          # git facts: see cmake/GenerateBuildInfo.cmake.
+          base=$(grep -oP 'project\(kwin-effect-upscale VERSION \K[0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt)
+          date=$(git show -s --format=%cs HEAD | tr -d -)
+          hash=$(git rev-parse --short=10 HEAD)
+          echo "version=${base}+git${date}.${hash}" >> "$GITHUB_OUTPUT"
+
+          # A nightly that is identical to yesterday's is noise. A manual run
+          # builds anyway, because that is what asking for it means.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          elif [ "$(git rev-parse HEAD)" != "$(git rev-parse --verify "refs/tags/nightly^{commit}" 2>/dev/null || true)" ]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "master has not moved since the last nightly" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  package:
+    name: Build
+    needs: version
+    if: needs.version.outputs.build == 'true'
+    uses: ./.github/workflows/package.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+      channel: nightly
+
+  publish:
+    name: Publish the nightly
+    needs: [version, package]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      # The nightly tag moves, so the old release and the old tag go first.
+      # Deleting a release nobody has downloaded is cheaper than a hundred tags.
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -l artifacts
+          gh release delete nightly --cleanup-tag --yes || true
+          gh release create nightly artifacts/* \
+            --title "Nightly ${{ needs.version.outputs.version }}" \
+            --notes "Built from \`${GITHUB_SHA}\` on $(date -u +%Y-%m-%dT%H:%M:%SZ).
+
+          These packages are built from the tip of master and are not a release.
+          The version compiled into the plugin is \`${{ needs.version.outputs.version }}\`;
+          it is printed to the journal when KWin loads the effect." \
+            --prerelease \
+            --target "$GITHUB_SHA"

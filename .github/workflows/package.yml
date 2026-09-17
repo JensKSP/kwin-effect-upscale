@@ -1,0 +1,135 @@
+# SPDX-FileCopyrightText: None
+# SPDX-License-Identifier: CC0-1.0
+
+# Builds what a release and a nightly both ship: a Debian package per
+# distribution and architecture, and one source tarball. Both callers use this
+# file, so a release and a nightly are the same build with a different version.
+
+name: Package
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Debian version the packages carry, for example 0.1.0
+        required: true
+        type: string
+      channel:
+        description: release or nightly
+        required: true
+        type: string
+
+jobs:
+  deb:
+    name: ${{ matrix.distribution }} ${{ matrix.architecture }}
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Debian Trixie is the target platform and the minimum supported
+          # environment: KWin 6.3.6, Qt 6.8.
+          - distribution: trixie
+            image: docker.io/library/debian:trixie
+            architecture: amd64
+            runner: ubuntu-latest
+          - distribution: trixie
+            image: docker.io/library/debian:trixie
+            architecture: arm64
+            runner: ubuntu-24.04-arm
+          # Kubuntu 25.10 carries KWin 6.4.5 and Qt 6.9, so the same source is
+          # built against a newer KWin than the minimum.
+          - distribution: questing
+            image: docker.io/library/ubuntu:25.10
+            architecture: amd64
+            runner: ubuntu-latest
+          - distribution: questing
+            image: docker.io/library/ubuntu:25.10
+            architecture: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Install the packaging tools
+        run: |
+          apt-get update
+          apt-get install --no-install-recommends -y \
+            build-essential ca-certificates devscripts equivs git lintian
+
+      - uses: actions/checkout@v4
+
+      # The build dependencies are read out of debian/control rather than
+      # repeated here. Two lists is how a build breaks on one distribution and
+      # not the other: Debian's kwin-dev pulls libdrm-dev in, Ubuntu's does not.
+      - name: Install build dependencies
+        run: |
+          mk-build-deps --install --remove \
+            --tool "apt-get --no-install-recommends -y" debian/control
+
+      - name: Trust the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      # The version the package carries is the one compiled into the plugin,
+      # passed in rather than worked out a second time, with the distribution
+      # appended: a package built against Trixie's KWin is not the same package
+      # as one built against Kubuntu's, and the two must not share a file name.
+      - name: Set the package version
+        env:
+          DEBEMAIL: kwin-effect-upscale@koehler-speyer.de
+          DEBFULLNAME: Jens Koehler
+        run: |
+          version="${{ inputs.version }}~${{ matrix.distribution }}"
+          if [ "$(dpkg-parsechangelog -S Version)" != "$version" ]; then
+            dch --newversion "$version" --distribution unstable \
+                --force-bad-version --no-auto-nmu \
+                "Automated ${{ inputs.channel }} build of ${GITHUB_SHA}."
+          fi
+          dpkg-parsechangelog
+
+      - name: Build the package
+        run: dpkg-buildpackage -b -us -uc
+
+      # A package that installs into the wrong place or ships an unstripped
+      # binary is a broken package even when it builds.
+      - name: lintian
+        run: lintian --fail-on error,warning ../*.deb
+
+      - name: Collect the packages
+        run: |
+          mkdir -p artifacts
+          cp ../*.deb artifacts/
+          ls -l artifacts
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb-${{ matrix.distribution }}-${{ matrix.architecture }}
+          path: artifacts/*.deb
+          if-no-files-found: error
+
+  tarball:
+    name: Source tarball
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # git archive rather than a copy of the working tree: what ships is what
+      # is committed, with no build directory and no local leftovers in it.
+      - name: Create the tarball
+        env:
+          SOURCE_VERSION: ${{ inputs.version }}
+        run: |
+          name="kwin-effect-upscale-$SOURCE_VERSION"
+          mkdir -p build
+          printf '# SPDX-FileCopyrightText: None\n# SPDX-License-Identifier: CC0-1.0\n%s\n' \
+            "$SOURCE_VERSION" > build/source-version
+          git archive --format=tar.gz --prefix="$name/" \
+            --add-file=build/source-version -o "$name.tar.gz" HEAD
+          sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
+          ls -l "$name.tar.gz"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-tarball
+          path: |
+            *.tar.gz
+            *.tar.gz.sha256
+          if-no-files-found: error
