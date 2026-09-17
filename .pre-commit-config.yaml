@@ -86,29 +86,6 @@ repos:
     hooks:
       - id: markdownlint-cli2
 
-  - repo: https://github.com/scop/pre-commit-shfmt
-    rev: v3.14.1-1
-    hooks:
-      - id: shfmt
-        args: [--indent=4, --case-indent, --write]
-
-  - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: v0.11.0.1
-    hooks:
-      - id: shellcheck
-        # shellcheck keeps a set of checks off by default: quoting that only
-        # bites on a path with a space, variables that look set but are not,
-        # `which` instead of `command -v`. Those are exactly the ones a checker
-        # should make, so all of them are on and new ones will be too.
-        #
-        # Two are turned back off. SC2250 wants braces around every variable,
-        # which is a house style no KDE script follows. SC2312 wants the exit
-        # code of every command substitution checked, which under `set -e` means
-        # rewriting every readable line into three.
-        # Quoted, because a comma inside an unquoted YAML flow sequence would
-        # split this into two arguments and silently drop the second exclusion.
-        args: [--enable=all, --severity=style, "--exclude=SC2250,SC2312"]
-
   # The workflows are what publishes packages; a typo in one of them is found
   # here rather than by a release that does not happen.
   - repo: https://github.com/rhysd/actionlint
@@ -129,7 +106,7 @@ repos:
       # What is being committed, which is all a commit can introduce.
       - id: no-ai-artifacts
         name: no agent leftovers in what is being committed
-        entry: tools/check-no-ai-artifacts.sh
+        entry: tools/check-no-ai-artifacts.py
         language: script
         pass_filenames: false
         always_run: true
@@ -138,7 +115,7 @@ repos:
       # can be skipped with --no-verify and this rule is not negotiable.
       - id: no-ai-artifacts-all
         name: no agent leftovers anywhere in the tree
-        entry: tools/check-no-ai-artifacts.sh --all
+        entry: tools/check-no-ai-artifacts.py --all
         language: script
         pass_filenames: false
         always_run: true

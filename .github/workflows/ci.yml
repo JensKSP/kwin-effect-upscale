@@ -20,10 +20,10 @@ jobs:
       - name: No AI attribution in commit messages
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            tools/check-commit-trailers.sh "${{ github.event.pull_request.base.sha }}..${{ github.sha }}"
+            tools/check-commit-trailers.py "${{ github.event.pull_request.base.sha }}..${{ github.sha }}"
           else
-            tools/check-commit-trailers.sh "${{ github.event.before }}..${{ github.sha }}" || \
-            tools/check-commit-trailers.sh HEAD
+            tools/check-commit-trailers.py "${{ github.event.before }}..${{ github.sha }}" || \
+            tools/check-commit-trailers.py HEAD
           fi
 
   lint:
@@ -116,4 +116,4 @@ jobs:
         run: |
           PIPX_BIN_DIR=/usr/local/bin pipx install check-jsonschema
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          tools/check-plugin-metadata.sh
+          tools/check-plugin-metadata.py

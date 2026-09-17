@@ -28,12 +28,16 @@ notice-rgx = "(?i)SPDX-FileCopyrightText:"
 
 [lint.per-file-ignores]
 # A checker prints what it found and exits; that is not a library API.
-"tools/*.py" = ["INP001"]
+#
+# These tools drive Git, CMake and the schema validator. Every argument list is
+# written here as a literal, never taken from user input, and the tools are
+# looked up on PATH on purpose: the container, the CI runner and a developer's
+# machine each have their own. That is what S603 and S607 warn about, and
+# hard-coding an absolute path to Git instead would be worse.
+"tools/*.py" = ["INP001", "S603", "S607"]
 # The test hook runs `unittest discover`, so unittest is the style on purpose,
-# and a test asserting its own preconditions is not a security finding. The
-# regression tests also invoke the checker, CMake and Git in temporary
-# directories; those argument lists are built here, never from user input.
-"tools/test_*.py" = ["INP001", "PT009", "PT027", "S101", "S603"]
+# and a test asserting its own preconditions is not a security finding.
+"tools/test_*.py" = ["PT009", "PT027", "S101"]
 
 [format]
 docstring-code-format = true

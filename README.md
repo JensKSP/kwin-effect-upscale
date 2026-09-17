@@ -274,11 +274,14 @@ build with GCC and with Clang, clang-tidy and the plugin metadata schema, and
 leaves the packages and the build against KWin master to the nightly.
 
 That covers KDE's coding style via `clang-format` and KWin's own
-`.clang-format`, CMake formatting and static checks, Python, shell and Markdown
-linting, spelling in documentation and comments, REUSE compliance and a limit on how large a
+`.clang-format`, CMake formatting and static checks, Markdown linting, spelling
+in documentation and comments, REUSE compliance and a limit on how large a
 source file may grow. CI runs the same command, because a hook can be skipped.
 The CMake linter also checks the plugin folder, with its formatting rules
 disabled to preserve KWin's style. Gersemi formats only the surrounding project.
+
+The tooling under `tools/` is Python, and it is the only language here besides
+C++ and CMake. `ruff` lints and formats it with every rule switched on.
 
 The file budget allows 400 code lines, with warnings above 300. Comments and
 blank lines are excluded; multiline strings such as embedded shaders count.
