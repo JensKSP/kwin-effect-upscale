@@ -7,20 +7,11 @@
 FROM docker.io/library/debian:trixie
 
 ENV DEBIAN_FRONTEND=noninteractive
+COPY debian/control /tmp/upscale-debian-control
 
 RUN apt-get update && apt-get install --no-install-recommends -y \
         build-essential \
         ca-certificates \
-        cmake \
-        extra-cmake-modules \
-        kwin-dev \
-        libkf6config-dev \
-        libkf6configwidgets-dev \
-        libkf6coreaddons-dev \
-        libkf6i18n-dev \
-        libkf6kcmutils-dev \
-        qt6-base-dev \
-        libepoxy-dev \
         clang \
         clang-format \
         clang-tidy \
@@ -32,12 +23,18 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
         reuse \
         lintian \
         devscripts \
+        equivs \
         debhelper \
         pipx \
+    && cd /tmp \
+    && mk-build-deps --install --remove \
+        --tool "apt-get --no-install-recommends -y" upscale-debian-control \
     && rm -rf /var/lib/apt/lists/*
 
-# check-jsonschema is not packaged in Trixie; ECM's JSON_SCHEMA commit hook
-# check needs the CLI, so it comes from PyPI.
-RUN PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install check-jsonschema
+# pre-commit drives every check in this repository and is not packaged in
+# Trixie. check-jsonschema validates the KPluginMetaData file; it is a hook
+# dependency rather than a package.
+RUN PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install pre-commit \
+    && PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install check-jsonschema
 
 WORKDIR /src

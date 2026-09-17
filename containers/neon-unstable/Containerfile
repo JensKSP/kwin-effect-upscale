@@ -8,20 +8,18 @@ FROM invent-registry.kde.org/neon/docker-images/plasma:unstable
 
 USER root
 ENV DEBIAN_FRONTEND=noninteractive
+COPY debian/control /tmp/upscale-debian-control
 
 RUN apt-get update && apt-get install --no-install-recommends -y \
         build-essential \
         ca-certificates \
-        cmake \
-        extra-cmake-modules \
-        kwin-dev \
-        libkf6config-dev \
-        libkf6coreaddons-dev \
-        libkf6i18n-dev \
-        qt6-base-dev \
-        gettext \
+        devscripts \
+        equivs \
         clang \
         git \
+    && cd /tmp \
+    && mk-build-deps --install --remove \
+        --tool "apt-get --no-install-recommends -y" upscale-debian-control \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src

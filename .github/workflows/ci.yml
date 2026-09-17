@@ -10,15 +10,13 @@ on:
   workflow_dispatch:
 
 jobs:
-  hygiene:
-    name: Repository rules
+  commits:
+    name: Commit messages
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: No agent leftovers in the tree
-        run: tools/check-no-ai-artifacts.sh --all
       - name: No AI attribution in commit messages
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
@@ -27,24 +25,25 @@ jobs:
             tools/check-commit-trailers.sh "${{ github.event.before }}..${{ github.sha }}" || \
             tools/check-commit-trailers.sh HEAD
           fi
-      - name: REUSE compliance
-        uses: fsfe/reuse-action@v5
 
-  format:
-    name: KDE coding style
+  lint:
+    name: Linters, format and spelling
     runs-on: ubuntu-latest
-    container: docker.io/library/debian:trixie
     steps:
-      - name: Install clang-format
-        run: |
-          apt-get update
-          apt-get install --no-install-recommends -y ca-certificates clang-format git
       - uses: actions/checkout@v4
-      - name: clang-format
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      # The same command an agent runs locally. Every check lives in
+      # .pre-commit-config.yaml and nowhere else, so the two cannot drift.
+      - name: pre-commit
         run: |
-          command -v clang-format
-          find src \( -name '*.cpp' -o -name '*.h' \) -print0 \
-            | xargs -0 --no-run-if-empty clang-format --dry-run -Werror
+          pip install pre-commit
+          pre-commit run --all-files --show-diff-on-failure --color=always
+      # The regression tests are a pre-push hook, and `pre-commit run` only runs
+      # the hooks of one stage. Without this they would never run in CI.
+      - name: Regression tests
+        run: pre-commit run --all-files --hook-stage pre-push --color=always
 
   build-trixie:
     name: Trixie (${{ matrix.compiler }})
@@ -55,15 +54,19 @@ jobs:
       matrix:
         compiler: [g++, clang++]
     steps:
-      - name: Install build dependencies
+      - name: Install the packaging tools
         run: |
           apt-get update
           apt-get install --no-install-recommends -y \
-            ca-certificates build-essential cmake extra-cmake-modules kwin-dev \
-            libkf6config-dev libkf6configwidgets-dev libkf6coreaddons-dev \
-            libkf6i18n-dev libkf6kcmutils-dev qt6-base-dev libepoxy-dev \
-            clang clang-format clang-tidy clazy libclang-rt-19-dev git python3 pipx
+            ca-certificates build-essential devscripts equivs git \
+            clang clang-tidy clazy libclang-rt-19-dev
       - uses: actions/checkout@v4
+      # Build dependencies come from debian/control, so this job cannot drift
+      # away from what the packages are built with.
+      - name: Install build dependencies
+        run: |
+          mk-build-deps --install --remove \
+            --tool "apt-get --no-install-recommends -y" debian/control
       - name: Configure
         run: |
           cmake -B build -S . \
@@ -75,25 +78,71 @@ jobs:
       - name: Install into a staging prefix
         run: DESTDIR=$PWD/stage cmake --install build
 
+  tidy:
+    name: clang-tidy
+    runs-on: ubuntu-latest
+    container: docker.io/library/debian:trixie
+    steps:
+      - name: Install the packaging tools
+        run: |
+          apt-get update
+          apt-get install --no-install-recommends -y \
+            ca-certificates build-essential devscripts equivs git clang clang-tidy pipx
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          mk-build-deps --install --remove \
+            --tool "apt-get --no-install-recommends -y" debian/control
+      # clang-tidy reads compile_commands.json, so the tree has to be configured
+      # first. Clang is used for it because clang-tidy shares its headers.
+      - name: Configure
+        run: |
+          cmake -B build -S . \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - name: Build generated sources
+        run: cmake --build build --parallel
+      - name: clang-tidy
+        run: |
+          clang-tidy --version
+          find src -name '*.cpp' -print0 \
+            | xargs -0 --no-run-if-empty clang-tidy -p build --quiet
+
+      # What ECM's JSON_SCHEMA commit hook checks. It runs here rather than in
+      # the linting job because the schema comes from KDE Frameworks, which only
+      # the jobs that build have installed.
+      - name: Validate the plugin metadata
+        run: |
+          PIPX_BIN_DIR=/usr/local/bin pipx install check-jsonschema
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          tools/check-plugin-metadata.sh
+
   build-neon:
-    name: KDE neon unstable (KWin master)
+    name: KDE neon unstable (${{ matrix.compiler }})
     runs-on: ubuntu-latest
     container:
       image: invent-registry.kde.org/neon/docker-images/plasma:unstable
       options: --user root
-    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [g++, clang++]
     steps:
-      - name: Install build dependencies
+      - name: Install the packaging tools
         run: |
           apt-get update
           apt-get install --no-install-recommends -y \
-            ca-certificates build-essential cmake extra-cmake-modules kwin-dev \
-            libkf6config-dev libkf6coreaddons-dev libkf6i18n-dev \
-            qt6-base-dev gettext git
+            ca-certificates build-essential devscripts equivs clang git
       - uses: actions/checkout@v4
       - name: Trust the checkout
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Install build dependencies
+        run: |
+          mk-build-deps --install --remove \
+            --tool "apt-get --no-install-recommends -y" debian/control
       - name: Configure and build
         run: |
-          cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_COMPILER=${{ matrix.compiler }} -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
           cmake --build build --parallel
