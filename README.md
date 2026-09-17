@@ -15,6 +15,10 @@ being a compositor of its own and handing the game a virtual screen. This effect
 takes the other route: the game picks its resolution and reports it honestly,
 and KWin decides only *how* the image is enlarged.
 
+What it does, what it deliberately leaves alone, which scalers can be used and
+what is still unanswered about KWin is written down in
+[doc/upscaling.md](doc/upscaling.md).
+
 This is not an official KDE project.
 
 ## State
@@ -44,6 +48,7 @@ the repository rules. CI runs the same checks, because a hook can be skipped.
     cmake/                   stand-ins for KWin's in-tree build macros
     containers/              build environments: Trixie minimum, KDE neon unstable
     tools/                   checks that run in the pre-commit hook and in CI
+    doc/                     what the effect does and why
 
 `src/plugins/upscale/` is meant to be copyable into KWin's own `src/plugins/`
 unchanged. Everything that is specific to building this outside KWin lives
