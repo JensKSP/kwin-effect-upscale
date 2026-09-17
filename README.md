@@ -105,10 +105,16 @@ built against the KWin it is loaded into.
   <https://github.com/JensKSP/kwin-effect-upscale/releases/tag/nightly>
 
 ```bash
-sudo apt install ./kwin-effect-upscale_<version>~<distribution>_<architecture>.deb
+sudo apt install ./kwin-effect-upscale_<version>.<distribution>_<architecture>.deb
 ```
 
-Every release also carries the source tarball and its SHA-256 checksum.
+Every release also carries the source tarball with its SHA-256 checksum, and a
+debug symbol package next to each binary one.
+
+The package version separates the distribution with a tilde, as Debian does, but
+a release asset cannot carry one: GitHub rewrites it to a dot when the file is
+uploaded. `0.1.0+git20260917.3d2d99e6a0.trixie_amd64.deb` therefore installs as
+version `0.1.0+git20260917.3d2d99e6a0~trixie`.
 
 ### Which build am I running?
 

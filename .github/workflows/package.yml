@@ -95,16 +95,22 @@ jobs:
       - name: lintian
         run: lintian --fail-on error,warning ../*.deb
 
+      # Ubuntu names its debug packages .ddeb where Debian uses .deb, so a glob
+      # for *.deb alone publishes debug symbols for Trixie and silently drops
+      # them for Ubuntu.
       - name: Collect the packages
         run: |
           mkdir -p artifacts
           cp ../*.deb artifacts/
+          cp ../*.ddeb artifacts/ 2>/dev/null || true
           ls -l artifacts
 
       - uses: actions/upload-artifact@v4
         with:
           name: deb-${{ matrix.distribution }}-${{ matrix.architecture }}
-          path: artifacts/*.deb
+          path: |
+            artifacts/*.deb
+            artifacts/*.ddeb
           if-no-files-found: error
 
   tarball:
