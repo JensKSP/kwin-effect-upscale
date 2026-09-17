@@ -89,8 +89,10 @@ jobs:
           apt-get install --no-install-recommends -y \
             ca-certificates build-essential cmake extra-cmake-modules kwin-dev \
             libkf6config-dev libkf6coreaddons-dev libkf6i18n-dev \
-            qt6-base-dev git
+            qt6-base-dev gettext git
       - uses: actions/checkout@v4
+      - name: Trust the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Configure and build
         run: |
           cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
