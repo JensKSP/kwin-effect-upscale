@@ -69,6 +69,7 @@ it, so the development files have to belong to the KWin that is actually run.
 | libepoxy (KWin's OpenGL headers need it) | — | `libepoxy-dev` |
 | gettext, for `msgfmt` | — | `gettext` |
 | Ninja, optional | — | `ninja-build` |
+| clang-format, only to commit changes | 19, the version CI uses | `clang-format` |
 
 On Debian Trixie or a derivative:
 
@@ -77,6 +78,9 @@ sudo apt install build-essential cmake extra-cmake-modules qt6-base-dev \
     libkf6config-dev libkf6coreaddons-dev libkf6i18n-dev kwin-dev \
     libepoxy-dev gettext git
 ```
+
+If you intend to commit changes, add `clang-format` to that list: the
+pre-commit hook runs `git clang-format` and refuses the commit without it.
 
 Other distributions ship the same pieces under their own names: the CMake
 package names to look for are `ECM`, `Qt6`, `KF6` and `KWin`.
