@@ -1,0 +1,60 @@
+/*
+    SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+
+    SPDX-License-Identifier: GPL-2.0-or-later
+*/
+
+// Generated from src/buildinfo/buildinfo.cpp.in by cmake/GenerateBuildInfo.cmake.
+// Do not edit, and do not commit the generated file: it lives in the build
+// directory and is rewritten whenever the commit it describes changes.
+
+#include "buildinfo.h"
+
+#include <QStringLiteral>
+#include <QtGlobal>
+
+namespace KWin
+{
+namespace UpscaleBuildInfo
+{
+
+QString version()
+{
+    return QStringLiteral("@UPSCALE_VERSION@");
+}
+
+QString branch()
+{
+    return QStringLiteral("@UPSCALE_GIT_BRANCH@");
+}
+
+QString buildDate()
+{
+    return QStringLiteral("@UPSCALE_BUILD_DATE@");
+}
+
+QString describe()
+{
+    QString text = QStringLiteral("upscale ") + version();
+    if (!branch().isEmpty()) {
+        text += QStringLiteral(" (branch ") + branch() + QStringLiteral(")");
+    }
+    text += QStringLiteral(", built ") + buildDate();
+    text += QStringLiteral(", Qt ") + QStringLiteral(QT_VERSION_STR);
+    return text;
+}
+
+namespace
+{
+// Printed once when KWin loads the plugin, so that a journal from a session
+// always names the exact build that ran in it. The default logging category is
+// deliberate: a Q_LOGGING_CATEGORY here would collide with the one the effect
+// declares for itself.
+const bool s_announced = []() {
+    qInfo("%s", qUtf8Printable(describe()));
+    return true;
+}();
+}
+
+} // namespace UpscaleBuildInfo
+} // namespace KWin

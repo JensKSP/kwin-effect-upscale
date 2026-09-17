@@ -15,9 +15,13 @@
 #     (strip-effect-metadata.py). Those translations are added by KDE's
 #     translation robot and only exist inside KWin, so here the file is copied.
 #  3. The translation domain is this project's, not "kwin".
+#  4. The effect is given a translation unit naming the commit it was built
+#     from. KWin has no such thing, so it is injected here rather than listed in
+#     the plugin's own CMakeLists.txt.
 
 include(KDEInstallDirs)
 include(KDEPackageAppTemplates OPTIONAL)
+include(UpscaleBuildInfo)
 
 # In-tree the effect links against the target named "kwin". Out of tree the
 # same name is made to point at the installed KWin library.
@@ -31,8 +35,9 @@ function(kwin_strip_builtin_effect_metadata target metadata)
 
     add_custom_command(
         OUTPUT ${stripped_metadata}
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CMAKE_CURRENT_SOURCE_DIR}/${metadata}" "${stripped_metadata}"
+        COMMAND
+            ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/${metadata}"
+            "${stripped_metadata}"
         DEPENDS ${metadata}
         COMMENT "Preparing ${metadata}.stripped..."
     )
@@ -43,6 +48,7 @@ macro(kwin_add_builtin_effect name)
     kcoreaddons_add_plugin(${name} SOURCES ${ARGN} INSTALL_NAMESPACE "kwin/effects/plugins")
     target_compile_definitions(${name} PRIVATE -DTRANSLATION_DOMAIN=\"kwin_effect_upscale\")
     kwin_strip_builtin_effect_metadata(${name} metadata.json)
+    upscale_add_build_info(${name})
 endmacro()
 
 function(kwin_add_effect_config name)

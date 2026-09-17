@@ -10,10 +10,12 @@ project(kwin-effect-upscale VERSION 0.1.0 LANGUAGES CXX)
 # configure scatters generated files through the tree, and from there they end
 # up in a commit.
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
-    message(FATAL_ERROR
+    message(
+        FATAL_ERROR
         "In-source builds are not allowed. Use a build directory, for example:\n"
         "    cmake -B build -S .\n"
-        "Then remove the CMakeCache.txt and CMakeFiles/ this attempt left behind.")
+        "Then remove the CMakeCache.txt and CMakeFiles/ this attempt left behind."
+    )
 endif()
 
 set(QT_MIN_VERSION 6.8.0)
@@ -30,8 +32,9 @@ include(KDEInstallDirs)
 include(KDECMakeSettings)
 include(KDECompilerSettings NO_POLICY_SCOPE)
 include(KDEClangFormat)
-include(KDEGitCommitHooks)
 include(FeatureSummary)
+include(ECMSetupVersion)
+ecm_setup_version(${PROJECT_VERSION} VARIABLE_PREFIX UPSCALE)
 
 # Same as KWin: src/CMakeLists.txt lines 7-8 of v6.3.6.
 set(CMAKE_CXX_STANDARD 23)
@@ -42,7 +45,8 @@ set(CMAKE_AUTOMOC ON)
 # KWIN_EFFECT_FACTORY_* expands into a class carrying Q_OBJECT. AutoMoc cannot
 # see through the macro, so the names are registered here; otherwise it warns
 # that main.cpp includes main.moc without a Q_OBJECT in sight.
-list(APPEND CMAKE_AUTOMOC_MACRO_NAMES
+list(
+    APPEND CMAKE_AUTOMOC_MACRO_NAMES
     KWIN_EFFECT_FACTORY
     KWIN_EFFECT_FACTORY_ENABLED
     KWIN_EFFECT_FACTORY_SUPPORTED
@@ -69,7 +73,13 @@ add_definitions(
     -DQT_NO_NARROWING_CONVERSIONS_IN_CONNECT
 )
 
-find_package(Qt6 ${QT_MIN_VERSION} REQUIRED CONFIG COMPONENTS Core Gui Widgets DBus OpenGL)
+find_package(
+    Qt6
+    ${QT_MIN_VERSION}
+    REQUIRED
+    CONFIG
+    COMPONENTS Core Gui Widgets DBus OpenGL
+)
 find_package(KF6 ${KF_MIN_VERSION} REQUIRED COMPONENTS Config CoreAddons I18n)
 find_package(KWin REQUIRED COMPONENTS kwineffects)
 
@@ -80,14 +90,12 @@ include(KWinBuiltinEffectShim)
 
 add_subdirectory(src/plugins/upscale)
 
+# `make clang-format` the way every KDE project offers it. The git hook itself
+# is not installed from here: ECM's kde_configure_git_pre_commit_hook writes
+# .git/hooks/pre-commit, and so does `pre-commit install`, which would leave two
+# systems fighting over one file. .pre-commit-config.yaml runs clang-format with
+# the same .clang-format, plus the checks ECM has no hook for.
 file(GLOB_RECURSE ALL_CLANG_FORMAT_SOURCE_FILES src/*.cpp src/*.h)
 kde_clang_format(${ALL_CLANG_FORMAT_SOURCE_FILES})
-
-# KWin uses CHECKS CLANG_FORMAT only; JSON_SCHEMA is added because this project
-# ships a KPluginMetaData file, and the custom script keeps agent leftovers out.
-kde_configure_git_pre_commit_hook(
-    CHECKS CLANG_FORMAT JSON_SCHEMA
-    CUSTOM_SCRIPTS ${CMAKE_SOURCE_DIR}/tools/check-no-ai-artifacts.sh
-)
 
 feature_summary(WHAT ALL FATAL_ON_MISSING_REQUIRED_PACKAGES)
