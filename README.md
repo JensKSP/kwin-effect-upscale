@@ -66,6 +66,7 @@ it, so the development files have to belong to the KWin that is actually run.
 | Qt 6: Core, Gui, Widgets, DBus, OpenGL | 6.8 | `qt6-base-dev` |
 | KDE Frameworks 6: Config, CoreAddons, I18n | 6.13 | `libkf6config-dev`, `libkf6coreaddons-dev`, `libkf6i18n-dev` |
 | KWin development files | the KWin you run | `kwin-dev` |
+| git, to get the source | — | `git` |
 | libepoxy (KWin's OpenGL headers need it) | — | `libepoxy-dev` |
 | gettext, for `msgfmt` | — | `gettext` |
 | Ninja, optional | — | `ninja-build` |
