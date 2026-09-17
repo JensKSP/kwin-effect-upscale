@@ -6,6 +6,16 @@ cmake_minimum_required(VERSION 3.24)
 
 project(kwin-effect-upscale VERSION 0.1.0 LANGUAGES CXX)
 
+# One build directory beside the sources, never inside them. An in-source
+# configure scatters generated files through the tree, and from there they end
+# up in a commit.
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
+    message(FATAL_ERROR
+        "In-source builds are not allowed. Use a build directory, for example:\n"
+        "    cmake -B build -S .\n"
+        "Then remove the CMakeCache.txt and CMakeFiles/ this attempt left behind.")
+endif()
+
 set(QT_MIN_VERSION 6.8.0)
 set(KF_MIN_VERSION 6.13.0)
 
