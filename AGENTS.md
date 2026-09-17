@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+SPDX-License-Identifier: GPL-2.0-or-later
+-->
+
 # Repository rules for agents
 
 This repository holds one KWin effect plugin. It is written to be read by KDE

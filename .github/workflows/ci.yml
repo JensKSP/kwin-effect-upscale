@@ -1,0 +1,95 @@
+# SPDX-FileCopyrightText: None
+# SPDX-License-Identifier: CC0-1.0
+
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  hygiene:
+    name: Repository rules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: No agent leftovers in the tree
+        run: tools/check-no-ai-artifacts.sh --all
+      - name: No AI attribution in commit messages
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            tools/check-commit-trailers.sh "${{ github.event.pull_request.base.sha }}..${{ github.sha }}"
+          else
+            tools/check-commit-trailers.sh "${{ github.event.before }}..${{ github.sha }}" || \
+            tools/check-commit-trailers.sh HEAD
+          fi
+      - name: REUSE compliance
+        uses: fsfe/reuse-action@v5
+
+  format:
+    name: KDE coding style
+    runs-on: ubuntu-latest
+    container: docker.io/library/debian:trixie
+    steps:
+      - name: Install clang-format
+        run: |
+          apt-get update
+          apt-get install --no-install-recommends -y clang-format git
+      - uses: actions/checkout@v4
+      - name: clang-format
+        run: |
+          command -v clang-format
+          find src \( -name '*.cpp' -o -name '*.h' \) -print0 \
+            | xargs -0 --no-run-if-empty clang-format --dry-run -Werror
+
+  build-trixie:
+    name: Trixie (${{ matrix.compiler }})
+    runs-on: ubuntu-latest
+    container: docker.io/library/debian:trixie
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [g++, clang++]
+    steps:
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install --no-install-recommends -y \
+            build-essential cmake extra-cmake-modules kwin-dev \
+            libkf6config-dev libkf6configwidgets-dev libkf6coreaddons-dev \
+            libkf6i18n-dev libkf6kcmutils-dev qt6-base-dev libepoxy-dev \
+            clang clang-format clang-tidy clazy libclang-rt-19-dev git python3 pipx
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: |
+          cmake -B build -S . \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_COMPILER=${{ matrix.compiler }} \
+            -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
+      - name: Build
+        run: cmake --build build --parallel
+      - name: Install into a staging prefix
+        run: DESTDIR=$PWD/stage cmake --install build
+
+  build-neon:
+    name: KDE neon unstable (KWin master)
+    runs-on: ubuntu-latest
+    container: invent-registry.kde.org/neon/docker-images/plasma:unstable
+    continue-on-error: true
+    steps:
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install --no-install-recommends -y \
+            build-essential cmake extra-cmake-modules kwin-dev \
+            libkf6config-dev libkf6coreaddons-dev libkf6i18n-dev \
+            qt6-base-dev git
+      - uses: actions/checkout@v4
+      - name: Configure and build
+        run: |
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
+          cmake --build build --parallel

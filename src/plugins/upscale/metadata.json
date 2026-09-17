@@ -1,0 +1,9 @@
+{
+    "KPlugin": {
+        "Category": "Appearance",
+        "Description": "Upscales fullscreen windows that render below the resolution of the output they cover",
+        "EnabledByDefault": false,
+        "License": "GPL",
+        "Name": "Upscale"
+    }
+}

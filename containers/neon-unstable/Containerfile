@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Newest state: KDE neon unstable, which carries KWin from git master. Used to
+# catch API changes early; it is not a supported target.
+
+FROM invent-registry.kde.org/neon/docker-images/plasma:unstable
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install --no-install-recommends -y \
+        build-essential \
+        cmake \
+        extra-cmake-modules \
+        kwin-dev \
+        libkf6config-dev \
+        libkf6coreaddons-dev \
+        libkf6i18n-dev \
+        qt6-base-dev \
+        clang \
+        git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src

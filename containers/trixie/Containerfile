@@ -1,0 +1,42 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Minimum supported environment: plain Debian Trixie, no backports.
+# KWin 6.3.6, Qt 6.8.2, KF6/ECM 6.13, GCC 14.2, Clang 19, CMake 3.31.6.
+
+FROM docker.io/library/debian:trixie
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install --no-install-recommends -y \
+        build-essential \
+        cmake \
+        extra-cmake-modules \
+        kwin-dev \
+        libkf6config-dev \
+        libkf6configwidgets-dev \
+        libkf6coreaddons-dev \
+        libkf6i18n-dev \
+        libkf6kcmutils-dev \
+        qt6-base-dev \
+        libepoxy-dev \
+        clang \
+        clang-format \
+        clang-tidy \
+        clang-tools \
+        clazy \
+        libclang-rt-19-dev \
+        git \
+        python3 \
+        reuse \
+        lintian \
+        devscripts \
+        debhelper \
+        pipx \
+    && rm -rf /var/lib/apt/lists/*
+
+# check-jsonschema is not packaged in Trixie; ECM's JSON_SCHEMA commit hook
+# check needs the CLI, so it comes from PyPI.
+RUN PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install check-jsonschema
+
+WORKDIR /src

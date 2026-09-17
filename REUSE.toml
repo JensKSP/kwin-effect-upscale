@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Files that cannot carry an SPDX header of their own, or that must not: JSON has
+# no comments, and the files inside src/plugins/upscale/ are kept exactly as KWin
+# lays out its own plugins, which means no headers KWin does not have either.
+# .clang-format is KWin's file byte for byte and carries its own MIT header.
+
+version = 1
+
+[[annotations]]
+path = "src/plugins/upscale/metadata.json"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>"
+SPDX-License-Identifier = "GPL-2.0-or-later"
+
+[[annotations]]
+path = "src/plugins/upscale/CMakeLists.txt"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>"
+SPDX-License-Identifier = "GPL-2.0-or-later"
+
+[[annotations]]
+path = ".gitignore"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "None"
+SPDX-License-Identifier = "CC0-1.0"
