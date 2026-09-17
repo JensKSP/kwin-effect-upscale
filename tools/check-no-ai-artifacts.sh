@@ -2,8 +2,8 @@
 # SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
-# Enforces the first rule of AGENTS.md: this repository holds the plugin, and
-# AGENTS.md is the only file in it that exists for an agent.
+# Enforces the first rule of AGENTS.md: no agent-specific tooling or attribution.
+# Temporary slice documents under doc/ are ordinary project development files.
 #
 # Run without arguments it checks what is staged (this is how the ECM
 # pre-commit hook calls it). With --all it checks every tracked file, which is

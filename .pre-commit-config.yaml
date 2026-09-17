@@ -116,19 +116,33 @@ repos:
     hooks:
       - id: actionlint
 
+  # A whole-tree scan, and the slowest hook here. It only breaks when a file is
+  # added without an SPDX header, so it runs at push rather than on every commit.
   - repo: https://github.com/fsfe/reuse-tool
     rev: v6.2.0
     hooks:
       - id: reuse
+        stages: [pre-push]
 
   - repo: local
     hooks:
+      # What is being committed, which is all a commit can introduce.
       - id: no-ai-artifacts
-        name: no agent leftovers in the tree
+        name: no agent leftovers in what is being committed
+        entry: tools/check-no-ai-artifacts.sh
+        language: script
+        pass_filenames: false
+        always_run: true
+
+      # And the whole tree before it leaves the machine, because a commit hook
+      # can be skipped with --no-verify and this rule is not negotiable.
+      - id: no-ai-artifacts-all
+        name: no agent leftovers anywhere in the tree
         entry: tools/check-no-ai-artifacts.sh --all
         language: script
         pass_filenames: false
         always_run: true
+        stages: [pre-push]
 
       # Spelled out as file names rather than as pre-commit's type tags,
       # because identify gives .glsl, .frag, .vert and .cpp.in no tags at all

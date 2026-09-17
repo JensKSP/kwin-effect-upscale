@@ -51,6 +51,39 @@ jobs:
             echo "master has not moved since the last nightly" >> "$GITHUB_STEP_SUMMARY"
           fi
 
+  # KWin master is a moving target, so a break here is usually upstream's and
+  # not the author's of whatever was pushed. It costs a pull request nothing and
+  # is still caught within a day. It does not gate the packages: a nightly of
+  # the supported platforms is worth publishing even when master has moved on.
+  kwin-master:
+    name: KDE neon unstable (${{ matrix.compiler }})
+    runs-on: ubuntu-latest
+    container:
+      image: invent-registry.kde.org/neon/docker-images/plasma:unstable
+      options: --user root
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [g++, clang++]
+    steps:
+      - name: Install the packaging tools
+        run: |
+          apt-get update
+          apt-get install --no-install-recommends -y \
+            ca-certificates build-essential devscripts equivs clang git
+      - uses: actions/checkout@v4
+      - name: Trust the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Install build dependencies
+        run: |
+          mk-build-deps --install --remove \
+            --tool "apt-get --no-install-recommends -y" debian/control
+      - name: Configure and build
+        run: |
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_COMPILER=${{ matrix.compiler }} -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
+          cmake --build build --parallel
+
   package:
     name: Build
     needs: version

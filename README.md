@@ -46,8 +46,8 @@ interface at full resolution.
 
 ## Technical details
 
-What it does, what it deliberately leaves alone, which scalers can be used and
-what is still unanswered about KWin is written down in
+The current implementation slice, its progress, findings and remaining work
+are recorded in
 [doc/upscaling.md](doc/upscaling.md).
 
 HDR and variable refresh rate (VRR) support are requirements for the effect,
@@ -250,13 +250,24 @@ We use Codex and Claude to help write code for this project. We aim to keep
 explain or verify. The standard is readable code that fits KWin's conventions,
 with human review and checks for correctness. Responsibility stays with us.
 
+For each slice, we keep one working document under `doc/`: the plan first,
+then progress, findings, test results and remaining tasks in the same file.
+Durable explanations belong in source comments. Once implementation and
+required testing are complete, we remove the working document and its links;
+the code, comments and tests are then the specification.
+
 Every check in this repository runs from one command:
 
 ```bash
 pip install pre-commit    # or: pipx install pre-commit
-pre-commit install        # optional, runs the checks on every commit
+pre-commit install --hook-type pre-commit --hook-type pre-push
 pre-commit run --all-files
 ```
+
+Linters run when you commit and look at what changed; the whole-tree checks and
+the regression tests run when you push. CI runs both over everything, adds a
+build with GCC and with Clang, clang-tidy and the plugin metadata schema, and
+leaves the packages and the build against KWin master to the nightly.
 
 That covers KDE's coding style via `clang-format` and KWin's own
 `.clang-format`, CMake formatting and static checks, Python, shell and Markdown
