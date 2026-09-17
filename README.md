@@ -97,7 +97,7 @@ Skeleton. The effect builds, loads and does nothing yet.
 ## Packages
 
 Packages are built for amd64 and arm64, for Debian Trixie and for Kubuntu
-25.10. Pick the one matching the distribution you run, because a KWin effect is
+26.04 LTS. Pick the one matching the distribution you run, because a KWin effect is
 built against the KWin it is loaded into.
 
 - **Releases:** <https://github.com/JensKSP/kwin-effect-upscale/releases/latest>

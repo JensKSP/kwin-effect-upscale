@@ -237,7 +237,10 @@ Laid down by Jens, 2026-09-17.
 - `nightly` is one rolling pre-release, rebuilt from master only when master
   moved. Its tag is deleted and recreated each time; do not point anything at it
   that needs a stable URL for a fixed build.
-- Packages are built for amd64 and arm64, on Debian Trixie and on Kubuntu 25.10.
+- Packages are built for amd64 and arm64, on Debian Trixie and on Kubuntu 26.04
+  LTS. Support the current releases: an interim Ubuntu release is supported for
+  nine months, so packaging for one that is already out of support ships
+  something nobody can update.
   A KWin effect is built against the KWin it will be loaded into, so a package is
   only valid for the distribution it was built on.
 - **Build dependencies are listed in `debian/control` and nowhere else.** CI

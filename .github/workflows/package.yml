@@ -38,14 +38,16 @@ jobs:
             image: docker.io/library/debian:trixie
             architecture: arm64
             runner: ubuntu-24.04-arm
-          # Kubuntu 25.10 carries KWin 6.4.5 and Qt 6.9, so the same source is
-          # built against a newer KWin than the minimum.
-          - distribution: questing
-            image: docker.io/library/ubuntu:25.10
+          # Kubuntu 26.04 LTS carries KWin 6.6.6 and Qt 6.10, so the same source
+          # is built against a much newer KWin than the minimum. The LTS is the
+          # release Kubuntu users are actually on; 25.10 went end of life in
+          # July 2026 and building for it would ship packages nobody can update.
+          - distribution: resolute
+            image: docker.io/library/ubuntu:26.04
             architecture: amd64
             runner: ubuntu-latest
-          - distribution: questing
-            image: docker.io/library/ubuntu:25.10
+          - distribution: resolute
+            image: docker.io/library/ubuntu:26.04
             architecture: arm64
             runner: ubuntu-24.04-arm
     steps:

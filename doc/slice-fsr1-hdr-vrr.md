@@ -5,7 +5,8 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 # Slice: FSR 1 upscaling with HDR and VRR
 
-Status: planned; the effect is still an inactive skeleton. This temporary
+Status: implementation in progress; real-device acceptance will be performed
+with Jens in a later session. This temporary
 working document covers this major slice's scope, plan, progress, findings,
 TODOs and test results. The permanent requirements and specification live in
 the [upscaling developer handbook](upscaling.md).
@@ -114,6 +115,21 @@ Use physical pixel sizes and capability checks, not fixed resolutions or GPU
 vendor checks.
 
 ## Findings
+
+- KWin 6.3.6's `OffscreenEffect` captures at output scale into `GL_RGBA8`
+  with an sRGB description. It cannot supply the required input unchanged.
+  The implementation will instead render the surface item at buffer resolution
+  through KWin's item renderer, retaining its import and release-fence handling.
+- Colour conversion to the current render target will happen at input
+  resolution. Floating-point intermediates and a reversible working encoding
+  are required before EASU/RCAS; final composition must not convert colours a
+  second time. This encoding still requires HDR image-quality acceptance.
+- KWin 6.3.6 selects adaptive presentation in `compositor_wayland.cpp`
+  independently of direct scanout. This establishes an integration path, not
+  proof of VRR on a physical display.
+- Preferred-buffer-scale hints share ownership with KWin's output policy.
+  Until restoration and cooperative clients have been verified, resolution
+  wishes remain game-setting guidance and send no protocol requests.
 
 - The implementation in `src/plugins/upscale/` currently reports itself
   inactive and does not scale anything. Shader integration and runtime
