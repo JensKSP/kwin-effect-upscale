@@ -27,9 +27,9 @@ publication and associated regression coverage. These form the path from a
 candidate commit to verified published assets. Rendering features and game
 acceptance belong to their feature slices; do not accumulate their unfinished
 implementation here. Additional product features are outside this package.
-The [About and notices package](slice-about-and-notices.md) owns the identity
-record and component/license inventory. Packaging consumes its archive metadata
-and installed notices; its settings UI is not part of this pipeline package.
+The [development infrastructure package](slice-development-infrastructure.md)
+owns the identity record and component/license inventory. Packaging consumes
+its archive metadata and installed notices; its settings UI is not part of this pipeline package.
 
 ## Dependencies
 
@@ -195,6 +195,22 @@ Ubuntu packages with clean installed-plugin checks.
 - Exercise the prepared FreeBSD workflow and the hosted arm64 matrix.
 - Apply repository protection only after the pending explicit approval.
 
+### Hosted feedback and review integration
+
+- Draft pull request #1 is open. Hosted package validation exposed Git's
+  ownership check on the local clone's `.git` directory inside Docker. A fix
+  trusting that exact source repository is prepared; hosted revalidation is
+  still pending.
+- Added the requirement to monitor checks and review feedback after each push,
+  investigate findings, fix valid issues and explain dismissed findings.
+- Prepared advisory CodeRabbit settings and validated them against its official
+  schema. Automatic approval review rejected staging the configuration under
+  the repository's tool-configuration ban; a specific exception is awaiting
+  approval. GitHub App installation by the repository owner remains required.
+- Current Debian package builds were byte-identical and passed lintian. The
+  extracted source archive built, passed all five runtime tests and installed
+  into a staging directory.
+
 ### Hosted feedback follow-up
 
 The first hosted candidate passed GCC, Clang, static analysis, coverage, both
@@ -246,3 +262,16 @@ neon compilers, BSD, keyless attestation and provenance verification. It retaine
 a verified candidate without publishing a release. Both container hook stages
 and the publication recovery regressions passed for the first review fixes.
 Hosted checks and incremental review of those fixes remain pending.
+
+### Consolidation and second review
+
+Hosted CI for `451660a` passed every job. Its incremental review found one
+inaccurate handbook statement: the checksum manifest covers the listed release
+artifacts, not the separately attached provenance bundle. Corrected that
+description against the publication workflow.
+
+Consolidated the unpublished documentation commit, current slice plans and
+local documentation updates onto the existing PR branch, preserving both
+histories. Both container hook stages passed on the combined tree before the
+checksum wording correction. Latest-revision hosted checks and review remain
+required after pushing the consolidation.

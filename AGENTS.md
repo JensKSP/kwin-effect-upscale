@@ -12,11 +12,15 @@ of the agent's own harness.
 
 ## No AI artifacts in this repository
 
-Laid down by Jens, 2026-09-17.
+Laid down by Jens, 2026-09-17; documentation layout revised 2026-09-18.
 
-- **This file is the only agent-specific instruction file in this repository.**
-  Slice documents under `doc/` are project development documents, governed by
-  the workflow below.
+- **The permitted agent instructions are this file,
+  [documentation rules](doc/AGENTS.md) and
+  [slice workflow](doc/agents/AGENTS.md).** Read those scoped instructions before
+  editing documentation or a slice. Temporary working documents belong only
+  under `doc/agents/`, one per major slice, governed by the workflow below.
+  These instructions and slice documents are the explicit exceptions to the
+  restriction on agent artifacts.
 - Do not add `.claude/`, `CLAUDE.md`, `.cursor/`, `.aider*`, `.windsurf/`,
   `.github/copilot-instructions.md`, MCP or tool configuration, skill or
   "superpowers" trees, separate agent plans, evidence folders, session
@@ -27,17 +31,17 @@ Laid down by Jens, 2026-09-17.
   exception: it discloses our use of Codex and Claude and our expectations for
   code quality and human responsibility.
 - Plans, findings, progress, test results and remaining work for a slice belong
-  in that slice's single document under `doc/`.
+  in that slice's single temporary document under `doc/agents/`.
 - Before committing, look at what is actually staged (`git status`,
-  `git diff --cached`) and drop anything that only exists because an agent was
-  involved.
+  `git diff --cached`) and drop agent artifacts outside these exceptions.
 
 **Why:** the repository describes the plugin and its development. Its contents
 are read by people who did not ask which tools were used to write them.
 
 ## Repository boundary and slice workflow
 
-Laid down by Jens, 2026-09-17. **This rule applies only to this repository.**
+Laid down by Jens, 2026-09-17; documentation layout revised 2026-09-18.
+**This rule applies only to this repository.**
 It replaces the earlier instruction to keep plans and research in a separate
 private repository.
 
@@ -45,26 +49,37 @@ private repository.
   other projects, home-directory configuration or skill installations without
   an explicit instruction to do so. Keep working copies and check caches under
   the ignored `build/` directory. Do not use Superpowers workflows here.
-- **`doc/upscaling.md` is the permanent developer handbook.** It holds the
+- **`doc/` holds permanent documentation for humans.** Apart from its
+  `AGENTS.md` instructions and the `doc/agents/` subtree, its documents describe
+  the program, requirements and design, not an agent's working history.
+  **`doc/upscaling.md` is the permanent developer handbook.** It holds the
   human-readable requirements, specification and design rationale. Keep it
   current as the implementation evolves; it is not a slice document and is
   not deleted when a slice finishes.
-- **One separate document per major slice, directly under `doc/`.** Write it
-  before implementation. It holds the scope, approach and acceptance criteria,
-  then the progress, findings, test results and TODOs as the work proceeds.
+- **One temporary document per major slice under `doc/agents/`.** Write it
+  before implementation. Each slice is one bounded work package about one
+  general topic, with an explicit start state, end state, scope, exclusions,
+  dependencies and acceptance criteria. Record its approach, progress,
+  findings, observed test results and remaining work in that document.
+  Split unrelated work into another slice instead of extending an existing
+  one indefinitely. The directory's `AGENTS.md` is permanent instructions,
+  not a slice document.
 - Update that same document during implementation. Do not create additional
   plans, progress logs or evidence documents for the slice. Distinguish planned
   checks from results that were actually observed.
 - Explain durable assumptions, invariants and non-obvious decisions in source
   comments next to the implementation. Do not leave information needed to
   understand or maintain the code only in the temporary slice document.
-- **Delete the slice document when implementation and required testing are
-  complete**, including real-device acceptance where required. Update or remove
-  links to it at the same time. Do not delete it while required work or tests
+- **Delete the slice document when implementation is complete and all required
+  tests have passed**, including real-device acceptance where required. Update
+  or remove links to it at the same time. Do not delete it while work or tests
   remain open. Before deletion, preserve lasting requirements and design
   conclusions in the handbook and implementation explanations in source comments.
-- **The code, comments and tests specify the implemented behaviour.** The
-  handbook remains its human-readable requirements and specification, while
+- **Source code and permanent human-readable documentation are the single
+  source of truth.** Code, comments and tests specify implemented behaviour;
+  the handbook records requirements and design, clearly distinguishing planned
+  capabilities from implemented ones. Keep both consistent. Temporary slice
+  documents support ongoing work and never become a competing specification;
   the completed slice's development history remains in Git.
 
 ## No AI attribution in commits
@@ -235,11 +250,21 @@ Laid down by Jens, 2026-09-17.
   `cmake/GenerateBuildInfo.cmake`, which runs **at build time**, not at
   configure time, so a binary names the commit it was built from rather than the
   one that was checked out when cmake last ran.
+- **Run the generator on every build invocation**, including builds without
+  source changes and direct builds of the effect or settings target. Recompute
+  the revision, ref and timestamp each time; do not reuse a wall-clock timestamp
+  just because the sources are unchanged. `SOURCE_DATE_EPOCH` still controls
+  reproducible timestamps. Replace the generated file only when its content
+  differs.
 - **Build information never goes in a header.** It is one generated `.cpp` in the
   build directory, declared by a hand-written header that never changes, so a new
   commit costs one recompiled translation unit and a link. Putting the hash in a
   header would drag every source that includes it through the compiler on every
   commit. Measured, not assumed.
+- Keep changing values out of embedded plugin metadata and resource inputs as
+  well, so they do not retrigger Qt's metadata/resource generation. When values
+  change, compile only the small build-information unit and link the affected
+  binaries; verify this with incremental build output.
 - The generated source lives in the build directory and is never committed.
 - Dates come from `string(TIMESTAMP)`, which honours `SOURCE_DATE_EPOCH`. Nothing
   reaches for the wall clock any other way, because a packaged build has to stay

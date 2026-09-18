@@ -45,8 +45,8 @@ ATTRIBUTION_PATTERNS = (
 ATTRIBUTION = re.compile("|".join(ATTRIBUTION_PATTERNS), re.IGNORECASE)
 
 # Paths that must never appear: the configuration, rules and history that an
-# agent leaves in a checkout. AGENTS.md is deliberately not among them, because
-# it is the one agent-facing file this project keeps.
+# agent leaves in a checkout. The repository's AGENTS.md instructions and
+# temporary slice documents under doc/agents/ are explicitly permitted.
 FORBIDDEN_NAMES = (
     r"\.claude",
     r"\.claude-plugin",
