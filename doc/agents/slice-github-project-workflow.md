@@ -13,8 +13,9 @@ contribution, security and maintenance workflow. PR #9 has merged: contribution
 forms and guidance are on the default branch, with interactive form acceptance
 still pending. Provider secret scanning, push protection, Dependabot alerts and
 security updates, and private vulnerability reporting are enabled and read back.
-CodeQL and dependency review are implemented and locally validated; their
-hosted runs remain outstanding.
+CodeQL and dependency review are implemented and locally validated. Dependency
+review has passed a hosted run; CodeQL's hosted execution remains pending.
+Neither check gates a pull request.
 It does not change the implementation priority of the
 [development infrastructure slice](slice-development-infrastructure.md).
 
@@ -219,8 +220,9 @@ remain identified as optional in the permanent documentation.
 - Validation not explicitly recorded below remains pending.
 - Next: verify the activated contribution forms and obtain their hosted
   validation. Native security controls are enabled, as recorded below.
-- CodeQL and dependency review are implemented and locally validated; their
-  hosted runs remain outstanding. See the phase 2 record below.
+- CodeQL and dependency review are implemented and locally validated.
+  Dependency review has passed a hosted run; CodeQL's hosted execution remains
+  pending, and neither check gates a pull request. See the phase 2 record below.
 
 ### Phase 1: contribution entry points (preparation history)
 
