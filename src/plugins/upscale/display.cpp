@@ -19,7 +19,11 @@ UpscaleDisplay::UpscaleDisplay()
     // The timed announcement disappears on its own. Nothing else would repaint
     // the area if the game stopped drawing, so ask for that one repaint here.
     connect(&m_expiry, &QTimer::timeout, this, []() {
-        effects->addRepaintFull();
+        // Only a loaded effect has a compositor to ask for a repaint. The
+        // display is also driven directly by tests, where there is none.
+        if (effects) {
+            effects->addRepaintFull();
+        }
     });
 }
 
