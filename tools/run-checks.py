@@ -74,7 +74,8 @@ def main() -> None:
     """Provide a complete local run and the same individually selectable CI jobs."""
     modes = ("lint", "gcc", "clang", "tidy", "coverage", "address", "thread")
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=(*modes, "docs", "all"), default="all", nargs="?")
+    selectable = (*modes, "docs", "codeql", "all")
+    parser.add_argument("mode", choices=selectable, default="all", nargs="?")
     parser.add_argument("--base", default=os.environ.get("UPSCALE_CHECK_BASE", ""))
     arguments = parser.parse_args()
     root = Path(__file__).resolve().parent.parent
@@ -94,7 +95,10 @@ def main() -> None:
     )
     Path(os.environ["TMPDIR"]).mkdir(parents=True, exist_ok=True)
     for mode in modes if arguments.mode == "all" else (arguments.mode,):
-        if mode in ("lint", "docs"):
+        if mode == "codeql":
+            # Through the same check definition as every other analysis here.
+            hook("upscale-codeql")
+        elif mode in ("lint", "docs"):
             selection = ["--all-files"]
             if mode == "docs":
                 paths = changed_files(arguments.base)

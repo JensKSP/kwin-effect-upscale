@@ -10,7 +10,15 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from git_fixture import detach
+
 CHECKER = Path(__file__).resolve().with_name("check-plugin-metadata.py")
+
+
+def setUpModule() -> None:
+    """Keep fixture repositories out of the repository this check is running for."""
+    detach()
+
 
 # A stand-in for check-jsonschema: it records the files it was asked to
 # validate, so a test can assert which ones the checker selected.
