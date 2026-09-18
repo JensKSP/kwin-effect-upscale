@@ -1686,6 +1686,46 @@ globals and KF6 Config shutdown allocations in the private integration session.
 It does not suppress plugin functions or entire libraries. The standalone
 configuration and rendering tests retain unsuppressed leak detection.
 
+### Security analysis
+
+CodeQL analyses the three languages this repository ships: the C++ effect, the
+Python tooling and the GitHub Actions workflows. Its command line is pinned in
+`tools/run-codeql.py` by release tag and published checksum, like every checker
+version here, and the first run fetches it into `build/codeql-cli`.
+
+The C++ database is built from this project's own CMake and Ninja configuration
+inside the maintained Trixie container. CodeQL's autobuild cannot configure
+against KWin and KDE Frameworks, and a hosted runner has neither, so the scan
+runs where the real build already works. The generated inputs that build
+produces - the build information source, the KConfig classes, the moc and
+resource units and the Wayland protocol sources - are part of the database.
+`autotests/resolution_fuzz.cpp` is not: it compiles only in the Clang fuzzing
+configuration, which the sanitizer jobs own. Python and workflow extraction is
+confined to `tools/` and `.github/`, so a scan of this repository does not
+become a scan of its own build outputs and unpacked analysis tools.
+
+`upscale-codeql` in `.pre-commit-config.yaml` is the single definition of that
+check, as for coverage and fuzzing. Inside the container,
+`python3 -B tools/run-checks.py codeql` runs it, and the weekly `CodeQL`
+workflow runs the same command before publishing its SARIF to the Security tab.
+Set `UPSCALE_CODEQL_SUITE` to select a wider query suite. The scan is scheduled
+and manually dispatchable; it does not gate pull requests, and it reports what
+it found rather than failing on it. Requiring it is a decision to take once its
+findings have been read, not a default; `--fail-on-findings` is the switch that
+turns the same check into a failing one.
+
+Dependency review covers what GitHub's dependency graph actually resolves for
+this repository, which is the pinned actions in the workflows. The build
+dependencies in `debian/control`, the CMake and KDE Frameworks interfaces, the
+pre-commit hook versions and the vendored shaders are not represented in that
+graph and are not reviewed by it; their versions remain the maintainer's and the
+distribution's responsibility. `tools/dependency_review.py` holds the policy:
+only dependencies a change introduces are reviewed, advisories from moderate
+upwards block, an advisory whose severity cannot be read is treated as worse
+than critical, and an exception names its GHSA identifier together with the
+reason it does not apply. Passing a recorded comparison with `--changes`
+exercises that policy without waiting for a real advisory.
+
 ## Build and release pipeline
 
 The public repository uses the same maintained container definitions locally

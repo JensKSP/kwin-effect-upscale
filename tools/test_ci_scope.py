@@ -13,8 +13,14 @@ from pathlib import Path
 from unittest.mock import patch
 
 from ci_scope import changed_files, main, scope
+from git_fixture import detach
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def setUpModule() -> None:
+    """Keep fixture repositories out of the repository this check is running for."""
+    detach()
 
 
 class ScopeTest(unittest.TestCase):

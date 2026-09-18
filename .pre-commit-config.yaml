@@ -223,6 +223,17 @@ repos:
         always_run: true
         stages: [manual]
 
+      # Needs the pinned CodeQL command line, which the entry point fetches
+      # once into build/. The scheduled scan runs this same check; there is no
+      # separate analysis configured only for CI.
+      - id: upscale-codeql
+        name: CodeQL security analysis
+        entry: python3 -B tools/run-codeql.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [manual]
+
       - id: debian-package-lint
         name: Debian package policy
         entry: lintian --fail-on error,warning
