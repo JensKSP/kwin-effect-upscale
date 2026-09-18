@@ -234,6 +234,23 @@ list of linters somewhere else is a list that drifts.
   progress, record the blocker in the slice document and tell the user rather
   than claiming completion.
 
+## Owner overrides require explicit permission
+
+- Jens retains the repository owner's escape hatch. Its availability is not
+  permission for an agent to use it, even when the agent uses his credentials.
+- **Never attempt or test a protection bypass without Jens's explicit approval
+  for that specific operation.** This includes admin merges, direct writes that
+  bypass required PRs/checks, force pushes, protected-tag changes or deletion,
+  and disabling or weakening protection, required checks or review requirements.
+  Do not change permissions, credentials or bypass actors to work around a block.
+- General instructions to finish, fix, publish or merge work do not authorize
+  bypassing protection. Use the normal protected workflow. If blocked, explain
+  the unmet requirement, the exact proposed override and its consequence, then
+  wait for explicit permission before attempting it.
+- Approval is limited to the named operation and refs; it is not standing
+  permission for later bypasses. Record an approved override and restore any
+  temporarily changed protection afterwards. Do not silently extend its scope.
+
 ## Versions name a commit
 
 Laid down by Jens, 2026-09-17.

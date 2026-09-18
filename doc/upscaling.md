@@ -1616,11 +1616,18 @@ secret is required. Its service settings currently use the defaults.
 
 The public repository protects `master`: changes go through pull requests,
 the branch must be up to date with a passing GitHub Actions `Quality gate`,
-and review conversations must be resolved. This applies to administrators too;
-force pushes and branch deletion are disabled. A second human approval is not
-required for the sole maintainer. Stable release tags matching `v*` cannot be
-updated or deleted. The rolling `nightly` tag is outside that rule so the release
-workflow can replace it.
+and review conversations must be resolved. A second human approval is not
+required for the sole maintainer. Administrators retain GitHub's branch bypass
+option for owner-directed recovery; force pushes and branch deletion remain
+disabled in the normal policy. Stable release tags matching `v*` cannot be
+updated or deleted except through the explicit `JensKSP` owner bypass. The
+rolling `nightly` tag is outside that rule so the release workflow can replace it.
+
+Agents must not attempt any override or weaken protection without the owner's
+explicit permission for the specific operation, as required by the repository
+rules. Access to owner credentials is not approval. GitHub authorizes the account
+making a request; separate credentials without bypass privileges are necessary
+to enforce a distinction between owner and agent at the permission level.
 
 Review findings are advisory and do not replace the required `Quality gate`.
 Investigate each finding against the code and requirements, fix valid issues,
