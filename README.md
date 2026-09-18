@@ -308,6 +308,10 @@ CI builds Debian Trixie, the minimum supported environment (KWin 6.3.6), with
 GCC and with Clang and with warnings as errors. The nightly additionally builds
 against KDE neon unstable, which tracks KWin master. Both environments are
 defined under `containers/` so the same build can be reproduced locally.
+Both images verify CMake, Ninja, GCC and Clang during image creation. Ninja
+is installed from the shared `debian/control` dependencies. Rebuild images
+after changing these dependencies; an existing local image does not update
+when a Containerfile changes.
 
 ## Releasing
 

@@ -22,4 +22,13 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
         --tool "apt-get --no-install-recommends -y" upscale-debian-control \
     && rm -rf /var/lib/apt/lists/*
 
+# Fail while building the image if either compiler or a supported build
+# generator is missing. Project dependencies come from debian/control above.
+RUN cmake --version \
+    && ninja --version \
+    && gcc --version \
+    && g++ --version \
+    && clang --version \
+    && clang++ --version
+
 WORKDIR /src

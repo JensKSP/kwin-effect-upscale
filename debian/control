@@ -16,6 +16,7 @@ Build-Depends: debhelper-compat (= 13),
                libkf6kcmutils-dev (>= 6.13.0),
                libwayland-dev,
                libxkbcommon-dev,
+               ninja-build,
                pkgconf,
                qt6-base-dev (>= 6.8.0),
 Standards-Version: 4.7.2
