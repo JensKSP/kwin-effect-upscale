@@ -7,10 +7,11 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 ## Start state
 
-Existing CI and package/release workflows are under revision. Review found
-publication was not consistently gated on supported-platform checks and a
-hosted run failed on Git ownership. The observations below and current work
-remain unfinished; no successful hosted release gate is claimed.
+At the start of this slice, publication was not consistently gated on
+supported-platform checks and a hosted run failed on Git ownership. The
+implementation and validation below address those findings. The current
+acceptance audit and remaining work distinguish completed verification from
+repository settings and publication that remain outstanding.
 
 ## End state
 
@@ -74,8 +75,10 @@ No fixed two-job caps or custom RAM/CPU scheduler.
 - The nightly master compatibility job builds and runs its available tests.
 - Package and source assets are selected explicitly and checked before upload.
 - Release jobs use keyless attestations; builds have read-only repository access.
-- Package versions, timestamps, checksums and provenance are reproducible and
-  independently verifiable; repeat builds exercise the reproducibility claim.
+- Package versions, timestamps and payload checksums are reproducible within
+  the same build environment; repeat builds exercise that claim. Provenance
+  independently verifies the artifacts and source identity. Signing bundles
+  are not expected to be byte-identical between signing runs.
 - Package installation, installed metadata/loading where available, removal,
   and extracted-source builds have automated checks.
 - Both maintained containers build with GCC and Clang and warnings as errors.
@@ -158,8 +161,9 @@ research container. Rebuilding is required to update existing cached images.
 Real-display rendering belongs to the rendering acceptance slice. This work
 provides candidate provenance and the manual hardware procedure; it does not
 claim GPU acceptance. APT repository hosting and additional distribution package
-formats are outside this slice. Hosted verification depends on merging the
-workflow changes; repository protection depends on the pending approval.
+formats are outside this slice. Hosted verification can run on the PR branch;
+scheduled default-branch operation depends on merging the workflow changes.
+Repository protection depends on the pending approval.
 
 ### KWin 6.6 package compatibility
 
@@ -186,14 +190,41 @@ Ubuntu packages with clean installed-plugin checks.
 - Added quality-gate regressions for failed, cancelled, skipped and missing
   required jobs. Container caches now distinguish their base distribution.
 
+## Current acceptance audit, 2026-09-18
+
+Rechecked the hosted results and repository settings after consolidation. The
+chronological observations below describe their named revisions; later results
+supersede earlier pending statuses.
+
+| Requirement | Observed evidence | Remaining limit |
+| --- | --- | --- |
+| Supported-platform quality gate | [CI run 35327328581](https://github.com/JensKSP/kwin-effect-upscale/actions/runs/35327328581) passed every job for `57e2bc7`, including both compilers, lint, tidy, coverage, sanitizers, source archive and Debian package smoke checks. Both publication callers depend on quality, version and package jobs. | Check every subsequently pushed revision. |
+| Full package matrix and reproducibility | [Verification-only nightly 35323664547](https://github.com/JensKSP/kwin-effect-upscale/actions/runs/35323664547) passed Debian and Ubuntu packages on amd64 and arm64 for `28767b0`, including repeat-build comparisons and clean installation checks. | This records the tested revision and environment, not immutable dependencies across dates. |
+| Moving KWin and BSD compatibility | The same rehearsal passed both neon compilers and FreeBSD Clang with their available tests. | These compatibility results do not establish real-display acceptance. |
+| Keyless signing and source identity | The rehearsal's publication job attested the deliverables and verified the checksum manifest's provenance against the source commit and signer workflow. It retained a verified candidate. | The rehearsal intentionally skipped public release creation and promotion. |
+| Publication inventory and failure handling | Container regressions and hosted CI passed for inventory validation, failed quality jobs and promotion recovery. The publisher downloads and compares every draft asset before promotion. | Live stable-tag publication and rolling-nightly replacement have not been exercised by the verification-only rehearsal. |
+| Native tool scheduling | The observed container/package runs above exercised Ninja, parallel CTest, clang-tidy, coverage and fuzz workers; the maintained commands retain native scheduler overrides. | No custom memory scheduler or fixed worker cap is required. |
+| Automated review | CodeRabbit is connected and completed reviews through `451660a`. Accepted findings are fixed, including the checksum wording in `ad1ebb2`; the image-pinning assessment is recorded below. | Review of `57e2bc7` remains pending. |
+| Repository protection | GitHub reports `master` unprotected and no repository rulesets. | Apply and verify the prepared policy only after the pending explicit approval. |
+
 ## Remaining work
 
-- Exercise the verification-only nightly candidate on GitHub, including signing.
-- Run the final Debian package and extracted-source checks on the current candidate.
-- Exercise hosted workflows after the changes are published.
-- Record hardware acceptance in the rendering slice when displays are available.
-- Exercise the prepared FreeBSD workflow and the hosted arm64 matrix.
-- Apply repository protection only after the pending explicit approval.
+- Finish automated review of the latest revision and process valid findings;
+  keep its hosted quality gate green. Versioned CodeRabbit configuration is
+  optional while the connected app uses defaults.
+- Apply and read back the prepared branch and stable-tag protection after the
+  pending explicit approval. The policy requires the Quality gate and resolved
+  conversations, prevents force pushes/deletion, and does not require a second
+  human reviewer for the sole maintainer.
+- Merge through the reviewed PR when authorized, then verify default-branch
+  scheduling and dependency-update activation. Branch publication alone does
+  not activate scheduled workflows on the default branch.
+- Observe the first authorized rolling-nightly publication and stable-tag
+  release, including downloaded-asset and provenance verification. Do not
+  create a stable version solely to test publication or count the existing
+  verification-only run as a public release.
+- Keep real-device acceptance with the rendering slice. Candidate provenance
+  identifies what was tested; this pipeline does not claim hardware acceptance.
 
 ### Hosted feedback and review integration
 
@@ -255,6 +286,12 @@ byte-identical repeated builds within the same environment, not an immutable
 dependency lock across dates. Build records identify the packages actually used.
 Digest pinning would require a separate image-update policy; the suggestion's
 condition of immutable supply-chain inputs is not a project requirement.
+
+The review summary also reports its default 80% docstring-coverage threshold.
+That threshold is not a project check or an acceptance requirement. Keep useful
+API documentation and explanations of invariants, but do not add repetitive
+docstrings merely to satisfy the review service's default percentage. The
+repository's configured checks remain authoritative.
 
 The complete verification-only nightly for `28767b0` passed on GitHub (run
 35323664547): supported checks, four package targets, extracted source, both
