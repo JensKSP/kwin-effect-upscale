@@ -322,9 +322,31 @@ Neither check gates a pull request. The scheduled scan publishes findings so
 they can be assessed first, and dependency review is not a required status.
 Requiring either remains an owner decision and was not requested here.
 
-Still open for these two rows: hosted execution of both workflows, the first
-scheduled scan and its Security tab results, and the SARIF upload against a real
-run. Local results do not establish hosted behaviour.
+PR #12 carries this work. Its `Introduced dependencies` job passed on the first
+hosted run, `35352148918`, and recognised the dependency this very change adds:
+`actions/checkout` in `.github/workflows/dependency-review.yml`, no advisories.
+The coverage statement appeared in the hosted log. That is hosted acceptance of
+the dependency-review row's recognition criterion; a hosted policy failure has
+not been provoked, and will not be by introducing a vulnerable dependency.
+
+The CodeQL workflow cannot be dispatched yet. GitHub resolves `workflow_dispatch`
+against the default branch only, and the attempt returned HTTP 404 for a file
+that exists solely on this branch. Its hosted execution, the first scheduled
+scan, the SARIF upload and the Security tab results therefore depend on the
+owner merging this pull request. Local results do not establish hosted
+behaviour.
+
+A defect surfaced while pushing this branch and is fixed here rather than worked
+around. Git exports `GIT_DIR` and its companions to a hook, and the four
+fixture-driven regression suites inherited them, so under the real pre-push hook
+their `git -C <fixture>` calls operated on the repository being pushed: fixture
+files staged into its index, `tools/quality_gate.py` renamed to `doc/renamed.md`
+there, `README.md` modified, and their own commits failing against the real
+hooks. An ordinary checkout hides this behind a relative `GIT_DIR`; a linked
+worktree under `build/`, which is how this work is done, does not. The suites now
+drop those locations first, `tools/test_git_fixture.py` covers the case, all 94
+tests pass with an inherited `GIT_DIR`, and this branch's own push left the index
+clean.
 
 ## References
 
