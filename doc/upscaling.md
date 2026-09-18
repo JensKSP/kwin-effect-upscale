@@ -333,9 +333,9 @@ the game's rendering work and must not implement this slider.
 | Game's own settings | The game selects a smaller output buffer or its own internal render scale. An internal scale alone need not produce a smaller submitted buffer. | Always offer the calculated desired pixel size as guidance; verify what buffer actually arrives. |
 | Cooperative native Wayland client | A compositor can suggest a preferred surface scale. The client must support and act on that hint. | Investigate for this slice; enable requests only after the supported KWin integration and client behaviour are verified. |
 | Proton/Xwayland game | Resolution selection and delivery depend on the game and Xwayland integration. The Wayland hint is not a generic control for Windows game render settings. | Verify separately on a real game; otherwise show that the resolution must be selected in the game. |
-| Per-game display information | Advertising a smaller fullscreen resolution might cause the game to select a smaller buffer. | Investigate without KWin patches; keep mode information, fullscreen geometry, scale and input consistent. Not implemented or verified. |
+| Per-game display information | Advertising a smaller fullscreen resolution might cause the game to select a smaller buffer. | Investigate without KWin patches; keep mode information, fullscreen geometry, scale and input consistent. Not implemented in the product; proxy experiments below verify limited client paths. |
 | Virtual output | KWin has backend APIs for creating an additional output. This does not itself give one game a private display environment. | Investigate only if simpler per-game control is insufficient; preserve physical-output HDR and VRR. Not part of the initial rendering path. |
-| Nested compositor | A separate environment can advertise chosen screen modes, as gamescope does. | Not the selected solution: the objective remains integration into the existing KWin session. |
+| Nested compositor | A separate environment can advertise chosen screen modes, as gamescope does. | Consider a launch helper only when it forwards original smaller buffers into the existing KWin session; an already enlarged intermediate does not feed this effect. |
 
 The [Wayland fractional-scale protocol](https://gitlab.freedesktop.org/wayland/wayland-protocols/-/blob/main/staging/fractional-scale/fractional-scale-v1.xml)
 defines a preferred scale relative to surface-local dimensions, in units of
@@ -469,8 +469,8 @@ Existing software provides several relevant approaches:
 
 | Software | Mechanism and relevance |
 | --- | --- |
-| [Gamescope](https://github.com/ValveSoftware/gamescope/blob/c50ddfa9b71a75ec8df94bda8cf31d425dbdda24/README.md) | A private display environment separates game resolution from presentation resolution. It supports Xwayland and optionally native Wayland clients. Its usual nested upscaling path gives the host an already enlarged image, so using it does not establish input to our scaler. |
-| [Sommelier](https://chromium.googlesource.com/chromiumos/platform2/+/3d7104654150b0759fbdeb271148ba8da81f5a23/vm_tools/sommelier/README.md) | A protocol-aware proxy delegates composition to the host and translates output dimensions, configure sizes and coordinates. It supports native Wayland and separate Xwayland instances. This is a promising architectural reference for forwarding smaller buffers to KWin; its gaming, HDR and synchronization suitability has not been verified here. |
+| [Gamescope](https://github.com/ValveSoftware/gamescope/blob/c50ddfa9b71a75ec8df94bda8cf31d425dbdda24/README.md) | A private display environment separates game resolution from presentation resolution. It supports Xwayland and optionally native Wayland clients. Its Wayland backend with linear filtering forwarded smaller buffers as subsurfaces in our experiments. Other compositing paths can give the host an already enlarged image; backend and actual buffer inspection are essential. |
+| [Sommelier](https://chromium.googlesource.com/chromiumos/platform2/+/3d7104654150b0759fbdeb271148ba8da81f5a23/vm_tools/sommelier/README.md) | A protocol-aware proxy delegates composition to the host and translates output dimensions, configure sizes and coordinates. It supports native Wayland and separate Xwayland instances. Direct-scale experiments forwarded smaller buffers for selected native and Xwayland clients. Compatibility failures remain; gaming, HDR and synchronization acceptance is incomplete. |
 | [waywall](https://tesselslate.github.io/waywall/01_options_window.html) | A nested compositor for Minecraft supports explicit fullscreen render dimensions. It demonstrates another implementation of independent fullscreen resolution, not general Wine/Proton compatibility. |
 | [Wine virtual desktop](https://github.com/wine-mirror/wine/blob/wine-10.0/programs/explorer/desktop.c) | A named desktop can present chosen dimensions to Windows programs. The outer window still needs correct fullscreen presentation and input mapping in KWin. It does not cover native Linux games. |
 | [GE-Proton](https://github.com/GloriousEggroll/proton-ge-custom/blob/master/README.md) | Its documented `WINE_FULLSCREEN_FSR_CUSTOM_MODE` belongs to its own fullscreen-FSR implementation. This is neither a stock Valve Proton control nor proof of a smaller buffer reaching KWin. |
@@ -483,7 +483,8 @@ does not solve fullscreen display enumeration.
 
 Trixie Wine probes illustrate these limits: a named Xwayland virtual desktop
 made Windows report 1080p and supplied a 1080p buffer, but its outer KWin window
-was not fullscreen. A native Wayland GDI mode change made Windows report 1080p,
+was not fullscreen. Forcing that desktop fullscreen enlarged its supplied
+buffer to 4K while Windows still reported 1080p. A native Wayland GDI mode change made Windows report 1080p,
 but supplied a 3840 × 2304 backing buffer for a 4K destination. These are test
 client results, not game acceptance or measurements of the Vulkan paths.
 
@@ -495,12 +496,61 @@ mapping to KWin. X11 clients would use a dedicated Xwayland server rather than
 rewriting the shared desktop server's output information. The effect remains
 responsible for final enlargement on the physical output.
 
-This is a proposed architecture, not an implemented or accepted solution.
+This is a proposed product architecture with experimental buffer-forwarding
+evidence, not an implemented or accepted product solution.
 Check buffer forwarding and lifetime, subsurfaces, popup geometry, pointer
 locking and confinement, relative input, colour descriptions, explicit
 synchronization and presentation feedback before adopting it. KWin remains
 unpatched. A launch helper would be an additional component; an effect-only
 universal resolution override remains unproven.
+
+### Resolution-control direction after the experiments
+
+A launch helper plus the effect is a viable direction without modifying KWin.
+Two mechanisms have supplied smaller original buffers to unmodified KWin 6.3.6:
+
+- **Protocol proxy:** Sommelier's direct-scale mode forwarded 1080p and 1440p
+  native OpenGL buffers, a 1080p native Vulkan buffer, and smaller Xwayland
+  buffers, including Trixie Wine D3D11. A prototype which hides the proxy's
+  compensating fractional-scale advertisement also handled Qt at both sizes
+  with correct absolute pointer mapping. This prototype is not a shipped
+  helper; unmodified Sommelier has failing Qt, Proton and multi-process Wine
+  cases in our tests.
+- **Gamescope Wayland backend:** `--backend wayland -F linear` forwarded smaller
+  original game buffers as subsurfaces, including native Vulkan, Xwayland
+  OpenGL, official Proton DXVK and vkd3d-proton probes. Its 1 × 1 root surface
+  is not the game image. The current effect rejects surface children, so this
+  requires deliberate support for the forwarded game surface and overlays.
+  Enabling Gamescope's own upscaler or another compositing feature may instead
+  give KWin an already enlarged image; recheck the actual surface tree.
+
+The candidate launch shape for Gamescope is:
+
+```sh
+gamescope --backend wayland -w 1920 -h 1080 -W 3840 -H 2160 \
+  -F linear -f -- command
+```
+
+Add `--expose-wayland` for native Wayland clients. These flags were exercised
+with Gamescope 3.16.22 from Debian Trixie backports; they are experimental
+integration guidance, not a claim that the current effect accepts this path.
+The helper must start before display enumeration. A private display must be
+associated with the selected game profile, including child processes; the
+host-facing wrapper identity alone is insufficient to distinguish games.
+
+Do not promise an exact rendering resolution for every program. A deliberate
+fixed-4K client still submitted 4K through the smaller virtual display, and
+internal render targets remain application-owned. Rejecting such buffers could
+prevent presentation but would not make the game render less. Offer automatic
+negotiation where verified, launch-time virtualization where supported, and
+in-game guidance otherwise. Show **target not reached** when observation does
+not confirm the requested size; continue scaling eligible actual input.
+
+The measured results establish mechanisms, not product acceptance. Complete
+per-game launch/profile integration, subsurface handling where needed, relative
+input and confinement, exclusive fullscreen and mode transitions, overlays,
+explicit synchronization, HDR and VRR, and real-game TV acceptance before
+shipping. The experimental commands do not measure performance savings.
 
 ## Rendering and lifecycle requirements
 

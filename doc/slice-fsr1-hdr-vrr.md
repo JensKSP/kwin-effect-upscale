@@ -330,8 +330,9 @@ changed for this inspection. Wine was not available on the terminal's PATH;
 Valve Proton 11.0-2 was selected as the latest stable release after checking
 Valve's release list. Its Wine submodule is
 `dc26e61847081a1b5cb0733dc30feba6ee575482`. No Proton runtime was found in the
-checked default Steam library paths; Proton execution and real-game acceptance
-remain pending identification of the Steam installation.
+checked default Steam library paths at that stage. The later experiments below
+located and executed the installed official runtime; real-game acceptance
+remains open.
 
 #### Observed Wine results
 
@@ -369,7 +370,7 @@ Sommelier at `3d7104654150b0759fbdeb271148ba8da81f5a23` translates both output
 sizes and `xdg_toplevel.configure` sizes; its architecture delegates composition
 to the host. A similar launch helper with a private Xwayland instance is a
 candidate for consistent per-game display information while retaining smaller
-buffers for KWin. It is not implemented or tested here. Valve Proton 11.0-2's
+buffers for KWin. Subsequent runtime experiments are recorded below. Valve Proton 11.0-2's
 Vulkan source also contains a host-size blit path: measure which path is used
 rather than assuming Windows display emulation leaves upscaling to KWin.
 
@@ -397,6 +398,123 @@ linked and ran under both compilers in each image, with warnings as errors:
 This verifies toolchain availability, not a build of the concurrently modified
 production effect. Wine experiment packages remain confined to the disposable
 research container. Rebuilding is required to update existing cached images.
+
+### Resolution-control acceptance experiments, 2026-09-18
+
+Continue beyond source review. Required experiments are: force the existing
+Wine 1080p desktop fullscreen and measure whether its buffer grows; inspect and
+run a protocol-translating wrapper; exercise native Linux OpenGL and Vulkan
+clients, then equivalent Wine and official Proton paths. Test at least 1080p
+and 1440p on a 4K destination, input mapping, restoration and an application
+that ignores resize requests. All experimental code and environments stay
+under `build/`. An exact-size presentation buffer must not be confused with
+reduced internal rendering or a downsample of a larger game buffer. Do not
+claim universal enforcement from a finite list of cooperating applications.
+
+#### Environment and reproducible launch shapes
+
+Observed on unpatched KWin 6.3.6 in disposable Trixie containers, using its
+virtual backend with a 3840 × 2160 output, normally at desktop scale 1. A
+read-only diagnostic effect recorded fullscreen state, root buffer and
+viewport destination sizes, plus child surfaces. Mesa 25.0.7 used the AMD
+GFX1151 device. These short graphics runs establish buffer dimensions, not
+benchmark scores, HDR, VRR or TV acceptance. No production plugin or real
+session setting was changed.
+
+Sommelier was built from the reviewed commit
+`3d7104654150b0759fbdeb271148ba8da81f5a23`. The working local forwarding command
+used `--noop-driver --display=wayland-0 --direct-scale --scale=0.5`, with
+`--enable-linux-dmabuf` for graphics and `--glamor -X` for a private Xwayland.
+For 1440p, the scale argument was `0.6666666666666667`. Ordinary `--scale`
+without direct-scale mode did not reduce the tested native OpenGL buffer.
+
+Gamescope `3.16.22+ds-1~bpo13+1` came from Trixie backports' contrib component.
+Runs used `--backend wayland -w WIDTH -h HEIGHT -W 3840 -H 2160 -F linear -f`,
+plus `--expose-wayland` for native clients. `/usr/games` must be on `PATH` for
+Debian's `gamescopereaper`. The container needed both GPU nodes visible;
+render-node-only access failed initialization. All launches explicitly used
+the nested Wayland backend, not the physical-output backend.
+
+Wine remained Trixie's `10.0~repack-6`. Official Proton was found in the gaming
+user's Steam library: `1788504981 proton-11.0-2c-x86_64`. A copy ran through
+its `proton run` launcher with isolated compatibility data. The native Steam
+client library also had to be copied into the container's SDK location;
+without it the launcher asserted and some runs timed out after presenting.
+Corrected runs below exited normally. This used the official runtime and
+DXVK/vkd3d-proton, but did not launch an installed Steam game through the Steam
+client or Steam Linux Runtime container. No original game prefix was modified.
+No native Wayland Wine driver was found in this installed Proton runtime.
+
+#### Results
+
+All sizes in the supplied-buffer column are pixels. A 4K destination means
+3840 × 2160 on the unchanged virtual output. Windows probes queried screen
+metrics and actual D3D texture descriptions, then cleared and presented frames
+for eight seconds. D3D11 and D3D12 probes used borderless Windows windows;
+exclusive fullscreen remains a separate test.
+
+| Route and client | Supplied buffer observed at KWin | Result and limitation |
+| --- | --- | --- |
+| Wine virtual desktop, forced fullscreen by diagnostic effect | 3840 × 2160 root | Windows continued reporting 1920 × 1080. This does not supply smaller input. |
+| Unmodified Sommelier, native glmark2 OpenGL | 1920 × 1080 and 2560 × 1440 roots | Each fullscreen, with a 4K destination. glmark2 also reported matching render-surface dimensions. |
+| Unmodified Sommelier, native vkmark Vulkan cube | 1920 × 1080 root | Fullscreen, 4K destination; actual scene rendered. An earlier invalid scene name rendered nothing and is excluded. |
+| Unmodified Sommelier, glmark2 through private Xwayland | 1920 × 1080 root | Fullscreen, 4K destination. |
+| Unmodified Sommelier, Wine/Xwayland D3D11 | 1920 × 1080 and 2560 × 1440 roots | Windows screen metrics and D3D backbuffer matched; presentation succeeded and outer window was fullscreen. This used Wine's D3D implementation, not DXVK. |
+| Unmodified Sommelier, Qt native Wayland | 3840 × 2160 root | Direct-scale mode advertised a smaller screen but fractional-scale hints requested double density. Qt still supplied 4K; shutdown also crashed. |
+| Prototype Sommelier, Qt native Wayland | 1920 × 1080 and 2560 × 1440 roots | Hiding the fractional-scale global in the proxy gave scale-one rendering, fullscreen 4K coverage and clean exit. This is an experimental proxy modification, not a KWin patch or an upstream Sommelier result. |
+| Gamescope Wayland backend, glmark2/Xwayland | 1920 × 1080 child | Fullscreen 4K wrapper, 1 × 1 root. The current effect rejects children and cannot use this path yet. |
+| Gamescope Wayland backend, vkmark/native Wayland | 2560 × 1440 child | Fullscreen 4K wrapper, 1 × 1 root. Same integration requirement. |
+| Gamescope, official Proton DXVK D3D11 | 2560 × 1440 child | Screen metrics and D3D backbuffer matched; 483 successful presents in the corrected run, exit 0. Earlier 1080p rendering succeeded but incomplete runtime setup prevented clean teardown. |
+| Gamescope, official Proton vkd3d-proton D3D12 | 1920 × 1080 child | Screen metrics and backbuffer matched; 478 successful presents, exit 0. Log identified vkd3d-proton 3.0.0, build `212991fc2c266bc`. |
+| Gamescope, Qt native Wayland | 646 × 513 child including decorations | Qt retained its initial 640 × 480 content despite fullscreen request. This did not reach 1080p. |
+| Sommelier, official Proton DXVK | No successful D3D creation/presentation | KWin disconnected the proxy for attaching a buffer before the configure handshake. A mapped 1080p surface alone is not success. |
+| Trixie Wine native Wayland D3D11, through either helper | No successful D3D device | Returned `0x887a0004`; Sommelier also reported an invalid object ID with the multi-process client. No native Wine graphics support established. |
+
+Proton launches temporarily changed the outer Gamescope window's fullscreen
+state and geometry before settling at fullscreen 4K. This is another lifecycle
+case to handle before acceptance, not a continuously fullscreen guarantee.
+The successful runs forwarded smaller game buffers; the production effect was
+not enabled in these observer-only experiments.
+
+#### Input, isolation and enforcement boundary
+
+The proxy prototype mapped host pointer positions `(960, 540)`, `(1920, 1080)`
+and `(2880, 1620)` to `(480, 270)`, `(960, 540)` and `(1440, 810)` at 1080p.
+At 1440p it mapped them to `(640, 360)`, `(1280, 720)` and `(1920, 1080)`.
+These were observed Qt pointer events, injected only into the isolated virtual
+compositor. Wine pointer probes did not establish corresponding movement;
+Windows input, relative motion, confinement, locking and controllers remain
+open. KWin's permission-check override was used only in these isolated sessions.
+
+An unrelated Qt client alongside the proxy retained a 4K buffer. Another Qt
+client launched after proxy shutdown also supplied 4K. Neither required a
+restoration of global display settings. A deliberate fixed-4K client still
+supplied 4K through the prototype's virtual 1080p display: the helper cannot
+force arbitrary client buffer allocation or internal rendering. A Gamescope
+attempt with that probe did not map a surface and is not an enforcement result.
+
+The resulting direction is a per-profile launch helper which forwards original
+buffers, with either a protocol proxy or Gamescope's Wayland backend. Neither
+is ready to ship unchanged. Sommelier exposes client-compatibility and protocol
+lifetime work; Gamescope requires surface-tree support in this effect and
+verification of every path that can switch to intermediate composition.
+Keep cooperative scale hints and game settings as additional routes. There is
+no experimentally justified universal “always reduce” guarantee.
+
+Remaining acceptance: real OpenGL/Vulkan games, profile-driven launches and
+identification, Wine/Proton input, exclusive fullscreen and mode changes,
+32-bit applications, popup/overlay handling, synchronization and colour
+protocols, HDR/VRR, multi-output behaviour, physical TV acceptance, and repeatable
+performance comparisons. The containers and probes establish mechanisms only.
+A virtual-backend `--scale=3` startup attempt did not retain an effective
+scale-three desktop in the observed window state, so it does not establish
+compatibility with the TV's scaled desktop.
+
+Documentation validation: `pre-commit run --all-files` passed in the Trixie
+container on a checkout containing these documentation changes and the current
+committed implementation, isolated from concurrent uncommitted development.
+The full pre-push stage also passed, including licensing and build/checker
+regression tests. These checks do not establish a new production build.
 
 ### Implementation checklist
 
