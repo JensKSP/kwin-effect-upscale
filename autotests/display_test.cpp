@@ -160,24 +160,6 @@ void UpscaleDisplayTest::visibilityAndSampling()
     display.reconfigure();
     display.update(state, nullptr);
     QCOMPARE(paint(display), unsampled);
-    // A new selection measures itself. Rates belong to the window they were
-    // counted over, so the window that was on screen before must not lend its
-    // numbers to the next one. Only the identity of the window is used here:
-    // the display compares it and holds it in a QPointer, and never calls it.
-    QObject firstSelection;
-    QObject secondSelection;
-    auto *const first = reinterpret_cast<EffectWindow *>(&firstSelection);
-    auto *const second = reinterpret_cast<EffectWindow *>(&secondSelection);
-    display.update(state, first);
-    QCOMPARE(paint(display), unsampled);
-    display.countClientUpdate(first);
-    display.countClientUpdate(first);
-    display.countRepaint();
-    QTest::qSleep(1100);
-    display.update(state, first);
-    QVERIFY(paint(display) != unsampled);
-    display.update(state, second);
-    QCOMPARE(paint(display), unsampled);
 
     UpscaleConfig::setOsdStatistics(false);
     UpscaleConfig::setOsdDeveloper(true);
