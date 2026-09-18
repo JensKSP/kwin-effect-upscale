@@ -309,3 +309,7 @@ local documentation updates onto the existing PR branch, preserving both
 histories. Both container hook stages passed on the combined tree before the
 checksum wording correction. Latest-revision hosted checks and review remain
 required after pushing the consolidation.
+
+The owner requested the CodeRabbit review badge in the README on 2026-09-18.
+Added it alongside the existing CI badges and recorded that specific exception
+in the repository rules; the general restriction on tool attribution remains.

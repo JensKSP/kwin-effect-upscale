@@ -7,6 +7,7 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 [![CI](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/ci.yml/badge.svg)](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/ci.yml)
 [![Nightly](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/nightly.yml/badge.svg)](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/nightly.yml)
+[![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/JensKSP/kwin-effect-upscale?utm_source=oss&utm_medium=github&utm_campaign=JensKSP%2Fkwin-effect-upscale&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)](https://coderabbit.ai)
 
 A KWin effect that upscales fullscreen windows rendering below the resolution
 of the output they cover.
