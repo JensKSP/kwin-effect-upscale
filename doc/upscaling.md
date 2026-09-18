@@ -1614,6 +1614,14 @@ on this public repository use its [free open-source offer](https://www.coderabbi
 The app is managed in GitHub's installed-app settings; no model API key or CI
 secret is required. Its service settings currently use the defaults.
 
+The public repository protects `master`: changes go through pull requests,
+the branch must be up to date with a passing GitHub Actions `Quality gate`,
+and review conversations must be resolved. This applies to administrators too;
+force pushes and branch deletion are disabled. A second human approval is not
+required for the sole maintainer. Stable release tags matching `v*` cannot be
+updated or deleted. The rolling `nightly` tag is outside that rule so the release
+workflow can replace it.
+
 Review findings are advisory and do not replace the required `Quality gate`.
 Investigate each finding against the code and requirements, fix valid issues,
 and explain findings that do not require a change. After pushing fixes, check

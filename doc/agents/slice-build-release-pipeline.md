@@ -163,7 +163,8 @@ provides candidate provenance and the manual hardware procedure; it does not
 claim GPU acceptance. APT repository hosting and additional distribution package
 formats are outside this slice. Hosted verification can run on the PR branch;
 scheduled default-branch operation depends on merging the workflow changes.
-Repository protection depends on the pending approval.
+Repository protection was approved and enabled on 2026-09-18, as recorded in
+the current acceptance audit below.
 
 ### KWin 6.6 package compatibility
 
@@ -205,17 +206,13 @@ supersede earlier pending statuses.
 | Publication inventory and failure handling | Container regressions and hosted CI passed for inventory validation, failed quality jobs and promotion recovery. The publisher downloads and compares every draft asset before promotion. | Live stable-tag publication and rolling-nightly replacement have not been exercised by the verification-only rehearsal. |
 | Native tool scheduling | The observed container/package runs above exercised Ninja, parallel CTest, clang-tidy, coverage and fuzz workers; the maintained commands retain native scheduler overrides. | No custom memory scheduler or fixed worker cap is required. |
 | Automated review | CodeRabbit is connected and completed reviews through `451660a`. Accepted findings are fixed, including the checksum wording in `ad1ebb2`; the image-pinning assessment is recorded below. | Review of `57e2bc7` remains pending. |
-| Repository protection | GitHub reports `master` unprotected and no repository rulesets. | Apply and verify the prepared policy only after the pending explicit approval. |
+| Repository protection | After explicit owner approval, enabled and independently read back `master` protection: strict Quality gate from GitHub Actions, required PRs and resolved conversations, admin enforcement, no force pushes/deletion and zero required human approvals. Active tag ruleset `23649284` prevents updates and deletion of `refs/tags/v*`, with no bypass actors. | The rolling `nightly` tag is deliberately outside the stable-tag rule. |
 
 ## Remaining work
 
 - Finish automated review of the latest revision and process valid findings;
   keep its hosted quality gate green. Versioned CodeRabbit configuration is
   optional while the connected app uses defaults.
-- Apply and read back the prepared branch and stable-tag protection after the
-  pending explicit approval. The policy requires the Quality gate and resolved
-  conversations, prevents force pushes/deletion, and does not require a second
-  human reviewer for the sole maintainer.
 - Merge through the reviewed PR when authorized, then verify default-branch
   scheduling and dependency-update activation. Branch publication alone does
   not activate scheduled workflows on the default branch.
