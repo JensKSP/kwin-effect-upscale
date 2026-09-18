@@ -7,9 +7,10 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 ## Status and priority
 
-Planning only, requested on 2026-09-18. This is a separate work package for the
-public project's contribution, security and maintenance workflow. No settings,
-issues, notifications or new services are enabled by writing this plan.
+Implementation started on 2026-09-18 under the request to complete the proposed
+improvements. This separate work package covers the public project's
+contribution, security and maintenance workflow. Phase 1 prepares contribution
+forms and guidance; hosted activation remains subject to the owner's merge.
 It does not change the implementation priority of the
 [development infrastructure slice](slice-development-infrastructure.md).
 
@@ -207,12 +208,44 @@ remain identified as optional in the permanent documentation.
 ## Observed progress and remaining work
 
 - Repository settings and the pipeline dependency were inspected on 2026-09-18.
-- This plan was written; implementation has not started.
+- The initial plan was written; phase 1 implementation is recorded below.
 - Documentation hooks passed in the maintained Trixie container; local links
   in this plan and the slice index resolved successfully.
-- Planned checks above have not been run for these proposed features.
-- Next: start this separate slice when selected, revalidate the start state and
-  prepare phase 1. Coordinate with the pipeline slice before any settings change.
+- Validation not explicitly recorded below remains pending.
+- Next: obtain hosted phase 1 validation and continue with security controls.
+  Coordinate with the pipeline slice before any settings change.
+
+### Phase 1: contribution entry points
+
+Reinspection after master `2979b60` found no issues or milestones. Existing
+labels already cover bugs, enhancements, documentation, build, CI, upscaling
+and tests; reuse those rather than create competing names. Auto-merge, merged
+branch deletion, Discussions and Wiki are now enabled. Preserve these settings;
+the older start-state snapshot does not authorize undoing intervening changes.
+Secret scanning, push protection, Dependabot security updates and private
+vulnerability reporting remain disabled; CodeQL default setup is not configured.
+Those security controls belong to the next phase.
+
+Prepare four native issue forms (rendering, build/install, hardware acceptance,
+feature request), a short PR template and a contributor guide with diagnostic
+sources and maintained container commands. Forms reference only existing labels,
+accept unknown/not-tested evidence honestly and require the minimum facts for
+each report. Keep blank issues available for reports the forms cannot express.
+Do not post synthetic issues or invent a release milestone without agreed
+contents. Validate YAML and Markdown with both maintained hook stages, compare
+form fields with GitHub's current schema and verify referenced files/labels.
+Hosted rendering and required-field behaviour remain acceptance items after the
+forms reach the default branch.
+
+Prepared the four forms, the PR template and `CONTRIBUTING.md`; the README links
+the guide. All form labels already exist in GitHub. Required fields use empty
+inputs or placeholders rather than prefilled results, so untested hardware
+cannot acquire a default passing result. Compared form element types, IDs,
+attributes and validation keys against GitHub's form-schema documentation. Both
+maintained container hook stages passed with the new files staged, including
+YAML, Markdown, spelling, licensing, repository rules and tooling regressions.
+Hosted CI/review and default-branch form rendering remain pending. No issues,
+milestones or account settings were changed in this phase.
 
 ## References
 
@@ -226,3 +259,38 @@ remain identified as optional in the permanent documentation.
 - [Artifact and SBOM attestations](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations)
 - [GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site)
 - [Immutable releases](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases)
+
+## Security controls preparation
+
+The contribution entry points are prepared separately in PR #9. While that PR
+receives review, prepare the next phase's reporting policy and native security
+controls without changing its branch. Readback on 2026-09-18 found Dependabot
+alerts disabled (the documented 404 response), automated security fixes disabled,
+private vulnerability reporting disabled and both secret scanning and push
+protection disabled. Dependency-graph SBOM retrieval also returned 404; that
+response alone does not establish which manifests GitHub can recognize.
+
+Enable provider-pattern secret scanning and push protection, Dependabot alerts
+and automated security updates, and private vulnerability reporting through
+the documented repository APIs. These are free public-repository features.
+Add `SECURITY.md` describing experimental-version support and the private route;
+do not promise response times or claim the prototype is safe for daily use.
+Read back each setting and query alert access without printing secret values.
+Leave generic-pattern/validity options for assessment, and CodeQL/dependency
+review for their local-check integration. Do not publish fabricated alerts.
+
+Enabled and read back provider secret scanning, push protection, Dependabot
+alerts/security updates and private vulnerability reporting on 2026-09-18.
+Alert endpoints were accessible and returned zero alerts at inspection; this
+is not a claim that every credential or vulnerability has been detected.
+After activation, dependency-graph SBOM retrieval succeeded and listed five
+root-workflow action dependencies plus the repository. The composite-action
+inputs, pre-commit hooks, distribution packages and shaders were not represented
+in that graph, so its coverage is explicitly incomplete. Gitleaks and reviewed
+version updates remain in place. CodeQL, dependency review and additional
+secret-pattern assessment remain open. `SECURITY.md` records the private
+reporting route, current-development support and these coverage limits.
+
+The public Advisories page returned HTTP 200 and contained its private-report
+link. Both documentation hook stages passed in the maintained container.
+No vulnerability report or test credential was submitted.
