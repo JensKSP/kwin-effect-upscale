@@ -5,12 +5,27 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 # kwin-effect-upscale
 
+> [!WARNING]
+> **Not working — do not use.** This is an experimental development project.
+> The effect has not yet been observed scaling a frame on real hardware.
+> Passing CI and available packages do not make it ready for use.
+
 [![CI](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/ci.yml/badge.svg)](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/ci.yml)
 [![Nightly](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/nightly.yml/badge.svg)](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/nightly.yml)
 [![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/JensKSP/kwin-effect-upscale?utm_source=oss&utm_medium=github&utm_campaign=JensKSP%2Fkwin-effect-upscale&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)](https://coderabbit.ai)
 
-A KWin effect that upscales fullscreen windows rendering below the resolution
-of the output they cover.
+## TL;DR
+
+- **Goal:** upscale smaller fullscreen game buffers inside KWin using FSR 1,
+  with optional RCAS sharpening.
+- **Current state:** the first real-hardware test on wzpc rejected a supplied
+  smaller buffer and produced no scaled frame. The cause is still unknown.
+- **Next:** add diagnostics, fix that refusal and prove scaling on hardware.
+  Game resolution control, performance, HDR and VRR acceptance remain open.
+- **For now:** source and build instructions are for development and debugging.
+  Do not install this expecting working game upscaling.
+
+## Why this project?
 
 KDE Plasma is my desktop of choice, and I also use my PC for gaming with Steam.
 My gaming setup relies on gamescope to upscale games to 4K, but running another
@@ -91,14 +106,24 @@ and licence notices.
 
 ## State
 
-FSR 1 scaling, optional RCAS sharpening and resolution controls are implemented.
+**Not working; not ready for use.** FSR 1 and optional RCAS code exist, and the
+plugin builds and loads, but those results do not establish that it scales a
+frame in a real session. On wzpc, the first hardware test supplied a smaller
+fullscreen buffer that met the documented eligibility rules. The effect refused
+it, stayed inactive and produced no scaled frame. The failing condition has not
+yet been isolated; the passing automated tests did not catch it.
+
 The controls show the desired resolution and the actual supplied buffer size;
-game resolution changes currently require the game's own settings. Automated
-rendering and configuration tests cover the implementation, but full compositor
-lifecycle, real-game, HDR and VRR acceptance remain open. The effect is disabled
-by default.
+they do not make a game render at that resolution. Game resolution changes
+currently require the game's own settings. Real-game behaviour, image quality,
+performance, HDR and VRR remain unverified. The effect is disabled by default.
+The [developer handbook](doc/upscaling.md#supported-scope-and-full-acceptance)
+defines the acceptance still required.
 
 ## Packages
+
+These are development artifacts, not a usable release. The warning above also
+applies to packaged builds.
 
 Packages are built for amd64 and arm64, for Debian Trixie and for Kubuntu
 26.04 LTS. Pick the one matching the distribution you run, because a KWin effect is
@@ -260,7 +285,8 @@ sudo xargs rm -v < build/install_manifest.txt
 
 Contributions are welcome: bug reports, testing on different setups,
 documentation improvements and code. Feel free to open an issue or a pull
-request on GitHub.
+request on GitHub. The [contributor guide](CONTRIBUTING.md) explains reporting,
+maintained build environments, checks and submission expectations.
 
 We use Codex and Claude to help write code for this project. We aim to keep
 "AI slop" out: unnecessary abstractions, boilerplate and changes we cannot

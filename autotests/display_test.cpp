@@ -193,6 +193,9 @@ void UpscaleDisplayTest::displayShowsTheState()
         return KConfigGroup(KSharedConfig::openConfig(QStringLiteral("kwinrc")), QStringLiteral("Effect-upscale"));
     };
     settings().deleteGroup();
+    // Exercise these modes in release builds as well as Debug builds.
+    settings().writeEntry("OsdStatistics", true);
+    settings().writeEntry("OsdDeveloper", true);
     KSharedConfig::openConfig(QStringLiteral("kwinrc"))->sync();
 
     UpscaleDisplay display;
@@ -201,8 +204,6 @@ void UpscaleDisplayTest::displayShowsTheState()
     // Visibility expiry is tested separately without delivering that signal.
     UpscaleConfig::setOsdTimeout(60);
     display.reconfigure();
-    // This test binary is built the way the effect is, so the build type that
-    // decides the defaults is the same one the assertions below expect.
     QVERIFY(display.enabled());
     QVERIFY(display.wantsSnapshot(nullptr));
 

@@ -583,6 +583,38 @@ HDR and VRR follow KWin's display settings. They are mandatory supported paths,
 not optional quality presets. An enabled VRR setting must not be labelled as
 proof of currently variable presentation.
 
+### Language and translations
+
+The effect is KDE user interface and follows KDE's translation conventions.
+English is the source language; **German, French and Spanish are required**,
+and adding another language must be adding a catalogue, never a code change.
+
+- Every user-visible string goes through KI18n with the project's translation
+  domain, `kwin_effect_upscale`, which the build defines for the effect and for
+  the settings module. That includes the status text, the on-screen display,
+  the settings labels and the messages that name a refused condition.
+- Do not assemble a sentence from translated fragments into new grammar. Where
+  a fragment is unavoidable, as with a refusal reason that appears inside the
+  status, the announcement and the developer view, give it `i18nc` context
+  naming the frames it appears in, so a translator can see the whole sentence
+  and reorder it. A language whose word order differs from English must be able
+  to produce a correct sentence without changing the code.
+- Values follow the user's locale for dates, times and decimal separators.
+  Pixel counts are the deliberate exception and are never grouped: a resolution
+  is an identifier, not a quantity, and "3.840 × 2.160" reads as two fractional
+  numbers.
+- The plugin metadata carries translated `Name` and `Description` entries,
+  because the effects list reads the metadata and never calls into the plugin.
+- Extraction and catalogues follow KDE's layout: a `Messages.sh` at the
+  repository root produces the template, catalogues live in
+  `po/<language>/kwin_effect_upscale.po`, and `ki18n_install(po)` installs the
+  compiled catalogues. The packages ship them, so a user who installs the
+  package gets their language without any further step.
+- Acceptance runs the settings page and the on-screen display in each shipped
+  language and confirms that no user-visible string is left untranslated, that
+  a longer translation does not break the settings layout or push the display
+  off the output, and that the display still follows the scaling rules above.
+
 ### Per-application overrides
 
 Required extension, not yet implemented: maintain a user-editable list of
@@ -633,9 +665,23 @@ Use the planned OSD rather than introducing a second notification surface. Draw
 it independently of the game's captured buffer so it remains sharp and cannot
 be processed by the upscaler.
 
-Implemented: the surface exists and is drawn after the screen pass, at
+**The OSD follows the session's scaling settings.** It is KDE user interface
+and must look like it: take the font family and size from the session's font
+settings and the scale factor from the output the message is shown on, so the
+text is the same physical size as the rest of the desktop on that screen. A
+per-output scale applies per output; a changed scale or font re-lays out the
+text at the new size rather than stretching what was already drawn. None of
+this passes through the upscaler: the text is measured and rendered at
+destination pixels, so a game enlarged from a smaller buffer never makes the
+overlay blurry or larger. A television at 4K with an unscaled desktop is the
+case to keep legible; do not compensate with a size of the effect's own
+choosing where the session already states one.
+
+Implemented so far: the surface exists and is drawn after the screen pass, at
 destination resolution, outside the captured image, taking no focus and no
-input. While it is visible the effect reports itself active, because KWin skips
+input. It scales its text with the output's scale factor; taking the family
+and size from the session's font settings, and re-laying out when either
+changes, is specified above and not yet implemented. While it is visible the effect reports itself active, because KWin skips
 the paint methods of an inactive effect, and a refused window is exactly when
 the explanation is needed; the composition requirement that comes with it ends
 when the display is hidden. It announces the *selected* application and shows the basic summary for
@@ -764,8 +810,9 @@ when the selected game closes or changes outputs.
 Add **Developer information** to the OSD settings. It extends the ordinary
 FPS/resolution view with the complete effective configuration and diagnostic
 state, grouped and labelled so developers can explain what the effect is doing.
-Keep the passive view readable at output resolution; detailed inspection and
-copying are also available through the settings diagnostic snapshot. This is
+Keep the passive view readable at the session's scale, by the same rule as the
+timed messages above; detailed inspection and copying are also available
+through the settings diagnostic snapshot. This is
 required development infrastructure, not the optional full About overlay.
 
 Implemented: build and runtime, selection, configuration, geometry, processing
@@ -1540,7 +1587,22 @@ and bug analyzers. Findings fail the check. Container package versions follow
 the distribution so security updates remain available; checker versions are
 pinned.
 
-PR CI runs separate Trixie builds for GCC coverage, Clang ASan with UBSan and
+For PRs and pushes to `master`, `tools/ci_scope.py` selects a reduced path only
+when every changed file is Markdown at the repository root, under `doc/` or
+under `.github/`. It includes deletions and both sides of renames. Unknown paths,
+mixed changes, empty diffs or unavailable comparisons retain full validation.
+The `docs` check group uses pre-commit's native file filtering for both stages;
+history secret scanning, REUSE and whole-tree repository rules still run.
+Tooling regressions use the file patterns in `.pre-commit-config.yaml`, so they
+do not run for documentation-only changes. GCC, Clang, clang-tidy, sanitizers,
+coverage and packaging are skipped for that scope. The required Quality gate
+accepts skips only when the successful scope job explicitly selected them.
+Nightly, release and manual full runs always retain complete validation.
+
+Inside the maintained container, use `python3 -B tools/run-checks.py docs --base
+<base-commit>` for the same targeted checks; it rejects a non-documentation diff.
+
+Code-affecting PR CI runs separate Trixie builds for GCC coverage, Clang ASan with UBSan and
 leak detection, and Clang TSan. Sanitizers must not be combined with coverage
 or with each other beyond the supported ASan/UBSan combination. The address
 sanitizer build also runs libFuzzer against the resolution policy for 60 seconds;
@@ -1663,12 +1725,44 @@ from master. Scheduled runs continue publishing changed master commits.
 CodeRabbit is connected through its GitHub App to review pull requests. Reviews
 on this public repository use its [free open-source offer](https://www.coderabbit.ai/oss).
 The app is managed in GitHub's installed-app settings; no model API key or CI
-secret is required. Its service settings currently use the defaults.
+secret is required. `.coderabbit.yaml` enables its request-changes workflow:
+actionable findings request changes; approval follows review of the latest
+commit and resolution of blocking findings. Automatic code-writing features
+are disabled. The repository's own checks define its documentation requirements;
+CodeRabbit's generic docstring percentage check is disabled.
+
+The `CodeRabbit approval` status verifies an actual approval by the installed
+bot account for the current commit. Review completion alone does not pass it.
+Require this status alongside `Quality gate`, with GitHub Actions as the
+permitted source for both. The approval workflow must already exist on the
+default branch when enabling that requirement; otherwise the bootstrap PR
+cannot produce its required status.
+
+PR events and an unprivileged review-event workflow wake a trusted workflow
+that reads current GitHub review metadata. It executes only default-branch code
+and never consumes PR artifacts. Approval of an older commit, a dismissed
+approval or a change request cannot pass. Review-fetch errors leave the status
+pending after invalidation; event delivery or API outages may delay updates.
+Because commit statuses are shared by PRs with the same head commit, all open
+PRs sharing that commit must have approval. The workflow can be dispatched
+manually to refresh statuses after an outage.
 
 The public repository protects `master`: changes go through pull requests,
 the branch must be up to date with a passing GitHub Actions `Quality gate`,
-and review conversations must be resolved. A second human approval is not
-required for the sole maintainer. Administrators retain GitHub's branch bypass
+and review conversations must be resolved. `.github/CODEOWNERS` assigns all
+paths to `JensKSP`, including the ownership policy itself. Code-owner review is
+required with zero additional approvals. For other authors, the owner's approval
+satisfies the ownership requirement. GitHub does not allow authors to approve
+their own PRs: zero additional approvals must not be assumed to waive code-owner
+review. An owner-authored PR that needs ownership approval requires another
+eligible code owner or an explicitly authorized administrator bypass.
+Owner-enabled auto-merge has been verified for owner-authored PRs with these
+settings and both required statuses passing. If native ownership enforcement
+blocks a PR, use an explicitly approved policy adjustment; do not silently bypass
+reviews or claim that self-approval is possible.
+GitHub uses the CODEOWNERS file from the PR's base branch. Changes to ownership
+therefore take effect after the owner merges them into `master`.
+Administrators retain GitHub's branch bypass
 option for owner-directed recovery; force pushes and branch deletion remain
 disabled in the normal policy. Stable release tags matching `v*` cannot be
 updated or deleted except through the explicit `JensKSP` owner bypass. The
@@ -1680,14 +1774,22 @@ rules. Access to owner credentials is not approval. GitHub authorizes the accoun
 making a request; separate credentials without bypass privileges are necessary
 to enforce a distinction between owner and agent at the permission level.
 
-Review findings are advisory and do not replace the required `Quality gate`.
+Merging also requires explicit owner permission for the particular PR when no
+override is involved. Agents may prepare and push changes, follow checks and
+address reviews, but must not merge, enqueue a merge or enable auto-merge on
+their own. The owner normally enables GitHub auto-merge in the web interface.
+
+CodeRabbit approval supplements the required `Quality gate` and human ownership
+review; it replaces neither. CodeRabbit's explicit `approve` and top-level
+`resolve` commands can bypass its normal approval conditions and require the
+owner's permission for that specific override, just like a GitHub bypass.
 Investigate each finding against the code and requirements, fix valid issues,
 and explain findings that do not require a change. After pushing fixes, check
 both CI and review feedback for the latest revision before handing back the PR.
 
 #### Optional repository services
 
-Projects, Discussions, CODEOWNERS, public build images in GHCR, manually
+Projects, Discussions, additional code owners, public build images in GHCR, manually
 dispatched hardware workflows, signed commits or release tags, and community
 conduct guidance/saved replies are optional future capabilities. Adopt them
 when contribution volume, support needs, additional maintainers or measured

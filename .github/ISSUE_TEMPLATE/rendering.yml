@@ -1,0 +1,52 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+name: Rendering problem
+description: Report incorrect scaling, display behavior or a runtime failure.
+labels: [bug, 'area:upscaling']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The effect is experimental and not ready for use. A loaded plugin is
+        not proof of working scaling. See the [reporting guide](https://github.com/JensKSP/kwin-effect-upscale/blob/master/CONTRIBUTING.md#reporting-a-problem)
+        for diagnostic commands and privacy guidance. Say "unknown" for unavailable data.
+  - type: input
+    id: candidate
+    attributes:
+      label: Plugin version and revision
+      description: Copy the complete startup version, including any dirty suffix; identify local modifications.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: System and graphics
+      description: Distribution, architecture, KWin, GPU, driver and Wayland/Xwayland backend. Use Info Center and KWin support information.
+    validations:
+      required: true
+  - type: textarea
+    id: display
+    attributes:
+      label: Display and scaling configuration
+      description: Display model/connection, output resolution, refresh rate, desktop scale, HDR/VRR settings, game input resolution and effect settings.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Name the application/version and launch method, then give the steps and frequency. Include whether it happens with the effect disabled.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and observed behavior
+      description: Describe both. If known, include the last working version and how you established whether scaling occurred.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs and visual evidence
+      description: Attach a relevant redacted log excerpt or screenshot. If unavailable, explain why. Do not publish credentials or unrelated window titles.

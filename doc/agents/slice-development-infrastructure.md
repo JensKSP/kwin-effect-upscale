@@ -362,6 +362,9 @@ Planned checks, not observed results:
 - [x] Implement the passive OSD, the statistics and developer view and the
   build-type preference defaults. A shortcut to toggle the view, profile
   overrides and per-profile visibility remain open.
+- [ ] Follow the session's scaling and font settings in the OSD, per output,
+  and re-lay out when either changes. The text already follows the output's
+  scale factor; the family and size are the effect's own choice today.
 - [ ] Complete automated, package and native acceptance; preserve lasting design
   in source/human documentation before removing this slice.
 
