@@ -528,6 +528,24 @@ and launch/profile integration remain unimplemented. Acceptance must cover
 inheritance changes, explicit Auto, unavailable methods, failed negotiation,
 and pending launch without automatic game restarts.
 
+### Launch configuration and discovery follow-up, 2026-09-18
+
+Jens requested a per-application launch definition and automatic investigation
+of the best working resolution-control method. The handbook now specifies
+program, arguments, working directory, environment changes, runtime/prefix and
+external-launcher integration, plus an explicit **Find best method** workflow.
+Trials must observe the real game buffer and presentation, distinguish verified
+checks from user observations, close gracefully between launch-time methods,
+and cache results separately from explicit user overrides. Ordinary launches
+reuse compatible results without cycling through test instances.
+
+This is specified, not implemented. Required acceptance includes exact argument
+and environment round trips, inherited environment removal, paths with spaces
+and Unicode, runtime/prefix preservation, external-launcher delegation and
+window association, bounded failures and cancellation, no duplicate trials or
+unrelated-process termination, target adjustment versus success, result-cache
+invalidation, explicit-method preservation and honest unverified feature status.
+
 ### Implementation checklist
 
 - [x] Select FSR 1 with optional RCAS as the initial implementation approach.

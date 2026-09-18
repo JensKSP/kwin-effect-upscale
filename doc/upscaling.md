@@ -395,9 +395,92 @@ For launch-time methods, resolve the profile before starting the application
 and preserve its association with the resulting window and child processes.
 Detecting an already running game can select or create its profile, but cannot
 retroactively place its connection behind a helper. Show **Restart required**
-when a method change needs a new launch; never restart a running game or cycle
-through helpers automatically. Status must distinguish the configured method,
+when a method change needs a new launch. Ordinary launches must not restart a
+running game or cycle through helpers; an explicit discovery session follows
+the controlled trial workflow below. Status must distinguish the configured method,
 effective method, pending launch and observed supplied-buffer resolution.
+
+### Application launch configuration and method discovery
+
+Required extension, not yet implemented: each application profile can contain
+an optional launch configuration and a **Find best method** action. Users can
+configure a new application without first running it, or add launch information
+to a detected application's profile. Saving or detecting a profile does not
+launch anything. Applications started elsewhere can still match their profiles,
+but launch-time control requires their launch path to use the helper.
+
+| Launch field | Requirement |
+| --- | --- |
+| Program | Executable or an explicitly selected launcher, with a file picker and validation. |
+| Arguments | Preserve argument boundaries, empty arguments, spaces and Unicode. Offer an editable argument list and a readable command preview. |
+| Working directory | Optional explicit directory; show the resolved default. |
+| Environment | Inherit the session environment with per-profile additions, replacements and explicit removals. Scope changes to the launched application and helpers. |
+| Runtime | Native, Wine, Proton or an external launcher, with the applicable runtime path/version, Wine prefix or compatibility-data location, game identifier and launcher options. |
+| Advanced launch | Support an explicitly selected shell command or user script for launches that cannot be expressed as a program and arguments. Ordinary launches do not implicitly interpret shell operators or expand variables. |
+
+Keep launch configuration separate from window-matching identities and scaler
+setting overrides. Use structured process arguments and environment values,
+with Qt process APIs in the helper; do not execute game commands inside KWin.
+Show which helper and runtime will wrap the actual game command. Validate
+missing programs, directories, runtime components and incompatible options
+before attempting a launch, and report actionable errors. Do not include the
+full environment or sensitive argument values in routine diagnostics.
+
+An external launcher may hand the request to an already running process.
+Starting Steam or another launcher with modified environment variables does
+not prove that its eventual game inherits them. A launcher adapter must arrange
+wrapping at the actual game launch and correlate the resulting window with the
+profile, including child processes. If this is not supported, report it and
+provide launch-integration guidance instead of claiming that the launcher
+itself is the controlled game. Preserve the configured runtime and prefix;
+do not silently substitute another Wine/Proton version to make a test pass.
+
+**Find best method** starts an explicit, cancellable discovery session for the
+profile and selected target resolution:
+
+1. Check available helpers and runtime capabilities; exclude inapplicable or
+   unimplemented methods and explain why. If the target is **Automatic (use
+   the supplied buffer)**, require a concrete target for the experiment without
+   silently changing the saved preference.
+2. Try supported candidates in a documented order, preferring applicable
+   in-session negotiation before a launch helper. Each trial uses the saved
+   command, arguments, directory and environment with that candidate's wrapper.
+   Explain that discovery can start and close multiple test instances.
+3. Associate the actual game window with the trial. Observe its supplied buffer,
+   fullscreen destination and stable presentation; a process starting, a saved
+   mode or a smaller image produced by downsampling is not success. Record
+   adjusted sizes separately from an exact target match.
+4. Exercise available automatic input/lifecycle checks and record user-observed
+   checks separately. If pointer behaviour, image quality, HDR or VRR cannot be
+   established automatically, mark them unverified. Detection, rendering and
+   full compatibility are separate results.
+5. Close the trial gracefully and clean up owned helpers before a method that
+   needs a new launch. Bound startup, observation and shutdown waits. If the
+   application does not exit, stop the sequence and report it; do not force-kill
+   it or affect unrelated application or launcher instances. Cancellation stops
+   further trials and restores any temporary control policy.
+6. Recommend the best verified compatible candidate for the requested features.
+   Prefer an exact target match, correct presentation/input and clean lifecycle;
+   use the documented method order to break otherwise equal results. A fastest
+   method requires comparable performance measurements; startup success or
+   resolution alone cannot establish it. If none passes, retain the failures
+   and offer game-setting guidance without marking the target applied.
+
+Store discovery results separately from the user's selected method. **Auto**
+can reuse a compatible verified result; discovery must not overwrite an
+explicit method override. Record the tested launch configuration, runtime and
+helper versions, compositor/backend, target size, output scale and feature
+conditions such as HDR/VRR. Relevant changes invalidate the cached recommendation
+or require a new check. Continue observing actual buffers on ordinary launches;
+a cached success is not proof that today's launch reached its target.
+
+Ordinary **Launch** uses the selected explicit method or Auto's current compatible
+recommendation. It does not start an unattended trial cycle in an active game.
+When discovery or a new launch is needed, show that state and provide the
+corresponding action. Present each trial's method, observed dimensions, checks,
+failure reason and remaining uncertainties, with **Retest** and **Clear results**.
+Keep these results distinct from the user's launch configuration and profile
+settings so clearing results does not delete either.
 
 ### Selecting the game
 
