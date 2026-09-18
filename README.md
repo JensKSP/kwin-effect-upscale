@@ -285,7 +285,8 @@ sudo xargs rm -v < build/install_manifest.txt
 
 Contributions are welcome: bug reports, testing on different setups,
 documentation improvements and code. Feel free to open an issue or a pull
-request on GitHub.
+request on GitHub. The [contributor guide](CONTRIBUTING.md) explains reporting,
+maintained build environments, checks and submission expectations.
 
 We use Codex and Claude to help write code for this project. We aim to keep
 "AI slop" out: unnecessary abstractions, boilerplate and changes we cannot

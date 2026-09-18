@@ -1,0 +1,61 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+name: Hardware acceptance result
+description: Record observed results for an exact development candidate and display setup.
+labels: ['area:tests', 'area:upscaling']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Follow the [validation protocol](https://github.com/JensKSP/kwin-effect-upscale/blob/master/doc/upscaling.md#validation-requirements)
+        and [diagnostic guide](https://github.com/JensKSP/kwin-effect-upscale/blob/master/CONTRIBUTING.md#reporting-a-problem).
+        This records observations; it does not certify untested capabilities.
+        Do not report pass merely because the plugin loaded or a setting was enabled.
+  - type: input
+    id: candidate
+    attributes:
+      label: Exact tested candidate
+      description: Complete loaded plugin version/revision, package filename or workflow run/artifact ID, and local modifications. Do not paste signed download URLs or access tokens.
+    validations:
+      required: true
+  - type: textarea
+    id: hardware
+    attributes:
+      label: System, GPU and driver
+      description: Distribution, architecture, KWin, GPU vendor/model (including AMD or NVIDIA), driver/version and session/backend.
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Display and test setup
+      description: Display model/connection, output resolution/refresh/scale, actual input size if measured, application/version, launch method, scaler and sharpening settings.
+    validations:
+      required: true
+  - type: textarea
+    id: results
+    attributes:
+      label: Results by condition
+      description: For each tested combination, give steps, evidence and pass/fail. Explicitly mark untested or inapplicable conditions and explain why.
+      placeholder: |
+        SDR, fixed refresh:
+        SDR with VRR:
+        HDR, fixed refresh:
+        HDR with VRR:
+        Scaling observed (comparison with effect disabled):
+        Input mapping, fullscreen changes, resize and disable/re-enable:
+        Performance comparison (same input and scene):
+    validations:
+      required: true
+  - type: textarea
+    id: regressions
+    attributes:
+      label: Regressions and remaining uncertainty
+      description: Describe new failures, flicker, crashes or missing measurements. State "none observed" only for what you actually tested; link defects if already reported.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Supporting evidence
+      description: Redacted logs, capture method, screenshots and benchmark results. Distinguish application FPS from compositor presentation or GPU time.

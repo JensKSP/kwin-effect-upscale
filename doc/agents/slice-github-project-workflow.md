@@ -212,8 +212,8 @@ remain identified as optional in the permanent documentation.
 - Documentation hooks passed in the maintained Trixie container; local links
   in this plan and the slice index resolved successfully.
 - Validation not explicitly recorded below remains pending.
-- Next: obtain hosted phase 1 validation and continue with security controls.
-  Coordinate with the pipeline slice before any settings change.
+- Next: verify the activated contribution forms and implement CodeQL and
+  dependency review. Native security controls are enabled, as recorded below.
 
 ### Phase 1: contribution entry points
 
@@ -246,6 +246,13 @@ maintained container hook stages passed with the new files staged, including
 YAML, Markdown, spelling, licensing, repository rules and tooling regressions.
 Hosted CI/review and default-branch form rendering remain pending. No issues,
 milestones or account settings were changed in this phase.
+
+Hosted CI run `35338278702` passed for `c44c4f7`. CodeRabbit review
+`5247163132` found that the build/install and hardware forms requested raw
+package/artifact URLs, which can carry temporary access tokens. Changed those
+fields to request package filenames/versions or workflow run/artifact IDs and
+explicitly exclude signed URLs and tokens. Latest-revision CI and review remain
+required after publishing the correction.
 
 ## References
 
@@ -294,3 +301,8 @@ reporting route, current-development support and these coverage limits.
 The public Advisories page returned HTTP 200 and contained its private-report
 link. Both documentation hook stages passed in the maintained container.
 No vulnerability report or test credential was submitted.
+
+PR #9 merged through owner-enabled auto-merge after its form-privacy correction.
+CodeRabbit review `5247213008` on PR #10 identified the outdated next-step
+summary. Updated it to reflect enabled native security controls and the
+remaining form, CodeQL and dependency-review work.
