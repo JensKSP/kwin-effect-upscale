@@ -128,6 +128,32 @@ public:
         return m_effect->blocksDirectScanout();
     }
 
+    UpscalePaintResult paintScreen(const RenderTarget &target, const RenderViewport &viewport, int mask,
+                                   const UpscaleRegion &region, UpscaleOutput *screen) override
+    {
+        // The test compositor paints with QPainter, so the effect's own screen
+        // pass runs against this driver's OpenGL target instead. That keeps the
+        // on-screen display on the tested path rather than only in a session.
+#if UPSCALE_RENDER_DEVICE_API
+        if (!effects->paintScreen(target, viewport, mask, region, screen)) {
+            return false;
+        }
+#else
+        effects->paintScreen(target, viewport, mask, region, screen);
+#endif
+        m_context->makeCurrent();
+        const RenderTarget offscreen(m_framebuffer.get(), ColorDescription::sRGB);
+        const RenderViewport offscreenViewport = captureViewport(UpscaleRectF(0, 0, 128, 128), 1, offscreen);
+        GLFramebuffer::pushFramebuffer(m_framebuffer.get());
+        GLVertexBuffer::streamingBuffer()->beginFrame();
+        m_effect->paintDisplay(offscreen, offscreenViewport, screen);
+        GLVertexBuffer::streamingBuffer()->endOfFrame();
+        GLFramebuffer::popFramebuffer();
+#if UPSCALE_RENDER_DEVICE_API
+        return true;
+#endif
+    }
+
     void drawWindow(const RenderTarget &target, const RenderViewport &viewport, EffectWindow *window,
                     int mask, const UpscaleRegion &region, WindowPaintData &data) override
     {

@@ -52,6 +52,12 @@ public:
                                   int mask, const UpscaleRegion &region, WindowPaintData &data) override;
     QString build() const;
     QString status() const;
+    /**
+     * The effect's own screen pass: what it draws after the chain has painted
+     * the frame. Separate from paintScreen so that it can be driven against a
+     * different target than the one the chain painted into.
+     */
+    void paintDisplay(const RenderTarget &target, const RenderViewport &viewport, UpscaleOutput *screen);
 
 private:
     // The window this effect would scale, or null with the one condition that
@@ -65,7 +71,6 @@ private:
     // The render target is the frame being painted, and null when the caller
     // is outside a paint pass and colour is therefore not observable.
     UpscaleSnapshot snapshot(EffectWindow *window, const RenderTarget *target) const;
-    void paintDisplay(const RenderTarget &target, const RenderViewport &viewport, UpscaleOutput *screen);
     void watchWindow(EffectWindow *window);
 
     std::unique_ptr<UpscaleScaler> m_scaler;

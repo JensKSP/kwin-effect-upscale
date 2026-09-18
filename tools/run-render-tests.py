@@ -28,7 +28,7 @@ if __name__ == "__main__":
                 "--output-junit",
                 "runtime-tests.xml",
                 "-R",
-                "^upscale-(render|config|resolution|integration)",
+                "^upscale-(render|config|resolution|integration|snapshot)",
             ],
             env=environment,
         )

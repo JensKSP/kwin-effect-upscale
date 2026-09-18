@@ -4,8 +4,13 @@
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
+#include "display.h"
 #include "overlay.h"
 #include "scaler.h"
+#include "upscaleconfig.h"
+
+#include <KConfigGroup>
+#include <KSharedConfig>
 
 #include "opengl/eglcontext.h"
 #include "opengl/egldisplay.h"
@@ -35,6 +40,7 @@ private Q_SLOTS:
     void preservesScissorState();
     void rejectsOversizedIntermediate();
     void overlayPlacement();
+    void displayShowsTheState();
 
 private:
     std::vector<float> render(const std::vector<float> &pixels, const QSize &inputSize, const QSize &outputSize,
@@ -324,6 +330,114 @@ void UpscaleRenderTest::overlayPlacement()
     overlay.release();
     QVERIFY(overlay.isEmpty());
     QCOMPARE(overlay.size(), QSizeF());
+}
+
+void UpscaleRenderTest::displayShowsTheState()
+{
+    // Start from the build's own defaults rather than from whatever an earlier
+    // run of this test left in the configuration it writes to.
+    const auto settings = []() {
+        return KConfigGroup(KSharedConfig::openConfig(QStringLiteral("kwinrc")), QStringLiteral("Effect-upscale"));
+    };
+    settings().deleteGroup();
+    KSharedConfig::openConfig(QStringLiteral("kwinrc"))->sync();
+
+    UpscaleDisplay display;
+    UpscaleConfig::self()->read();
+    display.reconfigure();
+    // This test binary is built the way the effect is, so the build type that
+    // decides the defaults is the same one the assertions below expect.
+    QVERIFY(display.enabled());
+    QVERIFY(display.wantsSnapshot(nullptr));
+
+    UpscaleSnapshot snapshot;
+    snapshot.window = QStringLiteral("Tux Racer");
+    snapshot.output = QStringLiteral("HDMI-A-1");
+    snapshot.selected = true;
+    snapshot.scaling = true;
+    snapshot.supplied = QSize(1280, 720);
+    snapshot.destination = QSize(3840, 2160);
+    snapshot.outputScale = 1;
+    display.countClientUpdate();
+    display.countRepaint();
+    display.update(snapshot, nullptr);
+    // Composing again immediately would cost formatting for a state that
+    // cannot have changed, so the display declines until its interval passes.
+    QVERIFY(!display.wantsSnapshot(nullptr));
+
+    const QSize targetSize(640, 480);
+    std::unique_ptr<GLTexture> output = allocateFloatTexture(targetSize);
+    QVERIFY(output);
+    GLFramebuffer framebuffer(output.get());
+    QVERIFY(framebuffer.valid());
+#if UPSCALE_REGION_API
+    const auto colors = ColorDescription::sRGB;
+#else
+    const auto &colors = ColorDescription::sRGB;
+#endif
+    const RenderTarget target(&framebuffer, colors);
+    const UpscaleRectF screen{QPointF(), QSizeF(targetSize)};
+    const RenderViewport viewport = captureViewport(screen, 1, target);
+    GLFramebuffer::pushFramebuffer(&framebuffer);
+    GLVertexBuffer::streamingBuffer()->beginFrame();
+    glClearColor(1, 1, 1, 1);
+    glClear(GL_COLOR_BUFFER_BIT);
+    display.paint(target, viewport, screen);
+    std::vector<float> pixels(size_t(targetSize.width()) * size_t(targetSize.height()) * 4);
+    glReadPixels(0, 0, targetSize.width(), targetSize.height(), GL_RGBA, GL_FLOAT, pixels.data());
+    GLVertexBuffer::streamingBuffer()->endOfFrame();
+    GLFramebuffer::popFramebuffer();
+    QCOMPARE(glGetError(), GL_NO_ERROR);
+    // Something was drawn in the corner the display occupies, and the rest of
+    // the output was left to the game.
+    const auto red = [&](int x, int y) {
+        return pixels[(size_t(y) * size_t(targetSize.width()) + size_t(x)) * 4];
+    };
+    QVERIFY2(red(40, targetSize.height() - 40) < 0.5F, "the display did not draw where it said it would");
+    QVERIFY2(red(targetSize.width() - 3, 3) > 0.9F, "the display covered more than its own area");
+
+    // Rates are reported once a sampling interval has actually passed, with
+    // the interval they were measured over. Before that there is nothing
+    // measured, and the display says so rather than showing a zero.
+    QVERIFY2(display.text().contains(QStringLiteral("Client buffer updates: unknown")), qPrintable(display.text()));
+    for (int frame = 0; frame < 10; ++frame) {
+        display.countClientUpdate();
+        display.countRepaint();
+    }
+    QTest::qWait(1100);
+    QVERIFY(display.wantsSnapshot(nullptr));
+    display.update(snapshot, nullptr);
+    QVERIFY2(display.text().contains(QStringLiteral("/s")), qPrintable(display.text()));
+    QVERIFY2(display.text().contains(QStringLiteral("s sample")), qPrintable(display.text()));
+
+    // Hiding it gives everything back, and asks for a fresh snapshot when it
+    // is shown again rather than drawing a stale one.
+    display.hide();
+    QVERIFY(display.wantsSnapshot(nullptr));
+    GLFramebuffer::pushFramebuffer(&framebuffer);
+    GLVertexBuffer::streamingBuffer()->beginFrame();
+    display.paint(target, viewport, screen);
+    GLVertexBuffer::streamingBuffer()->endOfFrame();
+    GLFramebuffer::popFramebuffer();
+    QCOMPARE(glGetError(), GL_NO_ERROR);
+
+    // The master switch hides every mode. Nothing is composed, nothing is
+    // drawn, and the area it reported is given up with the rest.
+    settings().writeEntry("Osd", false);
+    KSharedConfig::openConfig(QStringLiteral("kwinrc"))->sync();
+    UpscaleConfig::self()->read();
+    display.reconfigure();
+    QVERIFY(!display.enabled());
+    display.update(snapshot, nullptr);
+    GLFramebuffer::pushFramebuffer(&framebuffer);
+    GLVertexBuffer::streamingBuffer()->beginFrame();
+    display.paint(target, viewport, screen);
+    GLVertexBuffer::streamingBuffer()->endOfFrame();
+    GLFramebuffer::popFramebuffer();
+    QVERIFY(display.text().isEmpty());
+    QCOMPARE(glGetError(), GL_NO_ERROR);
+    settings().deleteGroup();
+    KSharedConfig::openConfig(QStringLiteral("kwinrc"))->sync();
 }
 
 // The overlay measures and draws text, which needs a font database, so this

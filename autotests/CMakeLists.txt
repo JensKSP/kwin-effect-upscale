@@ -2,6 +2,18 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 find_package(Qt6 ${QT_MIN_VERSION} REQUIRED COMPONENTS Test)
+# The texts the settings page, the display and the logs all read. They need
+# neither KWin nor a GPU, so they are checked on their own.
+add_executable(
+    upscale_snapshot_test
+    snapshot_test.cpp
+    ../src/plugins/upscale/eligibility.cpp
+    ../src/plugins/upscale/snapshot.cpp
+)
+target_include_directories(upscale_snapshot_test PRIVATE ../src/plugins/upscale)
+target_link_libraries(upscale_snapshot_test PRIVATE kwin KF6::I18n Qt6::Test Libdrm::Libdrm)
+add_test(NAME upscale-snapshot COMMAND upscale_snapshot_test)
+
 add_executable(upscale_package_test package_test.cpp)
 target_link_libraries(upscale_package_test PRIVATE Qt6::Core KF6::CoreAddons)
 add_executable(upscale_resolution_test ../tools/upscale-resolution-test.cpp)
@@ -82,30 +94,48 @@ if(KWin_VERSION VERSION_LESS 6.7)
         )
     endif()
 endif()
-add_executable(
-    upscale_render_test
+set(render_test_SOURCES
     render_test.cpp
+    ../src/plugins/upscale/display.cpp
+    ../src/plugins/upscale/display.h
+    ../src/plugins/upscale/eligibility.cpp
     ../src/plugins/upscale/overlay.cpp
     ../src/plugins/upscale/scaler.cpp
+    ../src/plugins/upscale/snapshot.cpp
     ../src/plugins/upscale/upscale.qrc
 )
+kconfig_add_kcfg_files(render_test_SOURCES ../src/plugins/upscale/upscaleconfig.kcfgc)
+add_executable(upscale_render_test ${render_test_SOURCES})
 target_include_directories(upscale_render_test PRIVATE ../src/plugins/upscale)
-target_link_libraries(upscale_render_test PRIVATE kwin Qt6::Test)
+target_link_libraries(
+    upscale_render_test
+    PRIVATE kwin KF6::ConfigGui KF6::I18n Qt6::Test Libdrm::Libdrm
+)
 add_test(NAME upscale-render COMMAND upscale_render_test)
+# The display reads the effect's configuration, which must be this test's own
+# and never the one belonging to whoever runs it.
 set_tests_properties(
     upscale-render
-    PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;QT_QPA_PLATFORM=offscreen"
+    PROPERTIES
+        ENVIRONMENT
+            "LIBGL_ALWAYS_SOFTWARE=1;QT_QPA_PLATFORM=offscreen;XDG_CONFIG_HOME=${CMAKE_CURRENT_BINARY_DIR}/render-config"
 )
 if(KWin_VERSION VERSION_LESS 6.7)
     add_test(NAME upscale-render-gles COMMAND upscale_render_test)
     set_tests_properties(
         upscale-render-gles
-        PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;KWIN_COMPOSE=O2ES;QT_QPA_PLATFORM=offscreen"
+        PROPERTIES
+            ENVIRONMENT
+                "LIBGL_ALWAYS_SOFTWARE=1;KWIN_COMPOSE=O2ES;QT_QPA_PLATFORM=offscreen;XDG_CONFIG_HOME=${CMAKE_CURRENT_BINARY_DIR}/render-config"
     )
 endif()
 
 if(KWIN_BUILD_KCMS)
-    set(config_test_SOURCES config_test.cpp ../src/plugins/upscale/upscale_config.cpp)
+    set(config_test_SOURCES
+        config_test.cpp
+        ../src/plugins/upscale/supportinformation.cpp
+        ../src/plugins/upscale/upscale_config.cpp
+    )
     kconfig_add_kcfg_files(config_test_SOURCES ../src/plugins/upscale/upscaleconfig.kcfgc)
     add_executable(upscale_config_test ${config_test_SOURCES})
     target_include_directories(upscale_config_test PRIVATE ../src/plugins/upscale)

@@ -101,6 +101,13 @@ void UpscaleDisplay::update(UpscaleSnapshot snapshot, EffectWindow *window)
 
 void UpscaleDisplay::compose()
 {
+    // Off means off, whoever asks. The caller stops painting a disabled
+    // display, and a disabled display also has nothing to say if it is asked
+    // anyway; one switch must not have two meanings.
+    if (!enabled()) {
+        m_overlay.setText(QString(), m_snapshot.outputScale);
+        return;
+    }
     QStringList blocks;
     const bool announcing = m_announcedAt.isValid() && m_announcedAt.elapsed() < qint64(m_timeout) * 1000;
     if (announcing && m_detection) {
@@ -135,6 +142,11 @@ void UpscaleDisplay::paint(const RenderTarget &target, const RenderViewport &vie
     const QPointF position = screen.topLeft() + QPointF(margin, margin);
     m_area = UpscaleRectF(position, m_overlay.size());
     m_overlay.paint(target, viewport, position);
+}
+
+QString UpscaleDisplay::text() const
+{
+    return m_overlay.text();
 }
 
 void UpscaleDisplay::hide()

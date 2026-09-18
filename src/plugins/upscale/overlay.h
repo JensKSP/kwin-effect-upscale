@@ -43,6 +43,9 @@ public:
     /** The logical size the text occupies, for placement and repaints. */
     QSizeF size() const;
 
+    /** The text as it was last laid out. */
+    QString text() const;
+
     bool isEmpty() const;
 
     /** Drops the text and every resource built from it. */

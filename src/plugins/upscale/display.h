@@ -67,6 +67,9 @@ public:
     /** Hides everything and releases what it was holding. */
     void hide();
 
+    /** What is on screen right now, and empty when nothing is. */
+    QString text() const;
+
 private:
     void compose();
 

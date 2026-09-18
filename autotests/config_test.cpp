@@ -5,6 +5,7 @@
 */
 
 #include "buildtype.h"
+#include "supportinformation.h"
 #include "upscale_config.h"
 
 #include <KConfigGroup>
@@ -30,6 +31,7 @@ private Q_SLOTS:
     void presetsAndKeyboard();
     void saveAndRestore();
     void displayDefaults();
+    void readsWhatTheCompositorReported();
 };
 
 void UpscaleConfigTest::presetsAndKeyboard()
@@ -148,6 +150,31 @@ void UpscaleConfigTest::displayDefaults()
     developer->setChecked(KWin::upscaleDebugBuild);
     module.save();
     QVERIFY(!stored().hasKey("OsdDeveloper"));
+}
+
+void UpscaleConfigTest::readsWhatTheCompositorReported()
+{
+    // Exactly the shape KWin's supportInformation produces for this effect.
+    const QString reported = QStringLiteral("upscale:\nbuild: upscale 0.1.0 (branch test), built now\n"
+                                            "status: Desired: Automatic (no request)\nSupplied input: 1280 × 720\n"
+                                            "Inactive: the window is not fullscreen.\n");
+    QString loaded;
+    const QString status = KWin::upscaleReportedStatus(reported, &loaded);
+    QCOMPARE(loaded, QStringLiteral("upscale 0.1.0 (branch test), built now"));
+    QVERIFY2(status.startsWith(QStringLiteral("Desired: Automatic")), qPrintable(status));
+    QVERIFY(status.contains(QStringLiteral("Inactive: the window is not fullscreen.")));
+    // Neither the effect's name nor the property names belong on the page.
+    QVERIFY(!status.contains(QStringLiteral("upscale:")));
+    QVERIFY(!status.contains(QStringLiteral("status:")));
+    QVERIFY(!status.contains(QStringLiteral("build:")));
+
+    // An effect built without the generated identity reports no build, and the
+    // status still has to come through.
+    QString missing;
+    QCOMPARE(KWin::upscaleReportedStatus(QStringLiteral("upscale:\nstatus: nothing to report\n"), &missing),
+             QStringLiteral("nothing to report"));
+    QVERIFY(missing.isEmpty());
+    QCOMPARE(KWin::upscaleReportedStatus(QString(), nullptr), QString());
 }
 
 int main(int argc, char **argv)

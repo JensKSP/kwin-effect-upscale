@@ -7,6 +7,7 @@
 #include "upscale_config.h"
 
 #include "resolution.h"
+#include "supportinformation.h"
 #include "upscaleconfig.h"
 
 // Kept out of the plugin folder, because that folder has to stay a folder KDE
@@ -315,24 +316,8 @@ void UpscaleEffectConfig::refreshStatus()
 
 void UpscaleEffectConfig::showSupportInformation(const QString &information)
 {
-    // KWin assembles this from the effect's properties: a line naming the
-    // effect, then "<property>: <value>" for each one, the last of which runs
-    // over several lines. Strip that framing rather than showing it.
-    QStringList lines = information.split(QLatin1Char('\n'));
-    if (!lines.isEmpty() && lines.constFirst().endsWith(QLatin1Char(':'))) {
-        lines.removeFirst();
-    }
     QString loaded;
-    for (qsizetype index = 0; index < lines.size(); ++index) {
-        if (lines.at(index).startsWith(QStringLiteral("build: "))) {
-            loaded = lines.takeAt(index).mid(7).trimmed();
-            break;
-        }
-    }
-    if (!lines.isEmpty() && lines.constFirst().startsWith(QStringLiteral("status: "))) {
-        lines.replace(0, lines.constFirst().mid(8));
-    }
-    m_status->setText(lines.join(QLatin1Char('\n')).trimmed());
+    m_status->setText(upscaleReportedStatus(information, &loaded));
     // The compositor keeps a plugin it has already loaded, so an installed
     // update is not the build that is running until the session restarts.
     // Saying so is the only honest way to report the difference.
