@@ -365,6 +365,40 @@ eligible buffers at their actual size. Do not repeatedly resend an ignored
 request or repaint continuously while waiting. Apply a request on slider
 release or explicit Apply, rather than at every drag position.
 
+### Selecting the resolution control method
+
+Required extension, not yet implemented: provide **Resolution control method**
+in global settings, defaulting to **Auto**, with a sparse per-application
+profile override. **Use global** inherits the current global method; an
+explicit **Auto** override keeps automatic selection for that application even
+if the global method later changes. Game detection selects the profile; it
+does not by itself establish that resolution control succeeded.
+
+| Method | Intended behaviour |
+| --- | --- |
+| Auto | Choose a verified compatible method for the selected application, runtime and available helpers. Prefer an applicable in-session negotiation before requiring a launch helper. |
+| Wayland negotiation | Request a smaller buffer from a cooperative native Wayland client. |
+| Display proxy | Launch the application through a private Wayland display, with private Xwayland where needed. |
+| Gamescope | Launch through the verified Wayland buffer-forwarding backend; requires effect support for its surface tree. |
+| Game settings only | Make no automatic resolution changes; show the desired pixels as guidance and scale eligible supplied buffers. |
+
+Only implemented and verified methods may be enabled for the current case.
+Show unavailable methods with a reason. An explicit method must not silently
+switch to another method when it fails. Auto may use a verified alternative,
+but must report the effective method and whether the target was reached.
+Method selection is independent of the desired resolution, EASU and RCAS.
+The existing **Automatic (use the supplied buffer)** resolution setting still
+makes no resolution request, even when the control method is Auto. Choosing
+**Game settings only** does not disable upscaling.
+
+For launch-time methods, resolve the profile before starting the application
+and preserve its association with the resulting window and child processes.
+Detecting an already running game can select or create its profile, but cannot
+retroactively place its connection behind a helper. Show **Restart required**
+when a method change needs a new launch; never restart a running game or cycle
+through helpers automatically. Status must distinguish the configured method,
+effective method, pending launch and observed supplied-buffer resolution.
+
 ### Selecting the game
 
 Resolution changes need explicit per-game selection. The proposed interface

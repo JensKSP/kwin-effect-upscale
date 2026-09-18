@@ -516,6 +516,18 @@ committed implementation, isolated from concurrent uncommitted development.
 The full pre-push stage also passed, including licensing and build/checker
 regression tests. These checks do not establish a new production build.
 
+### Resolution method settings follow-up, 2026-09-18
+
+Specify a global resolution control method with Auto as the default and a
+per-application override. The handbook now defines the candidate choices,
+inheritance versus explicit Auto, separation from the preferred resolution,
+verified automatic selection, explicit-method failure and restart-required
+status. A detected running game can acquire a profile, but a launch helper
+requires a subsequent launch. This is a specification change; method selection
+and launch/profile integration remain unimplemented. Acceptance must cover
+inheritance changes, explicit Auto, unavailable methods, failed negotiation,
+and pending launch without automatic game restarts.
+
 ### Implementation checklist
 
 - [x] Select FSR 1 with optional RCAS as the initial implementation approach.
