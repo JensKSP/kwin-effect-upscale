@@ -15,7 +15,7 @@ body:
     id: candidate
     attributes:
       label: Exact tested candidate
-      description: Complete loaded plugin version/revision, package or artifact URL, and any local modifications.
+      description: Complete loaded plugin version/revision, package filename or workflow run/artifact ID, and local modifications. Do not paste signed download URLs or access tokens.
     validations:
       required: true
   - type: textarea

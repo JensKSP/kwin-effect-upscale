@@ -14,7 +14,7 @@ body:
     id: candidate
     attributes:
       label: Source revision or package filename/version
-      description: For source builds, include git rev-parse HEAD and whether the tree has local changes. For packages, include the download URL.
+      description: For source builds, include git rev-parse HEAD and whether the tree has local changes. For packages, give the filename and full version; do not paste signed download URLs or access tokens.
     validations:
       required: true
   - type: textarea

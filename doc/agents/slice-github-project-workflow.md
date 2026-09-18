@@ -247,6 +247,13 @@ YAML, Markdown, spelling, licensing, repository rules and tooling regressions.
 Hosted CI/review and default-branch form rendering remain pending. No issues,
 milestones or account settings were changed in this phase.
 
+Hosted CI run `35338278702` passed for `c44c4f7`. CodeRabbit review
+`5247163132` found that the build/install and hardware forms requested raw
+package/artifact URLs, which can carry temporary access tokens. Changed those
+fields to request package filenames/versions or workflow run/artifact IDs and
+explicitly exclude signed URLs and tokens. Latest-revision CI and review remain
+required after publishing the correction.
+
 ## References
 
 - [GitHub issue forms](https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-issue-forms)
