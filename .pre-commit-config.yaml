@@ -146,6 +146,7 @@ repos:
     rev: v6.2.0
     hooks:
       - id: reuse
+        always_run: true
         stages: [pre-push]
 
   - repo: local
@@ -190,7 +191,9 @@ repos:
         entry: python3 -B -m unittest discover -s tools
         language: system
         pass_filenames: false
-        always_run: true
+        # Native file filtering skips these for documentation-only changes.
+        # --all-files still runs the complete suite, including in full CI.
+        files: ^(tools/|cmake/|src/|autotests/|debian/|containers/|\.github/.*\.ya?ml$|CMakeLists\.txt$|\.pre-commit-config\.yaml$)
         stages: [pre-push]
 
       # Needs the configured KWin build and Mesa, like clang-tidy. The build

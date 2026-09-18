@@ -27,6 +27,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
+      build: ${{ steps.changed.outputs.build }}
+      modes: ${{ steps.changed.outputs.modes }}
       packaging: ${{ steps.changed.outputs.packaging }}
       version: ${{ steps.changed.outputs.version }}
     steps:
@@ -46,27 +48,20 @@ jobs:
 
       - id: changed
         env:
-          BASE: ${{ github.event.pull_request.base.sha }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           python3 -B tools/release-version.py snapshot >> "$GITHUB_OUTPUT"
-          changed=''
-          if [ -n "$BASE" ]; then
-            changed=$(git diff --name-only "$BASE" HEAD)
-          fi
-          if grep -Eq '^(debian/|containers/|cmake/|CMakeLists.txt|autotests/|tools/|\.github/)' <<< "$changed"; then
-            echo "packaging=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "packaging=false" >> "$GITHUB_OUTPUT"
-          fi
+          python3 -B tools/ci_scope.py >> "$GITHUB_OUTPUT"
 
   checks:
     name: Trixie (${{ matrix.mode }})
+    needs: commits
     runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        mode: [lint, gcc, clang, tidy]
+        mode: ${{ fromJSON(needs.commits.outputs.modes) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -75,8 +70,11 @@ jobs:
       - uses: ./.github/actions/check
         with:
           mode: ${{ matrix.mode }}
+          base: ${{ github.event.pull_request.base.sha || github.event.before }}
 
   instrumentation:
+    needs: commits
+    if: needs.commits.outputs.build == 'true'
     uses: ./.github/workflows/instrumentation.yml
     with:
       fuzz-seconds: ${{ inputs.fuzz-seconds || 60 }}

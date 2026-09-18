@@ -6,6 +6,9 @@ inputs:
   mode:
     description: Check group selected by tools/run-checks.py
     required: true
+  base:
+    description: Base commit for native pre-commit file filtering in docs mode
+    default: ''
   environment:
     description: Container directory under containers
     default: trixie
@@ -24,13 +27,14 @@ runs:
           build/pre-commit
           build/ccache
           build/address/fuzz-corpus
-        key: checks-${{ runner.arch }}-${{ inputs.environment }}-${{ inputs.mode }}-${{ hashFiles('.pre-commit-config.yaml') }}-${{ github.sha }}
+        key: checks-${{ runner.arch }}-${{ inputs.environment }}-${{ inputs.mode == 'docs' && 'lint' || inputs.mode }}-${{ hashFiles('.pre-commit-config.yaml') }}-${{ github.sha }}
         restore-keys: |
-          checks-${{ runner.arch }}-${{ inputs.environment }}-${{ inputs.mode }}-${{ hashFiles('.pre-commit-config.yaml') }}-
+          checks-${{ runner.arch }}-${{ inputs.environment }}-${{ inputs.mode == 'docs' && 'lint' || inputs.mode }}-${{ hashFiles('.pre-commit-config.yaml') }}-
     - name: Run checks
       shell: bash
       env:
         CHECK_MODE: ${{ inputs.mode }}
+        UPSCALE_CHECK_BASE: ${{ inputs.base }}
         UPSCALE_FUZZ_SECONDS: ${{ inputs.fuzz-seconds }}
       run: |
         options=()
@@ -40,7 +44,7 @@ runs:
         mkdir -p build
         docker run --rm "${options[@]}" \
           -v "$GITHUB_WORKSPACE:/src" -w /src \
-          -e UPSCALE_FUZZ_SECONDS -e GITHUB_REF_NAME -e GITHUB_HEAD_REF \
+          -e UPSCALE_FUZZ_SECONDS -e UPSCALE_CHECK_BASE -e GITHUB_REF_NAME -e GITHUB_HEAD_REF \
           upscale-check:local python3 -B tools/run-checks.py "$CHECK_MODE" \
           2>&1 | tee "build/$CHECK_MODE.log"
     - name: Make reports and caches readable by the runner
