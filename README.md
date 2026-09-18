@@ -53,8 +53,8 @@ and remaining work are recorded separately in the
 
 HDR and variable refresh rate (VRR) support are requirements for the effect,
 including their combined use while upscaling. They are part of the acceptance
-criteria for the first usable implementation; development is still at the
-skeleton stage described below.
+criteria for the first usable implementation; real-device acceptance remains
+open as described below.
 
 This is not an official KDE project.
 
@@ -86,13 +86,18 @@ The design draws on existing free software and published shader implementations:
 We also considered [Anime4K](https://github.com/bloc97/Anime4K),
 [FSRCNNX](https://github.com/igv/FSRCNN-TensorFlow) and
 [RAVU](https://github.com/bjin/mpv-prescalers) as further spatial alternatives.
-These references describe the work studied so far; the effect is still a
-skeleton and does not yet implement any of these scalers. Any incorporated
-third-party code will retain its own copyright and licence notices.
+These references describe the work studied so far. The effect implements FSR 1
+with optional RCAS; incorporated third-party code retains its own copyright
+and licence notices.
 
 ## State
 
-Skeleton. The effect builds, loads and does nothing yet.
+FSR 1 scaling, optional RCAS sharpening and resolution controls are implemented.
+The controls show the desired resolution and the actual supplied buffer size;
+game resolution changes currently require the game's own settings. Automated
+rendering and configuration tests cover the implementation, but full compositor
+lifecycle, real-game, HDR and VRR acceptance remain open. The effect is disabled
+by default.
 
 ## Packages
 
@@ -196,10 +201,12 @@ you want for playing games. `-G Ninja` works if Ninja is installed.
 sudo cmake --install build
 ```
 
-That installs a single file, the effect plugin:
+That installs the effect and, with `KWIN_BUILD_KCMS=ON` (the default), its
+configuration module:
 
 ```text
 <prefix>/lib/<multiarch>/qt6/plugins/kwin/effects/plugins/upscale.so
+<prefix>/lib/<multiarch>/qt6/plugins/kwin/effects/configs/kwin_upscale_config.so
 ```
 
 The install prefix defaults to the one KDE Frameworks uses, which is `/usr` on

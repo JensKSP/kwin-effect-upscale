@@ -164,3 +164,13 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-push]
+
+      # Needs the configured KWin build and Mesa, like clang-tidy. The build
+      # jobs invoke this stage after compiling; ordinary commits need neither.
+      - id: upscale-render-tests
+        name: FSR rendering and colour regression tests
+        entry: python3 -B tools/run-render-tests.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [manual]

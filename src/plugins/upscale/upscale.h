@@ -6,22 +6,21 @@
 
 #pragma once
 
-#include "effect/effect.h"
+#include "compatibility.h"
+
+#include <QPointer>
+#include <memory>
 
 namespace KWin
 {
 
-/**
- * Upscales fullscreen windows whose buffer is smaller than the output they
- * cover, so that the game picks the resolution and the compositor only decides
- * how the image is enlarged.
- *
- * At this point the effect is a skeleton: it loads, reports itself inactive and
- * changes nothing.
- */
+class UpscaleScaler;
+
+/** Scales one eligible fullscreen surface from its supplied buffer size. */
 class UpscaleEffect : public Effect
 {
     Q_OBJECT
+    Q_PROPERTY(QString status READ status)
 
 public:
     UpscaleEffect();
@@ -29,8 +28,29 @@ public:
 
     static bool supported();
 
+    void reconfigure(ReconfigureFlags flags) override;
+#if UPSCALE_NEW_API
+    void prePaintScreen(ScreenPrePaintData &data) override;
+#endif
     bool isActive() const override;
+    bool blocksDirectScanout() const override;
     int requestedEffectChainPosition() const override;
+    UpscalePaintResult drawWindow(const RenderTarget &target, const RenderViewport &viewport, EffectWindow *window,
+                                  int mask, const UpscaleRegion &region, WindowPaintData &data) override;
+    QString status() const;
+
+private:
+    EffectWindow *candidate() const;
+    static bool eligible(EffectWindow *window);
+    void watchWindow(EffectWindow *window);
+
+    std::unique_ptr<UpscaleScaler> m_scaler;
+    bool m_enabled = true;
+    bool m_failed = false;
+    double m_strength = 0;
+    ItemRenderer *m_renderer = nullptr;
+    QPointer<EffectWindow> m_renderedWindow;
+    QSize m_renderedInput;
 };
 
 } // namespace KWin

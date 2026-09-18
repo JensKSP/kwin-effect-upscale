@@ -61,7 +61,7 @@ inline bool canUpscale(UpscaleSize input, UpscaleSize output)
     }
     // Independently rounding both dimensions can move the aspect ratio by
     // half a pixel on each axis. Use cross products, without integer overflow.
-    const double difference = std::abs(double(input.width) * output.height - double(input.height) * output.width);
+    const double difference = std::abs((double(input.width) * output.height) - (double(input.height) * output.width));
     return difference <= 0.5 * (double(output.width) + output.height);
 }
 

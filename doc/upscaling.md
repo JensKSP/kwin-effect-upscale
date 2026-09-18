@@ -8,7 +8,9 @@ SPDX-License-Identifier: GPL-2.0-or-later
 This is the permanent developer handbook for the effect: requirements,
 specification, design rationale and KWin integration constraints. Keep it in
 sync with the implementation and distinguish intended behaviour from features
-that already work. The effect is currently an inactive skeleton.
+that already work. FSR 1 rendering, optional RCAS and the settings page are
+implemented. Container rendering tests cover the shaders and configuration;
+compositor lifecycle and real-game, HDR and VRR acceptance remain open.
 
 Each major implementation slice has its own temporary document for its plan,
 progress, findings, TODOs and test results. The current slice is
@@ -45,8 +47,9 @@ resolution control is a separate requirement under investigation: the effect
 should help obtain a smaller buffer without patching KWin, then enlarge that
 buffer on the physical output.
 
-**The primary platform is a KWin Wayland session. Both native Wayland games
-and Xwayland games, including Wine and Valve Proton games, must be supported.** Xwayland
+**The primary platform is a KWin Wayland session. Native Wayland games and
+Xwayland games must be supported, including Windows games running through
+Valve's Proton and through standalone Wine.** Xwayland
 compatibility is required within the Wayland session; it does not imply a
 requirement for a separate X11 desktop session. Resolution-control mechanisms
 may differ between the two client types and require separate validation.
@@ -73,6 +76,43 @@ revisits that restriction without claiming an implemented feature.
 - **No KWin patches.** Resolution control and upscaling must work with an
   unmodified supported KWin. Calling exported KWin APIs from the C++ plugin is
   allowed; requiring a patched compositor is not.
+
+## Windows games: Proton and Wine
+
+**Upscaling through Valve's Proton and standalone Wine is mandatory for the
+initial usable implementation.** It must work with eligible smaller game
+buffers on every supported KWin version, including 6.3.6. A game launching
+successfully, ordinary KWin stretching, or passing only the native Linux tests
+does not establish compatibility. The effect must actually process the smaller
+buffer, with the same colour, presentation, input and lifecycle requirements.
+
+Use Valve's Steam-distributed Proton as the baseline and validate standalone
+Wine separately. Proton-GE may be an additional test, but must not be the only
+working route or a prerequisite. Proton itself uses Wine, as described in
+[Valve's Proton documentation](https://github.com/ValveSoftware/Proton), but that
+does not make the two runtime configurations interchangeable test results.
+Games obtained through Steam and Epic Games Store belong in the later game
+acceptance stage; record their actual runtime and launcher independently of
+the store.
+
+The Windows test matrix must cover OpenGL, Vulkan and Direct3D translation
+paths. Include the OpenGL-based WineD3D path, Direct3D 9/10/11 through
+[DXVK](https://github.com/doitsujin/dxvk), and Direct3D 12 through
+[vkd3d-proton](https://github.com/HansKristian-Work/vkd3d-proton), with suitable
+representative applications. Test Windows Vulkan applications through the
+runtime as well. Record the application API, translation layer and version,
+Proton or Wine version, and actual window-system backend. Xwayland is required;
+test native Wayland drivers where the selected runtime supports them, without
+assuming that choosing Vulkan also chooses Wayland.
+
+Keep the physical output at its native mode. In-game, compositor, runtime and
+driver upscalers other than this effect must be disabled for the baseline
+comparison so the result is
+attributable to this effect. A smaller internal game render resolution that
+still produces a native-size submitted buffer is a bypass case. Resolution
+control remains subject to the requirements above; inability to obtain a
+smaller buffer is an unresolved case, not a passed upscaling test. HDR and VRR
+remain required when supported by the game, runtime and output path.
 
 ## Scalers
 
@@ -128,7 +168,7 @@ leave the corresponding hardware test pending.
 
 ## Selected initial approach
 
-The first implementation will use **FSR 1: EASU with optional RCAS**, starting
+The initial implementation uses **FSR 1: EASU with optional RCAS**, starting
 with 1080p and 1440p fullscreen content on a 4K output, supporting SDR, HDR
 and VRR. This choice provides a documented reference and a comparable
 gamescope path; it is not a measured quality or performance ranking of the
@@ -167,6 +207,39 @@ upscaling support.
   (`src/wayland/surface.cpp`, `viewport.sourceGeometry`, `destinationSize`)
   must not be scaled twice.
 
+### Implemented render path
+
+The effect captures the eligible surface item at buffer resolution through
+KWin's item renderer. This keeps KWin's texture import and synchronization
+handling. It does not use `OffscreenEffect`, whose 6.3.6 implementation captures
+an already enlarged, 8-bit sRGB window. Separate windows and cursors continue
+through the ordinary effect chain; surfaces with child items are initially
+unsupported rather than scaling their contents together.
+
+Capture and optional EASU intermediates use RGBA32F. KWin's GLES texture
+allocator creates 8-bit storage despite accepting a different format argument;
+the compatibility layer replaces that mutable storage with RGBA32F and checks
+framebuffer completeness. Shader samplers explicitly use high precision on
+GLES. Failure disables processing until reconfiguration and renders normally.
+
+The capture keeps the original render target's colour description. Changing
+its transfer function could turn an identity scRGB conversion into a colour
+shader operation that clips negative values. KWin performs its normal gamut
+conversion and tone mapping at input resolution. EASU decodes the destination
+transfer function and maps linear values, in units of reference white, into
+the bounded working domain `0.5 + 0.5 * sign(c) * sqrt(abs(c)/(1+abs(c)))`.
+The inverse restores the signed range before applying only the destination
+transfer function. RCAS, when enabled with nonzero strength, operates in that
+same working domain. This filter-domain choice is reversible for constant
+colours; its HDR image quality still needs display acceptance. It is not AMD's
+unchanged SDR input encoding or evidence of accepted HDR support.
+
+Supported destination transfers are sRGB, gamma 2.2, linear and PQ. New or
+unknown destination transfer functions use normal rendering. There is no frame
+timer: client damage expands to a full-window repaint because both filters
+sample neighbouring pixels. Scanout is blocked only while there is one eligible
+candidate; KWin retains ownership of refresh and presentation timing.
+
 ## Versions
 
 | | Version | Role |
@@ -180,9 +253,13 @@ compatibility layer rather than in the effect's logic.
 
 ## Configuration
 
-Planned, none of it implemented yet. Configuration follows KWin's own pattern:
+Configuration follows KWin's own pattern:
 `upscaleconfig.kcfg` and a page registered as `X-KDE-ConfigModule` in System
-Settings. The initial slice includes these controls and status information:
+Settings. The page implements the controls below. Resolution wishes currently
+remain guidance; no client resolution request or mode override is sent.
+The status can be refreshed explicitly and reports supplied buffer dimensions,
+not internal game rendering resolution. A saved preference is never presented
+as a successfully applied client request.
 
 | Control | Behaviour |
 | --- | --- |
@@ -269,6 +346,12 @@ exposes `setPreferredBufferScale()`. That is an integration lead, not evidence
 that an effect can safely override KWin's scale policy. Any implementation must
 account for logical versus physical sizes, protocol quantisation, output
 changes and restoration of KWin's normal scale preference.
+KWin 6.3.6's `Window::setNextTargetScale()` is another integration lead: unlike a
+direct surface hint, it also changes the scale used for subsequent fullscreen
+configures. It participates in KWin's geometry and output policy, so it requires
+coordinated ownership and restoration. Neither the preferred scale nor KWin's
+target-scale state proves that a client changed its buffer; status must observe
+the committed buffer dimensions.
 [Gamescope's README](https://github.com/ValveSoftware/gamescope#gamescope-the-micro-compositor-formerly-known-as-steamcompmgr)
 describes its separate virtual-screen approach.
 
@@ -451,3 +534,160 @@ scanout, rather than timing the shader alone.
 Record actual results and outstanding checks in the corresponding slice
 document. An SDR prototype, a documentation check or a configured VRR setting
 does not establish completion of the required HDR and VRR support.
+
+### Test applications and progression
+
+Establish a reproducible baseline with small, open-source applications before
+testing games from Steam or Epic Games Store. Use this initial application set
+in order; the list is a test plan, not a record of passing runs:
+
+| Stage | Application | Purpose and required selection |
+| --- | --- | --- |
+| 1: OpenGL benchmark | [glmark2](https://github.com/glmark2/glmark2) | Measure performance differences between native rendering, ordinary scaling, EASU and EASU with RCAS using repeatable fullscreen scenes. Test Wayland and X11 builds separately, with X11 through Xwayland. |
+| 2: Vulkan benchmark | [vkmark](https://github.com/vkmark/vkmark) | Measure the same performance comparisons for Vulkan. Explicitly select Wayland and XCB in separate runs and keep presentation mode consistent within each comparison. |
+| 3: Simple OpenGL game | [Extreme Tux Racer](https://sourceforge.net/projects/extremetuxracer/) | Test game identification, selection and effect-driven resolution reduction with a simple OpenGL game. Verify the actual buffer change, fullscreen coverage and input. |
+| 4: Open-source Vulkan game | [SuperTuxKart](https://supertuxkart.net/) | Test the same game-identification and resolution-control path with Vulkan. Select `--render-driver=vulkan` explicitly and confirm it in the log. |
+| 5: Store-game acceptance | Selected games from Steam and Epic Games Store | Proceed after stages 1–4 pass. Exercise Valve Proton and standalone Wine separately; select titles that cover the required Windows graphics paths, HDR and VRR, and record the exact game/runtime combinations. |
+
+Windows builds of suitable open-source applications can provide additional
+Proton and Wine checks before the store-game stage. They complement the native
+runs; one native Vulkan game does not cover Direct3D translation.
+
+SuperTuxKart documents the Vulkan selector in its
+[1.4 release announcement](https://blog.supertuxkart.net/2022/09/supertuxkart-14-release-candidate-1.html).
+That release describes the renderer as experimental; verify that the actual
+distribution build includes it and does not fall back to OpenGL. Application
+choice alone never proves which graphics or window-system backend ran.
+
+Both benchmarks document `--fullscreen` as equivalent to `--size -1x-1`:
+[glmark2's manual](https://github.com/glmark2/glmark2/blob/master/doc/glmark2.1.in)
+and [vkmark's option parser](https://github.com/vkmark/vkmark/blob/master/src/options.cpp).
+Do not treat `--fullscreen --size 1920x1080` as a verified way to obtain a 1080p
+buffer covering a 4K output. Establish a working lower-buffer-size fullscreen
+route for each backend and record it. A native-size fullscreen run is useful
+for checking bypass and basic stability, but cannot pass the scaling check.
+Use the compositor's Wayland/Xwayland paths; a direct KMS benchmark bypasses
+KWin and cannot validate this effect.
+
+For each application/backend combination, first keep SDR and a fixed refresh
+rate to isolate the scaler. On the 4K output, test actual 1920 × 1080 and
+2560 × 1440 input buffers, plus native 3840 × 2160 as the bypass control.
+Compare effect disabled, EASU with RCAS off, and EASU with RCAS on against the
+same scene and input size. Confirm the committed input and destination sizes
+and evidence that EASU rendered a frame; an enabled checkbox is insufficient.
+Exercise fullscreen/windowed transitions, focus changes, resolution changes,
+effect deactivation, cursor and overlays. Follow the performance measurement
+protocol below; keep presentation settings identical within each comparison.
+
+A stage passes when its required scaling and bypass cases work, image and
+input checks pass, and lifecycle changes restore ordinary rendering. Record
+failures and unavailable cases explicitly; do not advance by counting a launch
+or a native-size buffer as successful upscaling. Benchmark stages also require
+the measured performance differences and their assessment. The game stages
+require correct identification and effect-driven resolution reduction as
+specified below; manually changing the game's settings does not pass that
+requirement. A visually correct run alone is insufficient. Follow the baseline with SDR
+on an HDR output, VRR during scaling, and native HDR/VRR combinations using
+applications that actually support those paths. Lack of HDR content in the
+initial test games leaves native HDR acceptance for suitable later titles.
+
+Every run records application/package version, launch arguments, scene,
+graphics API and window backend, runtime/translation versions where relevant,
+output mode and desktop scale, actual buffer and destination sizes, effect and
+RCAS state, colour/HDR and presentation settings, observed image/input results,
+frame-time measurements and remaining limitations. Keep these results in the
+slice document, with temporary binaries and check caches under `build/`.
+
+### Game identification and resolution-control tests
+
+The primary purpose of Extreme Tux Racer and SuperTuxKart is to test the
+effect's game identification and resolution reduction. Image quality, input
+and lifecycle checks accompany these tests. The benchmarks above provide the
+controlled performance comparisons.
+
+The current implementation checks fullscreen rendering eligibility and shows
+resolution guidance. It does not yet implement explicit game selection,
+remembered game profiles or active client resolution control. These game tests
+are therefore acceptance requirements for work still to implement, not features
+established by loading the plugin or by the native-client experiments.
+
+| Test | Required observation |
+| --- | --- |
+| Identify the game | Observe the real native application ID or Xwayland window class/instance, distinguish the main game window from launchers and dialogs, and associate it with the user's selected game. Repeat after restart and title changes; verify stored matching if a profile is used. |
+| Select the target | Apply resolution control only to the selected game. Other games, launchers, browser/video fullscreen windows and the desktop must retain their normal resolution policy. Fullscreen eligibility alone must not count as game identification. |
+| Reduce resolution | Start with a measured native-size game buffer. Through the effect's control, request 2560 × 1440 and 1920 × 1080 on the unchanged 3840 × 2160 output. Observe smaller game buffers and actual upscaling across the full output, with correct input coordinates. |
+| Confirm or reject the request | Distinguish desired size, a sent request and the committed buffer. An ignored or adjusted request must show the actual result without repeated requests or an apply-success claim. An ignored request exercises fallback but does not pass the reduction case. |
+| Change mode or output | Exercise fullscreen/windowed transitions, desktop-scale and output changes; recompute the intended pixel size and preserve focus, pointer confinement and input mapping. |
+| Restore normal policy | Disable control, deselect the game and close/restart it. Restore KWin's normal scale/output policy without stale overrides, forced screen modes or continuous repainting. Record the client's actual response to restoration separately. |
+
+Manual in-game resolution changes may establish comparison baselines or help
+diagnose a failure. They do not demonstrate that our identification and control
+path caused the reduction. Likewise, shrinking an already completed native-size
+frame is not a successful resolution reduction. If a game needs a launch-time
+setting or restart, expose and test that workflow explicitly instead of claiming
+an immediate change.
+
+Record each game's actual window-system backend. Validate native Wayland and
+Xwayland separately on the minimum supported KWin; successful control of the
+cooperative test client does not establish control of these games. Once these
+open-source game cases and the benchmark stages pass, repeat identification,
+reduction and restoration with the selected Steam/Epic games under Valve Proton
+and standalone Wine. An unavailable control path remains an implementation or
+integration gap in this acceptance stage.
+
+### Benchmark performance comparisons
+
+The primary purpose of glmark2 and vkmark is to measure and assess performance
+differences. Their functional checks establish that each measurement exercised
+the intended path. Determine both the net benefit of lower-resolution rendering
+with upscaling and the additional cost of EASU and RCAS over ordinary KWin
+scaling. Do not require or assume a speedup before measuring it.
+
+Keep the physical output at 3840 × 2160 and run this matrix for each selected
+scene and window-system backend. Repeat B–D at both 1920 × 1080 and 2560 × 1440
+actual input resolution:
+
+| Run | Actual input | Effect state | Comparison purpose |
+| --- | --- | --- | --- |
+| A0 | 3840 × 2160 | Disabled | Native-resolution performance baseline |
+| A1 | 3840 × 2160 | Enabled, native-size bypass | Inactive-path overhead relative to A0 |
+| B | 1920 × 1080 or 2560 × 1440 | Disabled; normal KWin presentation/scaling | Performance of lower-resolution rendering without this effect |
+| C | Same input as B | EASU, RCAS off | Net benefit relative to A0 and extra cost relative to B |
+| D | Same input as B | EASU and RCAS at a recorded, fixed strength | Added sharpening cost relative to C |
+
+Report average application FPS and frame-time distributions, including median
+and 95th/99th percentile frame times where frame traces are available. Include
+the benchmark's scene results, not just its aggregate score. Distinguish the
+application's reported render throughput from frames actually presented by
+KWin; discarded or queued frames are not additional displayed frames. Record
+GPU time for the application and compositor where instrumentation permits,
+and do not label CPU submission time or a benchmark score as total GPU time.
+State unavailable measurements explicitly.
+
+Use two separate measurement series:
+
+- **Throughput:** remove the application's frame cap and avoid a presentation
+  limit masking the comparison where the backend permits it. Keep the physical
+  refresh rate, synchronization policy and Vulkan presentation mode unchanged
+  across A0–D. Record unavoidable limits, including refresh or CPU bottlenecks;
+  equal FPS at such a limit does not prove equal rendering cost.
+- **Cost at a fixed frame rate:** apply the same sustainable target frame rate
+  to each run. Compare GPU cost, frame-time stability and power/energy where
+  measurable. This determines whether upscaling saves work while delivering the
+  same frame rate. Keep this series separate from uncapped throughput results.
+
+Warm up the selected scene and shader caches before collecting samples. Use
+the same scene parameters, quality settings and measurement duration, and run
+each case at least three times. Alternate the baseline and effect runs to
+expose drift; record thermal/power state and competing load. Report the median
+of repeated measurements and their spread, with absolute and percentage
+differences for C versus A0, C versus B, D versus C and A1 versus A0. Changes
+within run-to-run variation are inconclusive. Compare results within one
+benchmark/API/backend; glmark2 and vkmark scores are not interchangeable units.
+
+Record composition versus direct scanout for each case. The end-to-end result
+must include the cost of losing direct scanout when enabling the effect. If a
+controlled comparison with composition in both cases is available, report it
+separately to help isolate filter cost. A shader-only timing cannot replace
+the end-to-end comparison. Complete the initial measurements in SDR at fixed
+refresh, then repeat the relevant comparisons with HDR and VRR as supported.

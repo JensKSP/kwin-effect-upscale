@@ -82,13 +82,20 @@ find_package(
 )
 find_package(KF6 ${KF_MIN_VERSION} REQUIRED COMPONENTS Config CoreAddons I18n)
 find_package(KWin REQUIRED COMPONENTS kwineffects)
+find_package(Libdrm REQUIRED)
 
 # Build the configuration page the way KWin does when its KCMs are enabled.
 option(KWIN_BUILD_KCMS "Build the effect configuration page" ON)
+if(KWIN_BUILD_KCMS)
+    find_package(KF6KCMUtils ${KF_MIN_VERSION} REQUIRED)
+endif()
 
 include(KWinBuiltinEffectShim)
 
 add_subdirectory(src/plugins/upscale)
+if(BUILD_TESTING)
+    add_subdirectory(autotests)
+endif()
 
 # `make clang-format` the way every KDE project offers it. The git hook itself
 # is not installed from here: ECM's kde_configure_git_pre_commit_hook writes

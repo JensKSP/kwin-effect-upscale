@@ -72,6 +72,9 @@ FormatStyle: file
 # Only our own sources. KWin's and Qt's headers are not ours to fix. The pattern
 # covers src/buildinfo/ as well, which is ours even though it is not the plugin.
 HeaderFilterRegex: 'src/.*\.h$'
+# KConfig's generated skeletons follow the generator's conventions. They are
+# build output, not hand-written plugin headers.
+ExcludeHeaderFilterRegex: '(^|/)build/'
 
 # Warnings are errors here for the same reason they are in the build: a warning
 # nobody has to act on is noise that accumulates.

@@ -1,0 +1,17 @@
+<!--
+SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+SPDX-License-Identifier: GPL-2.0-or-later
+-->
+<RCC>
+    <qresource prefix="/effects/upscale">
+        <file>shaders/upscale.frag</file>
+        <file>shaders/sharpen.frag</file>
+        <file alias="shaders/upscale_core.frag">shaders/upscale.frag</file>
+        <file alias="shaders/sharpen_core.frag">shaders/sharpen.frag</file>
+    </qresource>
+    <qresource prefix="/opengl/upscale">
+        <file alias="workingcolor.glsl">shaders/workingcolor.glsl</file>
+        <file alias="easu.glsl">shaders/easu.glsl</file>
+        <file alias="rcas.glsl">shaders/rcas.glsl</file>
+    </qresource>
+</RCC>

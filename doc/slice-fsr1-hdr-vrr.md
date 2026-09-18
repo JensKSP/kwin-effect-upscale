@@ -5,8 +5,9 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 # Slice: FSR 1 upscaling with HDR and VRR
 
-Status: implementation in progress; real-device acceptance will be performed
-with Jens in a later session. This temporary
+Status: rendering and configuration implemented; integration and real-device
+acceptance remain open. Real-device acceptance will be performed with Jens in
+a later session. This temporary
 working document covers this major slice's scope, plan, progress, findings,
 TODOs and test results. The permanent requirements and specification live in
 the [upscaling developer handbook](upscaling.md).
@@ -62,9 +63,10 @@ throughout.
    resolution emulation (`_XWAYLAND_RANDR_EMU_MONITOR_RECTS`,
    `src/x11window.cpp:3469-3474`): does a 1080p fullscreen window arrive as a
    small buffer with a 4K target size?
-4. Does KWin reject a plugin built against a different effect API version
-   cleanly? 6.3.6 declares version `0.236` (`src/effect/effect.h:101-104`); the
-   place where it is checked at load time has not been found yet.
+4. KWin 6.3.6 checks the plugin factory IID in
+   `src/effect/effectloader.cpp:299`, before loading a mismatched effect.
+   Packages must still match the installed KWin; the IID check is not a
+   substitute for ABI-compatible builds.
 
 5. Can a native Wayland client's preferred scale be requested safely from an
    effect on KWin 6.3.6, without fighting the compositor's own scale policy?
@@ -132,9 +134,9 @@ vendor checks.
   Until restoration and cooperative clients have been verified, resolution
   wishes remain game-setting guidance and send no protocol requests.
 
-- The implementation in `src/plugins/upscale/` currently reports itself
-  inactive and does not scale anything. Shader integration and runtime
-  acceptance remain open.
+- The implementation now contains the source-resolution capture, EASU and
+  optional RCAS, eligibility checks, normal-rendering fallback and settings.
+  Container shader tests are separate from full compositor and TV acceptance.
 - Gamescope's reviewed FSR path scales the base layer with EASU and combines
   RCAS with final composition. Separately composited overlays follow the base
   layer; an in-game HUD is already part of the input buffer.
@@ -165,7 +167,7 @@ KWin 6.3.6 exposes a preferred-buffer-scale setter. Neither establishes safe
 scale-policy ownership by this effect or general Proton game support. Sources
 and the intended user-visible behaviour are recorded in the handbook's
 [configuration section](upscaling.md#configuration). The production effect
-sends no client requests; isolated resolution-control experiments are recorded below.
+sends no client requests; an isolated native-client prototype is recorded below.
 
 ## Progress and remaining work
 
@@ -209,12 +211,42 @@ Observed source and binary evidence:
   output owns the active window (`compositor_wayland.cpp`).
 
 Remaining investigation: validate native scale-policy ownership across output
-changes and effect lifecycle; resolve the Xwayland fullscreen compatibility gap
-on the minimum supported KWin; determine whether consistent per-game display
-advertising can be implemented through existing APIs; test game identity,
-launch-time mode caching, input, cleanup, HDR and VRR. Game-resolution enforcement
-and virtual-output presentation remain unaccepted. The runtime probes below
-establish narrower results with controlled clients.
+changes and effect lifecycle; validate Xwayland fullscreen mode emulation on
+the minimum supported KWin; determine
+whether consistent per-game display advertising can be implemented through
+existing APIs; test game identity, launch-time mode caching, input, cleanup,
+HDR and VRR. No game-resolution enforcement or virtual-output presentation has
+been accepted. The following prototype is narrower than game acceptance.
+
+#### Native-client prototype, 2026-09-18
+
+A temporary probe effect and a fractional-scale Wayland client ran against
+unpatched KWin 6.3.6's virtual backend in the Trixie container. QPainter was
+sufficient to observe protocol messages, window geometry and committed buffers;
+this was not a test of the upscaling shaders or physical presentation. The probe
+only addressed the test application's ID, and its sources and build remained
+under the ignored `build/` directory.
+
+- At output scale 1, the cooperative client initially committed 3840 × 2160.
+  `SurfaceInterface::setPreferredBufferScale(0.5)` delivered a fractional-scale
+  event of 60/120 and the client committed 1920 × 1080 into an unchanged
+  3840 × 2160 viewport. Leaving fullscreen triggered a new configure and KWin
+  restored the 120/120 hint; the client returned to 3840 × 2160.
+- `Window::setNextTargetScale(0.5)` also produced the 60/120 hint and the smaller
+  committed buffer. In this case the window's target scale became 0.5 and stayed
+  there when fullscreen was restored. Its frame geometry stayed 3840 × 2160.
+  Setting the next target scale back to the output's scale restored target scale
+  1 and a 3840 × 2160 buffer in the final observation.
+- In a second run, a client configured to ignore the hints received the same
+  events but kept committing 1920 × 1080. KWin's target-scale state still changed.
+  That state therefore cannot confirm that a resolution request succeeded.
+
+These runs establish a native-client integration lead and demonstrate the
+ownership problem with direct surface hints. They do not establish behaviour
+at fractional desktop scales, during output changes, with actual games or
+Proton/Xwayland, or under HDR and VRR. Production control still requires explicit
+game selection, policy ownership and verified restoration; wishes remain
+guidance in the current effect.
 
 #### Resolution-control experiments on both KWin versions
 
@@ -374,17 +406,156 @@ research container. Rebuilding is required to update existing cached images.
   references.
 - [x] Separate this slice's working record from the permanent developer handbook.
 - [x] Specify percentage and pixel controls, presets and honest resolution status.
-- [ ] Implement the configuration, pixel preview and actual-buffer status.
+- [x] Implement the configuration, pixel preview and actual-buffer status.
+- [x] Prototype cooperative and ignored native Wayland scale hints, including
+  fullscreen transitions and explicit restoration in the virtual backend.
+- [x] Specify the staged OpenGL/Vulkan application suite and mandatory Valve
+  Proton and standalone Wine compatibility.
+- [ ] Complete the benchmark and open-source game stages before Steam/Epic
+  game acceptance.
 - [ ] Verify cooperative resolution requests and manual game-setting guidance.
 - [ ] Resolve the KWin integration questions above, including HDR and VRR.
-- [ ] Implement and comment the buffer path, EASU and optional RCAS.
-- [ ] Implement HDR colour handling and preserve adaptive presentation.
+- [x] Implement and comment the buffer path, EASU and optional RCAS.
+- [x] Implement HDR colour conversions and leave presentation timing with KWin;
+  verify actual HDR and adaptive presentation in the acceptance runs below.
 - [ ] Test lifecycle changes, fallback behaviour and inactive operation.
 - [ ] Complete container checks, native measurements and TV acceptance.
-- [ ] Update the handbook and source comments with lasting conclusions.
+- [x] Update the handbook and source comments with the implemented invariants.
 - [ ] Remove this slice document and update its links after completion.
 
 ## Validation and acceptance
+
+### Implementation checks, 2026-09-18
+
+- The production resolution policy passed its compiled regression test:
+  exact presets, nearest-integer rounding, percentage bounds, aspect tolerance,
+  native-size bypass, unsupported sizes, large integer dimensions and RCAS
+  bypass/strength. It runs through the existing tooling-tests hook.
+- Mesa llvmpipe executed the actual shader resources through KWin's EGL,
+  shader, framebuffer and texture classes on Trixie. Desktop OpenGL and
+  OpenGL ES passed data-driven constant-colour tests for sRGB, gamma 2.2,
+  linear and PQ, including negative linear values and HDR range. Orientation,
+  resizing, sharpening, clipping, scissor-state restoration, rejection of
+  oversized intermediate textures and settings tests also passed.
+- Runtime testing found and fixed KWin 6.3.6's `_core` shader-resource lookup,
+  its GLES allocator silently using 8-bit storage and the default GLES sampler
+  precision discarding HDR detail. These are covered by the rendering tests.
+- The configuration tests exercise Automatic, exact preset labels and pixel
+  previews, keyboard percentage changes, slider bounds, RCAS defaults and
+  save/load/defaults against an isolated configuration directory.
+- A 3840 × 2160 virtual KWin 6.3.6 session accepted a native Wayland client's
+  1920 × 1080 buffer with a fullscreen viewport. No DRM render node is available
+  in this environment, so that KWin uses QPainter and correctly refuses the
+  OpenGL-only effect. A nested Wayland KWin also requires a DRM device for its
+  OpenGL backend. Neither run establishes compositor shader or VRR acceptance.
+- A separate headless test exercised KWin 6.3.6's actual item renderer with a
+  synthetic surface. Source capture, EASU and EASU with RCAS preserved the test
+  image's orientation and constant colour patches. Capturing a 32 × 18 source
+  containing a one-pixel pattern and scaling to 64 × 36 produced exactly the
+  same 8-bit readback as scaling the original uploaded image directly (maximum
+  channel difference zero), both with and without RCAS. This test used the locally
+  checked out 6.3.6 source headers because Debian's development package omits
+  an internal header needed by `ItemRendererOpenGL`.
+
+Final automated results on amd64, 2026-09-18:
+
+| Environment | Build | Tests |
+| --- | --- | --- |
+| Trixie, KWin 6.3.6, GCC | Passed, warnings as errors | 4/4 CTest entries passed, including desktop GL, GLES, configuration and AppStream |
+| Trixie, KWin 6.3.6, Clang | Passed, warnings as errors | 4/4 CTest entries passed |
+| Neon unstable, KWin development snapshot, GCC | Passed, warnings as errors | 3/3 CTest entries passed, including GLES, configuration and AppStream |
+| Neon unstable, KWin development snapshot, Clang | Passed, warnings as errors | 3/3 CTest entries passed |
+
+The Neon snapshot was package version
+`4:6.7.5+p24.04+vunstable+git20260915.1132-0`. Trixie's initial GLES test run
+could not start because the existing build image lacked `libGLESv2.so.2`.
+Installing the declared `libgles2` test dependency in the runtime container
+resolved this; both compiler builds then passed there. No test was skipped.
+
+`pre-commit run --all-files` and the complete `pre-push` stage passed in the
+Trixie container on a working-tree copy under `build/`, including the compiled
+resolution-policy regression, tooling tests and REUSE. The manual rendering
+hook passed against the configured Trixie GCC build. `clang-tidy` passed for
+the plugin sources, and the plugin metadata passed KDE's JSON schema check.
+A Trixie staging install placed the effect and configuration modules in KWin's
+respective `effects/plugins` and `effects/configs` plugin directories.
+
+Native installation on wzpc, 2026-09-18: the Release build against installed
+KWin 6.3.6 passed with warnings as errors, and all four native CTest entries
+passed. The missing KCM development dependencies were installed from Trixie.
+The effect and its configuration module were installed under `/usr`; SHA-256
+checks confirmed that the installed files match the native build. An isolated,
+offscreen KDE plugin-discovery probe found `Upscale` in the standard plugin
+directory, confirmed its disabled-by-default metadata and instantiated the
+installed configuration module successfully. No KWin instance was started or
+effect enabled for this installation.
+
+First session check, 2026-09-18: Jens subsequently logged into KDE, found the
+settings entry and enabled the effect. In that native KWin session, the D-Bus
+query `isEffectLoaded("upscale")` returned true. The effect's status was
+`Inactive: no supplied window buffer.` This confirms discovery and loading;
+no scaled game frame or image-quality acceptance was observed in this check.
+
+The maintained rendering and settings tests are built under `autotests/` and
+run with `pre-commit run upscale-render-tests --all-files --hook-stage manual`
+after configuring and building. Set `UPSCALE_BUILD_DIR` when using a build
+directory other than `build`. This hook also runs in the Trixie build CI jobs.
+It does not replace the virtual-compositor lifecycle or real-device checks.
+
+Open acceptance: full compositor lifecycle and original-buffer mapping with an
+OpenGL virtual backend; real Wayland, Valve Proton and standalone Wine games;
+Xwayland compatibility; client control
+and restoration; HDR gradients/gamut/transitions; VRR with composition; total
+GPU time, frame times and power; joint TV image-quality comparison. Jens has
+explicitly deferred the real-device tests to a later joint session.
+
+### Planned application tests, 2026-09-18
+
+Jens requested a staged application suite: fullscreen OpenGL and Vulkan
+benchmarks, a simple Tux Racer family game and an open-source Vulkan game,
+followed by games from Steam and Epic Games Store once the initial suite works.
+The handbook now makes Valve Proton and standalone Wine mandatory and defines
+the [test order and pass criteria](upscaling.md#test-applications-and-progression).
+
+Jens clarified that the benchmarks' primary purpose is to measure and assess
+performance differences. The handbook's
+[measurement protocol](upscaling.md#benchmark-performance-comparisons) therefore
+requires native-resolution baselines, native-size bypass, ordinary KWin
+scaling, EASU, and EASU with RCAS. Lower-resolution cases cover 1080p and 1440p
+on the unchanged 4K output. Uncapped throughput and cost at a fixed frame rate
+are separate series, with warm-up, repeated runs, frame-time distributions and
+recorded presentation/scanout state. No performance measurements or speedup
+claims have been established yet.
+
+The open-source games primarily test our game identification and resolution
+reduction. The handbook now specifies the
+[game-control acceptance cases](upscaling.md#game-identification-and-resolution-control-tests):
+identify and select the correct game, obtain smaller committed buffers through
+our control, leave unrelated windows and the physical output unchanged, and
+restore normal policy. Manually choosing a smaller in-game resolution only
+provides a baseline. Explicit game selection/profiles and active resolution
+control remain unimplemented, so those acceptance cases cannot yet pass.
+
+Selected applications and the package candidates observed with
+`apt-cache policy` on wzpc:
+
+| Order | Application | Trixie package candidates | Status |
+| --- | --- | --- | --- |
+| 1 | glmark2, native Wayland and Xwayland | `glmark2-wayland`, `glmark2-x11`: `2023.01+dfsg-2` | Planned; not installed or run |
+| 2 | vkmark, Wayland and XCB | `vkmark`: `2025.01-1` | Planned; not installed or run |
+| 3 | Extreme Tux Racer, OpenGL | `extremetuxracer`: `0.8.4-1` | Planned; not installed or run |
+| 4 | SuperTuxKart, explicitly using Vulkan | `supertuxkart`: `1.4+dfsg-5+b1` | Planned; renderer availability and actual backend still to verify |
+| 5 | Steam and Epic games with Valve Proton and standalone Wine | Choose titles and record runtime versions after the initial suite passes | Planned; Windows graphics, HDR and VRR coverage still open |
+
+The application choices were checked against their upstream documentation;
+package availability is not an execution result. In particular, the benchmarks'
+fullscreen option selects the output size and does not establish a smaller
+fullscreen buffer. Each backend needs an observed smaller-buffer path while
+the physical output stays at 4K. The known Xwayland mismatch on KWin 6.3.6
+remains open and must not be bypassed by testing only newer KWin or native Linux
+clients. No additional test application was installed or launched for this plan.
+
+### Required acceptance matrix
 
 Record each actual run here with its environment, result and any remaining
 limitation. The following are required checks, not claims of success:
@@ -396,11 +567,12 @@ limitation. The following are required checks, not claims of success:
 | Runtime | Tests against KWin's virtual backend in the container; actual original-buffer sizes and pixel mapping. |
 | Configuration | Percentage-to-pixel conversion at different output and desktop scales; exact preset ratios, rounding, aspect tolerance, 50% and native boundaries, RCAS bypass and increasing strength. |
 | Resolution wish | Automatic makes no request; unsupported control remains guidance; verify cooperative, ignored and adjusted requests, including a game with a fixed resolution different from the wish. Scaling uses actual buffer dimensions. Check output changes and cleanup without repeated requests or continuous repaints. |
-| Real game | Native build on the TV, with a smaller game buffer and 4K destination; 1080p and 1440p patterns, plus the resolutions offered by the game. |
+| Game identification and reduction | With Extreme Tux Racer and SuperTuxKart, identify/select the real game and use our control to reduce its actual buffer while preserving fullscreen coverage, input and unrelated windows. Verify restart/title changes, ignored requests and restoration. Manual in-game changes do not pass effect-driven reduction. Repeat later with Valve Proton and standalone Wine. |
+| Real game | Complete the OpenGL/Vulkan benchmark and open-source game stages first, then Steam/Epic games with Valve Proton and standalone Wine. On the TV, prove smaller actual buffers and a 4K destination, including 1080p and 1440p; cover the required Windows graphics paths and record runtime versions. |
 | Image quality | Compare KWin scaling, EASU, and EASU plus RCAS on identical input; inspect text, HUD, fine edges and camera movement with Jens. |
 | HDR | SDR to SDR, SDR to HDR, PQ and scRGB to HDR, and transitions; gradients, highlights, wide-gamut colours and negative scRGB values without accidental clipping or duplicate colour conversion. |
 | VRR | Verify adaptive presentation with active scaling and blocked direct scanout, both in SDR and HDR, across changing frame rates within the actual output range. An enabled setting alone is insufficient. |
-| Cost | Measure total GPU rendering time, frame times and power at comparable frame rates, including the loss of direct scanout. Fixed 60 Hz is one baseline; test 120 Hz where the output path supports it. |
+| Cost | Execute the A0–D benchmark matrix for OpenGL and Vulkan: native resolution, native-size bypass, ordinary scaling, EASU, and EASU with RCAS. Report repeated throughput and fixed-frame-rate cost measurements, variation and relative differences, including the loss of direct scanout. Fixed 60 Hz is one baseline; test 120 Hz where the output path supports it. |
 | Lifecycle | Native resolution, windowed mode, unsupported geometry, resource failure, output changes and deactivation preserve normal rendering, cursor and overlays; no stale textures or persistent scanout restriction. |
 
 A driver or display-link limitation leaves the corresponding hardware test
@@ -408,7 +580,8 @@ open. It does not remove HDR or VRR from the scope. Falling back for every
 HDR input is not HDR upscaling support, and virtual tests do not replace
 real-display acceptance.
 
-No scaler implementation has yet been built, timed or accepted on the TV.
+The native scaler build is installed on wzpc but has not yet been timed or
+accepted on the TV.
 Documentation checks do not constitute completion of the slice.
 
 Previous documentation check (before separating handbook and slice):

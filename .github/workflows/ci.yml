@@ -59,7 +59,7 @@ jobs:
           apt-get update
           apt-get install --no-install-recommends -y \
             ca-certificates build-essential devscripts equivs git \
-            clang clang-tidy clazy libclang-rt-19-dev
+            clang clang-tidy clazy libclang-rt-19-dev pipx
       - uses: actions/checkout@v4
       # Build dependencies come from debian/control, so this job cannot drift
       # away from what the packages are built with.
@@ -75,6 +75,10 @@ jobs:
             -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
       - name: Build
         run: cmake --build build --parallel
+      - name: Render regression tests
+        run: |
+          PIPX_BIN_DIR=/usr/local/bin pipx install pre-commit
+          pre-commit run upscale-render-tests --all-files --hook-stage manual
       - name: Install into a staging prefix
         run: DESTDIR=$PWD/stage cmake --install build
 

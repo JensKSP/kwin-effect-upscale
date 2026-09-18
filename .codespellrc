@@ -15,5 +15,6 @@ check-filenames =
 #   cas       Contrast Adaptive Sharpening, an upscaling term this effect is about
 #   copyable  correct English, and the word the plugin folder rule is written with
 #   assertin  unittest's assertIn, which the code dictionary reads as a typo
-ignore-words-list = nd,ba,te,doubleclick,master,cas,copyable,assertin
+#   inout     GLSL's input/output parameter qualifier
+ignore-words-list = nd,ba,te,doubleclick,master,cas,copyable,assertin,inout
 check-hidden = true
