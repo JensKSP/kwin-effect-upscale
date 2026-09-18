@@ -223,12 +223,12 @@ supersede earlier pending statuses.
   which reads GitHub review metadata and publishes status without executing PR
   code or downloading its artifacts. Missing/stale approval must stay blocked.
   Local regression tests cover rejection, dismissal, subsequent pushes and API
-  failures. The trusted workflow is now on `master` and its first manual run
-  succeeded without open PRs. Verify its status source on the activation PR,
-  enable the required context and observe live approval/revocation transitions.
+  failures. The trusted workflow is on `master`; status publication was verified
+  on PR #6 and the context is now required. Observe live approval/revocation
+  transitions; a published pending status is not approval evidence.
 - Finish automated review of the latest revision and process valid findings;
   keep its hosted quality gate green. The owner approved versioned CodeRabbit
-  configuration and required approval on 2026-09-18; activation remains below.
+  configuration and required approval on 2026-09-18; activation is recorded below.
 - PRs #1 and #5 merged through owner-enabled GitHub auto-merge. Dependabot opened
   updates for all three configured locations; the owner merged those updates.
   Default-branch scheduled execution still needs observation.
@@ -372,3 +372,14 @@ that run establishes workflow execution but not status publication or approval.
 CodeRabbit had not submitted a review on PR #5 at merge time; the bootstrap
 merge is not evidence of bot approval. A documentation follow-up records the
 deployed policy and provides the first open PR for status-source verification.
+
+PR #6 triggered successful run `35333375566`, which published `CodeRabbit
+approval: pending` for `300afb6`. The individual status record identified
+`github-actions[bot]` (ID 41898282) as its creator; CodeRabbit itself separately
+reported review in progress. Protection was then updated and read back:
+`Quality gate` and `CodeRabbit approval` are both required from GitHub Actions
+(app ID 15368), with strict up-to-date checking. Owner bypass, code-owner review,
+stale-review dismissal, conversation resolution and force-push/deletion blocks
+were retained. No agent enabled a merge or auto-merge for PR #6. Its owner-authored
+PR requested no human reviewer; outside-author enforcement and the successful
+bot-approval transition still await observation.
