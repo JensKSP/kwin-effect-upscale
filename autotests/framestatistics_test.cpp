@@ -105,18 +105,18 @@ void FrameStatisticsTest::keepsOnlyTheRecentWindow()
 {
     UpscaleFrameStatistics statistics;
     double now = 0;
-    // Fill past capacity with a slow rate, then run fast for a full window.
-    for (size_t frame = 0; frame < UpscaleFrameStatistics::capacity; ++frame) {
+    // Fill past Capacity with a slow rate, then run fast for a full window.
+    for (size_t frame = 0; frame < upscaleFrameWindow; ++frame) {
         statistics.record(now);
         now += 100;
     }
     // One presentation more than the window, so that the interval bridging
     // the slow past and the fast present is pushed out of it as well.
-    for (size_t frame = 0; frame <= UpscaleFrameStatistics::capacity; ++frame) {
+    for (size_t frame = 0; frame <= upscaleFrameWindow; ++frame) {
         statistics.record(now);
         now += 10;
     }
-    QCOMPARE(statistics.frames(), UpscaleFrameStatistics::capacity);
+    QCOMPARE(statistics.frames(), upscaleFrameWindow);
     // Nothing of the slow past survives, so the window really is a window.
     QVERIFY(std::abs(statistics.averageRate() - 100.0) < 0.001);
     QCOMPARE(statistics.worstFrameTime(), 10.0);

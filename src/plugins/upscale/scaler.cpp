@@ -164,6 +164,56 @@ bool UpscaleScaler::render(const RenderTarget &target, const RenderViewport &vie
     return renderTexture(target, viewport, m_input.texture.get(), destination, region, strength);
 }
 
+// The two filter passes themselves. EASU enlarges, and where sharpening is
+// wanted it writes an intermediate for RCAS to sharpen in place afterwards,
+// which is the order AMD specifies and the only one RCAS supports.
+// EASU, the enlargement. With sharpening wanted it writes the intermediate
+// that RCAS then sharpens; otherwise it draws straight to the destination.
+void UpscaleScaler::scale(const RenderTarget &target, const RenderViewport &viewport, GLTexture *input,
+                          const UpscaleRectF &destination, const UpscaleRegion &region, double strength)
+{
+    const QSize inputSize = input->size();
+    const QSize outputSize = (destination.size() * viewport.scale()).toSize();
+    const bool direct = upscaleFiltersDirectly(targetColors(target));
+    GLShader *easu = direct ? m_easuDirect.get() : m_easu.get();
+    const ShaderBinder binder(easu);
+    easu->setUniform("inputSize", QVector2D(float(inputSize.width()), float(inputSize.height())));
+    easu->setUniform("outputSize", QVector2D(float(outputSize.width()), float(outputSize.height())));
+    easu->setUniform("intermediate", int(strength > 0));
+    // The direct shaders carry no transfer-function arithmetic, so they
+    // declare none of these and asking for them would only log misses.
+    if (!direct) {
+        setColorUniforms(easu, target);
+    }
+    if (strength <= 0) {
+        draw(easu, input, viewport, destination, region);
+        return;
+    }
+    const RenderTarget scaledTarget(m_scaled.framebuffer.get());
+    const UpscaleRectF rectangle(QPointF(), outputSize);
+    const RenderViewport scaledViewport = captureViewport(rectangle, 1, scaledTarget);
+    GLFramebuffer::pushFramebuffer(m_scaled.framebuffer.get());
+    draw(easu, input, scaledViewport, rectangle, unlimitedRegion());
+    GLFramebuffer::popFramebuffer();
+}
+
+// RCAS, which sharpens without scaling and only ever runs on what EASU
+// produced. That order is the one AMD specifies and the only one it supports.
+void UpscaleScaler::sharpen(const RenderTarget &target, const RenderViewport &viewport,
+                            const UpscaleRectF &destination, const UpscaleRegion &region, double strength)
+{
+    const QSize outputSize = (destination.size() * viewport.scale()).toSize();
+    const bool direct = upscaleFiltersDirectly(targetColors(target));
+    GLShader *rcas = direct ? m_rcasDirect.get() : m_rcas.get();
+    const ShaderBinder binder(rcas);
+    rcas->setUniform("outputSize", QVector2D(float(outputSize.width()), float(outputSize.height())));
+    rcas->setUniform("strength", strength);
+    if (!direct) {
+        setColorUniforms(rcas, target);
+    }
+    draw(rcas, m_scaled.texture.get(), viewport, destination, region);
+}
+
 bool UpscaleScaler::renderTexture(const RenderTarget &target, const RenderViewport &viewport, GLTexture *input,
                                   const UpscaleRectF &destination, const UpscaleRegion &region, double strength)
 {
@@ -180,7 +230,6 @@ bool UpscaleScaler::renderTexture(const RenderTarget &target, const RenderViewpo
             glEnable(GL_SCISSOR_TEST);
         }
     });
-    const QSize inputSize = input->size();
     const QSize outputSize = (destination.size() * viewport.scale()).toSize();
     if (strength > 0) {
         if (!m_scaled.resize(outputSize, upscaleFilterFormat(targetColors(target)))) {
@@ -196,38 +245,9 @@ bool UpscaleScaler::renderTexture(const RenderTarget &target, const RenderViewpo
     // enabled blending for a buffer with an unused alpha channel.
     const bool blending = glIsEnabled(GL_BLEND);
     glDisable(GL_BLEND);
-    const bool direct = upscaleFiltersDirectly(targetColors(target));
-    GLShader *easu = direct ? m_easuDirect.get() : m_easu.get();
-    GLShader *rcas = direct ? m_rcasDirect.get() : m_rcas.get();
-    {
-        const ShaderBinder binder(easu);
-        easu->setUniform("inputSize", QVector2D(float(inputSize.width()), float(inputSize.height())));
-        easu->setUniform("outputSize", QVector2D(float(outputSize.width()), float(outputSize.height())));
-        easu->setUniform("intermediate", int(strength > 0));
-        // The direct shaders carry no transfer-function arithmetic, so they
-        // declare none of these and asking for them would only log misses.
-        if (!direct) {
-            setColorUniforms(easu, target);
-        }
-        if (strength > 0) {
-            const RenderTarget scaledTarget(m_scaled.framebuffer.get());
-            const UpscaleRectF rectangle(QPointF(), outputSize);
-            const RenderViewport scaledViewport = captureViewport(rectangle, 1, scaledTarget);
-            GLFramebuffer::pushFramebuffer(m_scaled.framebuffer.get());
-            draw(easu, input, scaledViewport, rectangle, unlimitedRegion());
-            GLFramebuffer::popFramebuffer();
-        } else {
-            draw(easu, input, viewport, destination, region);
-        }
-    }
+    scale(target, viewport, input, destination, region, strength);
     if (strength > 0) {
-        const ShaderBinder binder(rcas);
-        rcas->setUniform("outputSize", QVector2D(float(outputSize.width()), float(outputSize.height())));
-        rcas->setUniform("strength", strength);
-        if (!direct) {
-            setColorUniforms(rcas, target);
-        }
-        draw(rcas, m_scaled.texture.get(), viewport, destination, region);
+        sharpen(target, viewport, destination, region, strength);
     }
     if (blending) {
         glEnable(GL_BLEND);

@@ -356,6 +356,22 @@ compilers emits is still a warning. Generated files in the tree end up in a
 commit sooner or later, and what this repository contains has to be the plugin
 and nothing else.
 
+## Building for the developer to try is not a release
+
+Laid down by Jens, 2026-09-18.
+
+- **When the point is to put the current state in front of Jens**, build,
+  install, and run only the checks that the change itself calls for. A focused
+  test of what was touched is welcome; the full suite is not. He is waiting at
+  a keyboard, and the minutes it takes are his.
+- The full obligation — both pre-commit stages, both containers, both
+  compilers, clang-tidy, the whole test suite — belongs to work that is being
+  finished: before a commit, before a pull request, and before anything is
+  called done. Say which of the two a run was, so that "it passes" is never
+  read as more than it is.
+- Nothing here weakens the rule below. A check that did not run is reported as
+  not run, never as passed.
+
 ## Never guess a result
 
 - Do not report a build, a test, or a check as done unless it ran and its output

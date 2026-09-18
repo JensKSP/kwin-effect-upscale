@@ -11,6 +11,7 @@
 #include <KLocalizedString>
 
 #include <algorithm>
+#include <ranges>
 
 namespace KWin
 {
@@ -20,14 +21,14 @@ namespace KWin
 // KConfig reads both and lets the user's win field by field, which is what
 // makes a package able to deliver a corrected method or a new application
 // without disturbing anything the user edited.
-static const char s_applicationFile[] = "kwinupscalerc";
+static const char applicationFileName[] = "kwinupscalerc";
 // Groups named for one application, so that the two layers describe the same
 // entry. A generated identifier would not survive the file being shipped again.
-static const QString s_applicationPrefix = QStringLiteral("Application-");
+static const QString applicationGroupPrefix = QStringLiteral("Application-");
 
 KSharedConfig::Ptr upscaleApplicationConfig()
 {
-    return KSharedConfig::openConfig(QLatin1String(s_applicationFile));
+    return KSharedConfig::openConfig(QLatin1String(applicationFileName));
 }
 
 static UpscaleControlMethod readMethod(const QString &name)
@@ -64,7 +65,7 @@ QString upscaleMethodKey(UpscaleControlMethod method)
 
 static const QHash<QString, ResolutionPreset> &presetNames()
 {
-    static const QHash<QString, ResolutionPreset> names = {
+    static const QHash<QString, ResolutionPreset> s_names = {
         {QStringLiteral("Native"), ResolutionPreset::Native},
         {QStringLiteral("UltraQuality"), ResolutionPreset::UltraQuality},
         {QStringLiteral("Quality"), ResolutionPreset::Quality},
@@ -72,7 +73,7 @@ static const QHash<QString, ResolutionPreset> &presetNames()
         {QStringLiteral("Performance"), ResolutionPreset::Performance},
         {QStringLiteral("Custom"), ResolutionPreset::Custom},
     };
-    return names;
+    return s_names;
 }
 
 QString upscalePresetKey(ResolutionPreset preset)
@@ -91,12 +92,12 @@ static std::vector<UpscaleApplication> readApplications(const KSharedConfig::Ptr
     std::vector<UpscaleApplication> applications;
     const QStringList groups = config->groupList();
     for (const QString &name : groups) {
-        if (!name.startsWith(s_applicationPrefix)) {
+        if (!name.startsWith(applicationGroupPrefix)) {
             continue;
         }
         const KConfigGroup group(config, name);
         UpscaleApplication application;
-        application.id = name.mid(s_applicationPrefix.size());
+        application.id = name.mid(applicationGroupPrefix.size());
         application.name = group.readEntry("Name", application.id);
         application.version = group.readEntry("MeasuredVersion", QString());
         application.windowClass = group.readEntry("WindowClass", QString());
@@ -119,7 +120,7 @@ static std::vector<UpscaleApplication> readApplications(const KSharedConfig::Ptr
     }
     // A stable order, so that the first match is the same on every start. The
     // identifier breaks ties rather than leaving it to the file's layout.
-    std::sort(applications.begin(), applications.end(), [](const UpscaleApplication &first, const UpscaleApplication &second) {
+    std::ranges::sort(applications, [](const UpscaleApplication &first, const UpscaleApplication &second) {
         return std::tie(first.order, first.id) < std::tie(second.order, second.id);
     });
     return applications;
@@ -128,40 +129,40 @@ static std::vector<UpscaleApplication> readApplications(const KSharedConfig::Ptr
 // Read once and kept: matching runs whenever a window appears or a report is
 // assembled, and neither may touch the disk. upscaleReloadApplications() is
 // what a reconfiguration calls to pick up an edit.
-static std::optional<std::vector<UpscaleApplication>> s_applications;
+static std::optional<std::vector<UpscaleApplication>> cachedApplications;
 
 const std::vector<UpscaleApplication> &upscaleApplications()
 {
-    if (!s_applications) {
-        s_applications = readApplications(upscaleApplicationConfig());
+    if (!cachedApplications) {
+        cachedApplications = readApplications(upscaleApplicationConfig());
     }
-    return *s_applications;
+    return *cachedApplications;
 }
 
 void upscaleReloadApplications()
 {
-    KSharedConfig::Ptr config = upscaleApplicationConfig();
+    const KSharedConfig::Ptr config = upscaleApplicationConfig();
     config->reparseConfiguration();
-    s_applications = readApplications(config);
+    cachedApplications = readApplications(config);
 }
 
 bool upscaleApplicationsCustomized()
 {
     // Only the user's own file, without the defaults underneath it: a group
     // here is something they added or a field they changed.
-    const KConfig user(QLatin1String(s_applicationFile), KConfig::SimpleConfig);
+    const KConfig user(QLatin1String(applicationFileName), KConfig::SimpleConfig);
     const QStringList groups = user.groupList();
-    return std::any_of(groups.cbegin(), groups.cend(), [](const QString &name) {
-        return name.startsWith(s_applicationPrefix);
+    return std::ranges::any_of(groups, [](const QString &name) {
+        return name.startsWith(applicationGroupPrefix);
     });
 }
 
 void upscaleRestoreApplications()
 {
-    KSharedConfig::Ptr config = upscaleApplicationConfig();
+    const KSharedConfig::Ptr config = upscaleApplicationConfig();
     const QStringList groups = config->groupList();
     for (const QString &name : groups) {
-        if (!name.startsWith(s_applicationPrefix)) {
+        if (!name.startsWith(applicationGroupPrefix)) {
             continue;
         }
         KConfigGroup group(config, name);
@@ -188,12 +189,12 @@ void upscaleRestoreApplications()
 // The application used for a program nobody measured, when the user has asked
 // for that. It is not stored: it describes a setting, not an entry, and it
 // must never appear in the list the editor writes back.
-static std::optional<UpscaleApplication> s_unknown;
+static std::optional<UpscaleApplication> unknownApplication;
 
 void upscaleSetUnknownApplications(bool enabled, ResolutionPreset preset)
 {
     if (!enabled) {
-        s_unknown.reset();
+        unknownApplication.reset();
         return;
     }
     UpscaleApplication application;
@@ -204,12 +205,12 @@ void upscaleSetUnknownApplications(bool enabled, ResolutionPreset preset)
     // which is not something to do to an application nobody measured.
     application.method = UpscaleControlMethod::AdvertisedMode;
     application.preset = preset;
-    s_unknown = application;
+    unknownApplication = application;
 }
 
 const UpscaleApplication *upscaleUnknownApplication()
 {
-    return s_unknown ? &*s_unknown : nullptr;
+    return unknownApplication ? &*unknownApplication : nullptr;
 }
 
 QString upscaleNewApplicationId(const QString &name)
@@ -227,7 +228,7 @@ QString upscaleNewApplicationId(const QString &name)
     }
     const std::vector<UpscaleApplication> &existing = upscaleApplications();
     QString candidate = id;
-    for (int suffix = 2; std::any_of(existing.cbegin(), existing.cend(), [&candidate](const UpscaleApplication &other) {
+    for (int suffix = 2; std::ranges::any_of(existing, [&candidate](const UpscaleApplication &other) {
         return other.id == candidate;
     });
          ++suffix) {
@@ -247,8 +248,8 @@ static void writeField(KConfigGroup &group, const char *key, const QString &valu
 
 void upscaleSaveApplication(const UpscaleApplication &application, const UpscaleApplication &original)
 {
-    KSharedConfig::Ptr config = upscaleApplicationConfig();
-    KConfigGroup group(config, s_applicationPrefix + application.id);
+    const KSharedConfig::Ptr config = upscaleApplicationConfig();
+    KConfigGroup group(config, applicationGroupPrefix + application.id);
     writeField(group, "Name", application.name, original.name);
     writeField(group, "WindowClass", application.windowClass, original.windowClass);
     writeField(group, "Instance", application.instance, original.instance);
@@ -269,8 +270,8 @@ void upscaleSaveApplication(const UpscaleApplication &application, const Upscale
 
 void upscaleDeleteApplication(const QString &id)
 {
-    KSharedConfig::Ptr config = upscaleApplicationConfig();
-    KConfigGroup group(config, s_applicationPrefix + id);
+    const KSharedConfig::Ptr config = upscaleApplicationConfig();
+    KConfigGroup group(config, applicationGroupPrefix + id);
     // Only an entry the effect does not ship can go away. Removing a shipped
     // one here would achieve nothing: the next package brings it back.
     if (group.hasDefault(QStringLiteral("Name")) || group.hasDefault(QStringLiteral("Method"))) {

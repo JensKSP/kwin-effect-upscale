@@ -45,6 +45,10 @@ private:
         std::unique_ptr<GLFramebuffer> framebuffer;
     };
 
+    void scale(const RenderTarget &target, const RenderViewport &viewport, GLTexture *input,
+               const UpscaleRectF &destination, const UpscaleRegion &region, double strength);
+    void sharpen(const RenderTarget &target, const RenderViewport &viewport,
+                 const UpscaleRectF &destination, const UpscaleRegion &region, double strength);
     static void setColorUniforms(GLShader *shader, const RenderTarget &target);
     static void draw(GLShader *shader, GLTexture *texture, const RenderViewport &viewport,
                      const UpscaleRectF &destination, const UpscaleRegion &region);

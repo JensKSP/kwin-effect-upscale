@@ -666,8 +666,26 @@ Known-application recommendations must remain editable and removable, and must
 not overwrite user changes on update. Profiles do not bypass rendering
 eligibility or automatically implement client-resolution negotiation.
 
-The proposed model, code reuse findings, catalogue policy and required checks
-are in the [application profiles slice](agents/slice-application-profiles.md).
+Two identities are needed rather than one, and they are not interchangeable.
+The window class and instance identify a window, which is what the scaler and
+the reports work with. The program behind the connection identifies a client
+before it has a window, which is the only identity available to the
+[advertised screen mode](#telling-one-application-that-its-screen-is-smaller)
+and is taken from KWin's own resolved executable path, never from inspecting
+processes. A profile that wants that method needs the program as well.
+
+Recommendations that ship with the effect are active on installation rather
+than offered as templates, decided by Jens on 2026-09-18: the effect is meant
+to work for a known game as soon as the package is installed. The user's
+explicit settings still win over a recommendation, and the editable profile
+layer must be able to change or remove one.
+
+Shipped entries and user changes are already stored this way, in
+`kwinupscalerc` with the defaults installed beside the session's other
+configuration defaults; the editor, the sparse per-setting overrides and
+profile ordering are not built yet. The proposed model, code reuse findings,
+catalogue policy and required checks are in the
+[application profiles slice](agents/slice-application-profiles.md).
 
 ### Game detection OSD
 
@@ -718,9 +736,12 @@ and size from the session's font settings, and re-laying out when either
 changes, is specified above and not yet implemented. While it is visible the effect reports itself active, because KWin skips
 the paint methods of an inactive effect, and a refused window is exactly when
 the explanation is needed; the composition requirement that comes with it ends
-when the display is hidden. It announces the *selected* application and shows the basic summary for
-the configured timeout. Nothing recognizes games yet, so no profile match or
-game identity is claimed. The announcement is keyed to the selected window:
+when the display is hidden. It announces the application and shows the basic summary for the configured
+timeout. An application whose identity matches the shipped catalogue is
+announced as *recognized* by name; every other window is announced as merely
+*selected*, and neither wording claims that a resolution request succeeded.
+User-editable profiles do not exist yet, so the catalogue is the only source
+of a match. The announcement is keyed to the selected window:
 a repaint or title change does not restart its timeout. Selecting a different
 window or explicitly reconfiguring the display starts a new announcement.
 
@@ -908,9 +929,12 @@ supported modes or scale granularity may differ. Display any negotiated size
 as such, separately from the calculated wish and the actual committed buffer.
 The example dimensions are calculated targets, not guaranteed game modes.
 
-Automatic is the default and makes no resolution request. Selecting Native
-requests or recommends native input; processing still follows the actual
-buffer until the client changes it. At actual native resolution the initial
+Automatic is the default and makes no resolution request of its own; a
+recognized application then follows the size recorded for it in the
+[catalogue](#the-recognized-applications-shipped-with-this-effect), so that
+installing the effect is enough for a known game. Selecting Native requests or
+recommends native input; processing still follows the actual buffer until the
+client changes it. At actual native resolution the initial
 effect bypasses both EASU and RCAS; the proposed sharpen-only mode would be
 the explicit exception, and it does not change this default. Turning the
 effect off is a separate action.
@@ -938,7 +962,7 @@ the game's rendering work and must not implement this slider.
 | Game's own settings | The game selects a smaller output buffer or its own internal render scale. An internal scale alone need not produce a smaller submitted buffer. | Always offer the calculated desired pixel size as guidance; verify what buffer actually arrives. |
 | Cooperative native Wayland client | A compositor can suggest a preferred surface scale. The client must support and act on that hint. | Investigate for this slice; enable requests only after the supported KWin integration and client behaviour are verified. |
 | Proton/Xwayland game | Resolution selection and delivery depend on the game and Xwayland integration. The Wayland hint is not a generic control for Windows game render settings. | Verify separately on a real game; otherwise show that the resolution must be selected in the game. |
-| Per-game display information | Advertising a smaller fullscreen resolution might cause the game to select a smaller buffer. | Investigate without KWin patches; keep mode information, fullscreen geometry, scale and input consistent. Not implemented in the product; proxy experiments below verify limited client paths. |
+| Per-game display information | Advertising a smaller fullscreen resolution can cause the game to select a smaller buffer. | **Implemented** for recognized applications: the effect tells that client alone about a different current mode when it binds the output. Verified to change what SuperTuxKart commits; a client that ignores mode information is unaffected. |
 | Virtual output | KWin has backend APIs for creating an additional output. This does not itself give one game a private display environment. | Investigate only if simpler per-game control is insufficient; preserve physical-output HDR and VRR. Not part of the initial rendering path. |
 | Nested compositor | A separate environment can advertise chosen screen modes, as gamescope does. | Consider a launch helper only when it forwards original smaller buffers into the existing KWin session; an already enlarged intermediate does not feed this effect. |
 
@@ -982,6 +1006,7 @@ does not by itself establish that resolution control succeeded.
 | Method | Intended behaviour |
 | --- | --- |
 | Auto | Choose a verified compatible method for the selected application, runtime and available helpers. Prefer an applicable in-session negotiation before requiring a launch helper. |
+| Advertised screen mode | **Implemented.** Tell one recognized application, and only it, that its screen has a smaller current mode, at the moment it binds the output. Needs no launch helper and no restart, and changes nothing outside that one connection. |
 | Wayland negotiation | Request a smaller buffer from a cooperative native Wayland client. |
 | Display proxy | Launch the application through a private Wayland display, with private Xwayland where needed. |
 | Gamescope | Launch through the verified Wayland buffer-forwarding backend; requires effect support for its surface tree. |
@@ -1004,6 +1029,207 @@ when a method change needs a new launch. Ordinary launches must not restart a
 running game or cycle through helpers; an explicit discovery session follows
 the controlled trial workflow below. Status must distinguish the configured method,
 effective method, pending launch and observed supplied-buffer resolution.
+
+### Fitting a request to what the machine can actually do
+
+A setting is a wish. Between the wish and a scaled frame sit the GPU, the
+driver, the shaders, the output's colour handling and the game itself, and each
+can refuse. The rule this effect follows is that every one of those limits is
+**asked for at runtime and never assumed**, because the machine it was written
+on is not the machine it will run on: KDE runs on drivers whose largest texture
+is a quarter of this one's, on OpenGL ES where high shader precision is
+optional, and on screens whose colour handling differs from a desktop monitor's.
+
+| What can refuse | How the effect finds out | What happens when it refuses |
+| --- | --- | --- |
+| OpenGL version | `hasVersion()` on the context KWin handed over | the effect reports itself unsupported and KWin never loads it |
+| High precision in fragment shaders | `glGetShaderPrecisionFormat(GL_FRAGMENT_SHADER, GL_HIGH_FLOAT)`, on OpenGL ES where the language makes it optional | unsupported, for the same reason: medium precision cannot address a 4K pixel grid and loses detail while sampling |
+| Shader compilation and linking | KWin's own shader manager, at initialization | the effect falls back to ordinary rendering until it is reconfigured |
+| A floating-point render target | allocate one, replace the storage where the ES allocator ignores the format, then check `glGetError` and framebuffer completeness | the same fallback; nothing is filtered through an 8-bit image that merely looked complete |
+| Largest texture | `GL_MAX_TEXTURE_SIZE`, read once per reconfiguration where a context is current | the allocation is refused; the value is in the developer information, so a report from unknown hardware carries it |
+| The destination's colour handling | the `ColorDescription` of the frame being painted: its transfer function must be one the shaders decode, and its luminances must be finite and ordered | the window is refused, naming colour handling |
+| The buffer the game supplied | its DRM format code, read from the surface | refused, naming the format code, so the unknown one can be looked up |
+| The orientation of the frame | `RenderTarget::transform()` of the frame being painted | flips are handled by the projection matrix and drawn through; anything else is refused by name and the value is reported |
+| The scaling ratio itself | `upscaleSizing()` against the committed buffer | refused as not smaller, below half, or a different aspect ratio: three distinct answers, because they need three different fixes |
+| What the game did with the request | the committed buffer size, observed | reported beside the advertised size, never in place of it |
+
+The resolution wish is calculated from the preset or percentage against the
+output's real pixel size, so it follows whatever screen is attached. It is
+constrained by one rule of the algorithm rather than by a table of modes: FSR 1
+enlarges by at most a factor of two per dimension, so a request below half the
+destination would produce a buffer the scaler then refuses. The presets are
+defined inside that range, and the checks cover every whole percentage against
+several real display sizes, including ultrawide and portrait ones.
+
+Sizes are not rounded to standard modes or to even numbers. That was measured
+rather than assumed: a client was told 2259 × 1271, the awkward size that
+1 / 1.7 of 3840 × 2160 produces, and committed exactly that, and the shader
+tests cover odd widths, odd heights and destinations that are not whole
+multiples of the source. Inventing a snapping rule would discard resolution the
+user asked for in exchange for a constraint no measurement found.
+
+What remains genuinely unknowable in advance is the application. No query
+establishes whether a program will act on the mode it is told, so the effect
+states what it advertised, observes what arrived, and reports the two
+separately rather than presenting the request as a result.
+
+### Telling one application that its screen is smaller
+
+This is the effect's implemented resolution control, and the only one that
+works on a game the user started themselves. It is deliberately narrow, and
+what it cannot do is as important as what it can.
+
+**When it acts.** A program decides how large an image to render from the
+display information it was given when it connected, long before it has a
+window. Measured on KWin 6.3.6 against a running game: a fractional scale
+hint, a rewritten output mode and a smaller window all fail to reduce what it
+renders, and the smaller window is actively harmful because the game keeps
+rendering at full size and scales its own finished image down. The effect
+therefore acts at the one moment that still decides the outcome, when the
+client binds the output, and does nothing to a game that was already running
+when the effect was loaded.
+
+**What it changes.** The current and preferred mode sent to that one client's
+output resources. The output keeps its mode, the desktop keeps its scale,
+every other application keeps the display information KWin gave it, and the
+user's own game settings are never written. Nothing has to be restarted:
+KWin loads the effect at the start of the session, and the user starts the
+game after that.
+
+**How the size is chosen.** From the preset or percentage, against the pixel
+size of each output, exactly as the desired resolution is calculated
+everywhere else. Arbitrary calculated sizes are honoured, so a preset is not
+restricted to standard modes. When the global preset is Automatic, which means
+the user has not chosen, a recognized application uses the size recorded for
+it in the catalogue; any explicit global choice wins over that. Advertising
+the size the output already has is not a request and is not sent.
+
+**Which application.** Only one whose program matches the shipped catalogue.
+At the moment of the bind no window exists, so there is no window class to
+match: the identity available is the executable path KWin resolved for the
+connection, and only its file name is compared, because the same game lives in
+different directories depending on how it was installed. The window class and
+instance identify the window later, for reporting and for the scaler.
+
+**What it is not.** It is not enforcement. A program that ignores mode
+information, or that asks the compositor for its fullscreen size instead of
+selecting a mode, keeps its own resolution; SuperTuxKart's Vulkan renderer is
+a measured example of the latter. The advertised size, the desired size and
+the committed buffer are therefore three separate values, and status reports
+them separately. An Xwayland game cannot be addressed at all: Xwayland binds
+the output while KWin starts, before any effect is loaded, and serves every
+X11 application from one connection.
+
+**Its visible cost.** The game's own settings screen will offer resolutions
+only up to the advertised size, because that is what the game believes the
+screen is. Nothing outside the game observes a difference.
+
+#### Telling one application that its screen has a smaller scale
+
+Some clients never look at a display mode. They render the logical screen size
+multiplied by the scale they were told, and declare that scale on their own
+surface, which is how a program draws sharply on a high-density screen. For
+those, the lever is the scale rather than the mode, and it works because the
+compositor divides the buffer by the scale the client declared: a client told a
+smaller scale renders fewer pixels and still covers the whole screen.
+
+A third kind takes its fullscreen size from the mode in pixels but declares the
+output's scale on its surface. Giving it either alone leaves the two
+disagreeing, and the image stops covering the screen: the mode alone shrinks
+the window away from the edges, the scale alone stretches it past them. Such a
+client is told both, and the two are chosen to agree.
+
+Which kind an application is was read in its source and then confirmed by
+running it. It cannot be guessed from what it does, because all three look the
+same from outside until the request is made.
+
+**This lever is coarse, and that is a property of Wayland, not a shortcut.**
+The output scale in the protocol is an integer, so the only sizes reachable
+are the logical screen multiplied by a whole number. A screen at scale 2 offers
+exactly one reduction, a half. A screen at scale 3 offers two thirds and a
+third, and the third is below what FSR 1 enlarges from, so only two thirds is
+usable. **A screen at scale 1 offers nothing at all**, and an application of
+this kind is then reported as having no reduction available rather than being
+sent a request it would ignore.
+
+The wish is therefore answered with the reachable size nearest to it instead of
+being refused for not being reachable exactly. Asking for a quality reduction
+on a screen that can only halve gets the half, and the status reports the size
+that was actually asked for beside the one that was calculated. Steps the
+scaler would then refuse are never offered.
+
+#### The recognized applications shipped with this effect
+
+Installing the package is meant to be enough for a game the effect knows, so
+these entries are active without the user configuring anything.
+
+They live in `kwinupscalerc`. The effect installs its own copy of that file
+beside the session's other configuration defaults, replaces it with every
+package, and never writes to it. A user's own applications and changes go to
+their file of the same name in their configuration directory, and KConfig
+layers the two: a field nobody changed keeps following the installed package,
+so a later version can correct a method or add a game without disturbing an
+edit, and a field the user changed always wins. Nothing is ever copied from one
+file into the other, because a copy stops receiving corrections the moment it
+is made.
+
+Both layers name an entry the same way, `[Application-<identifier>]`, which is
+what lets them describe one application between them. An identifier generated
+per installation could not do that.
+
+Restoring the list therefore means discarding the user's file rather than
+copying anything: fields they overrode go back to what the installed package
+says, and applications they added are removed. It is deliberately separate from
+restoring the settings on the same page, because the two are different kinds of
+data — the settings are values this effect defines, the list is data it ships
+and the user extends — and one button doing both would surprise people. The
+settings page states how many applications are recognized and whether the list
+still matches the shipped one, and offers the restore only when it does not.
+
+Every field was read off a running instance of the stated package version. A
+name never implies an identity, and a version is recorded with each entry so
+that a later mismatch can be traced rather than guessed at.
+
+| Application | Measured version | Window class | Instance | Program | Method | Resolution when the global preset is Automatic |
+| --- | --- | --- | --- | --- | --- | --- |
+| SuperTuxKart | 1.4 | `supertuxkart` | `supertuxkart` | `supertuxkart` | Advertised screen mode | Quality, 1 / 1.5 |
+| Extreme Tux Racer | 0.8.4 | not constrained | `etr` | `etr` | None | Automatic, no request |
+| glmark2 | 2023.01 | `com.github.glmark2.glmark2` | `glmark2-wayland` | `glmark2-wayland` | Advertised screen scale | Automatic, no request |
+| vkmark | 2025.01 | `com.github.vkmark.vkmark` | `vkmark` | `vkmark` | Advertised screen mode and scale | Automatic, no request |
+
+Two details in that table are the reason identities are measured.
+
+Extreme Tux Racer reports its window class as `Extreme Tux Racer 0.8.4`, with
+the version in it, so an entry matching the class would stop matching at the
+next package update. Its instance name is the stable field, and the entry
+constrains that alone.
+
+Extreme Tux Racer also has no method. It reaches the session through Xwayland,
+which the effect cannot address separately, and its own settings offer no
+resolution at or above half of a 3840 × 2160 output: the list ends at
+1680 × 1050. For this game the honest answer is that the effect cannot obtain
+a smaller buffer and the resolution has to be chosen in the game. An entry
+without a working method still earns its place, because it lets the effect say
+that instead of leaving the user to guess.
+
+SuperTuxKart carries a preset of its own so that a fresh installation already
+does something. The user's explicit choice always wins over it; Automatic means
+the user has not chosen, not that nothing may happen.
+
+The two benchmarks deliberately carry no preset. A benchmark exists to measure
+a machine, and quietly halving what it renders would make it report a number
+for something nobody asked for. They follow an explicit setting like anything
+else, which is what makes them usable for measuring this effect: the same
+binary, the same scene, once at the screen's resolution and once reduced.
+
+Their methods differ from SuperTuxKart's because their sources read different
+things. glmark2's Wayland backend takes the size the compositor configures,
+multiplies it by the advertised scale and declares that scale on its surface,
+consulting the advertised mode only when a fullscreen request was refused.
+vkmark takes its fullscreen size from the advertised mode in pixels and
+separately declares the advertised scale, so its image covers the screen only
+when both are given together. Neither was guessed from behaviour alone; both
+were read in the source and then confirmed by running them.
 
 ### Application launch configuration and method discovery
 
@@ -1454,8 +1680,8 @@ in order; the list is a test plan, not a record of passing runs:
 
 | Stage | Application | Purpose and required selection |
 | --- | --- | --- |
-| 1: OpenGL benchmark | [glmark2](https://github.com/glmark2/glmark2) | Measure performance differences between native rendering, ordinary scaling, EASU and EASU with RCAS using repeatable fullscreen scenes. Test Wayland and X11 builds separately, with X11 through Xwayland. |
-| 2: Vulkan benchmark | [vkmark](https://github.com/vkmark/vkmark) | Measure the same performance comparisons for Vulkan. Explicitly select Wayland and XCB in separate runs and keep presentation mode consistent within each comparison. |
+| 1: OpenGL benchmark | [glmark2](https://github.com/glmark2/glmark2) | Compatibility and regression cover for a scale-driven OpenGL client: the window still covers the output, the image is right, an unrecognized client is untouched, and nothing gets worse. Use it for performance comparisons only with a scene whose frame time was shown to respond to resolution; most of its scenes do not. Test Wayland and X11 builds separately, with X11 through Xwayland. |
+| 2: Vulkan benchmark | [vkmark](https://github.com/vkmark/vkmark) | The same for a Vulkan client that takes its size from the advertised mode and declares the scale separately, and the only test here committing 16-bit-per-channel buffers. Its `effect2d` scene does respond to resolution, so it can also carry the performance comparison. Explicitly select Wayland and XCB in separate runs and keep presentation mode consistent within each comparison. |
 | 3: Simple OpenGL game | [Extreme Tux Racer](https://sourceforge.net/projects/extremetuxracer/) | Test game identification, selection and effect-driven resolution reduction with a simple OpenGL game. Verify the actual buffer change, fullscreen coverage and input. |
 | 4: Open-source Vulkan game | [SuperTuxKart](https://supertuxkart.net/) | Test the same game-identification and resolution-control path with Vulkan. Select `--render-driver=vulkan` explicitly and confirm it in the log. |
 | 5: Store-game acceptance | Selected games from Steam and Epic Games Store | Proceed after stages 1–4 pass. Exercise Valve Proton and standalone Wine separately; select titles that cover the required Windows graphics paths, HDR and VRR, and record the exact game/runtime combinations. |
@@ -1516,11 +1742,13 @@ effect's game identification and resolution reduction. Image quality, input
 and lifecycle checks accompany these tests. The benchmarks above provide the
 controlled performance comparisons.
 
-The current implementation checks fullscreen rendering eligibility and shows
-resolution guidance. It does not yet implement explicit game selection,
-remembered game profiles or active client resolution control. These game tests
-are therefore acceptance requirements for work still to implement, not features
-established by loading the plugin or by the native-client experiments.
+The current implementation recognizes the applications in its shipped
+catalogue, tells a recognized one that its screen has a smaller current mode
+when it connects, and scales the buffer that arrives. User-selected games,
+remembered profiles and any other control method are still to implement, and
+an Xwayland game cannot be addressed at all. These tests therefore remain
+acceptance requirements: a headless session showing the path running is not
+identification, image quality, input or lifecycle acceptance on real hardware.
 
 | Test | Required observation |
 | --- | --- |
@@ -1548,9 +1776,53 @@ integration gap in this acceptance stage.
 
 ### Benchmark performance comparisons
 
-The primary purpose of glmark2 and vkmark is to measure and assess performance
-differences. Their functional checks establish that each measurement exercised
-the intended path. Determine both the net benefit of lower-resolution rendering
+#### An instrument has to respond to resolution before it can measure this
+
+A benchmark can only measure what reducing the rendering resolution is worth if
+its own work scales with that resolution. glmark2's `terrain` scene does not,
+and this was read in its source rather than inferred from its numbers: in
+`src/scene-terrain.cpp` the height and normal maps are fixed at 256 × 256, the
+specular map at 512 × 512 and both bloom passes at 256 × 256, and only the
+terrain pass itself uses the canvas size. That pass draws
+`make_grid(256, 256, …)`, roughly a hundred and thirty thousand triangles, so
+what does scale with the window is bound by geometry rather than by fill.
+
+Measured on 2026-09-18 on a 3840 × 2160 screen, windowed so that nothing in
+this effect took part: `terrain` ran at 21 frames per second at 1920 × 1080 and
+26 at 3840 × 2160, which is to say a quarter of the pixels made it slower.
+`refract` and `texture` were unchanged, `shading` and `desktop` moved by six and
+sixteen per cent. vkmark's `effect2d` does respond, and its source says why: its
+render area is the swapchain extent and its kernel steps are `1 / extent`, with
+no fixed-size intermediate anywhere. It went from 20.8 ms a frame at 1920 × 1080
+to 27.0 ms at 3840 × 2160.
+
+**Before using any scene to measure this effect, run it windowed at two
+resolutions with the effect uninvolved and confirm that its frame time
+responds.** A scene that does not respond cannot show a gain, cannot show a
+loss, and will read as though the effect achieved nothing.
+
+#### What the benchmarks are for instead
+
+They remain required, for two purposes that do not depend on their scores.
+
+They are **compatibility tests**, and each covers ground the games do not.
+glmark2 is a scale-driven OpenGL client whose buffer is the logical size times
+the advertised scale; vkmark is a Vulkan client that takes its size from the
+advertised mode and declares the advertised scale separately. Between them they
+exercise both remaining control methods and both ways a client can be told.
+vkmark also commits 16-bit-per-channel buffers, `DRM_FORMAT_XBGR16161616`, which
+is how a gap in the scaler's readable formats was found on 2026-09-18: every
+frame of it was being refused, and nothing else in the test set had shown that.
+
+They are **regression tests against making things worse**. The effect must not
+reduce the presented frame rate or lengthen the slow tail of frame times for a
+client it cannot help, and must leave one it does not recognize untouched. With
+presentation now measured, that is checkable rather than a matter of opinion.
+
+#### Measuring what reducing the resolution is worth
+
+Their functional checks establish that each measurement exercised the intended
+path. Determine both the net benefit of lower-resolution rendering
 with upscaling and the additional cost of EASU and RCAS over ordinary KWin
 scaling. Do not require or assume a speedup before measuring it.
 

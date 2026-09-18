@@ -24,11 +24,26 @@
 // render devices. Keep the differences out of scaling and colour logic.
 #if __has_include("core/region.h")
 #define UPSCALE_REGION_API 1
-#include "core/backendoutput.h"
 #include "opengl/eglcontext.h"
 #else
 #define UPSCALE_REGION_API 0
 #include "opengl/openglcontext.h"
+#endif
+
+// Presentation timing lives on the output the compositor drives, which later
+// KWin declares in a header of its own. That header uses std::expected, which
+// not every compiler this has to build with offers yet, and a toolchain that
+// cannot compile KWin's header cannot be made to by anything here. Where it is
+// unavailable the frames are simply not measured and the reports say so,
+// rather than the build failing over a measurement.
+#include <version>
+#if !UPSCALE_REGION_API
+#define UPSCALE_PRESENTATION_API 1
+#elif defined(__cpp_lib_expected)
+#define UPSCALE_PRESENTATION_API 1
+#include "core/backendoutput.h"
+#else
+#define UPSCALE_PRESENTATION_API 0
 #endif
 
 #if __has_include("core/renderdevice.h")
@@ -138,7 +153,10 @@ inline std::unique_ptr<GLTexture> allocateFloatTexture(const QSize &size)
 // the timing itself is the same signal on both.
 inline RenderLoop *upscaleRenderLoop(UpscaleOutput *output)
 {
-#if UPSCALE_REGION_API
+#if !UPSCALE_PRESENTATION_API
+    Q_UNUSED(output)
+    return nullptr;
+#elif UPSCALE_REGION_API
     return output && output->backendOutput() ? output->backendOutput()->renderLoop() : nullptr;
 #else
     return output ? output->renderLoop() : nullptr;

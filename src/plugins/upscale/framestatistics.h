@@ -12,6 +12,9 @@
 namespace KWin
 {
 
+/** Frames kept. About seventeen seconds at 60 Hz, eight at 120 Hz. */
+inline constexpr size_t upscaleFrameWindow = 1024;
+
 /**
  * What the frames actually looked like, in the terms people compare hardware in.
  *
@@ -28,9 +31,6 @@ namespace KWin
 class UpscaleFrameStatistics
 {
 public:
-    /** Frames kept. About seventeen seconds at 60 Hz, eight at 120 Hz. */
-    static constexpr size_t capacity = 1024;
-
     /** Add one presentation, given the time it happened. Out-of-order or
      *  duplicate timestamps are ignored rather than recorded as a frame. */
     void record(double milliseconds);
@@ -75,9 +75,9 @@ public:
     double worstFrameTime() const;
 
 private:
-    std::array<double, capacity> sorted(size_t *count) const;
+    std::array<double, upscaleFrameWindow> sorted(size_t *count) const;
 
-    std::array<double, capacity> m_intervals{};
+    std::array<double, upscaleFrameWindow> m_intervals{};
     size_t m_count = 0;
     size_t m_next = 0;
     double m_previous = -1;

@@ -31,8 +31,8 @@ void UpscaleFrameStatistics::record(double milliseconds)
         return;
     }
     m_intervals[m_next] = milliseconds - previous;
-    m_next = (m_next + 1) % capacity;
-    m_count = std::min(m_count + 1, capacity);
+    m_next = (m_next + 1) % upscaleFrameWindow;
+    m_count = std::min(m_count + 1, upscaleFrameWindow);
 }
 
 size_t UpscaleFrameStatistics::frames() const
@@ -49,9 +49,9 @@ double UpscaleFrameStatistics::averageRate() const
     return total > 0 ? 1000.0 * double(m_count) / total : -1;
 }
 
-std::array<double, UpscaleFrameStatistics::capacity> UpscaleFrameStatistics::sorted(size_t *count) const
+std::array<double, upscaleFrameWindow> UpscaleFrameStatistics::sorted(size_t *count) const
 {
-    std::array<double, capacity> values{};
+    std::array<double, upscaleFrameWindow> values{};
     std::copy(m_intervals.begin(), m_intervals.begin() + m_count, values.begin());
     std::sort(values.begin(), values.begin() + m_count);
     *count = m_count;
@@ -61,10 +61,10 @@ std::array<double, UpscaleFrameStatistics::capacity> UpscaleFrameStatistics::sor
 double UpscaleFrameStatistics::lowRate(double fraction) const
 {
     size_t count = 0;
-    const std::array<double, capacity> values = sorted(&count);
+    const std::array<double, upscaleFrameWindow> values = sorted(&count);
     // The tail has to hold at least two frames before its mean says anything
     // that the worst single frame did not already say.
-    const size_t tail = size_t(double(count) * fraction);
+    const auto tail = size_t(double(count) * fraction);
     if (count == 0 || tail < 2) {
         return -1;
     }
@@ -76,14 +76,14 @@ double UpscaleFrameStatistics::lowRate(double fraction) const
 double UpscaleFrameStatistics::percentileFrameTime(double fraction) const
 {
     size_t count = 0;
-    const std::array<double, capacity> values = sorted(&count);
+    const std::array<double, upscaleFrameWindow> values = sorted(&count);
     if (count == 0) {
         return -1;
     }
     // Nearest-rank: the smallest interval that at least this share of frames
     // are at or below. No interpolation, so the answer is always a frame time
     // that really occurred.
-    const size_t rank = size_t(std::ceil(std::clamp(fraction, 0.0, 1.0) * double(count)));
+    const auto rank = size_t(std::ceil(std::clamp(fraction, 0.0, 1.0) * double(count)));
     return values[std::clamp<size_t>(rank, 1, count) - 1];
 }
 

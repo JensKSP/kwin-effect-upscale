@@ -210,7 +210,7 @@ void UpscaleEffectConfig::addApplicationControls(QFormLayout *layout)
 
 void UpscaleEffectConfig::updateApplicationSummary()
 {
-    const bool customized = m_editor->customized();
+    const bool customized = UpscaleApplicationEditor::customized();
     m_applications->setText(customized
                                 ? i18n("The list differs from the one this version ships.")
                                 : i18n("The list is the one this version ships, and follows every update."));
