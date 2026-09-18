@@ -50,9 +50,11 @@ slice documents beside it are temporary.
 These links locate the current slice documents. Status, dependencies and
 remaining work belong in those documents, not in this index. Update the links
 when splitting, renaming or completing a slice. The next implementation package
-is identified by the priority statement in the resolution-control slice, which
-is the project's feasibility gate. Diagnostics, profiles, geometry and
-interactive controls follow it.
+is identified by the priority statement in the development infrastructure slice.
+Its diagnostics are deliberately front-loaded so that the rendering slice's
+scaler-effective gate can close immediately after it; resolution control is the
+product feasibility gate that follows. Profiles, geometry and interactive
+controls come after that.
 
 | Topic | Working document |
 | --- | --- |

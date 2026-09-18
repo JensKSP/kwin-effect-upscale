@@ -42,6 +42,40 @@ VRR is currently blocked rather than pending on the only available acceptance
 host, whose output reports adaptive sync incapable. Record it as blocked and
 obtain a second output path; do not count it as passed or drop it.
 
+## The scaler-effective gate
+
+This gate is the package's first milestone and the project's next acceptance
+after the [development infrastructure slice](slice-development-infrastructure.md).
+It exists because the effect has never been observed scaling a frame. Loading
+the plugin, reporting it supported, passing the container and headless tests and
+installing it on the acceptance host have all been achieved and none of them
+establish that the scaler does anything.
+
+The gate closes when the effect demonstrably processes a supplied smaller buffer
+on real hardware, and not before:
+
+| Required observation | Why it is not implied by the current evidence |
+| --- | --- |
+| A named eligibility condition explains every refusal | The real session refuses a conforming buffer and reports only the generic rule text. The refusing condition is unknown. |
+| The refusal recorded on 2026-09-18 is understood and fixed | Desktop scale and buffer size are ruled out; the cause is not isolated and no fix is claimed. |
+| `activeEffects` lists `upscale` for an eligible window | The effect never entered KWin's active set, so it never took its scanout restriction. |
+| The destination pixels differ from ordinary KWin scaling | A covered output proves composition happened, not that EASU ran. |
+| An ineligible window still restores ordinary rendering | Fallback has only been exercised where the effect was already inactive. |
+| An automated test reproduces the real-backend refusal | The container and headless suites pass against the same case that fails on hardware. That is a coverage gap, not only a defect. |
+
+The last row is the durable part. A fix that only repairs the running session
+leaves the suites unable to detect the next occurrence, so this gate requires
+the automated coverage to be extended to whatever distinguishes the real
+graphics backend from the existing fixtures.
+
+The gate needs no game, no Proton, no HDR, no VRR and no resolution control. The
+fixture built from `autotests/wayland_client.cpp` already supplies a conforming
+buffer on request. Nothing here waits for the joint acceptance session.
+
+Depends on the candidate selection and rejection reporting from the development
+infrastructure package. Diagnosing this refusal is the reason that package is
+sequenced first.
+
 ## Scope and boundaries
 
 Own original-buffer capture, EASU/RCAS, colour handling, initial geometry,
@@ -136,7 +170,8 @@ effect sends no client requests.
 - [x] Select and implement FSR 1, optional RCAS and global configuration.
 - [x] Implement colour conversions and record automated shader/configuration tests.
 - [x] Measure A0 and A1 on the real output; record the unusable aggregate score.
-- [ ] Isolate why an eligible supplied buffer is refused on the real session.
+- [ ] Close the scaler-effective gate above: isolate and fix the refusal, observe
+  a scaled frame on hardware, and extend automated coverage to reach the case.
 - [ ] Complete original-buffer and lifecycle integration acceptance.
 - [ ] Measure runs B, C and D; blocked on resolution control on KWin 6.3.6.
 - [ ] Complete real-game, HDR/VRR, image-quality and TV acceptance. VRR is

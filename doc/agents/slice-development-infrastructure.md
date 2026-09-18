@@ -7,22 +7,33 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 ## Priority
 
-Deferred behind the [resolution-control slice](slice-resolution-control.md) on
-2026-09-18, which owns the project's feasibility gate. This package was the
-next slice before that decision; its single topic is unchanged. It is making
-the current effect identifiable and observable during development: About and
-build identity, notices, logging, and the shared passive OSD with developer
+This is the next implementation slice, as requested on 2026-09-18 and confirmed
+after the first hardware runs. Its single topic is unchanged: making the current
+effect identifiable and observable during development through About and build
+identity, notices, logging, and the shared passive OSD with developer
 information. Existing rendering and pipeline acceptance records remain open
 until their own gates pass; their outstanding work is not absorbed here.
 
-One part of this package is wanted earlier than the rest. The rendering slice
-recorded an eligible supplied buffer that the effect refuses on the real
-session without saying which condition failed. The specified candidate
-selection and rejection logging, under
-[diagnostic logging and state](../upscaling.md#diagnostic-logging-and-state),
-is what that investigation needs. Implementing that logging ahead of About,
-notices and the overlay is in scope and does not reorder this package as a
-whole.
+The package now carries a second purpose that fixes its order. The effect has
+never been observed scaling a frame. The
+[rendering slice](slice-fsr1-hdr-vrr.md) recorded a supplied buffer that meets
+every documented eligibility rule and that the effect refuses on the real
+session, without reporting which condition failed. Nothing in the product can
+currently answer that question, and the passing container tests did not predict
+it. This package builds the instrument that answers it.
+
+That makes the ordering deliberate rather than incidental: diagnostics first,
+so that the rendering slice's
+[scaler-effective gate](slice-fsr1-hdr-vrr.md#the-scaler-effective-gate) can be
+closed immediately afterwards. Work inside this package is sequenced to serve
+that. Candidate selection and rejection reporting come before About, notices and
+the overlay presentation, because the next gate depends on them and the rest
+does not.
+
+The obligation runs both ways. This package is not complete because a dialog
+renders and a log line appears. Its diagnostics have to be good enough to
+explain an actual refusal on real hardware, which is the acceptance recorded
+below.
 
 ## Start state
 
@@ -47,8 +58,9 @@ and live client-resolution negotiation are separate future work.
 ## End state
 
 Complete when a developer can identify the exact loaded build, inspect its
-effective settings and observed state in the passive overlay or settings, and
-follow meaningful transitions in logs. Settings provide the complete KDE-style
+effective settings and observed state in the passive overlay or settings,
+follow meaningful transitions in logs, and read the specific reason the effect
+refused or accepted any given window. Settings provide the complete KDE-style
 About and component/license view; initialization logs the same identity once,
 and installed notices remain accessible offline without the KCM. Debug builds
 default to persistent statistics plus developer information; release builds
@@ -246,6 +258,13 @@ Planned checks, not observed results:
   disabled/ineligible scaling, profile events through controlled fixtures, and
   neutral application labels before actual profile integration. Verify future
   override interfaces without claiming profile integration is implemented.
+- Candidate diagnostics name the specific condition that refused a window, not
+  the general eligibility rule. Cover each documented reason separately, and
+  verify against the fixture in `autotests/wayland_client.cpp` that a conforming
+  buffer which is nevertheless refused is reported by its failing condition.
+  This is the acceptance that explains the refusal recorded on real hardware in
+  the [rendering slice](slice-fsr1-hdr-vrr.md); diagnostics that cannot explain
+  it do not close this package, whatever else they display.
 - Statistics and developer snapshots report every currently implemented
   setting/state from the handbook inventory, including origins where known,
   configured versus effective values, bypass/failure reasons and missing or
@@ -284,6 +303,8 @@ Planned checks, not observed results:
 - [ ] Verify minimum-version dialog APIs and choose the upstreamable data seam.
 - [ ] Audit exact dependency/component notices and delivery obligations.
 - [ ] Implement generation, metadata, About/details access and initialization log.
+- [ ] Implement candidate selection and rejection reporting first, so the
+  rendering slice's scaler-effective gate can be diagnosed.
 - [ ] Implement state snapshots, settings diagnostics and transition logging.
 - [ ] Implement passive OSD, statistics/developer view and preference defaults.
 - [ ] Complete automated, package and native acceptance; preserve lasting design

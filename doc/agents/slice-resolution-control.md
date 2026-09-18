@@ -7,12 +7,25 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 ## Priority
 
-This is the next implementation slice and the project's feasibility gate, as
-decided on 2026-09-18. Without a supported way to obtain a smaller original
-buffer, the effect has nothing to enlarge for a game that does not already
-supply one, and the remaining packages configure, announce and measure a path
-that never runs. Complete or explicitly bound this package before the
-diagnostics, profile, geometry and overlay packages.
+This package owns the project's feasibility gate, as decided on 2026-09-18.
+Without a supported way to obtain a smaller original buffer, the effect has
+nothing to enlarge for a game that does not already supply one, and the
+remaining packages configure, announce and measure a path that never runs.
+
+It is sequenced third, after the
+[development infrastructure](slice-development-infrastructure.md) package and
+the rendering package's
+[scaler-effective gate](slice-fsr1-hdr-vrr.md#the-scaler-effective-gate). That
+order is deliberate. On 2026-09-18 the effect refused a buffer that met every
+documented eligibility rule on real hardware, so a helper delivering smaller
+buffers today would deliver them to a scaler that declines them. Building the
+delivery mechanism before the consumer is known to work risks attributing its
+failure to the wrong component, and the helper is the most expensive component
+in the project. Feasibility gate and next package are not the same thing.
+
+Nothing here is deferred by that ordering. The experiments below already stand,
+and the recorded decision cannot wait indefinitely: every dependent package is
+specified against capabilities this one may never deliver.
 
 Two recorded results make this the gate rather than one feature among several.
 The [rendering slice](slice-fsr1-hdr-vrr.md) could not measure runs B, C and D

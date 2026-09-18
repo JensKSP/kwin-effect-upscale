@@ -1290,6 +1290,20 @@ blocked rather than counted as passed.
 
 ## Validation requirements
 
+An effect that loads is not an effect that works. A plugin can be discovered,
+reported supported, instantiated, installed and covered by passing tests while
+never processing a single frame. Treat the scaler's effectiveness as its own
+result, established only by observing that the destination pixels differ from
+ordinary KWin scaling for a buffer the effect accepted.
+
+Every rejection must name the condition that caused it. A window that meets the
+documented eligibility rules and is refused anyway is a defect whether or not
+the fallback renders correctly, and a status message that restates the rules
+without identifying the failing one cannot diagnose it. Automated coverage must
+be able to reach the refusal: a suite that passes against the same case that
+fails on real hardware has a coverage gap in addition to whatever defect it
+missed.
+
 Validate original-buffer pixel mapping and lifecycle behaviour against KWin's
 virtual backend, and image quality, HDR and VRR on the real output with a real
 game. Compare ordinary KWin scaling, EASU, and EASU with RCAS using identical
