@@ -583,6 +583,38 @@ HDR and VRR follow KWin's display settings. They are mandatory supported paths,
 not optional quality presets. An enabled VRR setting must not be labelled as
 proof of currently variable presentation.
 
+### Language and translations
+
+The effect is KDE user interface and follows KDE's translation conventions.
+English is the source language; **German, French and Spanish are required**,
+and adding another language must be adding a catalogue, never a code change.
+
+- Every user-visible string goes through KI18n with the project's translation
+  domain, `kwin_effect_upscale`, which the build defines for the effect and for
+  the settings module. That includes the status text, the on-screen display,
+  the settings labels and the messages that name a refused condition.
+- Do not assemble a sentence from translated fragments into new grammar. Where
+  a fragment is unavoidable, as with a refusal reason that appears inside the
+  status, the announcement and the developer view, give it `i18nc` context
+  naming the frames it appears in, so a translator can see the whole sentence
+  and reorder it. A language whose word order differs from English must be able
+  to produce a correct sentence without changing the code.
+- Values follow the user's locale for dates, times and decimal separators.
+  Pixel counts are the deliberate exception and are never grouped: a resolution
+  is an identifier, not a quantity, and "3.840 × 2.160" reads as two fractional
+  numbers.
+- The plugin metadata carries translated `Name` and `Description` entries,
+  because the effects list reads the metadata and never calls into the plugin.
+- Extraction and catalogues follow KDE's layout: a `Messages.sh` at the
+  repository root produces the template, catalogues live in
+  `po/<language>/kwin_effect_upscale.po`, and `ki18n_install(po)` installs the
+  compiled catalogues. The packages ship them, so a user who installs the
+  package gets their language without any further step.
+- Acceptance runs the settings page and the on-screen display in each shipped
+  language and confirms that no user-visible string is left untranslated, that
+  a longer translation does not break the settings layout or push the display
+  off the output, and that the display still follows the scaling rules above.
+
 ### Per-application overrides
 
 Required extension, not yet implemented: maintain a user-editable list of
@@ -633,9 +665,23 @@ Use the planned OSD rather than introducing a second notification surface. Draw
 it independently of the game's captured buffer so it remains sharp and cannot
 be processed by the upscaler.
 
-Implemented: the surface exists and is drawn after the screen pass, at
+**The OSD follows the session's scaling settings.** It is KDE user interface
+and must look like it: take the font family and size from the session's font
+settings and the scale factor from the output the message is shown on, so the
+text is the same physical size as the rest of the desktop on that screen. A
+per-output scale applies per output; a changed scale or font re-lays out the
+text at the new size rather than stretching what was already drawn. None of
+this passes through the upscaler: the text is measured and rendered at
+destination pixels, so a game enlarged from a smaller buffer never makes the
+overlay blurry or larger. A television at 4K with an unscaled desktop is the
+case to keep legible; do not compensate with a size of the effect's own
+choosing where the session already states one.
+
+Implemented so far: the surface exists and is drawn after the screen pass, at
 destination resolution, outside the captured image, taking no focus and no
-input. While it is visible the effect reports itself active, because KWin skips
+input. It scales its text with the output's scale factor; taking the family
+and size from the session's font settings, and re-laying out when either
+changes, is specified above and not yet implemented. While it is visible the effect reports itself active, because KWin skips
 the paint methods of an inactive effect, and a refused window is exactly when
 the explanation is needed; the composition requirement that comes with it ends
 when the display is hidden. It announces the *selected* application and shows the basic summary for
@@ -764,8 +810,9 @@ when the selected game closes or changes outputs.
 Add **Developer information** to the OSD settings. It extends the ordinary
 FPS/resolution view with the complete effective configuration and diagnostic
 state, grouped and labelled so developers can explain what the effect is doing.
-Keep the passive view readable at output resolution; detailed inspection and
-copying are also available through the settings diagnostic snapshot. This is
+Keep the passive view readable at the session's scale, by the same rule as the
+timed messages above; detailed inspection and copying are also available
+through the settings diagnostic snapshot. This is
 required development infrastructure, not the optional full About overlay.
 
 Implemented: build and runtime, selection, configuration, geometry, processing
