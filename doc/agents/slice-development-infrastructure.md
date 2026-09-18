@@ -47,7 +47,8 @@ The effect metadata declares the name and a generic GPL license, without
 authors, website or version. AMD shader headers retain their copyright and MIT
 text, and the repository carries license texts, but there is no installed
 component-notice viewer or audited inventory covering the shipped build.
-This slice is specification and investigation only; no implementation is claimed.
+This section describes the state before implementation began; what has been
+implemented since is recorded under progress and remaining work below.
 
 The settings module can show supplied-buffer status, and the effect logs a
 render-resource failure. Detection OSD and persistent statistics are specified
@@ -218,6 +219,48 @@ result for the proposed feature.
   The viewer is an access route for notices; package/source obligations still
   have to be satisfied by the corresponding delivery artifacts.
 
+## Implementation findings, 2026-09-18
+
+Observed while implementing, not planned behaviour:
+
+- `RenderViewport::projectionMatrix()` already accounts for the render rect's
+  origin: translating by the absolute logical position times the scale puts a
+  quad at that position on the output being painted, including an output that
+  does not start at the origin. Verified by `overlayPlacement` in
+  `autotests/render_test.cpp`, which renders a pass for an output at (200, 100)
+  and requires the text at that output's own corner. The scaler already used
+  this convention; it is now covered by a test rather than assumed.
+- The upstreamable-folder seam for build identity is resolved with
+  `__has_include("buildinfo.h")` in `upscale.cpp`. Out of tree the build adds
+  `src/buildinfo` to the effect's include path; copied into KWin the header is
+  absent, the guard removes the reference and the display reports the build as
+  unknown. No cross-directory include or target dependency is added to
+  `src/plugins/upscale/CMakeLists.txt`.
+- KConfigXT stores a value equal to the current default as no entry at all.
+  That is what makes build-type defaults safe: a Debug user who leaves the
+  developer view on writes nothing, and a user who switches it off writes an
+  explicit `false` that survives a later release build. Covered by
+  `displayDefaults` in `autotests/config_test.cpp`.
+- The render test needed a `QGuiApplication` for the font database once it
+  measured text, so it runs with the offscreen platform.
+- The integration test's driver wraps the effect and forwards the calls it
+  cares about, so the effect's screen pass was never reached and the display
+  went untested until the driver forwarded it too. Running that pass against
+  the driver's own OpenGL target keeps the display on the tested path while
+  the test compositor keeps painting with QPainter.
+- Composing the display honoured every mode switch except the master one,
+  which only its caller checked. Off now means off inside the class as well;
+  one switch with two meanings is a bug waiting for a second caller.
+- KWin excludes an effect whose `isActive()` is false from the chained paint
+  methods of the next frame, which its own `effect/effect.h` states. An effect
+  that refused every window would therefore never be called to say why, so the
+  display keeps the effect active while it has something to show, and the
+  scanout block follows that same state. No automated test covers this: the
+  `activeEffects` D-Bus property reports the same value with and without the
+  change, so an assertion on it would pass either way. It is verified in the
+  native session instead, where the display has to appear over a refused
+  fullscreen window.
+
 ## Acceptance criteria
 
 Planned checks, not observed results:
@@ -300,13 +343,28 @@ Planned checks, not observed results:
 - [x] Inspect KWin settings conventions and current build/license metadata.
 - [x] Make diagnostics infrastructure the next slice and specify developer
   fields, build-type defaults and shared state/logging responsibilities.
-- [ ] Verify minimum-version dialog APIs and choose the upstreamable data seam.
+- [ ] Verify minimum-version dialog APIs; the upstreamable data seam is chosen
+  and implemented (see the implementation findings above).
 - [ ] Audit exact dependency/component notices and delivery obligations.
-- [ ] Implement generation, metadata, About/details access and initialization log.
-- [ ] Implement candidate selection and rejection reporting first, so the
-  rendering slice's scaler-effective gate can be diagnosed.
-- [ ] Implement state snapshots, settings diagnostics and transition logging.
-- [ ] Implement passive OSD, statistics/developer view and preference defaults.
+- [ ] Implement generation, metadata and About/details access. The
+  initialization log and a settings version line exist: the identity is logged
+  when the effect initializes instead of when its library loads, the settings
+  module links the same record, and the effect exposes it as a property so the
+  page can report the loaded build beside the installed one.
+- [x] Implement candidate selection and rejection reporting first, so the
+  rendering slice's scaler-effective gate can be diagnosed. Every documented
+  condition now has its own reason, including the paint-pass conditions and the
+  refused buffer format, reported with its DRM four-character code.
+- [x] Implement the state snapshot and settings diagnostics. One snapshot per
+  pass feeds both the settings status and the display. Transition logging
+  remains open.
+- [ ] Implement transition logging on the effect's logging category.
+- [x] Implement the passive OSD, the statistics and developer view and the
+  build-type preference defaults. A shortcut to toggle the view, profile
+  overrides and per-profile visibility remain open.
+- [ ] Follow the session's scaling and font settings in the OSD, per output,
+  and re-lay out when either changes. The text already follows the output's
+  scale factor; the family and size are the effect's own choice today.
 - [ ] Complete automated, package and native acceptance; preserve lasting design
   in source/human documentation before removing this slice.
 
@@ -318,8 +376,98 @@ the specification; no About implementation, dependency-license audit,
 incremental-build acceptance or native dialog/log test has been performed.
 This recorded result predates the expanded diagnostics scope and slice rename.
 
+Implementation validation, 2026-09-18: built in both containers with GCC and
+with Clang, warnings as errors, and `ctest` passed in each: six tests in Trixie
+(KWin 6.3.6) and four against KWin master, where the integration test is not
+built. New coverage: each refused window reported by its own condition in
+`autotests/integration_test.cpp`, each size relation in
+`tools/upscale-resolution-test.cpp`, overlay placement and resource release in
+`autotests/render_test.cpp`, and build-type display defaults in
+`autotests/config_test.cpp`. Both pre-commit stages and clang-tidy passed in
+Trixie. No native session acceptance has been performed yet: legibility, game
+input, HDR/VRR behaviour and lock/unlock on wzpc remain open, and so does the
+refusal this package exists to explain.
+
 Expanded documentation validation, 2026-09-18: both pre-commit stages passed
 in Trixie on the isolated documentation candidate under
 `build/documentation-commit-check`. This includes the checker regressions and
 REUSE licensing check. Local paths and heading anchors resolved in all 13
 documentation files. No feature implementation or runtime acceptance is claimed.
+
+### PR #8 coverage follow-up
+
+Hosted run `35338192292` failed the unchanged 90% C++ line gate: 744 of 1079
+lines were exercised (69.0%). The new snapshot formatter had 14.9% line
+coverage, display policy 35.6%, and eligibility diagnostics 52.1%; existing
+compilers, lint, sanitizers and package smoke checks passed. Work proceeds in an
+isolated checkout so the implementation checkout stays available.
+
+Add behavioral tests for snapshot accuracy, refusal-specific explanations,
+unknown measurements, configured versus effective state, and display visibility
+and sampling. Exercise settings status through an isolated bus if needed, and
+ensure the configured runtime-test entry point includes the new tests. Preserve
+the coverage denominator and 90% threshold. Validate coverage in Trixie, both
+compiler/container combinations and both repository hook stages before pushing
+the fix, then process hosted checks and review for the latest PR revision.
+These automated checks do not establish native display acceptance.
+
+Review follow-up: distinguish a missing window from a missing buffer; include
+the rejected buffer format in every diagnostic view; restore all blend factors
+after painting the overlay; clear stale running-build identity on missing or
+failed status replies. Display counters now belong to one observed window and
+reset on window changes, hiding and reconfiguration. Timed notices release the
+composition requirement when they expire, and selection is reused only inside
+one synchronous screen paint. A private D-Bus service and the virtual KWin
+lifecycle exercise these paths without contacting the user's desktop.
+
+Trixie coverage passed after extending the runtime tests. Final compiler, lint,
+static-analysis and hosted validation for this correction remain pending.
+
+Integrated the concurrent diagnostic-test commit `fd7eb20`, retaining its parser
+extraction and distinct assertions. Display tests have their own executable and
+isolated settings in each process, including the separate OpenGL ES run. The
+virtual KWin driver exercises the complete screen pass, including selection
+reuse, while preserving the real scene's paint chain. OpenGL ES framebuffer
+readback uses matching floating-point pixels; throttling assertions account for
+observed initialization and scheduling time.
+
+The combined production code built with GCC and Clang, warnings as errors, in
+Trixie and Neon. Runtime tests passed with both compilers: eight in Trixie and
+five in Neon. Trixie clang-tidy and metadata validation passed. Coverage measured
+1049 of 1133 lines (92.6%), above the unchanged 90% gate. Both hook stages and coverage passed after
+the test-timing adjustment and integration of the current branch and master.
+Hosted checks and review for the published correction remain pending.
+
+Review `5247444353` found that the extracted status parser retained an earlier
+identity when its caller reused the output string. Clear the optional output
+before parsing and test both a missing property and an empty report using the
+same string. Exercise the expiry callback without a compositor as well, covering
+the guard added in `33ce7f4`. These follow-ups passed the checks below.
+
+The additional lifetime audit reproduced a title-change regression: after a
+notice expired, changing the same window's caption restarted it. The focused
+`visibilityAndSampling` test failed at its new expiry assertion before the fix.
+Key the deadline to window identity, while refreshing caption text independently;
+this preserves the documented no-repeat behavior for changing game titles.
+The final combined follow-up passed the checks below.
+
+The next review confirmed the title regression and identified a second identity
+issue: matching only the version hid differences in branch, build date or Qt.
+Compare the complete reported identity and exercise the settings tests both with
+and without the generated build information. The matching case and same-version
+rebuilds are covered through the private D-Bus service. The translation slice
+also now names metadata alongside catalogues when adding a language.
+The complete follow-up passed both hook stages, GCC and Clang with warnings as
+errors in Trixie and Neon, all nine Trixie and six Neon runtime tests, Trixie
+clang-tidy and plugin metadata validation. Coverage measured 1057 of 1136 lines
+(93.0%), above the unchanged 90% threshold. Hosted CI and the next review of this
+revision remain pending; real-device acceptance remains open.
+
+Hosted CI run `35344183917` passed every job and the Quality gate for `127d318`.
+CodeRabbit marked the four latest findings resolved and reported no new findings,
+but skipped all ten changed files as similar to previous changes. Its latest
+formal review still requests changes on `33ce7f4`; the approval gate therefore
+correctly remains pending. The eight earlier review threads also remain open
+although their fixes and regression coverage are published. A fresh full review
+has been proposed to the owner; permission to post that request is pending.
+No review override, merge or change to protection has been performed.

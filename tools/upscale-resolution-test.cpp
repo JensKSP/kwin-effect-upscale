@@ -32,6 +32,22 @@ int main()
     assert(!canUpscale({2560, 1600}, output));
     assert(!canUpscale({0, 0}, output));
     assert(!canUpscale({-1, 1080}, output));
+    // Every refusal names one condition, because a report that cannot tell
+    // "the game already renders at native resolution" from "its aspect ratio
+    // does not match the output" leaves the user with nothing to change.
+    assert(upscaleSizing({1920, 1080}, output) == UpscaleSizing::Supported);
+    assert(upscaleSizing(output, output) == UpscaleSizing::NotSmaller);
+    assert(upscaleSizing({4000, 1080}, output) == UpscaleSizing::NotSmaller);
+    // One pixel below half the destination width is already too small, and
+    // the size relation is checked before the aspect ratio it also fails.
+    assert(upscaleSizing({1919, 1080}, output) == UpscaleSizing::BelowHalf);
+    assert(upscaleSizing({1280, 720}, output) == UpscaleSizing::BelowHalf);
+    assert(upscaleSizing({2560, 1600}, output) == UpscaleSizing::AspectRatio);
+    assert(upscaleSizing({0, 0}, output) == UpscaleSizing::EmptyBuffer);
+    assert(upscaleSizing({-1, 1080}, output) == UpscaleSizing::EmptyBuffer);
+    // An empty buffer is reported as such rather than as the size relation it
+    // would also fail, so waiting for a first commit stays distinguishable.
+    assert(upscaleSizing({0, 0}, {0, 0}) == UpscaleSizing::EmptyBuffer);
     const int maximum = std::numeric_limits<int>::max();
     assert(canUpscale({maximum / 2 + 1, maximum / 2 + 1}, {maximum, maximum}));
     for (const UpscaleSize destination : std::array{output, UpscaleSize{2560, 1440}, UpscaleSize{3440, 1440}}) {

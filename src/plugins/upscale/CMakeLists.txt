@@ -2,8 +2,12 @@
 # Effect
 
 set(upscale_SOURCES
+    display.cpp
+    eligibility.cpp
     main.cpp
+    overlay.cpp
     scaler.cpp
+    snapshot.cpp
     upscale.cpp
     upscale.qrc
 )
@@ -23,7 +27,7 @@ target_link_libraries(upscale PRIVATE
 # Config
 
 if (KWIN_BUILD_KCMS)
-    set(kwin_upscale_config_SRCS upscale_config.cpp)
+    set(kwin_upscale_config_SRCS upscale_config.cpp supportinformation.cpp)
     kconfig_add_kcfg_files(kwin_upscale_config_SRCS upscaleconfig.kcfgc)
     kwin_add_effect_config(kwin_upscale_config ${kwin_upscale_config_SRCS})
     target_link_libraries(kwin_upscale_config

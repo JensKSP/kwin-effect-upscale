@@ -52,5 +52,14 @@ QString buildDate();
  */
 QString describe();
 
+/**
+ * Writes describe() to the log at information level, once per call.
+ *
+ * The effect calls this when it initializes. It is deliberately not a static
+ * initializer: this unit is also linked into the settings module, which would
+ * otherwise announce an effect that process never loaded.
+ */
+void announce();
+
 } // namespace UpscaleBuildInfo
 } // namespace KWin

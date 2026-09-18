@@ -48,6 +48,11 @@ target_link_libraries(
 if(KWin_VERSION VERSION_LESS 6.7)
     set(driver_sources
         effect_driver.cpp
+        ../src/plugins/upscale/display.cpp
+        ../src/plugins/upscale/display.h
+        ../src/plugins/upscale/eligibility.cpp
+        ../src/plugins/upscale/overlay.cpp
+        ../src/plugins/upscale/snapshot.cpp
         ../src/plugins/upscale/upscale.cpp
         ../src/plugins/upscale/upscale.h
         ../src/plugins/upscale/scaler.cpp
@@ -80,30 +85,84 @@ endif()
 add_executable(
     upscale_render_test
     render_test.cpp
+    ../src/plugins/upscale/overlay.cpp
     ../src/plugins/upscale/scaler.cpp
     ../src/plugins/upscale/upscale.qrc
 )
 target_include_directories(upscale_render_test PRIVATE ../src/plugins/upscale)
 target_link_libraries(upscale_render_test PRIVATE kwin Qt6::Test)
 add_test(NAME upscale-render COMMAND upscale_render_test)
-set_tests_properties(upscale-render PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1")
+set_tests_properties(
+    upscale-render
+    PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;QT_QPA_PLATFORM=offscreen"
+)
 if(KWin_VERSION VERSION_LESS 6.7)
     add_test(NAME upscale-render-gles COMMAND upscale_render_test)
     set_tests_properties(
         upscale-render-gles
-        PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;KWIN_COMPOSE=O2ES"
+        PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;KWIN_COMPOSE=O2ES;QT_QPA_PLATFORM=offscreen"
+    )
+endif()
+
+add_executable(
+    upscale_snapshot_test
+    snapshot_test.cpp
+    ../src/plugins/upscale/snapshot.cpp
+    ../src/plugins/upscale/eligibility.cpp
+)
+target_include_directories(upscale_snapshot_test PRIVATE ../src/plugins/upscale)
+target_compile_definitions(upscale_snapshot_test PRIVATE -DTRANSLATION_DOMAIN="kwin_effect_upscale")
+target_link_libraries(upscale_snapshot_test PRIVATE kwin Qt6::Test KF6::I18n Libdrm::Libdrm)
+add_test(NAME upscale-snapshot COMMAND upscale_snapshot_test)
+
+set(display_test_sources
+    display_test.cpp
+    ../src/plugins/upscale/display.cpp
+    ../src/plugins/upscale/overlay.cpp
+    ../src/plugins/upscale/snapshot.cpp
+    ../src/plugins/upscale/eligibility.cpp
+)
+kconfig_add_kcfg_files(display_test_sources ../src/plugins/upscale/upscaleconfig.kcfgc)
+add_executable(upscale_display_test ${display_test_sources})
+target_include_directories(upscale_display_test PRIVATE ../src/plugins/upscale)
+target_compile_definitions(upscale_display_test PRIVATE -DTRANSLATION_DOMAIN="kwin_effect_upscale")
+target_link_libraries(
+    upscale_display_test
+    PRIVATE kwin Qt6::Test KF6::ConfigGui KF6::I18n Libdrm::Libdrm
+)
+add_test(NAME upscale-display COMMAND upscale_display_test)
+set_tests_properties(
+    upscale-display
+    PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;QT_QPA_PLATFORM=offscreen"
+)
+
+if(KWin_VERSION VERSION_LESS 6.7)
+    add_test(NAME upscale-display-gles COMMAND upscale_display_test)
+    set_tests_properties(
+        upscale-display-gles
+        PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;KWIN_COMPOSE=O2ES;QT_QPA_PLATFORM=offscreen"
     )
 endif()
 
 if(KWIN_BUILD_KCMS)
-    set(config_test_SOURCES config_test.cpp ../src/plugins/upscale/upscale_config.cpp)
-    kconfig_add_kcfg_files(config_test_SOURCES ../src/plugins/upscale/upscaleconfig.kcfgc)
-    add_executable(upscale_config_test ${config_test_SOURCES})
-    target_include_directories(upscale_config_test PRIVATE ../src/plugins/upscale)
-    target_link_libraries(
-        upscale_config_test
-        PRIVATE KF6::KCMUtils KF6::ConfigGui KF6::CoreAddons KF6::I18n Qt6::DBus Qt6::Test
+    set(config_test_SOURCES
+        config_test.cpp
+        ../src/plugins/upscale/supportinformation.cpp
+        ../src/plugins/upscale/upscale_config.cpp
     )
-    add_test(NAME upscale-config COMMAND upscale_config_test)
-    set_tests_properties(upscale-config PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    kconfig_add_kcfg_files(config_test_SOURCES ../src/plugins/upscale/upscaleconfig.kcfgc)
+    # Exercise both the upstream form without project identity and the packaged
+    # settings module, which compares the full identity reported by KWin.
+    foreach(variant IN ITEMS config config-buildinfo)
+        set(test_target "upscale_${variant}_test")
+        add_executable(${test_target} ${config_test_SOURCES})
+        target_include_directories(${test_target} PRIVATE ../src/plugins/upscale)
+        target_link_libraries(
+            ${test_target}
+            PRIVATE KF6::KCMUtils KF6::ConfigGui KF6::CoreAddons KF6::I18n Qt6::DBus Qt6::Test
+        )
+        add_test(NAME upscale-${variant} COMMAND ${test_target})
+        set_tests_properties(upscale-${variant} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endforeach()
+    upscale_add_build_info(upscale_config-buildinfo_test)
 endif()
