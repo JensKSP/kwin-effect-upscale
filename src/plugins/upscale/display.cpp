@@ -149,6 +149,11 @@ void UpscaleDisplay::paint(const RenderTarget &target, const RenderViewport &vie
     m_overlay.paint(target, viewport, position);
 }
 
+QString UpscaleDisplay::text() const
+{
+    return m_overlay.text();
+}
+
 void UpscaleDisplay::hide()
 {
     m_overlay.release();

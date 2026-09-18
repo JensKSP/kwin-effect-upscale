@@ -78,6 +78,11 @@ QSizeF UpscaleOverlay::size() const
     return m_image.isNull() ? QSizeF() : QSizeF(m_image.size()) / m_scale;
 }
 
+QString UpscaleOverlay::text() const
+{
+    return m_image.isNull() ? QString() : m_text;
+}
+
 bool UpscaleOverlay::isEmpty() const
 {
     return m_image.isNull();

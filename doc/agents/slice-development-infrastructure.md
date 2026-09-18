@@ -243,6 +243,14 @@ Observed while implementing, not planned behaviour:
   `displayDefaults` in `autotests/config_test.cpp`.
 - The render test needed a `QGuiApplication` for the font database once it
   measured text, so it runs with the offscreen platform.
+- The integration test's driver wraps the effect and forwards the calls it
+  cares about, so the effect's screen pass was never reached and the display
+  went untested until the driver forwarded it too. Running that pass against
+  the driver's own OpenGL target keeps the display on the tested path while
+  the test compositor keeps painting with QPainter.
+- Composing the display honoured every mode switch except the master one,
+  which only its caller checked. Off now means off inside the class as well;
+  one switch with two meanings is a bug waiting for a second caller.
 - KWin excludes an effect whose `isActive()` is false from the chained paint
   methods of the next frame, which its own `effect/effect.h` states. An effect
   that refused every window would therefore never be called to say why, so the
@@ -411,3 +419,17 @@ lifecycle exercise these paths without contacting the user's desktop.
 
 Trixie coverage passed after extending the runtime tests. Final compiler, lint,
 static-analysis and hosted validation for this correction remain pending.
+
+Integrated the concurrent diagnostic-test commit `fd7eb20`, retaining its parser
+extraction and distinct assertions. Display tests have their own executable and
+isolated settings in each process, including the separate OpenGL ES run. The
+virtual KWin driver exercises the complete screen pass, including selection
+reuse, while preserving the real scene's paint chain. OpenGL ES framebuffer
+readback uses matching floating-point pixels; throttling assertions account for
+observed initialization and scheduling time.
+
+The combined production code built with GCC and Clang, warnings as errors, in
+Trixie and Neon. Runtime tests passed with both compilers: eight in Trixie and
+five in Neon. Trixie clang-tidy and metadata validation passed. Coverage measured
+1049 of 1133 lines (92.6%), above the unchanged 90% gate. Final hook checks after
+the test-timing adjustment and hosted checks/review remain pending.

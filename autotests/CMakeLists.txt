@@ -134,8 +134,20 @@ set_tests_properties(
     PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;QT_QPA_PLATFORM=offscreen"
 )
 
+if(KWin_VERSION VERSION_LESS 6.7)
+    add_test(NAME upscale-display-gles COMMAND upscale_display_test)
+    set_tests_properties(
+        upscale-display-gles
+        PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;KWIN_COMPOSE=O2ES;QT_QPA_PLATFORM=offscreen"
+    )
+endif()
+
 if(KWIN_BUILD_KCMS)
-    set(config_test_SOURCES config_test.cpp ../src/plugins/upscale/upscale_config.cpp)
+    set(config_test_SOURCES
+        config_test.cpp
+        ../src/plugins/upscale/supportinformation.cpp
+        ../src/plugins/upscale/upscale_config.cpp
+    )
     kconfig_add_kcfg_files(config_test_SOURCES ../src/plugins/upscale/upscaleconfig.kcfgc)
     add_executable(upscale_config_test ${config_test_SOURCES})
     target_include_directories(upscale_config_test PRIVATE ../src/plugins/upscale)

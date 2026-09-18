@@ -12,7 +12,11 @@
 #include "opengl/glframebuffer.h"
 #include "opengl/glvertexbuffer.h"
 
+#include <KConfigGroup>
+#include <KSharedConfig>
+
 #include <QDir>
+#include <QElapsedTimer>
 #include <QGuiApplication>
 #include <QImage>
 #include <QTemporaryDir>
@@ -28,6 +32,7 @@ private Q_SLOTS:
     void initTestCase();
     void cleanupTestCase();
     void visibilityAndSampling();
+    void displayShowsTheState();
 
 private:
     QImage paint(UpscaleDisplay &display);
@@ -75,11 +80,12 @@ QImage UpscaleDisplayTest::paint(UpscaleDisplay &display)
     glClearColor(1, 1, 1, 1);
     glClear(GL_COLOR_BUFFER_BIT);
     display.paint(target, viewport, screen);
-    QImage image(size, QImage::Format_RGBA8888);
-    glReadPixels(0, 0, size.width(), size.height(), GL_RGBA, GL_UNSIGNED_BYTE, image.bits());
+    // GLES requires a float readback for this floating-point framebuffer.
+    QImage image(size, QImage::Format_RGBA32FPx4);
+    glReadPixels(0, 0, size.width(), size.height(), GL_RGBA, GL_FLOAT, image.bits());
     GLVertexBuffer::streamingBuffer()->endOfFrame();
     GLFramebuffer::popFramebuffer();
-    return image;
+    return glGetError() == GL_NO_ERROR ? image.convertedTo(QImage::Format_RGBA8888) : QImage();
 }
 
 void UpscaleDisplayTest::visibilityAndSampling()
@@ -105,8 +111,13 @@ void UpscaleDisplayTest::visibilityAndSampling()
     state.refusal = UpscaleRefusal::BufferNotSmaller;
     state.supplied = QSize(128, 128);
     state.destination = QSize(128, 128);
+    QElapsedTimer composing;
+    composing.start();
     display.update(state, nullptr);
-    QVERIFY(!display.wantsSnapshot(nullptr));
+    const bool snapshotDue = display.wantsSnapshot(nullptr);
+    // Initial font setup can itself exceed the compose interval on a cold
+    // machine. The throttle is a time bound, not a guarantee about test speed.
+    QVERIFY(!snapshotDue || composing.elapsed() >= 500);
     const QImage announcement = paint(display);
     QVERIFY(!announcement.isNull());
     // The plate begins after the TV margin. Readback rows are bottom-up.
@@ -172,6 +183,120 @@ void UpscaleDisplayTest::visibilityAndSampling()
     display.hide();
     QCOMPARE(glGetError(), GLenum(GL_NO_ERROR));
     display.hide();
+}
+
+void UpscaleDisplayTest::displayShowsTheState()
+{
+    // Start from the build's own defaults rather than from whatever an earlier
+    // run of this test left in the configuration it writes to.
+    const auto settings = []() {
+        return KConfigGroup(KSharedConfig::openConfig(QStringLiteral("kwinrc")), QStringLiteral("Effect-upscale"));
+    };
+    settings().deleteGroup();
+    KSharedConfig::openConfig(QStringLiteral("kwinrc"))->sync();
+
+    UpscaleDisplay display;
+    UpscaleConfig::self()->read();
+    // This text test has no EffectsHandler to receive the expiry repaint.
+    // Visibility expiry is tested separately without delivering that signal.
+    UpscaleConfig::setOsdTimeout(60);
+    display.reconfigure();
+    // This test binary is built the way the effect is, so the build type that
+    // decides the defaults is the same one the assertions below expect.
+    QVERIFY(display.enabled());
+    QVERIFY(display.wantsSnapshot(nullptr));
+
+    UpscaleSnapshot snapshot;
+    snapshot.window = QStringLiteral("Tux Racer");
+    snapshot.output = QStringLiteral("HDMI-A-1");
+    snapshot.selected = true;
+    snapshot.scaling = true;
+    snapshot.supplied = QSize(1280, 720);
+    snapshot.destination = QSize(3840, 2160);
+    snapshot.outputScale = 1;
+    display.countClientUpdate(nullptr);
+    display.countRepaint();
+    QElapsedTimer composing;
+    composing.start();
+    display.update(snapshot, nullptr);
+    // Composing again is declined until the interval passes, including time
+    // spent loading fonts or waiting to be scheduled on a busy test machine.
+    const bool snapshotDue = display.wantsSnapshot(nullptr);
+    QVERIFY(!snapshotDue || composing.elapsed() >= 500);
+
+    const QSize targetSize(640, 480);
+    std::unique_ptr<GLTexture> output = allocateFloatTexture(targetSize);
+    QVERIFY(output);
+    GLFramebuffer framebuffer(output.get());
+    QVERIFY(framebuffer.valid());
+#if UPSCALE_REGION_API
+    const auto colors = ColorDescription::sRGB;
+#else
+    const auto &colors = ColorDescription::sRGB;
+#endif
+    const RenderTarget target(&framebuffer, colors);
+    const UpscaleRectF screen{QPointF(), QSizeF(targetSize)};
+    const RenderViewport viewport = captureViewport(screen, 1, target);
+    GLFramebuffer::pushFramebuffer(&framebuffer);
+    GLVertexBuffer::streamingBuffer()->beginFrame();
+    glClearColor(1, 1, 1, 1);
+    glClear(GL_COLOR_BUFFER_BIT);
+    display.paint(target, viewport, screen);
+    std::vector<float> pixels(size_t(targetSize.width()) * size_t(targetSize.height()) * 4);
+    glReadPixels(0, 0, targetSize.width(), targetSize.height(), GL_RGBA, GL_FLOAT, pixels.data());
+    GLVertexBuffer::streamingBuffer()->endOfFrame();
+    GLFramebuffer::popFramebuffer();
+    QCOMPARE(glGetError(), GL_NO_ERROR);
+    // Something was drawn in the corner the display occupies, and the rest of
+    // the output was left to the game.
+    const auto red = [&](int x, int y) {
+        return pixels[(size_t(y) * size_t(targetSize.width()) + size_t(x)) * 4];
+    };
+    QVERIFY2(red(40, targetSize.height() - 40) < 0.5F, "the display did not draw where it said it would");
+    QVERIFY2(red(targetSize.width() - 3, 3) > 0.9F, "the display covered more than its own area");
+
+    // Rates are reported once a sampling interval has actually passed, with
+    // the interval they were measured over. Before that there is nothing
+    // measured, and the display says so rather than showing a zero.
+    QVERIFY2(display.text().contains(QStringLiteral("Client buffer updates: unknown")), qPrintable(display.text()));
+    for (int frame = 0; frame < 10; ++frame) {
+        display.countClientUpdate(nullptr);
+        display.countRepaint();
+    }
+    QTest::qWait(1100);
+    QVERIFY(display.wantsSnapshot(nullptr));
+    display.update(snapshot, nullptr);
+    QVERIFY2(display.text().contains(QStringLiteral("/s")), qPrintable(display.text()));
+    QVERIFY2(display.text().contains(QStringLiteral("s sample")), qPrintable(display.text()));
+
+    // Hiding it gives everything back, and asks for a fresh snapshot when it
+    // is shown again rather than drawing a stale one.
+    display.hide();
+    QVERIFY(display.wantsSnapshot(nullptr));
+    GLFramebuffer::pushFramebuffer(&framebuffer);
+    GLVertexBuffer::streamingBuffer()->beginFrame();
+    display.paint(target, viewport, screen);
+    GLVertexBuffer::streamingBuffer()->endOfFrame();
+    GLFramebuffer::popFramebuffer();
+    QCOMPARE(glGetError(), GL_NO_ERROR);
+
+    // The master switch hides every mode. Nothing is composed, nothing is
+    // drawn, and the area it reported is given up with the rest.
+    settings().writeEntry("Osd", false);
+    KSharedConfig::openConfig(QStringLiteral("kwinrc"))->sync();
+    UpscaleConfig::self()->read();
+    display.reconfigure();
+    QVERIFY(!display.enabled());
+    display.update(snapshot, nullptr);
+    GLFramebuffer::pushFramebuffer(&framebuffer);
+    GLVertexBuffer::streamingBuffer()->beginFrame();
+    display.paint(target, viewport, screen);
+    GLVertexBuffer::streamingBuffer()->endOfFrame();
+    GLFramebuffer::popFramebuffer();
+    QVERIFY(display.text().isEmpty());
+    QCOMPARE(glGetError(), GL_NO_ERROR);
+    settings().deleteGroup();
+    KSharedConfig::openConfig(QStringLiteral("kwinrc"))->sync();
 }
 
 int main(int argc, char **argv)
