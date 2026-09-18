@@ -8,6 +8,10 @@
 #include "supportinformation.h"
 #include "upscale_config.h"
 
+#if __has_include("buildinfo.h")
+#include "buildinfo.h"
+#endif
+
 #include <KConfigGroup>
 #include <KPluginMetaData>
 #include <KSharedConfig>
@@ -192,6 +196,27 @@ void UpscaleConfigTest::runningBuildStatus()
     QTRY_VERIFY(build->text().contains(QStringLiteral("Running in KWin: older-running-build")));
     QCOMPARE(status->text(), QStringLiteral("Supplied input: 1280 × 720\nDestination: 2560 × 1440"));
 
+#if __has_include("buildinfo.h")
+    const QString installed = KWin::UpscaleBuildInfo::describe();
+    effects.information = QStringLiteral("upscale:\nbuild: %1\nstatus: Matching build").arg(installed);
+    refresh->click();
+    QTRY_COMPARE(status->text(), QStringLiteral("Matching build"));
+    QVERIFY(!build->text().contains(QStringLiteral("Running in KWin:")));
+    // A rebuild can keep the version while changing other identity fields.
+    // None of those builds may be mistaken for the installed module.
+    const QStringList alternatives = {
+        installed + QStringLiteral(" (other branch)"),
+        installed + QStringLiteral(", built another day"),
+        installed + QStringLiteral(", Qt another version"),
+    };
+    for (const QString &identity : alternatives) {
+        effects.information = QStringLiteral("upscale:\nbuild: %1\nstatus: %1").arg(identity);
+        refresh->click();
+        QTRY_COMPARE(status->text(), identity);
+        QVERIFY(build->text().contains(QStringLiteral("Running in KWin: %1").arg(identity)));
+    }
+#endif
+
     // Older effects can return status without a build property. That does not
     // establish that the running effect matches the package now installed.
     effects.information = QStringLiteral("upscale:\nstatus: No build identity available");
@@ -241,10 +266,12 @@ void UpscaleConfigTest::readsWhatTheCompositorReported()
 
     // An effect built without the generated identity reports no build, and the
     // status still has to come through.
-    QString missing;
-    QCOMPARE(KWin::upscaleReportedStatus(QStringLiteral("upscale:\nstatus: nothing to report\n"), &missing),
+    QCOMPARE(KWin::upscaleReportedStatus(QStringLiteral("upscale:\nstatus: nothing to report\n"), &loaded),
              QStringLiteral("nothing to report"));
-    QVERIFY(missing.isEmpty());
+    QVERIFY(loaded.isEmpty());
+    loaded = QStringLiteral("stale build identity");
+    QCOMPARE(KWin::upscaleReportedStatus(QString(), &loaded), QString());
+    QVERIFY(loaded.isEmpty());
     QCOMPARE(KWin::upscaleReportedStatus(QString(), nullptr), QString());
 }
 

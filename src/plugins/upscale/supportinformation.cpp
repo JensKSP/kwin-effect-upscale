@@ -13,6 +13,9 @@ namespace KWin
 
 QString upscaleReportedStatus(const QString &information, QString *loadedBuild)
 {
+    if (loadedBuild) {
+        loadedBuild->clear();
+    }
     QStringList lines = information.split(QLatin1Char('\n'));
     if (!lines.isEmpty() && lines.constFirst().endsWith(QLatin1Char(':'))) {
         lines.removeFirst();

@@ -437,3 +437,28 @@ five in Neon. Trixie clang-tidy and metadata validation passed. Coverage measure
 1049 of 1133 lines (92.6%), above the unchanged 90% gate. Both hook stages and coverage passed after
 the test-timing adjustment and integration of the current branch and master.
 Hosted checks and review for the published correction remain pending.
+
+Review `5247444353` found that the extracted status parser retained an earlier
+identity when its caller reused the output string. Clear the optional output
+before parsing and test both a missing property and an empty report using the
+same string. Exercise the expiry callback without a compositor as well, covering
+the guard added in `33ce7f4`. These follow-ups passed the checks below.
+
+The additional lifetime audit reproduced a title-change regression: after a
+notice expired, changing the same window's caption restarted it. The focused
+`visibilityAndSampling` test failed at its new expiry assertion before the fix.
+Key the deadline to window identity, while refreshing caption text independently;
+this preserves the documented no-repeat behavior for changing game titles.
+The final combined follow-up passed the checks below.
+
+The next review confirmed the title regression and identified a second identity
+issue: matching only the version hid differences in branch, build date or Qt.
+Compare the complete reported identity and exercise the settings tests both with
+and without the generated build information. The matching case and same-version
+rebuilds are covered through the private D-Bus service. The translation slice
+also now names metadata alongside catalogues when adding a language.
+The complete follow-up passed both hook stages, GCC and Clang with warnings as
+errors in Trixie and Neon, all nine Trixie and six Neon runtime tests, Trixie
+clang-tidy and plugin metadata validation. Coverage measured 1057 of 1136 lines
+(93.0%), above the unchanged 90% threshold. Hosted CI and the next review of this
+revision remain pending; real-device acceptance remains open.

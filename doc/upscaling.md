@@ -720,9 +720,9 @@ the paint methods of an inactive effect, and a refused window is exactly when
 the explanation is needed; the composition requirement that comes with it ends
 when the display is hidden. It announces the *selected* application and shows the basic summary for
 the configured timeout. Nothing recognizes games yet, so no profile match or
-game identity is claimed, and the announcement is keyed to the window and to
-what it said, so a repaint, a title change or focus returning to the same
-window does not announce it again.
+game identity is claimed. The announcement is keyed to the selected window:
+a repaint or title change does not restart its timeout. Selecting a different
+window or explicitly reconfiguring the display starts a new announcement.
 
 ### OSD defaults by build type
 

@@ -277,11 +277,11 @@ void UpscaleEffectConfig::save()
 }
 
 // Whether the identity the running effect reported is this build's own. The
-// version string names the commit, so containing it is enough.
+// same commit can be rebuilt with another branch, date or Qt version.
 static bool sameAsInstalled(const QString &loaded)
 {
 #if UPSCALE_BUILD_INFO
-    return loaded.contains(UpscaleBuildInfo::version());
+    return loaded == UpscaleBuildInfo::describe();
 #else
     Q_UNUSED(loaded)
     return false;

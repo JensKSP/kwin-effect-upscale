@@ -151,12 +151,18 @@ if(KWIN_BUILD_KCMS)
         ../src/plugins/upscale/upscale_config.cpp
     )
     kconfig_add_kcfg_files(config_test_SOURCES ../src/plugins/upscale/upscaleconfig.kcfgc)
-    add_executable(upscale_config_test ${config_test_SOURCES})
-    target_include_directories(upscale_config_test PRIVATE ../src/plugins/upscale)
-    target_link_libraries(
-        upscale_config_test
-        PRIVATE KF6::KCMUtils KF6::ConfigGui KF6::CoreAddons KF6::I18n Qt6::DBus Qt6::Test
-    )
-    add_test(NAME upscale-config COMMAND upscale_config_test)
-    set_tests_properties(upscale-config PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # Exercise both the upstream form without project identity and the packaged
+    # settings module, which compares the full identity reported by KWin.
+    foreach(variant IN ITEMS config config-buildinfo)
+        set(test_target "upscale_${variant}_test")
+        add_executable(${test_target} ${config_test_SOURCES})
+        target_include_directories(${test_target} PRIVATE ../src/plugins/upscale)
+        target_link_libraries(
+            ${test_target}
+            PRIVATE KF6::KCMUtils KF6::ConfigGui KF6::CoreAddons KF6::I18n Qt6::DBus Qt6::Test
+        )
+        add_test(NAME upscale-${variant} COMMAND ${test_target})
+        set_tests_properties(upscale-${variant} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endforeach()
+    upscale_add_build_info(upscale_config-buildinfo_test)
 endif()

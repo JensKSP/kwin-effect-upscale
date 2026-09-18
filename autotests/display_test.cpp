@@ -95,8 +95,8 @@ void UpscaleDisplayTest::visibilityAndSampling()
     UpscaleConfig::setOsdSummary(true);
     UpscaleConfig::setOsdStatistics(false);
     UpscaleConfig::setOsdDeveloper(false);
-    // This unit test has no EffectsHandler. Keep the repaint-request timer
-    // beyond the test's sampling wait; timer delivery belongs to integration.
+    // Keep announcement expiry separate from the sampling assertions. Its
+    // callback without an EffectsHandler is exercised at the end of this test.
     UpscaleConfig::setOsdTimeout(60);
     UpscaleDisplay display;
     display.reconfigure();
@@ -174,12 +174,18 @@ void UpscaleDisplayTest::visibilityAndSampling()
     QVERIFY(display.activeFor(nullptr));
     display.update(state, nullptr);
     QVERIFY(display.activeFor(nullptr));
-    QTest::qSleep(1100);
+    QTest::qWait(1100);
     QVERIFY(!display.activeFor(nullptr));
     QCOMPARE(paint(display), background);
     // Repainting the same observation must not restart an expired notice.
     display.update(state, nullptr);
     QVERIFY(!display.activeFor(nullptr));
+    // Games often put a changing frame counter or scene name in the title.
+    // A new caption on the same window must not restart its announcement.
+    state.window = QStringLiteral("Observed window — new scene");
+    display.update(state, nullptr);
+    QVERIFY(!display.activeFor(nullptr));
+    QCOMPARE(paint(display), background);
     display.hide();
     QCOMPARE(glGetError(), GLenum(GL_NO_ERROR));
     display.hide();

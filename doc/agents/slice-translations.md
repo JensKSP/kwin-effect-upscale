@@ -24,8 +24,8 @@ language that orders it differently cannot produce a correct one.
 A user who installs the package sees the effect in their own language.
 English, German, French and Spanish are shipped and complete for every
 user-visible string, the effects list shows a translated name and description,
-and a further language is added by adding a catalogue alone. Composed strings
-carry the context a translator needs. The
+and a further language is added with a catalogue and translated plugin metadata.
+Composed strings carry the context a translator needs. The
 [handbook's language requirements](../upscaling.md#language-and-translations)
 are the permanent specification.
 

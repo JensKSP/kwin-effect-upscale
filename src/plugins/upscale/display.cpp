@@ -100,10 +100,9 @@ void UpscaleDisplay::update(UpscaleSnapshot snapshot, EffectWindow *window)
     snapshot.sampleAge = m_interval > 0 ? double(m_sampled.elapsed()) / 1000 : 0;
     m_snapshot = snapshot;
 
-    const QString announcement = upscaleAnnouncement(m_snapshot);
-    if (window != m_announced || announcement != m_announcement) {
+    m_announcement = upscaleAnnouncement(m_snapshot);
+    if (window != m_announced || !m_announcedAt.isValid()) {
         m_announced = window;
-        m_announcement = announcement;
         m_announcedAt.start();
         m_expiry.start(m_timeout * 1000);
     }

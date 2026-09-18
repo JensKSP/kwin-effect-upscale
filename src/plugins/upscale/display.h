@@ -86,9 +86,9 @@ private:
     bool m_developer = false;
     int m_timeout = 3;
 
-    // The window and summary the timed announcement belongs to. Repaints,
-    // title changes and focus returning to the same window must not announce
-    // it again, so the announcement is keyed to what it actually said.
+    // The timed announcement belongs to a window, not its changing caption.
+    // Repaints and title changes keep its deadline. A new selection or an
+    // explicit reconfiguration starts a new announcement.
     QPointer<EffectWindow> m_announced;
     QString m_announcement;
     QElapsedTimer m_announcedAt;
