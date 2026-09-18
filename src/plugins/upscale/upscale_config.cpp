@@ -6,6 +6,9 @@
 
 #include "upscale_config.h"
 
+#include "application.h"
+#include "applicationeditor.h"
+
 #include "resolution.h"
 #include "supportinformation.h"
 #include "upscaleconfig.h"
@@ -32,6 +35,7 @@
 #include <QFormLayout>
 #include <QGuiApplication>
 #include <QLabel>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QScreen>
 #include <QSignalBlocker>
@@ -56,7 +60,7 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     , m_osd(new QCheckBox(i18n("Show the on-screen display"), widget()))
     , m_osdDetection(new QCheckBox(i18n("Announce the selected application"), widget()))
     , m_osdSummary(new QCheckBox(i18n("Include a short summary in the announcement"), widget()))
-    , m_osdStatistics(new QCheckBox(i18n("Keep statistics on screen"), widget()))
+    , m_osdStatistics(new QCheckBox(i18n("Show the frame rate on screen"), widget()))
     , m_osdDeveloper(new QCheckBox(i18n("Add developer information"), widget()))
     , m_osdTimeout(new QSpinBox(widget()))
     , m_build(new QLabel(widget()))
@@ -85,6 +89,7 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     layout->addRow(i18n("Sharpening strength:"), m_strength);
     layout->addRow(m_strengthLabel);
     addDisplayControls(layout);
+    addApplicationControls(layout);
     addStatusControls(layout);
     connectControls();
     connect(qGuiApp, &QGuiApplication::screenAdded, this, &UpscaleEffectConfig::updateOutputs);
@@ -151,6 +156,9 @@ void UpscaleEffectConfig::addDisplayControls(QFormLayout *layout)
     layout->addRow(m_osdDetection);
     layout->addRow(m_osdSummary);
     layout->addRow(i18n("Announcement timeout:"), m_osdTimeout);
+    m_osdStatistics->setToolTip(i18n("Keeps the frame rate the screen actually presented on screen while a game is "
+                                     "running, with the slowest frames beside the average, because an average alone "
+                                     "hides stutter."));
     layout->addRow(m_osdStatistics);
     layout->addRow(m_osdDeveloper);
     // A Debug build shows statistics and developer information unless the
@@ -165,6 +173,57 @@ void UpscaleEffectConfig::addDisplayControls(QFormLayout *layout)
     connect(m_osdTimeout, &QSpinBox::valueChanged, this, [this]() {
         setNeedsSave(true);
     });
+}
+
+// The application list is a different kind of setting from the rest of this
+// page: it is a list the effect ships and the user edits, kept in its own file
+// so that a new package can deliver a corrected entry without touching what
+// the user changed. Its restore is therefore separate from this page's
+// Defaults, which restores the values above and leaves the list alone.
+void UpscaleEffectConfig::addApplicationControls(QFormLayout *layout)
+{
+    m_unknown = new QCheckBox(i18n("Also ask applications that are not in the list"), widget());
+    m_unknown->setToolTip(i18n("Every application is asked for the resolution below when it starts, not only the ones "
+                               "listed here. Nothing is known in advance about how an application answers, so one may "
+                               "keep its own resolution or open at the wrong size."));
+    layout->addRow(i18n("Unlisted applications:"), m_unknown);
+    connect(m_unknown, &QCheckBox::toggled, this, [this]() {
+        setNeedsSave(true);
+    });
+
+    m_editor = new UpscaleApplicationEditor(widget());
+    layout->addRow(i18n("Applications:"), m_editor);
+    connect(m_editor, &UpscaleApplicationEditor::changed, this, [this]() {
+        setNeedsSave(true);
+        updateApplicationSummary();
+    });
+
+    m_applications = new QLabel(widget());
+    m_applications->setTextFormat(Qt::PlainText);
+    m_applications->setWordWrap(true);
+    layout->addRow(QString(), m_applications);
+    m_resetApplications = new QPushButton(i18n("Restore the shipped application list"), widget());
+    layout->addRow(QString(), m_resetApplications);
+    connect(m_resetApplications, &QPushButton::clicked, this, &UpscaleEffectConfig::resetApplications);
+    updateApplicationSummary();
+}
+
+void UpscaleEffectConfig::updateApplicationSummary()
+{
+    const bool customized = m_editor->customized();
+    m_applications->setText(customized
+                                ? i18n("The list differs from the one this version ships.")
+                                : i18n("The list is the one this version ships, and follows every update."));
+    m_resetApplications->setEnabled(customized);
+}
+
+void UpscaleEffectConfig::resetApplications()
+{
+    // A different file than Apply writes, and not recoverable afterwards, so
+    // the editor asks before doing it and does it at once.
+    m_editor->restoreDefaults();
+    updateApplicationSummary();
+    reconfigureEffect();
 }
 
 void UpscaleEffectConfig::updateOutputs()
@@ -227,6 +286,7 @@ void UpscaleEffectConfig::showSettings()
     m_osdStatistics->setChecked(UpscaleConfig::osdStatistics());
     m_osdDeveloper->setChecked(UpscaleConfig::osdDeveloper());
     m_osdTimeout->setValue(UpscaleConfig::osdTimeout());
+    m_unknown->setChecked(UpscaleConfig::unknownApplications());
     updatePreview();
 }
 
@@ -243,6 +303,7 @@ void UpscaleEffectConfig::applySettings()
     UpscaleConfig::setOsdStatistics(m_osdStatistics->isChecked());
     UpscaleConfig::setOsdDeveloper(m_osdDeveloper->isChecked());
     UpscaleConfig::setOsdTimeout(m_osdTimeout->value());
+    UpscaleConfig::setUnknownApplications(m_unknown->isChecked());
     // A value equal to the current default is stored as no entry at all, so a
     // build type's default is never written back as if the user chose it.
     UpscaleConfig::self()->save();
@@ -265,14 +326,22 @@ void UpscaleEffectConfig::defaults()
     setNeedsSave(true);
 }
 
-void UpscaleEffectConfig::save()
+// The running effect keeps its own copy of the settings and the list.
+void UpscaleEffectConfig::reconfigureEffect()
 {
-    applySettings();
-    setNeedsSave(false);
     QDBusMessage message = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"), QStringLiteral("/Effects"),
                                                           QStringLiteral("org.kde.kwin.Effects"), QStringLiteral("reconfigureEffect"));
     message << QStringLiteral("upscale");
     QDBusConnection::sessionBus().asyncCall(message);
+}
+
+void UpscaleEffectConfig::save()
+{
+    m_editor->save();
+    updateApplicationSummary();
+    applySettings();
+    setNeedsSave(false);
+    reconfigureEffect();
     refreshStatus();
 }
 

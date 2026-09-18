@@ -100,14 +100,56 @@ static QString application(const UpscaleSnapshot &snapshot)
 
 QString upscaleAnnouncement(const UpscaleSnapshot &snapshot)
 {
-    // "Selected", not "recognized": nothing here identifies a game, and a
-    // window that merely fills the screen must not be presented as a match.
-    return i18n("Upscale: selected %1", application(snapshot));
+    // "Selected" for a window the effect merely picked, "recognized" only
+    // where its identity matched the catalogue. A window that fills the
+    // screen must not be presented as a match on that ground alone.
+    if (snapshot.recognized.isEmpty()) {
+        return i18n("Upscale: selected %1", application(snapshot));
+    }
+    return i18n("Upscale: recognized %1", snapshot.recognized);
 }
 
 QString upscaleBasicSummary(const UpscaleSnapshot &snapshot)
 {
     return i18n("%1 → %2, %3", sizeText(snapshot.supplied), sizeText(snapshot.destination), processing(snapshot));
+}
+
+static QString presentationName(int mode)
+{
+    switch (static_cast<PresentationMode>(mode)) {
+    case PresentationMode::VSync:
+        return i18n("fixed refresh");
+    case PresentationMode::AdaptiveSync:
+        return i18n("adaptive sync");
+    case PresentationMode::Async:
+        return i18n("tearing");
+    case PresentationMode::AdaptiveAsync:
+        return i18n("adaptive sync with tearing");
+    }
+    return unknown();
+}
+
+// Frames as the screen showed them. An average alone hides the stutter that
+// decides whether something feels smooth, so the slow tail is reported beside
+// it, in the two forms that are both called a "one per cent low" and do not
+// mean the same thing: the mean of the slowest hundredth, and the frame time
+// that all but the slowest hundredth beat.
+static QString presented(const UpscaleSnapshot &snapshot)
+{
+    if (snapshot.presentedRate < 0) {
+        return i18n("Presented: %1", unknown());
+    }
+    QString text = i18n("Presented: %1/s average", QString::number(snapshot.presentedRate, 'f', 1));
+    if (snapshot.presentedLow > 0) {
+        text += i18n(", 1%% low %1/s", QString::number(snapshot.presentedLow, 'f', 1));
+    }
+    if (snapshot.presentedPercentile > 0) {
+        text += i18n(", 99th percentile %1 ms", QString::number(snapshot.presentedPercentile, 'f', 1));
+    }
+    if (snapshot.presentedWorst > 0) {
+        text += i18n(", worst %1 ms", QString::number(snapshot.presentedWorst, 'f', 1));
+    }
+    return text + i18n(" (%1 frames, %2)", QString::number(snapshot.presentedFrames), presentationName(snapshot.presentation));
 }
 
 static QString measurement(const UpscaleSnapshot &snapshot)
@@ -126,7 +168,7 @@ QString upscaleStatistics(const UpscaleSnapshot &snapshot)
 {
     return i18n("Upscale: %1\n%2 → %3 on %4\n%5",
                 processing(snapshot), sizeText(snapshot.supplied), sizeText(snapshot.destination),
-                snapshot.output.isEmpty() ? unknown() : snapshot.output, measurement(snapshot));
+                snapshot.output.isEmpty() ? unknown() : snapshot.output, presented(snapshot));
 }
 
 static QString desiredText(const UpscaleSnapshot &snapshot)
@@ -151,9 +193,19 @@ static QString selection(const UpscaleSnapshot &snapshot)
 
 QString upscaleStatusText(const UpscaleSnapshot &snapshot)
 {
-    const QString wish = snapshot.preset == ResolutionPreset::Automatic
-        ? i18n("Automatic (no request)")
-        : i18n("Select %1 × %2 in the game", QString::number(snapshot.desired.width), QString::number(snapshot.desired.height));
+    QString wish;
+    if (snapshot.advertised.isValid()) {
+        // Advertised, not applied. The committed input below is the only
+        // evidence of what the application actually did with it.
+        wish = i18n("%1 requested from %2 as its screen mode",
+                    sizeText(snapshot.advertised),
+                    snapshot.recognized.isEmpty() ? application(snapshot) : snapshot.recognized);
+    } else if (snapshot.preset == ResolutionPreset::Automatic) {
+        wish = i18n("Automatic (no request)");
+    } else {
+        wish = i18n("Select %1 × %2 in the game",
+                    QString::number(snapshot.desired.width), QString::number(snapshot.desired.height));
+    }
     QString state;
     if (snapshot.selected) {
         if (snapshot.scaling) {
@@ -168,8 +220,12 @@ QString upscaleStatusText(const UpscaleSnapshot &snapshot)
     } else {
         state = i18n("Inactive: %1", refusalText(snapshot));
     }
-    return i18n("Desired: %1\nSupplied input: %2\nDestination: %3\n%4\nHDR follows KWin colour management. Actual VRR presentation is not measured.",
-                wish, sizeText(snapshot.supplied), sizeText(snapshot.destination), state);
+    const QString presentation = snapshot.presentation < 0
+        ? i18n("Presentation is not being measured; the on-screen display measures it while it is shown.")
+        : i18n("Presented at %1/s, %2.", QString::number(snapshot.presentedRate, 'f', 1),
+               presentationName(snapshot.presentation));
+    return i18n("Desired: %1\nSupplied input: %2\nDestination: %3\n%4\n%5\nHDR follows KWin colour management.",
+                wish, sizeText(snapshot.supplied), sizeText(snapshot.destination), state, presentation);
 }
 
 QString upscaleDeveloperInformation(const UpscaleSnapshot &snapshot)
@@ -184,12 +240,20 @@ QString upscaleDeveloperInformation(const UpscaleSnapshot &snapshot)
                       snapshot.application.isEmpty() ? unknown() : snapshot.application,
                       snapshot.output.isEmpty() ? unknown() : snapshot.output));
     lines.append(i18n("Selection: %1, %2", selection(snapshot), processing(snapshot)));
+    lines.append(i18n("Application: %1, method %2, advertised %3",
+                      snapshot.recognized.isEmpty() ? i18n("not recognized") : snapshot.recognized,
+                      describeControlMethod(snapshot.method),
+                      snapshot.advertised.isValid() ? sizeText(snapshot.advertised) : i18n("nothing")));
     lines.append(i18n("Configuration: %1, desired %2, sharpening %3",
                       snapshot.enabled ? i18n("enabled") : i18n("disabled"), desiredText(snapshot),
                       snapshot.sharpening > 0 ? i18n("RCAS %1%", qRound(snapshot.sharpening * 100)) : i18n("off")));
     lines.append(i18n("Geometry: supplied %1, destination %2, output scale %3",
                       sizeText(snapshot.supplied), sizeText(snapshot.destination),
                       QString::number(snapshot.outputScale, 'f', 2)));
+    lines.append(measurement(snapshot));
+    lines.append(i18n("Frame: render target orientation %1, largest texture this GPU allows %2",
+                      snapshot.targetTransform < 0 ? unknown() : QString::number(snapshot.targetTransform),
+                      snapshot.maximumTexture > 0 ? QString::number(snapshot.maximumTexture) : unknown()));
     lines.append(i18n("Processing: buffer format %1, resources %2, scanout blocked by this effect: %3",
                       snapshot.format.isEmpty() ? unknown() : snapshot.format,
                       snapshot.failed ? i18n("failed") : i18n("ready"),

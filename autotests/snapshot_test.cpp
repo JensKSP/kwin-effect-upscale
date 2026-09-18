@@ -111,11 +111,19 @@ void UpscaleSnapshotTest::reportsThePathActuallyTaken()
     QVERIFY(statistics.contains(QStringLiteral("1280 × 720")));
     QVERIFY(statistics.contains(QStringLiteral("3840 × 2160")));
     QVERIFY(statistics.contains(QStringLiteral("HDMI-A-1")));
+    // What a person turns this on for is the frame rate, so the view they see
+    // carries that and not the two counters below, which need explaining
+    // before they mean anything.
+    QVERIFY2(statistics.contains(QStringLiteral("Presented:")), qPrintable(statistics));
+    QVERIFY(!statistics.contains(QStringLiteral("Client buffer updates")));
+    QVERIFY(!statistics.contains(QStringLiteral("compositor repaints")));
+
     // The two counters are named by what they count. A compositor repaint is
     // not the game's frame rate and must never be presented as one.
-    QVERIFY(statistics.contains(QStringLiteral("Client buffer updates: 59.8/s")));
-    QVERIFY(statistics.contains(QStringLiteral("compositor repaints: 60.1/s")));
-    QVERIFY(statistics.contains(QStringLiteral("1.0 s sample")));
+    const QString developer = upscaleDeveloperInformation(snapshot);
+    QVERIFY2(developer.contains(QStringLiteral("Client buffer updates: 59.8/s")), qPrintable(developer));
+    QVERIFY(developer.contains(QStringLiteral("compositor repaints: 60.1/s")));
+    QVERIFY(developer.contains(QStringLiteral("1.0 s sample")));
 
     // The announcement names the application without claiming it was matched
     // against anything, because nothing identifies games yet.
@@ -142,7 +150,10 @@ void UpscaleSnapshotTest::doesNotInventUnknownValues()
     const QString developer = upscaleDeveloperInformation(empty);
     QVERIFY2(developer.contains(QStringLiteral("Build: unknown")), qPrintable(developer));
     QVERIFY(developer.contains(QStringLiteral("supplied unknown")));
-    QVERIFY(upscaleStatistics(empty).contains(QStringLiteral("Client buffer updates: unknown")));
+    QVERIFY(upscaleDeveloperInformation(empty).contains(QStringLiteral("Client buffer updates: unknown")));
+    // Nothing presented yet is said, not shown as a zero frame rate.
+    QVERIFY2(upscaleStatistics(empty).contains(QStringLiteral("Presented: unknown")),
+             qPrintable(upscaleStatistics(empty)));
     QVERIFY(upscaleAnnouncement(empty).contains(QStringLiteral("unknown")));
     // An unimplemented or unobserved colour state is not filled in either.
     QVERIFY(developer.contains(QStringLiteral("VRR not observed")));

@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "application.h"
 #include "compatibility.h"
 #include "display.h"
 #include "eligibility.h"
@@ -18,6 +19,7 @@
 namespace KWin
 {
 
+class UpscaleModeOverride;
 class UpscaleScaler;
 
 /** Scales one eligible fullscreen surface from its supplied buffer size. */
@@ -80,11 +82,18 @@ private:
     mutable QPointer<EffectWindow> m_candidate;
     mutable UpscaleRefusal m_candidateRefusal = UpscaleRefusal::NoWindow;
     std::unique_ptr<UpscaleScaler> m_scaler;
+    // Talks to a recognized application when it connects, which is before any
+    // window of it exists. It therefore outlives individual windows and is
+    // created once, not per candidate.
+    std::unique_ptr<UpscaleModeOverride> m_modeOverride;
     // The candidate whose render target this scaler cannot handle. Held as a
     // window rather than a flag so a different one is always tried again.
     mutable QPointer<EffectWindow> m_unsupportedColors;
     bool m_enabled = true;
     bool m_failed = false;
+    // The largest texture this GPU will allocate, read from the driver rather
+    // than assumed. The scaler needs one at the destination size.
+    int m_maximumTexture = 0;
     double m_strength = 0;
     ItemRenderer *m_renderer = nullptr;
     QPointer<EffectWindow> m_renderedWindow;

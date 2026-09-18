@@ -138,6 +138,9 @@ void UpscaleDisplayTest::visibilityAndSampling()
     display.reconfigure();
     QVERIFY(!display.enabled());
     UpscaleConfig::setOsdStatistics(true);
+    // The counters this exercises are developer information: the view a person
+    // turns on carries the frame rate, which no compositor presents here.
+    UpscaleConfig::setOsdDeveloper(true);
     display.reconfigure();
     QVERIFY(display.enabled());
     display.update(state, nullptr);
@@ -266,6 +269,9 @@ void UpscaleDisplayTest::displayShowsTheState()
     // the interval they were measured over. Before that there is nothing
     // measured, and the display says so rather than showing a zero.
     QVERIFY2(display.text().contains(QStringLiteral("Client buffer updates: unknown")), qPrintable(display.text()));
+    // The frame rate a person turned this on for is stated as unmeasured
+    // rather than as zero until a screen has actually presented something.
+    QVERIFY2(display.text().contains(QStringLiteral("Presented: unknown")), qPrintable(display.text()));
     for (int frame = 0; frame < 10; ++frame) {
         display.countClientUpdate(nullptr);
         display.countRepaint();

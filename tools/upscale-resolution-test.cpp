@@ -55,6 +55,37 @@ int main()
             assert(canUpscale(desiredResolution(destination, ResolutionPreset::Custom, percentage), destination));
         }
     }
+    // A client whose buffer is the logical screen times an integer scale can
+    // only be moved in whole steps, so a wish is answered with the reachable
+    // size nearest to it. An upright 4K screen at scale 1 offers no step at
+    // all; at scale 2 the only one is a half; at scale 3 a third is below what
+    // FSR 1 enlarges from, which leaves two thirds.
+    assert(reachableScale(output, 1, ResolutionPreset::Performance, 50) == 0);
+    assert(reachableScale(output, 2, ResolutionPreset::Performance, 50) == 1);
+    assert((scaledRequest(output, 2, 1) == UpscaleSize{1920, 1080}));
+    assert(reachableScale(output, 3, ResolutionPreset::Performance, 50) == 2);
+    assert((scaledRequest(output, 3, 2) == UpscaleSize{2560, 1440}));
+    assert((scaledRequest(output, 3, 1) == UpscaleSize{1280, 720}));
+    assert(upscaleSizing(scaledRequest(output, 3, 1), output) == UpscaleSizing::BelowHalf);
+    // A quality wish on a screen that can only halve is answered with the half
+    // rather than refused, and the caller reports what was asked for.
+    assert(reachableScale(output, 2, ResolutionPreset::Quality, 50) == 1);
+    // Asking for no reduction asks for no scale.
+    assert(reachableScale(output, 2, ResolutionPreset::Automatic, 50) == 0);
+    assert(reachableScale(output, 2, ResolutionPreset::Native, 50) == 0);
+    assert(reachableScale(output, 2, ResolutionPreset::Custom, 100) == 0);
+    // A fractional desktop scale still offers whole steps below it.
+    assert(reachableScale(output, 1.5, ResolutionPreset::Quality, 50) == 1);
+    assert((scaledRequest(output, 1.5, 1) == UpscaleSize{2560, 1440}));
+    assert(scaledRequest(output, 0, 1).width == 0);
+    assert(scaledRequest(output, 2, 0).width == 0);
+    // Whatever is reachable must be something the scaler then accepts.
+    for (const double scale : {1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0}) {
+        for (const UpscaleSize destination : std::array{output, UpscaleSize{2560, 1440}, UpscaleSize{1920, 1080}}) {
+            const int step = reachableScale(destination, scale, ResolutionPreset::Performance, 50);
+            assert(step == 0 || canUpscale(scaledRequest(destination, scale, step), destination));
+        }
+    }
     assert(sharpeningAmount(false, 100) == 0);
     assert(sharpeningAmount(true, 0) == 0);
     assert(sharpeningAmount(true, 100) == 1);

@@ -48,9 +48,13 @@ target_link_libraries(
 if(KWin_VERSION VERSION_LESS 6.7)
     set(driver_sources
         effect_driver.cpp
+        ../src/plugins/upscale/application.cpp
         ../src/plugins/upscale/display.cpp
+        ../src/plugins/upscale/framestatistics.cpp
+        ../src/plugins/upscale/framestatistics.cpp
         ../src/plugins/upscale/display.h
         ../src/plugins/upscale/eligibility.cpp
+        ../src/plugins/upscale/modeoverride.cpp
         ../src/plugins/upscale/overlay.cpp
         ../src/plugins/upscale/snapshot.cpp
         ../src/plugins/upscale/upscale.cpp
@@ -105,8 +109,53 @@ if(KWin_VERSION VERSION_LESS 6.7)
 endif()
 
 add_executable(
+    upscale_framestatistics_test
+    framestatistics_test.cpp
+    ../src/plugins/upscale/framestatistics.cpp
+)
+target_include_directories(upscale_framestatistics_test PRIVATE ../src/plugins/upscale)
+target_link_libraries(upscale_framestatistics_test PRIVATE Qt6::Test)
+add_test(NAME upscale-framestatistics COMMAND upscale_framestatistics_test)
+
+add_executable(
+    upscale_render_shape_test
+    render_shape_test.cpp
+    ../src/plugins/upscale/scaler.cpp
+    ../src/plugins/upscale/upscale.qrc
+)
+target_include_directories(upscale_render_shape_test PRIVATE ../src/plugins/upscale)
+target_link_libraries(upscale_render_shape_test PRIVATE kwin Qt6::Test)
+add_test(NAME upscale-render-shape COMMAND upscale_render_shape_test)
+set_tests_properties(
+    upscale-render-shape
+    PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;QT_QPA_PLATFORM=offscreen"
+)
+if(KWin_VERSION VERSION_LESS 6.7)
+    add_test(NAME upscale-render-shape-gles COMMAND upscale_render_shape_test)
+    set_tests_properties(
+        upscale-render-shape-gles
+        PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;KWIN_COMPOSE=O2ES;QT_QPA_PLATFORM=offscreen"
+    )
+endif()
+
+add_executable(upscale_application_test application_test.cpp ../src/plugins/upscale/application.cpp)
+target_include_directories(upscale_application_test PRIVATE ../src/plugins/upscale)
+target_compile_definitions(
+    upscale_application_test
+    PRIVATE -DTRANSLATION_DOMAIN="kwin_effect_upscale"
+)
+target_link_libraries(upscale_application_test PRIVATE kwin Qt6::Test KF6::I18n KF6::ConfigCore)
+target_compile_definitions(
+    upscale_application_test
+    PRIVATE
+        -DUPSCALE_APPLICATION_DEFAULTS="${CMAKE_CURRENT_SOURCE_DIR}/../src/plugins/upscale/kwinupscalerc"
+)
+add_test(NAME upscale-application COMMAND upscale_application_test)
+
+add_executable(
     upscale_snapshot_test
     snapshot_test.cpp
+    ../src/plugins/upscale/application.cpp
     ../src/plugins/upscale/snapshot.cpp
     ../src/plugins/upscale/eligibility.cpp
 )
@@ -117,7 +166,9 @@ add_test(NAME upscale-snapshot COMMAND upscale_snapshot_test)
 
 set(display_test_sources
     display_test.cpp
+    ../src/plugins/upscale/application.cpp
     ../src/plugins/upscale/display.cpp
+    ../src/plugins/upscale/framestatistics.cpp
     ../src/plugins/upscale/overlay.cpp
     ../src/plugins/upscale/snapshot.cpp
     ../src/plugins/upscale/eligibility.cpp
@@ -147,6 +198,8 @@ endif()
 if(KWIN_BUILD_KCMS)
     set(config_test_SOURCES
         config_test.cpp
+        ../src/plugins/upscale/application.cpp
+        ../src/plugins/upscale/applicationeditor.cpp
         ../src/plugins/upscale/supportinformation.cpp
         ../src/plugins/upscale/upscale_config.cpp
     )

@@ -73,6 +73,29 @@ bool UpscaleDisplay::wantsSnapshot(EffectWindow *window) const
     return window != m_announced || !m_composed.isValid() || m_composed.elapsed() >= composeInterval;
 }
 
+void UpscaleDisplay::measure(UpscaleOutput *screen)
+{
+    if (m_measured == screen) {
+        return;
+    }
+    // Frame times from two screens are not one distribution, and a screen
+    // that was unplugged has nothing left to say about the next one.
+    disconnect(m_presentation);
+    m_presented.reset();
+    m_presentationMode = -1;
+    m_measured = screen;
+    RenderLoop *loop = upscaleRenderLoop(screen);
+    if (!loop) {
+        return;
+    }
+    m_presentation = connect(loop, &RenderLoop::framePresented, this,
+                             [this](RenderLoop *, std::chrono::nanoseconds timestamp, PresentationMode mode) {
+        // The moment the screen showed it, not the moment anything drew it.
+        m_presented.record(double(timestamp.count()) / 1000000.0);
+        m_presentationMode = int(mode);
+    });
+}
+
 void UpscaleDisplay::update(UpscaleSnapshot snapshot, EffectWindow *window)
 {
     if (window != m_announced) {
@@ -92,6 +115,12 @@ void UpscaleDisplay::update(UpscaleSnapshot snapshot, EffectWindow *window)
         m_clientUpdates = 0;
         m_repaints = 0;
     }
+    snapshot.presentedRate = m_presented.averageRate();
+    snapshot.presentedLow = m_presented.lowRate(0.01);
+    snapshot.presentedPercentile = m_presented.percentileFrameTime(0.99);
+    snapshot.presentedWorst = m_presented.worstFrameTime();
+    snapshot.presentedFrames = int(m_presented.frames());
+    snapshot.presentation = m_presentationMode;
     snapshot.clientUpdates = m_clientUpdateRate;
     snapshot.repaints = m_repaintRate;
     snapshot.interval = m_interval;
@@ -175,6 +204,7 @@ void UpscaleDisplay::resetSampling()
     m_clientUpdates = 0;
     m_repaints = 0;
     m_clientUpdateRate = -1;
+    m_presented.reset();
     m_repaintRate = -1;
     m_interval = 0;
 }

@@ -12,11 +12,14 @@ class QCheckBox;
 class QComboBox;
 class QFormLayout;
 class QLabel;
+class QPushButton;
 class QSlider;
 class QSpinBox;
 
 namespace KWin
 {
+
+class UpscaleApplicationEditor;
 
 class UpscaleEffectConfig : public KCModule
 {
@@ -35,6 +38,10 @@ private:
     void showSettings();
     void applySettings();
     void addDisplayControls(QFormLayout *layout);
+    void addApplicationControls(QFormLayout *layout);
+    void resetApplications();
+    static void reconfigureEffect();
+    void updateApplicationSummary();
     void addStatusControls(QFormLayout *layout);
     void connectControls();
     void showSupportInformation(const QString &information);
@@ -54,6 +61,10 @@ private:
     QCheckBox *m_osdStatistics;
     QCheckBox *m_osdDeveloper;
     QSpinBox *m_osdTimeout;
+    QCheckBox *m_unknown;
+    UpscaleApplicationEditor *m_editor;
+    QLabel *m_applications;
+    QPushButton *m_resetApplications;
     QLabel *m_build;
     QLabel *m_status;
 };
