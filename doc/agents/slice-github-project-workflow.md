@@ -214,6 +214,8 @@ remain identified as optional in the permanent documentation.
 - Validation not explicitly recorded below remains pending.
 - Next: obtain hosted phase 1 validation and continue with security controls.
   Coordinate with the pipeline slice before any settings change.
+- CodeQL and dependency review are implemented and locally validated; their
+  hosted runs remain outstanding. See the phase 2 record below.
 
 ### Phase 1: contribution entry points
 
@@ -253,6 +255,76 @@ package/artifact URLs, which can carry temporary access tokens. Changed those
 fields to request package filenames/versions or workflow run/artifact IDs and
 explicitly exclude signed URLs and tokens. Latest-revision CI and review remain
 required after publishing the correction.
+
+### Phase 2: CodeQL and dependency review
+
+This work is based on `master` at `c03e834`. The separate security-reporting
+branch, PR #10, edits the same slice document; its record of the enabled
+repository settings and the resulting conflict belong to that pull request.
+Secret scanning, push protection, Dependabot alerts and private vulnerability
+reporting are not touched here.
+
+Reinspected the live settings first. The repository is public, secret scanning,
+push protection and Dependabot security updates report enabled, and non-provider
+patterns and validity checks report disabled. CodeQL default setup reports
+`not-configured`, with `actions`, `c-cpp` and `python` as its detected
+languages, which are exactly the three this scan covers.
+
+Default setup was not adopted. Its C++ path runs autobuild on a hosted runner,
+which cannot configure this project against KWin and KDE Frameworks. Instead
+`tools/run-codeql.py` drives the pinned CodeQL command line over the project's
+own CMake and Ninja build inside the maintained Trixie container.
+`upscale-codeql` in `.pre-commit-config.yaml` is its single definition,
+`tools/run-checks.py codeql` runs it, and `.github/workflows/codeql.yml` runs
+that same entry point weekly and on dispatch before uploading SARIF. No second
+list of checks was introduced. The command line is pinned by release tag
+`codeql-bundle-v2.27.0` and its published SHA-256, verified on download; `curl`
+was added to the Trixie Containerfile for that fetch, since the bundle is a
+release archive rather than a distribution package.
+
+Observed results, all on the current branch content:
+
+- The three scans completed in the maintained container through the real entry
+  point. C++: 18 of 19 files; Python: 35 of 35; Actions: 13 of 13. Zero results
+  in all three at the `code-scanning` suite.
+- Querying the C++ database confirmed the production translation units
+  `main.cpp`, `scaler.cpp`, `upscale.cpp` and `upscale_config.cpp`, and the
+  generated inputs `buildinfo.cpp`, `upscaleconfig.cpp`, the moc and resource
+  units and the Wayland protocol sources. The one unextracted file is
+  `autotests/resolution_fuzz.cpp`, which compiles only in the Clang fuzzing
+  configuration; that is recorded rather than worked around.
+- A first container run swept 5973 files from the unpacked bundle into the
+  Python database. Per-language path filters now confine Python to `tools/` and
+  the workflows to `.github/`; a regression test covers the filter and that C++
+  keeps none.
+- Both container hook stages passed with the new files staged, and the tooling
+  regression suite passed with 90 tests.
+
+Dependency review is implemented as `tools/dependency_review.py` against
+GitHub's dependency-graph comparison, rather than a second policy configured
+only for the hosted run. `.github/workflows/dependency-review.yml` runs it on
+pull requests. The policy blocks advisories from moderate upwards on introduced
+dependencies, treats an unreadable severity as worse than critical, and records
+exceptions by GHSA identifier with a reason; the exception list is empty.
+
+- A representative supported-manifest change was recognised: comparing
+  `461322a...f6a3bf3` reported `actions/checkout` added in
+  `.github/workflows/review-approval.yml` with no advisories.
+- A controlled fixture run through the same entry point blocked a high-severity
+  introduced dependency, passed a low-severity one and ignored a critical
+  advisory on a removed dependency, exiting non-zero.
+- The output states the coverage limit on every run: the graph resolves the
+  pinned actions only. `debian/control`, the CMake and KDE Frameworks
+  interfaces, the pre-commit hook versions and the vendored shaders are not
+  represented, and no claim is made that apt vulnerabilities are covered.
+
+Neither check gates a pull request. The scheduled scan publishes findings so
+they can be assessed first, and dependency review is not a required status.
+Requiring either remains an owner decision and was not requested here.
+
+Still open for these two rows: hosted execution of both workflows, the first
+scheduled scan and its Security tab results, and the SARIF upload against a real
+run. Local results do not establish hosted behaviour.
 
 ## References
 
