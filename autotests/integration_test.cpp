@@ -86,16 +86,29 @@ void UpscaleIntegrationTest::lifecycle()
         QTRY_VERIFY(status().contains(QStringLiteral("Inactive: disabled")));
         configure(true, false);
         QTRY_VERIFY(status().contains(QStringLiteral("FSR 1, sharpening 0%")));
-        for (const QSize size : {QSize(128, 128), QSize(32, 32), QSize(64, 80)}) {
-            QVERIFY(client.show(size));
-            QTRY_VERIFY2(status().contains(QStringLiteral("Inactive: requires one opaque")), qPrintable(status()));
+        // Each refused buffer has to be reported by the condition that
+        // refused it. A single sentence reciting the whole eligibility rule
+        // cannot tell a game rendering at native resolution apart from one
+        // whose aspect ratio does not match the output.
+        const struct
+        {
+            QSize size;
+            QString reason;
+        } refusals[] = {
+            {QSize(128, 128), QStringLiteral("not smaller than the destination")},
+            {QSize(32, 32), QStringLiteral("less than half the destination size")},
+            {QSize(64, 80), QStringLiteral("different aspect ratio than the destination")},
+        };
+        for (const auto &refusal : refusals) {
+            QVERIFY(client.show(refusal.size));
+            QTRY_VERIFY2(status().contains(refusal.reason), qPrintable(status()));
         }
         QVERIFY(client.show(QSize(64, 64), false));
-        QTRY_VERIFY(status().contains(QStringLiteral("Inactive: requires one opaque")));
+        QTRY_VERIFY2(status().contains(QStringLiteral("not fully opaque")), qPrintable(status()));
         QVERIFY(client.show(QSize(64, 64)));
         QTRY_VERIFY(status().contains(QStringLiteral("FSR 1, sharpening 0%")));
         client.fullscreen(false);
-        QTRY_VERIFY(status().contains(QStringLiteral("Inactive: requires one opaque")));
+        QTRY_VERIFY2(status().contains(QStringLiteral("the window is not fullscreen")), qPrintable(status()));
         client.fullscreen(true);
         QTRY_VERIFY(status().contains(QStringLiteral("FSR 1, sharpening 0%")));
         {
@@ -106,7 +119,7 @@ void UpscaleIntegrationTest::lifecycle()
                 second.dispatch();
             });
             QVERIFY(second.show(QSize(64, 64)));
-            QTRY_VERIFY(status().contains(QStringLiteral("Inactive: requires one opaque")));
+            QTRY_VERIFY2(status().contains(QStringLiteral("more than one fullscreen window is eligible")), qPrintable(status()));
         }
         client.commit();
         QTRY_VERIFY(status().contains(QStringLiteral("FSR 1, sharpening 0%")));

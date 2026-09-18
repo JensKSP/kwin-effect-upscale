@@ -53,16 +53,41 @@ inline UpscaleSize desiredResolution(UpscaleSize output, ResolutionPreset preset
     return {int(std::round(output.width * ratio)), int(std::round(output.height * ratio))};
 }
 
-inline bool canUpscale(UpscaleSize input, UpscaleSize output)
+/**
+ * How a supplied buffer size relates to the destination it would be scaled to.
+ *
+ * The scaler needs one answer, but a refused buffer needs the condition that
+ * actually refused it: waiting for the next commit, a game rendering at native
+ * resolution and a wrong aspect ratio are three different problems.
+ */
+enum class UpscaleSizing {
+    Supported,
+    EmptyBuffer,
+    NotSmaller,
+    BelowHalf,
+    AspectRatio,
+};
+
+inline UpscaleSizing upscaleSizing(UpscaleSize input, UpscaleSize output)
 {
-    if (input.width <= 0 || input.height <= 0 || output.width <= input.width || output.height <= input.height
-        || double(output.width) > 2.0 * input.width || double(output.height) > 2.0 * input.height) {
-        return false;
+    if (input.width <= 0 || input.height <= 0) {
+        return UpscaleSizing::EmptyBuffer;
+    }
+    if (output.width <= input.width || output.height <= input.height) {
+        return UpscaleSizing::NotSmaller;
+    }
+    if (double(output.width) > 2.0 * input.width || double(output.height) > 2.0 * input.height) {
+        return UpscaleSizing::BelowHalf;
     }
     // Independently rounding both dimensions can move the aspect ratio by
     // half a pixel on each axis. Use cross products, without integer overflow.
     const double difference = std::abs((double(input.width) * output.height) - (double(input.height) * output.width));
-    return difference <= 0.5 * (double(output.width) + output.height);
+    return difference <= 0.5 * (double(output.width) + output.height) ? UpscaleSizing::Supported : UpscaleSizing::AspectRatio;
+}
+
+inline bool canUpscale(UpscaleSize input, UpscaleSize output)
+{
+    return upscaleSizing(input, output) == UpscaleSizing::Supported;
 }
 
 inline double sharpeningAmount(bool enabled, int percentage)

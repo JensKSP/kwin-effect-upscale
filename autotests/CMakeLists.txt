@@ -48,6 +48,7 @@ target_link_libraries(
 if(KWin_VERSION VERSION_LESS 6.7)
     set(driver_sources
         effect_driver.cpp
+        ../src/plugins/upscale/eligibility.cpp
         ../src/plugins/upscale/upscale.cpp
         ../src/plugins/upscale/upscale.h
         ../src/plugins/upscale/scaler.cpp

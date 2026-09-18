@@ -7,6 +7,7 @@
 #pragma once
 
 #include "compatibility.h"
+#include "eligibility.h"
 
 #include <QPointer>
 #include <memory>
@@ -43,8 +44,10 @@ public:
     QString status() const;
 
 private:
-    EffectWindow *candidate() const;
-    static bool eligible(EffectWindow *window);
+    // The window this effect would scale, or null with the one condition that
+    // refused it. The reason is computed only when asked for, because every
+    // painted frame asks for the candidate and none of them asks why.
+    EffectWindow *candidate(UpscaleRefusal *refusal = nullptr) const;
     void watchWindow(EffectWindow *window);
 
     std::unique_ptr<UpscaleScaler> m_scaler;
@@ -57,6 +60,10 @@ private:
     ItemRenderer *m_renderer = nullptr;
     QPointer<EffectWindow> m_renderedWindow;
     QSize m_renderedInput;
+    // Why the last paint pass over the candidate could not be replaced. It
+    // describes one frame rather than the window, so it is diagnostic only and
+    // never keeps the next frame from being scaled.
+    UpscaleRefusal m_passRefusal = UpscaleRefusal::None;
 };
 
 } // namespace KWin

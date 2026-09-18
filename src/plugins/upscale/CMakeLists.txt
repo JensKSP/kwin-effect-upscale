@@ -2,6 +2,7 @@
 # Effect
 
 set(upscale_SOURCES
+    eligibility.cpp
     main.cpp
     scaler.cpp
     upscale.cpp
