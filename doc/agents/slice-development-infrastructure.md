@@ -434,5 +434,6 @@ observed initialization and scheduling time.
 The combined production code built with GCC and Clang, warnings as errors, in
 Trixie and Neon. Runtime tests passed with both compilers: eight in Trixie and
 five in Neon. Trixie clang-tidy and metadata validation passed. Coverage measured
-1049 of 1133 lines (92.6%), above the unchanged 90% gate. Final hook checks after
-the test-timing adjustment and hosted checks/review remain pending.
+1049 of 1133 lines (92.6%), above the unchanged 90% gate. Both hook stages and coverage passed after
+the test-timing adjustment and integration of the current branch and master.
+Hosted checks and review for the published correction remain pending.
