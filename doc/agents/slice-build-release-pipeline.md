@@ -210,12 +210,27 @@ supersede earlier pending statuses.
 
 ## Remaining work
 
+- The owner-review setting now requires code-owner review with zero additional
+  approvals. Prepared `.github/CODEOWNERS` assigns `JensKSP` to all paths. Verify
+  owner-authored and outside-authored PR behaviour after CODEOWNERS reaches
+  the base branch; configuration alone is not acceptance evidence. Agents
+  must not merge or enable auto-merge without permission for the specific PR.
+- The owner approved required CodeRabbit approval and the narrow configuration
+  exception. Enable its request-changes workflow, then verify an actual bot
+  approval for the current PR head in a required `CodeRabbit approval` status.
+  Keep the human code-owner requirement independent. Use native PR/review events:
+  an unprivileged review-event signal wakes a trusted default-branch workflow,
+  which reads GitHub review metadata and publishes status without executing PR
+  code or downloading its artifacts. Missing/stale approval must stay blocked.
+  Cover rejection, dismissal, subsequent pushes and API failures with local
+  regression tests. Activate the required status after the workflow reaches
+  `master` and its first hosted result identifies the GitHub Actions source.
 - Finish automated review of the latest revision and process valid findings;
-  keep its hosted quality gate green. Versioned CodeRabbit configuration is
-  optional while the connected app uses defaults.
-- Merge through the reviewed PR when authorized, then verify default-branch
-  scheduling and dependency-update activation. Branch publication alone does
-  not activate scheduled workflows on the default branch.
+  keep its hosted quality gate green. The owner approved versioned CodeRabbit
+  configuration and required approval on 2026-09-18; activation remains below.
+- PR #1 merged through owner-enabled GitHub auto-merge. Verify default-branch
+  scheduling and dependency-update activation; the new CODEOWNERS file still
+  needs its follow-up PR merged before ownership enforcement can be tested.
 - Observe the first authorized rolling-nightly publication and stable-tag
   release, including downloaded-asset and provenance verification. Do not
   create a stable version solely to test publication or count the existing
@@ -225,7 +240,7 @@ supersede earlier pending statuses.
 
 ### Hosted feedback and review integration
 
-- Draft pull request #1 is open. Hosted package validation exposed Git's
+- Initially, draft pull request #1 was open. Hosted package validation exposed Git's
   ownership check on the local clone's `.git` directory inside Docker. A fix
   trusting that exact source repository is prepared; hosted revalidation is
   still pending.
@@ -233,8 +248,8 @@ supersede earlier pending statuses.
   investigate findings, fix valid issues and explain dismissed findings.
 - Prepared advisory CodeRabbit settings and validated them against its official
   schema. Automatic approval review rejected staging the configuration under
-  the repository's tool-configuration ban; a specific exception is awaiting
-  approval. GitHub App installation by the repository owner remains required.
+  the repository's tool-configuration ban. The owner subsequently installed the
+  app and approved the exception and required approval on 2026-09-18.
 - Current Debian package builds were byte-identical and passed lintian. The
   extracted source archive built, passed all five runtime tests and installed
   into a staging directory.
@@ -251,8 +266,8 @@ exact exception. Both container hook stages passed after the correction.
 
 Agents must now watch the latest PR checks and review feedback, fix valid issues
 and explain dismissed findings. Advisory CodeRabbit configuration passed schema
-validation, but its repository-rule exception and owner app installation remain
-pending. The verification-only nightly dispatch also exercises the prepared BSD
+validation; its repository-rule exception and owner app installation were still
+pending at that point. The verification-only nightly dispatch also exercises the prepared BSD
 workflow. Hosted validation of this follow-up is still pending.
 
 The owner installed CodeRabbit and connected the account. On 2026-09-18 its
@@ -313,3 +328,38 @@ required after pushing the consolidation.
 The owner requested the CodeRabbit review badge in the README on 2026-09-18.
 Added it alongside the existing CI badges and recorded that specific exception
 in the repository rules; the general restriction on tool attribution remains.
+
+### Owner review and approval gate follow-up
+
+GitHub merged PR #1 as `461322a` through the owner's previously enabled
+auto-merge. No agent initiated that merge. Dependabot subsequently opened
+PRs #3 and #4 for the root workflows and environment composite action, providing
+observed default-branch activation evidence for those two locations.
+
+The follow-up branch adds the README's non-working warning and TL;DR, assigns
+all paths to the owner, and explicitly forbids agents from merging or enabling
+auto-merge without permission for the particular PR. The live review setting
+requires code-owner review with zero additional approvals; CODEOWNERS must
+reach the base branch before its enforcement can be tested.
+
+The owner explicitly approved `.coderabbit.yaml` and required bot approval.
+The configuration passed validation against CodeRabbit's official schema.
+The event-driven approval verifier reads authenticated review metadata and
+checks the exact head commit, including paginated review history. Its trusted
+workflow runs only default-branch code. A separate unprivileged review signal
+supports fork PR events without granting write access to PR code.
+
+Both standard container hook stages passed after formatting and docstring
+corrections. The local regression suite covers absent/stale approval, another
+identity, requested changes, dismissal, head movement/closure, API failure,
+same-commit PRs and read-only inspection. Hosted review, live status publication,
+requiring the status and owner/outside-author enforcement remain to be verified
+after publication and the owner's merge of the trusted workflow.
+
+PR #5 contains this follow-up. Its first hosted CI run, `35331593827`, passed
+the complete Quality gate at `44f4b1d`. GitHub reported no CODEOWNERS syntax
+errors, and CodeRabbit confirmed it loaded `.coderabbit.yaml`; its review is
+still pending. The owner enabled auto-merge and merged dependency PRs #2–#4.
+The follow-up incorporates those changes and uses their checkout pin in the new
+approval workflow. Work continues in an isolated worktree under `build/` so
+concurrent C++ implementation cannot change the tree being checked or submitted.

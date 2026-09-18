@@ -167,6 +167,8 @@ effect sends no client requests.
 
 ## Progress and remaining work
 
+- The README now leads with the observed non-working state and a short overview;
+  build and package availability are explicitly not claims of working upscaling.
 - [x] Select and implement FSR 1, optional RCAS and global configuration.
 - [x] Implement colour conversions and record automated shader/configuration tests.
 - [x] Measure A0 and A1 on the real output; record the unusable aggregate score.

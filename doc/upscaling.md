@@ -1612,12 +1612,36 @@ from master. Scheduled runs continue publishing changed master commits.
 CodeRabbit is connected through its GitHub App to review pull requests. Reviews
 on this public repository use its [free open-source offer](https://www.coderabbit.ai/oss).
 The app is managed in GitHub's installed-app settings; no model API key or CI
-secret is required. Its service settings currently use the defaults.
+secret is required. `.coderabbit.yaml` enables its request-changes workflow:
+actionable findings request changes; approval follows review of the latest
+commit and resolution of blocking findings. Automatic code-writing features
+are disabled. The repository's own checks define its documentation requirements;
+CodeRabbit's generic docstring percentage check is disabled.
+
+The `CodeRabbit approval` status verifies an actual approval by the installed
+bot account for the current commit. Review completion alone does not pass it.
+The status is intended to become required after its workflow reaches `master`
+and a hosted run verifies its GitHub Actions identity. Until then, only the
+existing Quality gate is a required status.
+
+PR events and an unprivileged review-event workflow wake a trusted workflow
+that reads current GitHub review metadata. It executes only default-branch code
+and never consumes PR artifacts. Approval of an older commit, a dismissed
+approval or a change request cannot pass. Review-fetch errors leave the status
+pending after invalidation; event delivery or API outages may delay updates.
+Because commit statuses are shared by PRs with the same head commit, all open
+PRs sharing that commit must have approval. The workflow can be dispatched
+manually to refresh statuses after an outage.
 
 The public repository protects `master`: changes go through pull requests,
 the branch must be up to date with a passing GitHub Actions `Quality gate`,
-and review conversations must be resolved. A second human approval is not
-required for the sole maintainer. Administrators retain GitHub's branch bypass
+and review conversations must be resolved. `.github/CODEOWNERS` assigns all
+paths to `JensKSP`, including the ownership policy itself. Code-owner review is
+required with zero additional approvals; the intended policy is owner approval
+for other authors without requiring a second reviewer for the owner's own PRs.
+GitHub uses the CODEOWNERS file from the PR's base branch, so this policy needs
+that file on `master` before it can take effect.
+Administrators retain GitHub's branch bypass
 option for owner-directed recovery; force pushes and branch deletion remain
 disabled in the normal policy. Stable release tags matching `v*` cannot be
 updated or deleted except through the explicit `JensKSP` owner bypass. The
@@ -1629,14 +1653,22 @@ rules. Access to owner credentials is not approval. GitHub authorizes the accoun
 making a request; separate credentials without bypass privileges are necessary
 to enforce a distinction between owner and agent at the permission level.
 
-Review findings are advisory and do not replace the required `Quality gate`.
+Merging also requires explicit owner permission for the particular PR when no
+override is involved. Agents may prepare and push changes, follow checks and
+address reviews, but must not merge, enqueue a merge or enable auto-merge on
+their own. The owner normally enables GitHub auto-merge in the web interface.
+
+CodeRabbit approval supplements the required `Quality gate` and human ownership
+review; it replaces neither. CodeRabbit's explicit `approve` and top-level
+`resolve` commands can bypass its normal approval conditions and require the
+owner's permission for that specific override, just like a GitHub bypass.
 Investigate each finding against the code and requirements, fix valid issues,
 and explain findings that do not require a change. After pushing fixes, check
 both CI and review feedback for the latest revision before handing back the PR.
 
 #### Optional repository services
 
-Projects, Discussions, CODEOWNERS, public build images in GHCR, manually
+Projects, Discussions, additional code owners, public build images in GHCR, manually
 dispatched hardware workflows, signed commits or release tags, and community
 conduct guidance/saved replies are optional future capabilities. Adopt them
 when contribution volume, support needs, additional maintainers or measured
