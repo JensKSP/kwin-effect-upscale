@@ -9,15 +9,19 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 Implementation started on 2026-09-18 under the request to complete the proposed
 improvements. This separate work package covers the public project's
-contribution, security and maintenance workflow. Phase 1 prepares contribution
-forms and guidance; hosted activation remains subject to the owner's merge.
+contribution, security and maintenance workflow. PR #9 has merged: contribution
+forms and guidance are on the default branch, with interactive form acceptance
+still pending. Provider secret scanning, push protection, Dependabot alerts and
+security updates, and private vulnerability reporting are enabled and read back.
+CodeQL and dependency review remain to be implemented.
 It does not change the implementation priority of the
 [development infrastructure slice](slice-development-infrastructure.md).
 
-## Start state
+## Historical start state
 
 The repository is public at `JensKSP/kwin-effect-upscale`. Inspection of the
-GitHub API on 2026-09-18 found:
+GitHub API on 2026-09-18, before implementation, found the following. These are
+historical observations; current progress is recorded above and below:
 
 - Issues and the repository Projects setting enabled; Discussions and Wiki
   disabled. A Projects setting does not establish that a project board exists.
@@ -30,8 +34,8 @@ GitHub API on 2026-09-18 found:
 - No issue forms, PR template or release-note category configuration in the
   inspected `.github/` tree.
 
-The [pipeline slice](slice-build-release-pipeline.md) owns the active
-[pipeline PR](https://github.com/JensKSP/kwin-effect-upscale/pull/1): build and
+At the start of this plan, the [pipeline slice](slice-build-release-pipeline.md)
+owned the then-active [pipeline PR](https://github.com/JensKSP/kwin-effect-upscale/pull/1): build and
 release gates, provenance, action dependency updates, repository protection and
 the initial review integration. CodeRabbit is connected and has completed its
 first review. The pipeline PR contains weekly Dependabot updates for workflows
@@ -215,16 +219,16 @@ remain identified as optional in the permanent documentation.
 - Next: verify the activated contribution forms and implement CodeQL and
   dependency review. Native security controls are enabled, as recorded below.
 
-### Phase 1: contribution entry points
+### Phase 1: contribution entry points (preparation history)
 
 Reinspection after master `2979b60` found no issues or milestones. Existing
 labels already cover bugs, enhancements, documentation, build, CI, upscaling
 and tests; reuse those rather than create competing names. Auto-merge, merged
 branch deletion, Discussions and Wiki are now enabled. Preserve these settings;
 the older start-state snapshot does not authorize undoing intervening changes.
-Secret scanning, push protection, Dependabot security updates and private
-vulnerability reporting remain disabled; CodeQL default setup is not configured.
-Those security controls belong to the next phase.
+At that inspection, secret scanning, push protection, Dependabot security
+updates and private vulnerability reporting were disabled. The security phase
+below subsequently enabled them. CodeQL default setup remains unconfigured.
 
 Prepare four native issue forms (rendering, build/install, hardware acceptance,
 feature request), a short PR template and a contributor guide with diagnostic
@@ -267,11 +271,10 @@ required after publishing the correction.
 - [GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site)
 - [Immutable releases](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases)
 
-## Security controls preparation
+## Security controls: preparation and activation
 
-The contribution entry points are prepared separately in PR #9. While that PR
-receives review, prepare the next phase's reporting policy and native security
-controls without changing its branch. Readback on 2026-09-18 found Dependabot
+The security phase began while PR #9 was under review; that PR has since merged.
+The initial readback on 2026-09-18, before activation, found Dependabot
 alerts disabled (the documented 404 response), automated security fixes disabled,
 private vulnerability reporting disabled and both secret scanning and push
 protection disabled. Dependency-graph SBOM retrieval also returned 404; that
