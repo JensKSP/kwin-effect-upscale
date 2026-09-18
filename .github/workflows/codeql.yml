@@ -1,0 +1,83 @@
+# SPDX-FileCopyrightText: None
+# SPDX-License-Identifier: CC0-1.0
+
+name: CodeQL
+
+# A scheduled scan, not a pull-request gate. Its findings are assessed first;
+# only then does requiring it become a question.
+on:
+  schedule:
+    - cron: '43 5 * * 1'
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Query suite
+        type: choice
+        default: code-scanning
+        options:
+          - code-scanning
+          - security-extended
+          - security-and-quality
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+
+jobs:
+  scan:
+    name: CodeQL scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      # Only to publish the scan's own results to the Security tab.
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/environment
+      # The pinned bundle is a fixed download, so it is kept between runs.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: build/codeql-cli
+          key: codeql-${{ runner.arch }}-${{ hashFiles('tools/run-codeql.py') }}
+
+      # The C++ extractor has to observe the real compilation, and this project
+      # builds against KWin and KDE Frameworks. That build exists in the
+      # maintained container and nowhere else on a hosted runner, so the scan
+      # runs there, with the same command a developer runs locally.
+      - name: Scan in the maintained container
+        env:
+          UPSCALE_CODEQL_SUITE: ${{ inputs.suite || 'code-scanning' }}
+        run: |
+          mkdir -p build
+          docker run --rm -v "$GITHUB_WORKSPACE:/src" -w /src -e UPSCALE_CODEQL_SUITE \
+            upscale-check:local python3 -B tools/run-checks.py codeql \
+            2>&1 | tee build/codeql.log
+
+      - name: Collect the reports
+        if: always()
+        run: |
+          sudo chown -R "$(id -u):$(id -g)" build
+          mkdir -p build/codeql-results
+          # After a failed scan there may be nothing to copy; the failed step
+          # above already decides the job, and the upload below is skipped.
+          cp build/codeql/*.sarif build/codeql-results/ || true
+
+      - uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+        with:
+          sarif_file: build/codeql-results
+          checkout_path: ${{ github.workspace }}
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: codeql-reports
+          path: |
+            build/codeql.log
+            build/codeql-results/
+          if-no-files-found: ignore
+          retention-days: 14

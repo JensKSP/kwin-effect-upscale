@@ -78,6 +78,27 @@ permission required for ThreadSanitizer. Ninja and the other tools schedule
 their own workers; do not wrap independent full-machine builds in another
 parallel launcher.
 
+The security analysis runs in the same container and through the same check
+list. Its first run fetches the pinned CodeQL command line into
+`build/codeql-cli`, which takes a few hundred megabytes:
+
+```sh
+podman run --rm -v "$PWD:/src" -w /src upscale-check:trixie \
+    python3 -B tools/run-checks.py codeql
+```
+
+Reports land in `build/codeql/` as SARIF, one file per language. The weekly
+hosted scan runs the same command and publishes its results to the repository's
+Security tab. Dependency review has its own entry point; a recorded comparison
+exercises the policy without a live pull request:
+
+```sh
+python3 -B tools/dependency_review.py --changes <recorded-comparison.json>
+```
+
+The handbook describes [what these two cover and what they do
+not](doc/upscaling.md#security-analysis).
+
 `.pre-commit-config.yaml` is the single check configuration. With pre-commit
 installed (for example, `pipx install pre-commit==4.6.2`), install both hooks
 once, then run both stages before submitting:
