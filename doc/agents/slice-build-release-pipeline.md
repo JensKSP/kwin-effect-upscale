@@ -211,26 +211,27 @@ supersede earlier pending statuses.
 ## Remaining work
 
 - The owner-review setting now requires code-owner review with zero additional
-  approvals. Prepared `.github/CODEOWNERS` assigns `JensKSP` to all paths. Verify
-  owner-authored and outside-authored PR behaviour after CODEOWNERS reaches
-  the base branch; configuration alone is not acceptance evidence. Agents
+  approvals. `.github/CODEOWNERS` is on `master` and assigns `JensKSP` to all paths.
+  Verify owner-authored and outside-authored PR behaviour;
+  configuration alone is not acceptance evidence. Agents
   must not merge or enable auto-merge without permission for the specific PR.
 - The owner approved required CodeRabbit approval and the narrow configuration
-  exception. Enable its request-changes workflow, then verify an actual bot
+  exception. Its request-changes workflow is configured; verify an actual bot
   approval for the current PR head in a required `CodeRabbit approval` status.
   Keep the human code-owner requirement independent. Use native PR/review events:
   an unprivileged review-event signal wakes a trusted default-branch workflow,
   which reads GitHub review metadata and publishes status without executing PR
   code or downloading its artifacts. Missing/stale approval must stay blocked.
-  Cover rejection, dismissal, subsequent pushes and API failures with local
-  regression tests. Activate the required status after the workflow reaches
-  `master` and its first hosted result identifies the GitHub Actions source.
+  Local regression tests cover rejection, dismissal, subsequent pushes and API
+  failures. The trusted workflow is now on `master` and its first manual run
+  succeeded without open PRs. Verify its status source on the activation PR,
+  enable the required context and observe live approval/revocation transitions.
 - Finish automated review of the latest revision and process valid findings;
   keep its hosted quality gate green. The owner approved versioned CodeRabbit
   configuration and required approval on 2026-09-18; activation remains below.
-- PR #1 merged through owner-enabled GitHub auto-merge. Verify default-branch
-  scheduling and dependency-update activation; the new CODEOWNERS file still
-  needs its follow-up PR merged before ownership enforcement can be tested.
+- PRs #1 and #5 merged through owner-enabled GitHub auto-merge. Dependabot opened
+  updates for all three configured locations; the owner merged those updates.
+  Default-branch scheduled execution still needs observation.
 - Observe the first authorized rolling-nightly publication and stable-tag
   release, including downloaded-asset and provenance verification. Do not
   create a stable version solely to test publication or count the existing
@@ -363,3 +364,11 @@ still pending. The owner enabled auto-merge and merged dependency PRs #2–#4.
 The follow-up incorporates those changes and uses their checkout pin in the new
 approval workflow. Work continues in an isolated worktree under `build/` so
 concurrent C++ implementation cannot change the tree being checked or submitted.
+
+The final PR #5 revision `9bc7760` passed CI run `35332688551` and merged through
+the owner's auto-merge as `f6a3bf3` on 2026-09-18. The first default-branch
+`Review approval` dispatch, run `35333197316`, succeeded. No PRs were open, so
+that run establishes workflow execution but not status publication or approval.
+CodeRabbit had not submitted a review on PR #5 at merge time; the bootstrap
+merge is not evidence of bot approval. A documentation follow-up records the
+deployed policy and provides the first open PR for status-source verification.
