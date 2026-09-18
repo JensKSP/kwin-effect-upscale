@@ -275,6 +275,97 @@ passed in the Trixie container against the documentation changes. The first
 regression run failed because the isolated check copy lacked Git history;
 using the existing repository history resolved that test-setup error.
 
+### Wine, Valve Proton and existing Wayland solutions, 2026-09-18
+
+Scope: investigate a launch-time display override for native Linux games,
+upstream Wine and Valve Proton without patching KWin. Treat the X11 and native
+Wayland Wine drivers as separate paths, and do not substitute GE-Proton for
+Valve Proton acceptance. Existing software and its implementation are part of
+the investigation.
+
+Planned checks: inspect upstream display enumeration, mode-change emulation,
+virtual desktops and surface presentation; compare existing Wayland solutions;
+run isolated Windows display-API probes where runtimes are available. Measure
+what the application sees separately from the buffer delivered to KWin. A
+solution must preserve the physical output mode, input mapping and restoration,
+and must deliver an original smaller buffer to the effect. Real games, HDR and
+VRR remain separate acceptance requirements.
+
+Session observation: KDE Wayland is now active on wzpc, KWin 6.3.6 reports the
+`upscale` effect loaded, and HDMI-A-1 has logical geometry 1280 × 720 at scale 3
+and 120 Hz. This is a 3840 × 2160 physical destination. No session setting was
+changed for this inspection. Wine was not available on the terminal's PATH;
+Valve Proton 11.0-2 was selected as the latest stable release after checking
+Valve's release list. Its Wine submodule is
+`dc26e61847081a1b5cb0733dc30feba6ee575482`. No Proton runtime was found in the
+checked default Steam library paths; Proton execution and real-game acceptance
+remain pending identification of the Steam installation.
+
+#### Observed Wine results
+
+A Windows GDI test program and a read-only KWin observer ran in a disposable
+Trixie container, using Wine `10.0~repack-6`, KWin 6.3.6, QPainter and a
+3840 × 2160 virtual output at scale 1. The observer made no resolution requests.
+The program queried `GetSystemMetrics` and `EnumDisplaySettings`, optionally
+requested 1920 × 1080 with `ChangeDisplaySettings`, and painted a borderless
+window at the size Windows reported. All prefixes and probe sources are under
+`build/wine-resolution-research/`; no installed game prefix was modified.
+
+| Test | Windows observation | KWin observation |
+| --- | --- | --- |
+| Xwayland baseline | 3840 × 2160 | Fullscreen; 3840 × 2160 buffer and destination. |
+| Xwayland mode request | The API returned success, but current mode and screen metrics remained 3840 × 2160, including after eight seconds. | Fullscreen; still a 3840 × 2160 buffer and destination. |
+| Native Wayland mode request | Screen metrics and current mode changed to 1920 × 1080; restoration returned them to 3840 × 2160. | A 3840 × 2304 backing buffer with a 3840 × 2160 destination; KWin did not mark this test window fullscreen. No smaller scaler input. |
+| Xwayland named virtual desktop at 1920 × 1080 | The child program reported 1920 × 1080 throughout. | After initial resize, the desktop supplied a 1920 × 1080 buffer and destination in a decorated 1928 × 1113 frame. It was not fullscreen. |
+
+The first native run stopped when Wine requested pointer locking without a
+pointer device. The completed native test registered a virtual input device;
+KWin's interface-permission test override was confined to that disposable
+headless session. The first virtual-desktop launcher failed to start its child
+because of path escaping; the completed run used a corrected argument and
+file-based child measurements. These setup failures are not game results.
+
+Wine's virtual desktop therefore demonstrates the desired Windows-visible
+size and smaller buffer, but still needs fullscreen presentation and input
+mapping. The native GDI result demonstrates why Windows mode success alone is
+insufficient. Neither test establishes Vulkan, DXVK, vkd3d-proton, HDR or VRR
+behaviour, and neither is a Valve Proton runtime test.
+
+The source survey found Gamescope, Sommelier, waywall, Wine virtual desktops,
+and GE-Proton's custom FSR mode. The handbook records links and distinctions.
+Sommelier at `3d7104654150b0759fbdeb271148ba8da81f5a23` translates both output
+sizes and `xdg_toplevel.configure` sizes; its architecture delegates composition
+to the host. A similar launch helper with a private Xwayland instance is a
+candidate for consistent per-game display information while retaining smaller
+buffers for KWin. It is not implemented or tested here. Valve Proton 11.0-2's
+Vulkan source also contains a host-size blit path: measure which path is used
+rather than assuming Windows display emulation leaves upscaling to KWin.
+
+Next experiments: verify a proxy forwards original small buffers and viewport
+mapping on unpatched KWin; exercise Wine 10.0 and official Proton 11.0-2 with
+Vulkan/DXVK and D3D12; compare borderless and exclusive fullscreen; verify
+input, subsurfaces, launcher children, output scaling, restoration, HDR and VRR.
+No universal effect-only forcing path has been accepted.
+
+#### Container toolchain follow-up
+
+The Wine observer exposed a missing Ninja executable in the cached Trixie
+check image. CMake is already a build dependency; both maintained Containerfiles
+already install GCC through `build-essential` and install Clang explicitly.
+Ninja was added to `debian/control`, the shared dependency list. Both image
+builds now fail if CMake, Ninja, GCC or Clang cannot run. The maintained images
+were rebuilt successfully, and a C++23 program configured with Ninja, compiled,
+linked and ran under both compilers in each image, with warnings as errors:
+
+| Image | CMake | Ninja | GCC | Clang |
+| --- | --- | --- | --- | --- |
+| Trixie | 3.31.6 | 1.12.1 | 14.2.0 | 19.1.7 |
+| neon unstable | 3.30.5 | 1.11.1 | 13.3.0 | 18.1.3 |
+
+This verifies toolchain availability, not a build of the concurrently modified
+production effect. Wine experiment packages remain confined to the disposable
+research container. Rebuilding is required to update existing cached images.
+
 ### Implementation checklist
 
 - [x] Select FSR 1 with optional RCAS as the initial implementation approach.

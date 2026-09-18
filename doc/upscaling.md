@@ -46,7 +46,7 @@ should help obtain a smaller buffer without patching KWin, then enlarge that
 buffer on the physical output.
 
 **The primary platform is a KWin Wayland session. Both native Wayland games
-and Xwayland games, including Proton games, must be supported.** Xwayland
+and Xwayland games, including Wine and Valve Proton games, must be supported.** Xwayland
 compatibility is required within the Wayland session; it does not imply a
 requirement for a separate X11 desktop session. Resolution-control mechanisms
 may differ between the two client types and require separate validation.
@@ -360,6 +360,64 @@ in-game guidance and continued scaling of eligible buffers. Acceptance must
 measure actual committed sizes and exercise native Wayland and Xwayland games,
 including borderless fullscreen, ignored requests and mode changes. HDR and VRR
 remain requirements for any selected route.
+
+### Wine, Valve Proton and launch-time control
+
+Support includes upstream Wine as packaged by Debian Trixie and official Valve
+Proton, not only native Linux applications or third-party Proton variants.
+For the 2026-09-18 investigation, these targets are Wine 10.0
+(`10.0~repack-6`) and Valve Proton 11.0-2, the latest stable release listed by
+[Valve](https://github.com/ValveSoftware/Proton/releases/tag/proton-11.0-2).
+Record the runtime version and actual display driver in every result. A Wine
+application using `winewayland.drv` is a native Wayland client; one using
+`winex11.drv` is an Xwayland client in our target session. Do not assume that
+Valve Proton exposes the same driver options as GE-Proton.
+
+Windows display APIs add another layer between the game and KWin. A successful
+`ChangeDisplaySettings` call or an emulated Windows desktop size does not prove
+that a smaller buffer reaches this effect. In particular, Valve's reviewed
+[Vulkan presentation implementation](https://github.com/ValveSoftware/wine/blob/dc26e61847081a1b5cb0733dc30feba6ee575482/dlls/win32u/vulkan.c)
+contains a fullscreen-hack path that can create host-sized images and perform
+its own blit. Measure the game-visible mode, presentation buffer and KWin
+surface independently, including Vulkan/DXVK and D3D12/vkd3d-proton. An ordinary
+GDI test window does not establish those rendering paths.
+
+Existing software provides several relevant approaches:
+
+| Software | Mechanism and relevance |
+| --- | --- |
+| [Gamescope](https://github.com/ValveSoftware/gamescope/blob/c50ddfa9b71a75ec8df94bda8cf31d425dbdda24/README.md) | A private display environment separates game resolution from presentation resolution. It supports Xwayland and optionally native Wayland clients. Its usual nested upscaling path gives the host an already enlarged image, so using it does not establish input to our scaler. |
+| [Sommelier](https://chromium.googlesource.com/chromiumos/platform2/+/3d7104654150b0759fbdeb271148ba8da81f5a23/vm_tools/sommelier/README.md) | A protocol-aware proxy delegates composition to the host and translates output dimensions, configure sizes and coordinates. It supports native Wayland and separate Xwayland instances. This is a promising architectural reference for forwarding smaller buffers to KWin; its gaming, HDR and synchronization suitability has not been verified here. |
+| [waywall](https://tesselslate.github.io/waywall/01_options_window.html) | A nested compositor for Minecraft supports explicit fullscreen render dimensions. It demonstrates another implementation of independent fullscreen resolution, not general Wine/Proton compatibility. |
+| [Wine virtual desktop](https://github.com/wine-mirror/wine/blob/wine-10.0/programs/explorer/desktop.c) | A named desktop can present chosen dimensions to Windows programs. The outer window still needs correct fullscreen presentation and input mapping in KWin. It does not cover native Linux games. |
+| [GE-Proton](https://github.com/GloriousEggroll/proton-ge-custom/blob/master/README.md) | Its documented `WINE_FULLSCREEN_FSR_CUSTOM_MODE` belongs to its own fullscreen-FSR implementation. This is neither a stock Valve Proton control nor proof of a smaller buffer reaching KWin. |
+
+Window-capture upscalers such as
+[linux-rt-upscaler](https://github.com/baronsmv/linux-rt-upscaler) operate on X11
+or Xwayland windows and enlarge captured content. They do not provide a general
+native Wayland display override. Frame generation alone, including lsfg-vk,
+does not solve fullscreen display enumeration.
+
+Trixie Wine probes illustrate these limits: a named Xwayland virtual desktop
+made Windows report 1080p and supplied a 1080p buffer, but its outer KWin window
+was not fullscreen. A native Wayland GDI mode change made Windows report 1080p,
+but supplied a 3840 × 2304 backing buffer for a 4K destination. These are test
+client results, not game acceptance or measurements of the Vulkan paths.
+
+A launch-time protocol proxy is therefore an explicit research candidate,
+separate from the effect's rendering code. It would advertise the desired game
+size consistently before the game enumerates displays, translate fullscreen
+configure and input coordinates, and forward original buffers with a viewport
+mapping to KWin. X11 clients would use a dedicated Xwayland server rather than
+rewriting the shared desktop server's output information. The effect remains
+responsible for final enlargement on the physical output.
+
+This is a proposed architecture, not an implemented or accepted solution.
+Check buffer forwarding and lifetime, subsurfaces, popup geometry, pointer
+locking and confinement, relative input, colour descriptions, explicit
+synchronization and presentation feedback before adopting it. KWin remains
+unpatched. A launch helper would be an additional component; an effect-only
+universal resolution override remains unproven.
 
 ## Rendering and lifecycle requirements
 
