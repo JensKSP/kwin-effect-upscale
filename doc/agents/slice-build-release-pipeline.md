@@ -355,3 +355,11 @@ identity, requested changes, dismissal, head movement/closure, API failure,
 same-commit PRs and read-only inspection. Hosted review, live status publication,
 requiring the status and owner/outside-author enforcement remain to be verified
 after publication and the owner's merge of the trusted workflow.
+
+PR #5 contains this follow-up. Its first hosted CI run, `35331593827`, passed
+the complete Quality gate at `44f4b1d`. GitHub reported no CODEOWNERS syntax
+errors, and CodeRabbit confirmed it loaded `.coderabbit.yaml`; its review is
+still pending. The owner enabled auto-merge and merged dependency PRs #2–#4.
+The follow-up incorporates those changes and uses their checkout pin in the new
+approval workflow. Work continues in an isolated worktree under `build/` so
+concurrent C++ implementation cannot change the tree being checked or submitted.
