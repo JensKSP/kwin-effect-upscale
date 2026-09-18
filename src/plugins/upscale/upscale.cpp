@@ -35,7 +35,7 @@ UpscaleEffect::UpscaleEffect()
 UpscaleEffect::UpscaleEffect(ItemRenderer *renderer)
     : m_renderer(renderer)
 {
-#if !UPSCALE_NEW_API
+#if !UPSCALE_RENDER_DEVICE_API
     if (!m_renderer) {
         m_renderer = effects->scene()->renderer();
     }
@@ -48,7 +48,7 @@ UpscaleEffect::UpscaleEffect(ItemRenderer *renderer)
     }
 }
 
-#if UPSCALE_NEW_API
+#if UPSCALE_RENDER_DEVICE_API
 void UpscaleEffect::prePaintScreen(ScreenPrePaintData &data)
 {
     ItemRenderer *renderer = effects->scene()->renderer(data.view->renderDevice());
@@ -97,7 +97,7 @@ bool UpscaleEffect::supported()
         return false;
     }
     const auto context = effects->openglContext();
-#if UPSCALE_NEW_API
+#if UPSCALE_RENDER_DEVICE_API
     // KWin dropped its desktop OpenGL backend along with this API, so version
     // 3.0 means OpenGL ES 3.0 and supplies the GLSL ES 3.00 the shaders need.
     return context->hasVersion(Version(3, 0));
@@ -121,7 +121,7 @@ bool UpscaleEffect::blocksDirectScanout() const
 
 static bool rgbBuffer(SurfaceItem *surface)
 {
-#if UPSCALE_NEW_API
+#if UPSCALE_REGION_API
     GraphicsBuffer *buffer = surface->buffer();
 #else
     // This call is required, not an optimisation: KWin creates the surface
@@ -183,7 +183,7 @@ bool UpscaleEffect::eligible(EffectWindow *window)
         || surface->bufferSourceBox() != UpscaleRectF(QPointF(), input)) {
         return false;
     }
-#if UPSCALE_NEW_API
+#if UPSCALE_RENDER_DEVICE_API
     const bool opaque = surface->opaque().contains(surface->rect());
 #else
     const bool opaque = surface->opaque().contains(surface->rect().toAlignedRect());
@@ -244,7 +244,7 @@ UpscalePaintResult UpscaleEffect::drawWindow(const RenderTarget &target, const R
                 m_scaler = std::make_unique<UpscaleScaler>(m_renderer);
                 m_failed = !m_scaler->initialize();
             }
-#if UPSCALE_NEW_API
+#if UPSCALE_REGION_API
             const UpscaleRegion clip = region;
 #else
             const UpscaleRegion clip = region == infiniteRegion() ? region : viewport.mapToRenderTarget(region);
@@ -252,7 +252,7 @@ UpscalePaintResult UpscaleEffect::drawWindow(const RenderTarget &target, const R
             if (!m_failed && m_scaler->render(target, viewport, window->windowItem()->surfaceItem(), window->frameGeometry(), clip, m_strength)) {
                 m_renderedWindow = window;
                 m_renderedInput = window->windowItem()->surfaceItem()->bufferSize();
-#if UPSCALE_NEW_API
+#if UPSCALE_RENDER_DEVICE_API
                 return true;
 #else
                 return;
@@ -269,7 +269,7 @@ UpscalePaintResult UpscaleEffect::drawWindow(const RenderTarget &target, const R
     if (m_renderedWindow == window) {
         m_renderedWindow.clear();
     }
-#if UPSCALE_NEW_API
+#if UPSCALE_RENDER_DEVICE_API
     return effects->drawWindow(target, viewport, window, mask, region, data);
 #else
     effects->drawWindow(target, viewport, window, mask, region, data);

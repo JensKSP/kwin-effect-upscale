@@ -6,13 +6,16 @@
 
 FROM docker.io/library/debian:trixie
 
+ARG DEPENDENCY_EPOCH=local
 ENV DEBIAN_FRONTEND=noninteractive
 COPY debian/control /tmp/upscale-debian-control
+WORKDIR /tmp
 
-RUN apt-get update && apt-get install --no-install-recommends -y \
+RUN test -n "$DEPENDENCY_EPOCH" && apt-get update && apt-get install --no-install-recommends -y \
         build-essential \
         ca-certificates \
         clang \
+        ccache \
         clang-format \
         clang-tidy \
         clang-tools \
@@ -22,11 +25,11 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
         python3 \
         reuse \
         lintian \
+        llvm \
         devscripts \
         equivs \
         debhelper \
         pipx \
-    && cd /tmp \
     && mk-build-deps --install --remove \
         --tool "apt-get --no-install-recommends -y" upscale-debian-control \
     && rm -rf /var/lib/apt/lists/*
@@ -34,8 +37,8 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 # pre-commit drives every check in this repository and is not packaged in
 # Trixie. check-jsonschema validates the KPluginMetaData file; it is a hook
 # dependency rather than a package.
-RUN PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install pre-commit \
-    && PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install check-jsonschema
+RUN PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install pre-commit==4.6.2 \
+    && PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install check-jsonschema==0.38.0
 
 # Fail while building the image if either compiler or a supported build
 # generator is missing. Project dependencies come from debian/control above.

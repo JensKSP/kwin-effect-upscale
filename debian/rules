@@ -5,10 +5,13 @@
 # Reproducible builds: dh exports SOURCE_DATE_EPOCH from the changelog, and the
 # build information compiled into the plugin uses it instead of the wall clock.
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+# debhelper forwards its job limit to Ninja, but not to CTest through Ninja's
+# test target. Honour the same package limit unless CTest has its own override.
+export CTEST_PARALLEL_LEVEL ?= $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
 include /usr/share/dpkg/pkg-info.mk
 
 %:
-	dh $@ --buildsystem=cmake
+	dh $@ --buildsystem=cmake+ninja --builddirectory=build
 
 # Warnings are errors for developers, not for whoever is building the package on
 # an architecture or compiler version nobody here has tried.

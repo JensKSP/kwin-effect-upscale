@@ -11,34 +11,46 @@ on:
   schedule:
     - cron: '17 3 * * *'
   workflow_dispatch:
+    inputs:
+      verify-only:
+        description: Build and attest a candidate without changing the nightly release
+        type: boolean
+        default: true
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: nightly
   cancel-in-progress: false
 
 jobs:
+  quality:
+    uses: ./.github/workflows/ci.yml
+    with:
+      fuzz-seconds: 600
+
   version:
     name: Work out whether to build
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     outputs:
       version: ${{ steps.check.outputs.version }}
       build: ${{ steps.check.outputs.build }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - id: check
+        env:
+          VERIFY_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.verify-only }}
         run: |
-          # The same shape the build compiles into the plugin, from the same two
-          # git facts: see cmake/GenerateBuildInfo.cmake.
-          base=$(grep -oP 'project\(kwin-effect-upscale VERSION \K[0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt)
-          date=$(git show -s --format=%cs HEAD | tr -d -)
-          hash=$(git rev-parse --short=10 HEAD)
-          echo "version=${base}+git${date}.${hash}" >> "$GITHUB_OUTPUT"
+          if [ "$VERIFY_ONLY" != true ]; then
+            test "$GITHUB_REF" = refs/heads/master
+          fi
+          python3 -B tools/release-version.py snapshot >> "$GITHUB_OUTPUT"
 
           # A nightly that is identical to yesterday's is noise. A manual run
           # builds anyway, because that is what asking for it means.
@@ -58,31 +70,19 @@ jobs:
   kwin-master:
     name: KDE neon unstable (${{ matrix.compiler }})
     runs-on: ubuntu-latest
-    container:
-      image: invent-registry.kde.org/neon/docker-images/plasma:unstable
-      options: --user root
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        compiler: [g++, clang++]
+        compiler: [gcc, clang]
     steps:
-      - name: Install the packaging tools
-        run: |
-          apt-get update
-          apt-get install --no-install-recommends -y \
-            ca-certificates build-essential devscripts equivs clang git
-      - uses: actions/checkout@v4
-      - name: Trust the checkout
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-      - name: Install build dependencies
-        run: |
-          mk-build-deps --install --remove \
-            --tool "apt-get --no-install-recommends -y" debian/control
-      - name: Configure and build
-        run: |
-          cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_CXX_COMPILER=${{ matrix.compiler }} -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
-          cmake --build build --parallel
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/check
+        with:
+          environment: neon-unstable
+          mode: ${{ matrix.compiler }}
 
   package:
     name: Build
@@ -94,31 +94,13 @@ jobs:
       channel: nightly
 
   publish:
-    name: Publish the nightly
-    needs: [version, package]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          merge-multiple: true
-
-      # The nightly tag moves, so the old release and the old tag go first.
-      # Deleting a release nobody has downloaded is cheaper than a hundred tags.
-      - name: Publish
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          ls -l artifacts
-          gh release delete nightly --cleanup-tag --yes || true
-          gh release create nightly artifacts/* \
-            --title "Nightly ${{ needs.version.outputs.version }}" \
-            --notes "Built from \`${GITHUB_SHA}\` on $(date -u +%Y-%m-%dT%H:%M:%SZ).
-
-          These packages are built from the tip of master and are not a release.
-          The version compiled into the plugin is \`${{ needs.version.outputs.version }}\`;
-          it is printed to the journal when KWin loads the effect." \
-            --prerelease \
-            --target "$GITHUB_SHA"
+    needs: [version, quality, package]
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/publish.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+      channel: nightly
+      publish: ${{ github.event_name != 'workflow_dispatch' || !inputs.verify-only }}

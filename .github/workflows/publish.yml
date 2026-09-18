@@ -1,0 +1,75 @@
+# SPDX-FileCopyrightText: None
+# SPDX-License-Identifier: CC0-1.0
+
+name: Publish verified artifacts
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      channel:
+        required: true
+        type: string
+      publish:
+        description: Publish a release after verifying provenance
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: deliverable-*
+          path: build/release
+          merge-multiple: true
+      - name: Validate inventory and create checksums
+        env:
+          VERSION: ${{ inputs.version }}
+        run: python3 -B tools/prepare-release.py "$VERSION" build/release
+      - name: Attest the exact deliverables and checksum manifest
+        id: attest
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: build/release/*
+      - name: Attach the verification bundle
+        env:
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: cp "$BUNDLE" build/release/provenance.sigstore.json
+      - name: Verify provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh attestation verify build/release/SHA256SUMS --repo "$GITHUB_REPOSITORY" \
+            --source-digest "$GITHUB_SHA" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/publish.yml"
+      - name: Publish through a draft
+        if: inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          CHANNEL: ${{ inputs.channel }}
+        run: |
+          python3 -B tools/publish-release.py "$VERSION" "$CHANNEL" build/release
+      - name: Retain the verified release candidate
+        if: ${{ !inputs.publish }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: verified-release-candidate
+          path: build/release/*
+          if-no-files-found: error
+          retention-days: 14

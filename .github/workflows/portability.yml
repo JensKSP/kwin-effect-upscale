@@ -1,0 +1,46 @@
+# SPDX-FileCopyrightText: None
+# SPDX-License-Identifier: CC0-1.0
+name: BSD portability
+
+on:
+  schedule:
+    - cron: '43 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bsd-portability
+  cancel-in-progress: false
+
+jobs:
+  freebsd:
+    name: FreeBSD Clang
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: vmactions/freebsd-vm@4469451fe39bee80be4066836c5170362e9349f3 # v1
+        with:
+          release: '15.0'
+          prepare: pkg install -y python3 git
+          run: |
+            set -eu
+            pkg install -y $(python3 -B tools/freebsd-packages.py)
+            cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++ \
+              -DCMAKE_COMPILE_WARNING_AS_ERROR=ON -DBUILD_TESTING=ON
+            cmake --build build
+            CTEST_PARALLEL_LEVEL="${CTEST_PARALLEL_LEVEL-}" \
+              ctest --test-dir build --output-on-failure --no-tests=error \
+              --timeout 120 -R '^upscale-(resolution|config)$'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: reports-freebsd
+          path: |
+            build/Testing/
+            build/CMakeFiles/CMakeConfigureLog.yaml
+          if-no-files-found: ignore

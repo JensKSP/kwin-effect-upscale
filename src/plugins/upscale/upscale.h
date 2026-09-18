@@ -32,7 +32,7 @@ public:
     static bool supported();
 
     void reconfigure(ReconfigureFlags flags) override;
-#if UPSCALE_NEW_API
+#if UPSCALE_RENDER_DEVICE_API
     void prePaintScreen(ScreenPrePaintData &data) override;
 #endif
     bool isActive() const override;

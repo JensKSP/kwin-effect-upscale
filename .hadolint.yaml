@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+# These images deliberately follow the supported distribution and KWin master.
+# Exact apt versions would prevent security updates and disappear from mirrors.
+ignored:
+  - DL3008

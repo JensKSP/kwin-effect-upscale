@@ -6,18 +6,23 @@
 
 FROM invent-registry.kde.org/neon/docker-images/plasma:unstable
 
-USER root
+# Build environments install dependencies as root; they are not service images.
+# hadolint ignore=DL3002
+USER 0
+ARG DEPENDENCY_EPOCH=local
 ENV DEBIAN_FRONTEND=noninteractive
 COPY debian/control /tmp/upscale-debian-control
+WORKDIR /tmp
 
-RUN apt-get update && apt-get install --no-install-recommends -y \
+RUN test -n "$DEPENDENCY_EPOCH" && apt-get update && apt-get install --no-install-recommends -y \
         build-essential \
         ca-certificates \
         devscripts \
         equivs \
         clang \
+        ccache \
+        pipx \
         git \
-    && cd /tmp \
     && mk-build-deps --install --remove \
         --tool "apt-get --no-install-recommends -y" upscale-debian-control \
     && rm -rf /var/lib/apt/lists/*
@@ -30,5 +35,7 @@ RUN cmake --version \
     && g++ --version \
     && clang --version \
     && clang++ --version
+
+RUN PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install pre-commit==4.6.2
 
 WORKDIR /src

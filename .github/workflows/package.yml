@@ -1,143 +1,114 @@
 # SPDX-FileCopyrightText: None
 # SPDX-License-Identifier: CC0-1.0
 
-# Builds what a release and a nightly both ship: a Debian package per
-# distribution and architecture, and one source tarball. Both callers use this
-# file, so a release and a nightly are the same build with a different version.
-
 name: Package
 
 on:
   workflow_call:
     inputs:
       version:
-        description: Debian version the packages carry, for example 0.1.0
         required: true
         type: string
       channel:
-        description: release or nightly
         required: true
         type: string
+
+      smoke:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
 
 jobs:
   deb:
     name: ${{ matrix.distribution }} ${{ matrix.architecture }}
-    runs-on: ${{ matrix.runner }}
-    container: ${{ matrix.image }}
+    runs-on: ${{ matrix.architecture == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        include:
-          # Debian Trixie is the target platform and the minimum supported
-          # environment: KWin 6.3.6, Qt 6.8.
-          - distribution: trixie
-            image: docker.io/library/debian:trixie
-            architecture: amd64
-            runner: ubuntu-latest
-          - distribution: trixie
-            image: docker.io/library/debian:trixie
-            architecture: arm64
-            runner: ubuntu-24.04-arm
-          # Kubuntu 26.04 LTS carries KWin 6.6.6 and Qt 6.10, so the same source
-          # is built against a much newer KWin than the minimum. The LTS is the
-          # release Kubuntu users are actually on; 25.10 went end of life in
-          # July 2026 and building for it would ship packages nobody can update.
-          - distribution: resolute
-            image: docker.io/library/ubuntu:26.04
-            architecture: amd64
-            runner: ubuntu-latest
-          - distribution: resolute
-            image: docker.io/library/ubuntu:26.04
-            architecture: arm64
-            runner: ubuntu-24.04-arm
+        distribution: ${{ fromJSON(inputs.smoke && '["trixie"]' || '["trixie", "resolute"]') }}
+        architecture: ${{ fromJSON(inputs.smoke && '["amd64"]' || '["amd64", "arm64"]') }}
     steps:
-      - name: Install the packaging tools
-        run: |
-          apt-get update
-          apt-get install --no-install-recommends -y \
-            build-essential ca-certificates devscripts equivs git lintian
-
-      - uses: actions/checkout@v4
-
-      # The build dependencies are read out of debian/control rather than
-      # repeated here. Two lists is how a build breaks on one distribution and
-      # not the other: Debian's kwin-dev pulls libdrm-dev in, Ubuntu's does not.
-      - name: Install build dependencies
-        run: |
-          mk-build-deps --install --remove \
-            --tool "apt-get --no-install-recommends -y" debian/control
-
-      - name: Trust the checkout
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-      # The version the package carries is the one compiled into the plugin,
-      # passed in rather than worked out a second time, with the distribution
-      # appended: a package built against Trixie's KWin is not the same package
-      # as one built against Kubuntu's, and the two must not share a file name.
-      - name: Set the package version
-        env:
-          DEBEMAIL: kwin-effect-upscale@koehler-speyer.de
-          DEBFULLNAME: Jens Koehler
-        run: |
-          version="${{ inputs.version }}~${{ matrix.distribution }}"
-          if [ "$(dpkg-parsechangelog -S Version)" != "$version" ]; then
-            dch --newversion "$version" --distribution unstable \
-                --force-bad-version --no-auto-nmu \
-                "Automated ${{ inputs.channel }} build of ${GITHUB_SHA}."
-          fi
-          dpkg-parsechangelog
-
-      - name: Build the package
-        run: dpkg-buildpackage -b -us -uc
-
-      # A package that installs into the wrong place or ships an unstripped
-      # binary is a broken package even when it builds.
-      - name: lintian
-        run: lintian --fail-on error,warning ../*.deb
-
-      # Ubuntu names its debug packages .ddeb where Debian uses .deb, so a glob
-      # for *.deb alone publishes debug symbols for Trixie and silently drops
-      # them for Ubuntu.
-      - name: Collect the packages
-        run: |
-          mkdir -p artifacts
-          cp ../*.deb artifacts/
-          cp ../*.ddeb artifacts/ 2>/dev/null || true
-          ls -l artifacts
-
-      - uses: actions/upload-artifact@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          name: deb-${{ matrix.distribution }}-${{ matrix.architecture }}
-          path: |
-            artifacts/*.deb
-            artifacts/*.ddeb
+          persist-credentials: false
+      - uses: ./.github/actions/environment
+        with:
+          environment: package
+          base-image: ${{ matrix.distribution == 'trixie' && 'docker.io/library/debian:trixie' || 'docker.io/library/ubuntu:26.04' }}
+      - name: Build, test and compare two clean builds
+        env:
+          VERSION: ${{ inputs.version }}
+          DISTRIBUTION: ${{ matrix.distribution }}
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/src" -w /src \
+            -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/src \
+            -e GITHUB_REF_NAME upscale-check:local \
+            python3 -B tools/build-packages.py "$VERSION" "$DISTRIBUTION"
+      - name: Install and load the shipped plugin in a clean distribution
+        env:
+          BASE_IMAGE: ${{ matrix.distribution == 'trixie' && 'docker.io/library/debian:trixie' || 'docker.io/library/ubuntu:26.04' }}
+          VERSION: ${{ inputs.version }}
+          DISTRIBUTION: ${{ matrix.distribution }}
+          ARCHITECTURE: ${{ matrix.architecture }}
+        run: |
+          package="/src/build/artifacts/kwin-effect-upscale_${VERSION}~${DISTRIBUTION}_${ARCHITECTURE}.deb"
+          docker run --rm --mount "type=bind,src=$GITHUB_WORKSPACE,dst=/src,readonly" -w /src \
+            -e DEBIAN_FRONTEND=noninteractive "$BASE_IMAGE" sh -ec '
+              apt-get update
+              apt-get install --no-install-recommends -y python3
+              python3 -B tools/test-installed-package.py "$1" \
+                build/packages/first/source/build/bin/upscale_package_test
+            ' sh "$package"
+      - name: Make artifacts readable
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" build
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: deliverable-${{ matrix.distribution }}-${{ matrix.architecture }}
+          path: build/artifacts/*
           if-no-files-found: error
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: reports-package-${{ matrix.distribution }}-${{ matrix.architecture }}
+          path: |
+            build/packages/*/build.log
+            build/packages/*/source/build/Testing/
+            build/packages/*/*.deb
+            build/packages/*/*.ddeb
+          if-no-files-found: ignore
+          retention-days: 14
 
   tarball:
-    name: Source tarball
+    name: Source archive build
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-
-      # git archive rather than a copy of the working tree: what ships is what
-      # is committed, with no build directory and no local leftovers in it.
-      - name: Create the tarball
-        env:
-          SOURCE_VERSION: ${{ inputs.version }}
-        run: |
-          name="kwin-effect-upscale-$SOURCE_VERSION"
-          mkdir -p build
-          printf '# SPDX-FileCopyrightText: None\n# SPDX-License-Identifier: CC0-1.0\n%s\n' \
-            "$SOURCE_VERSION" > build/source-version
-          git archive --format=tar.gz --prefix="$name/" \
-            --add-file=build/source-version -o "$name.tar.gz" HEAD
-          sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
-          ls -l "$name.tar.gz"
-
-      - uses: actions/upload-artifact@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          name: source-tarball
-          path: |
-            *.tar.gz
-            *.tar.gz.sha256
+          persist-credentials: false
+      - uses: ./.github/actions/environment
+      - name: Create, extract, build and test the source archive
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/src" -w /src \
+            -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/src \
+            upscale-check:local python3 -B tools/build-source.py "$VERSION"
+      - name: Make artifacts readable
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" build
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: deliverable-source
+          path: build/artifacts/*.tar.gz
           if-no-files-found: error
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: reports-source
+          path: build/extracted/*/build/Testing/
+          if-no-files-found: ignore

@@ -187,9 +187,12 @@ cd kwin-effect-upscale
 ## Building
 
 ```bash
-cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
-cmake --build build --parallel
+cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build
 ```
+
+Ninja uses its native parallelism. Set `CMAKE_BUILD_PARALLEL_LEVEL` when a
+machine needs a lower job limit.
 
 In-source builds are refused; `-B build` is the way. Without
 `-DCMAKE_BUILD_TYPE` the project configures a debug build, which is not what

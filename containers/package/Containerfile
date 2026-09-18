@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+ARG BASE_IMAGE=docker.io/library/debian:trixie
+FROM ${BASE_IMAGE}
+ARG DEPENDENCY_EPOCH=local
+ENV DEBIAN_FRONTEND=noninteractive
+COPY debian/control /tmp/upscale-debian-control
+WORKDIR /tmp
+RUN test -n "$DEPENDENCY_EPOCH" && apt-get update \
+    && apt-get install --no-install-recommends -y \
+        build-essential ca-certificates devscripts equivs git lintian pipx \
+    && mk-build-deps --install --remove \
+        --tool "apt-get --no-install-recommends -y" upscale-debian-control \
+    && rm -rf /var/lib/apt/lists/*
+RUN PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install pre-commit==4.6.2
+WORKDIR /src

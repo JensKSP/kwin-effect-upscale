@@ -17,36 +17,48 @@
 
 #include <cmath>
 
-// KWin's development API replaced Qt regions and changed paint callbacks.
-// Keep these differences here rather than in the scaling and colour logic.
+// KWin 6.6 replaced Qt regions and shared its colour descriptions. The later
+// render-device API changed paint callbacks and removed desktop OpenGL.
+// Detect these boundaries separately: a region header alone does not imply
+// render devices. Keep the differences out of scaling and colour logic.
 #if __has_include("core/region.h")
-#define UPSCALE_NEW_API 1
+#define UPSCALE_REGION_API 1
 #include "opengl/eglcontext.h"
 #else
-#define UPSCALE_NEW_API 0
+#define UPSCALE_REGION_API 0
 #include "opengl/openglcontext.h"
+#endif
+
+#if __has_include("core/renderdevice.h")
+#define UPSCALE_RENDER_DEVICE_API 1
+#else
+#define UPSCALE_RENDER_DEVICE_API 0
 #endif
 
 namespace KWin
 {
 
-#if UPSCALE_NEW_API
+#if UPSCALE_REGION_API
 using UpscaleRegion = Region;
 using UpscaleRect = Rect;
 using UpscaleRectF = RectF;
-using UpscalePaintResult = bool;
 using UpscaleOutput = LogicalOutput;
 #else
 using UpscaleRegion = QRegion;
 using UpscaleRect = QRect;
 using UpscaleRectF = QRectF;
-using UpscalePaintResult = void;
 using UpscaleOutput = Output;
+#endif
+
+#if UPSCALE_RENDER_DEVICE_API
+using UpscalePaintResult = bool;
+#else
+using UpscalePaintResult = void;
 #endif
 
 inline UpscaleRegion unlimitedRegion()
 {
-#if UPSCALE_NEW_API
+#if UPSCALE_REGION_API
     return Region::infinite();
 #else
     return infiniteRegion();
@@ -55,21 +67,25 @@ inline UpscaleRegion unlimitedRegion()
 
 inline bool validShader(GLShader *shader)
 {
-#if UPSCALE_NEW_API
+#if UPSCALE_RENDER_DEVICE_API
     return shader != nullptr;
 #else
     return shader && shader->isValid();
 #endif
 }
 
+// GL_VERSION always starts with "OpenGL ES" on an OpenGL ES implementation.
+// Asking the context itself would need a different KWin class per version.
+inline bool usingOpenGLES()
+{
+    const char *version = reinterpret_cast<const char *>(glGetString(GL_VERSION));
+    return version && QByteArrayView(version).startsWith("OpenGL ES");
+}
+
 inline std::unique_ptr<GLTexture> allocateFloatTexture(const QSize &size)
 {
     std::unique_ptr<GLTexture> texture = GLTexture::allocate(GL_RGBA32F, size);
-#if UPSCALE_NEW_API
-    if (texture) {
-#else
-    if (texture && OpenGlContext::currentContext()->isOpenGLES()) {
-#endif
+    if (texture && usingOpenGLES()) {
         // KWin's GLES allocator (also used exclusively by current master)
         // creates 8-bit storage even when internalFormat() reports RGBA32F.
         // Replace that mutable storage with the requested format; framebuffer
@@ -86,17 +102,9 @@ inline std::unique_ptr<GLTexture> allocateFloatTexture(const QSize &size)
     return texture;
 }
 
-// GL_VERSION always starts with "OpenGL ES" on an OpenGL ES implementation.
-// Asking the context itself would need a different KWin class per version.
-inline bool usingOpenGLES()
-{
-    const char *version = reinterpret_cast<const char *>(glGetString(GL_VERSION));
-    return version && QByteArrayView(version).startsWith("OpenGL ES");
-}
-
 inline RenderViewport captureViewport(const UpscaleRectF &geometry, double scale, const RenderTarget &target)
 {
-#if UPSCALE_NEW_API
+#if UPSCALE_REGION_API
     return RenderViewport(geometry, scale, target, QPoint());
 #else
     return RenderViewport(geometry, scale, target);
@@ -106,8 +114,11 @@ inline RenderViewport captureViewport(const UpscaleRectF &geometry, double scale
 inline bool captureSurface(ItemRenderer *renderer, const RenderTarget &target, const RenderViewport &viewport, Item *surface)
 {
     const WindowPaintData data;
-#if UPSCALE_NEW_API
+#if UPSCALE_RENDER_DEVICE_API
     return renderer->renderItem(target, viewport, surface, Effect::PAINT_WINDOW_TRANSFORMED, unlimitedRegion(), data, {}, {});
+#elif UPSCALE_REGION_API
+    renderer->renderItem(target, viewport, surface, Effect::PAINT_WINDOW_TRANSFORMED, unlimitedRegion(), data, {}, {});
+    return true;
 #else
     renderer->renderItem(target, viewport, surface, Effect::PAINT_WINDOW_TRANSFORMED, unlimitedRegion(), data);
     return true;
@@ -116,7 +127,7 @@ inline bool captureSurface(ItemRenderer *renderer, const RenderTarget &target, c
 
 inline const ColorDescription &targetColors(const RenderTarget &target)
 {
-#if UPSCALE_NEW_API
+#if UPSCALE_REGION_API
     return *target.colorDescription();
 #else
     return target.colorDescription();

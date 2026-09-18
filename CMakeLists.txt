@@ -91,6 +91,7 @@ if(KWIN_BUILD_KCMS)
 endif()
 
 include(KWinBuiltinEffectShim)
+include(UpscaleInstrumentation)
 
 add_subdirectory(src/plugins/upscale)
 if(BUILD_TESTING)

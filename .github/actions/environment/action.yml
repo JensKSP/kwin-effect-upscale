@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: None
+# SPDX-License-Identifier: CC0-1.0
+name: Build environment
+description: Build a maintained container with a daily dependency refresh
+inputs:
+  environment:
+    description: Directory under containers
+    default: trixie
+  base-image:
+    description: Base distribution for the package environment
+    default: docker.io/library/debian:trixie
+runs:
+  using: composite
+  steps:
+    - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+    - id: date
+      shell: bash
+      run: echo "day=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+    - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+      with:
+        context: .
+        file: containers/${{ inputs.environment }}/Containerfile
+        load: true
+        pull: true
+        tags: upscale-check:local
+        build-args: |
+          DEPENDENCY_EPOCH=${{ steps.date.outputs.day }}
+          BASE_IMAGE=${{ inputs.base-image }}
+        cache-from: type=gha,scope=environment-${{ inputs.environment }}-${{ inputs.base-image }}-${{ runner.arch }}-${{ hashFiles('containers/**', 'debian/control') }}
+        cache-to: type=gha,mode=max,scope=environment-${{ inputs.environment }}-${{ inputs.base-image }}-${{ runner.arch }}-${{ hashFiles('containers/**', 'debian/control') }}

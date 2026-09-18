@@ -245,11 +245,15 @@ candidate; KWin retains ownership of refresh and presentation timing.
 | | Version | Role |
 | --- | --- | --- |
 | Minimum | KWin 6.3.6, effect API `0.236` | what Debian Trixie ships; the supported target |
+| Packaged | KWin 6.6, from Kubuntu 26.04 LTS | the Ubuntu package target |
 | Tracked | KWin git master | built in CI to catch API changes early, not a supported target |
 
-Master renames some things the effect will touch, `QRect` becoming KWin's own
-`Rect` among them. Where that matters, the difference is absorbed in a thin
-compatibility layer rather than in the effect's logic.
+KWin 6.6 uses its own regions and shared colour descriptions. The later
+render-device API also changes paint callbacks, EGL construction and shader
+validation. These are separate compatibility boundaries: the presence of
+`core/region.h` does not imply `core/renderdevice.h`. The compatibility layer
+keeps these differences out of the scaling and colour logic, and tests exercise
+both stable versions and the tracked development version.
 
 ## Configuration
 
@@ -858,3 +862,170 @@ controlled comparison with composition in both cases is available, report it
 separately to help isolate filter cost. A shader-only timing cannot replace
 the end-to-end comparison. Complete the initial measurements in SDR at fixed
 refresh, then repeat the relevant comparisons with HDR and VRR as supported.
+
+## Automated quality gates
+
+The plugin requires at least **90% executable C++ line coverage** on the
+minimum supported KWin version. The denominator includes all plugin translation
+units and their executable headers, including unexecuted code. Generated code,
+tests, build information outside the plugin and GLSL are excluded. The shader
+tests check rendered pixels separately; C++ coverage does not measure shader
+branches. Scripts require smoke checks and the existing tooling regressions,
+without a percentage target.
+
+`.pre-commit-config.yaml` defines the checks. Commit checks include Hadolint for
+both Containerfiles, Bandit for Python security patterns and Gitleaks for staged
+secrets. Push checks also scan the complete Git history with Gitleaks; CI fetches
+full history. The existing clang-tidy configuration includes Clang's security
+and bug analyzers. Findings fail the check. Container package versions follow
+the distribution so security updates remain available; checker versions are
+pinned.
+
+PR CI runs separate Trixie builds for GCC coverage, Clang ASan with UBSan and
+leak detection, and Clang TSan. Sanitizers must not be combined with coverage
+or with each other beyond the supported ASan/UBSan combination. The address
+sanitizer build also runs libFuzzer against the resolution policy for 60 seconds;
+nightly extends that to 600 seconds. Saved corpus inputs and crash reproducers,
+CTest logs and coverage reports are uploaded even after a failed check.
+
+For a clean coverage build inside the project container:
+
+```sh
+cmake -S . -B build/coverage -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+    -DCMAKE_CXX_COMPILER=g++ -DUPSCALE_COVERAGE=ON
+cmake --build build/coverage
+export UPSCALE_BUILD_DIR=build/coverage
+pre-commit run upscale-render-tests --all-files --hook-stage manual
+pre-commit run upscale-coverage --all-files --hook-stage manual
+```
+
+Reports are written to `$UPSCALE_BUILD_DIR/coverage/`. Use a fresh build directory
+or remove its `.gcda` files before measuring a changed test suite; old execution
+counts must not supply coverage for tests that no longer run. The gate also
+rejects a report missing any production `.cpp` file.
+
+For ASan/UBSan, configure a separate build with `-DCMAKE_CXX_COMPILER=clang++
+-DUPSCALE_SANITIZER=address,undefined -DUPSCALE_FUZZING=ON`, then run the same
+runtime hook and `pre-commit run upscale-fuzz --all-files --hook-stage manual`.
+Set `UPSCALE_BUILD_DIR` to that build. For TSan use another build with
+`-DUPSCALE_SANITIZER=thread`, without fuzzing. The runtime hook supplies the
+sanitizer options used in CI. Clang TSan may require a container that allows
+the `personality` operation, as configured in the CI job.
+
+The lifecycle test runs a private bus and KWin virtual session, isolated from
+the desktop. KWin 6.3's virtual backend cannot use OpenGL without a DRM device.
+The test therefore supplies a deterministic capture renderer to the real
+effect while KWin manages actual Wayland windows through QPainter. It checks
+pixel mapping, the filtered destination pixel, settings changes, window and
+buffer eligibility, multiple candidates, reloading and cleanup. Separate EGL
+tests exercise the production shaders under desktop OpenGL and OpenGL ES.
+This fixture covers the Trixie and Ubuntu package APIs; neon runs the portable
+resolution, configuration and renderer tests. Neither establishes real GPU
+buffer import, HDR, VRR or TV acceptance.
+
+Distribution Qt and Mesa are not instrumented. TSan ignores intercepted
+accesses originating in those modules, whose internal atomics it cannot see;
+instrumented plugin and test accesses remain checked. LeakSanitizer uses
+documented allocation-stack suppressions only for observed KWin 6.3 startup
+globals and KF6 Config shutdown allocations in the private integration session.
+It does not suppress plugin functions or entire libraries. The standalone
+configuration and rendering tests retain unsuppressed leak detection.
+
+## Build and release pipeline
+
+The public repository uses the same maintained container definitions locally
+and in GitHub Actions. Inside the Trixie container, run
+`python3 -B tools/run-checks.py all` to run both pre-commit stages, GCC and Clang
+builds, clang-tidy and metadata validation, coverage, sanitizers and fuzzing.
+Individual groups use `lint`, `gcc`, `clang`, `tidy`, `coverage`, `address` or
+`thread`. This command orchestrates the existing hooks; it does not replace
+their definitions. Build directories, reports and caches stay under `build/`.
+ThreadSanitizer needs the container personality permission described above.
+
+Builds use Ninja's native concurrency. Package builds use debhelper's
+`cmake+ninja` backend and dpkg's automatic job count. CTest uses its native
+parallel level on CMake 3.29 or newer; older supported versions remain serial.
+Explicit `CMAKE_BUILD_PARALLEL_LEVEL`, `CTEST_PARALLEL_LEVEL` and
+`DEB_BUILD_OPTIONS=parallel=N` settings are preserved. Pass these environment
+variables into the container when limiting a local run.
+
+Static analysis uses `run-clang-tidy`'s native worker pool. Coverage uses
+gcovr's CPU-count mode. Fuzzing runs one job per libFuzzer default worker
+(half the CPU cores, at least one), sharing a corpus; its time budget applies
+to each job and its memory limit remains a per-process bug-detection bound.
+Worker logs stay with the other reports. Pre-commit retains its own scheduling;
+formatting hooks are not launched concurrently by another wrapper.
+
+The local `all` command runs check groups sequentially, letting each group use
+the machine. CI matrix jobs run on separate hosted runners. There is no fixed
+two-job cap, forced RAM allocation, or project-specific resource scheduler.
+These CPU-based defaults do not promise automatic protection against exhausting
+RAM. Constrained environments should set the native job limits above; container
+CPU allocations must also reflect the resources actually available to the job.
+
+CI's final `Quality gate` requires every supported-platform check to succeed.
+Both tagged releases and nightly publication depend on these checks for their
+own commit. Nightly also builds and runs the available tests against neon with
+GCC and Clang, independently of publication. Container dependencies refresh
+daily; action commits and Python checker versions are pinned. Dependabot proposes
+action updates weekly. Distribution package versions remain the distributions'
+responsibility rather than a second list of project build dependencies.
+
+Packaging builds twice in separate source directories with the commit timestamp
+as `SOURCE_DATE_EPOCH` and a deterministic changelog entry. Main and debug
+packages must compare byte for byte. The first build's `.buildinfo` and `.changes`
+records accompany the deliverables. Clean distribution containers exercise
+installation, reinstallation, loading the installed effect and configuration
+factories with all symbols resolved, removal and purge. Loading a factory does
+not construct an effect in a real KWin session. An upgrade from an older release
+and actual GPU rendering remain separate acceptance cases.
+
+The source archive is extracted, configured, built, tested and staged without
+Git metadata. Publication accepts only the complete four-platform package
+matrix, its build records and the source archive. Reports and fuzz corpora are
+never release assets. A SHA-256 manifest covers all deliverables. The workflow
+uploads a draft and downloads it again to compare every asset before publishing.
+The preceding nightly remains available until that verification succeeds.
+
+A manual Nightly run defaults to `verify-only`: it builds the complete package
+matrix and source archive, runs the quality gates, attests the deliverables and
+verifies their provenance. The resulting `verified-release-candidate` workflow
+artifact is retained for 14 days; the public nightly release is unchanged.
+This mode also permits a review branch. Clear `verify-only` only when publishing
+from master. Scheduled runs continue publishing changed master commits.
+
+### Signing and verification
+
+Release artifacts and their checksum manifest receive GitHub build-provenance
+attestations using Sigstore and the workflow's OpenID Connect identity. There is
+no personal signing key, uploaded secret or hardware token to configure. Only
+the publication job receives `contents: write`, `id-token: write` and
+`attestations: write`; compilation and PR checks have read-only repository access.
+
+With a recent GitHub CLI supporting `attestation`, verify a downloaded package:
+
+```sh
+gh attestation verify ./package.deb --repo JensKSP/kwin-effect-upscale
+```
+
+For a candidate tied to a specific commit, also pass `--source-digest COMMIT` and
+`--signer-workflow JensKSP/kwin-effect-upscale/.github/workflows/publish.yml`.
+`SHA256SUMS` verifies the complete download and `provenance.sigstore.json`
+contains the signing bundle. Attestations identify the build's origin; acceptance
+tests establish its behaviour. This signs downloaded release artifacts, not an
+APT repository's metadata. An APT repository would require a separate design.
+
+Do not enable repository-wide release immutability while the same repository
+hosts the moving `nightly` release. Stable releases are never overwritten by
+the publication script; a repeat publication must match the existing assets.
+
+### Hardware acceptance hosts
+
+Hardware acceptance initially runs manually on reviewed candidates on Debian:
+wzpc with AMD Strix Halo and the workstation with NVIDIA RTX 5090. Record the
+exact package checksum, Debian, KWin and driver versions, display and connection,
+and each observed SDR, HDR, VRR and performance result in the active slice.
+Untrusted PR jobs run on hosted runners, not on these desktop machines.
+
+The [pipeline slice](slice-build-release-pipeline.md) records validation and
+remaining hosted, BSD and hardware acceptance work.
