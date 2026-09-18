@@ -124,11 +124,12 @@ copy of those working records.
 | CodeQL | Analyze production C++, Python tools and GitHub Actions. Use the maintained CMake build for C++; start with a scheduled scan and tune valid findings before considering PR enforcement. | A successful scan produces the intended databases/results; sampled production files and generated build inputs are represented; local execution is documented and runnable; findings are assessed rather than suppressed wholesale. |
 | Dependency review | Review newly introduced supported dependencies for relevant vulnerabilities, with explicit severity/exception policy. | A representative supported-manifest change is recognized; a controlled fixture exercises policy failure through the configured local check. Record that Debian/CMake dependency coverage is incomplete instead of claiming apt vulnerabilities are covered. |
 
-CodeRabbit remains advisory and the pipeline Quality gate remains required.
+The pipeline slice owns the approved CodeRabbit approval gate and its narrowly
+authorized configuration, alongside the required Quality gate and owner review.
 Follow the repository rule for watching each submitted revision, investigating
 findings, fixing valid issues and explaining dismissed findings. Do not add a
-second AI reviewer as part of this slice. Versioned reviewer configuration is
-outside this plan unless its pending repository-rule exception is approved.
+second AI reviewer as part of this slice. Verify that the pipeline's gate is
+active before relying on it; do not duplicate its implementation here.
 
 ### 3. Routine maintenance and merge convenience
 
@@ -163,7 +164,7 @@ option was not selected:
 | --- | --- |
 | GitHub Projects | Issues and milestones no longer give enough overview. Use one board built from existing issues/PRs, with minimal fields and native automation. |
 | Discussions | User support and configuration questions need a home separate from actionable defects. Establish categories and moderation ownership first. |
-| CODEOWNERS | Additional maintainers actually own areas. Do not simulate independent review by assigning everything to the sole owner. |
+| Additional code owners | The pipeline slice now owns the requested sole-owner review policy. Extend ownership only when additional maintainers actually own areas; do not imply independent review of the owner's own PRs. |
 | Public build images in GHCR | Measurements show caching leaves significant repeated environment setup. Define image refresh, digest selection, retention and trust before moving consumers. |
 | Manual hardware workflows | The two Debian machines and acceptance commands are ready. Explicit trusted dispatch only; never execute arbitrary public PR code on personal workstations. Actual hardware setup and tests remain in their own slice. |
 | Signed commits or release tags | The maintainer selects an identity/signing method and recovery policy. This is separate from artifact signing and must not introduce a secret signing key into PR jobs. |
