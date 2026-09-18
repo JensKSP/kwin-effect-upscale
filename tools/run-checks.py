@@ -10,6 +10,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from ci_scope import changed_files, scope
+
 
 def run(*command: str) -> None:
     """Stop immediately on a failed build or check."""
@@ -72,7 +74,8 @@ def main() -> None:
     """Provide a complete local run and the same individually selectable CI jobs."""
     modes = ("lint", "gcc", "clang", "tidy", "coverage", "address", "thread")
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=(*modes, "all"), default="all", nargs="?")
+    parser.add_argument("mode", choices=(*modes, "docs", "all"), default="all", nargs="?")
+    parser.add_argument("--base", default=os.environ.get("UPSCALE_CHECK_BASE", ""))
     arguments = parser.parse_args()
     root = Path(__file__).resolve().parent.parent
     os.chdir(root)
@@ -91,9 +94,17 @@ def main() -> None:
     )
     Path(os.environ["TMPDIR"]).mkdir(parents=True, exist_ok=True)
     for mode in modes if arguments.mode == "all" else (arguments.mode,):
-        if mode == "lint":
-            run("pre-commit", "run", "--all-files", "--show-diff-on-failure")
-            run("pre-commit", "run", "--all-files", "--hook-stage", "pre-push")
+        if mode in ("lint", "docs"):
+            selection = ["--all-files"]
+            if mode == "docs":
+                paths = changed_files(arguments.base)
+                if scope(paths, pull_request=True)["build"] != "false":
+                    message = "Documentation checks require a nonempty documentation-only diff"
+                    raise ValueError(message)
+                # Prefix paths so a filename beginning with '-' is never an option.
+                selection = ["--files", *(f"./{path}" for path in paths)]
+            run("pre-commit", "run", *selection, "--show-diff-on-failure")
+            run("pre-commit", "run", *selection, "--hook-stage", "pre-push")
         else:
             check(mode)
 

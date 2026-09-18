@@ -210,6 +210,10 @@ supersede earlier pending statuses.
 
 ## Remaining work
 
+- Verify the implemented file-based selection in hosted CI: a full run for this
+  workflow change and a subsequent documentation-only run. Local scope tests,
+  full checks, reduced checks and mixed-change refusal have passed. Observe
+  the intended skips and required Quality gate before claiming hosted acceptance.
 - The owner-review setting now requires code-owner review with zero additional
   approvals. `.github/CODEOWNERS` is on `master` and assigns `JensKSP` to all paths.
   Verify owner-authored and outside-authored PR behaviour;
@@ -383,3 +387,28 @@ stale-review dismissal, conversation resolution and force-push/deletion blocks
 were retained. No agent enabled a merge or auto-merge for PR #6. Its owner-authored
 PR requested no human reviewer; outside-author enforcement and the successful
 bot-approval transition still await observation.
+
+The owner requested green workflow badges and targeted checks for documentation
+changes. Master Nightly verification run `35334154552` passed every job at
+`f6a3bf3`, including all four package targets, both KWin-master compilers,
+FreeBSD, the 600-second fuzz run and artifact signing/verification. The actual
+badge SVGs then reported `CI - passing` and `Nightly - passing`. The CodeRabbit
+badge reports a review count and uses the owner's requested orange colour;
+it does not indicate pass/fail.
+
+CodeRabbit review `5246743546` requested correction of the handbook's claim
+that owner-authored PRs need no ownership approval. The text now states that
+GitHub forbids self-approval, zero additional approvals do not prove an
+ownership exemption, and normal owner auto-merge remains unverified. Where
+ownership approval is required, another eligible owner or an explicitly
+authorized administrator bypass is needed. No review was dismissed or overridden.
+
+Implemented conservative file selection for PRs and master pushes. Native
+pre-commit file filtering skips tooling regressions for Markdown-only changes;
+whole-tree licensing, history secret scanning and repository rules remain.
+The full container hook stages passed with the scope/gate regression suite.
+A real documentation-only Git-tree fixture passed both native pre-commit stages:
+spelling and Markdown checks ran, as did whole-tree REUSE, history secret scanning
+and repository rules; tooling regression tests reported skipped. Adding a source
+change to that same fixture made the docs entry point reject it before checking.
+Hosted full/reduced-path validation remains open until this update is published.

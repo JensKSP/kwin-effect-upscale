@@ -161,6 +161,11 @@ Laid down by Jens, 2026-09-17.
   the maintained container, `python3 -B tools/run-checks.py lint` runs both with
   one command, as CI does. Install both hooks once with
   `pre-commit install --hook-type pre-commit --hook-type pre-push`.
+- For a documentation-only change, the maintained container also supports
+  `python3 -B tools/run-checks.py docs --base <base-commit>`. It verifies the
+  changed paths before using native pre-commit file filtering for both stages.
+  CI uses this path for proven documentation-only PRs and master pushes; code,
+  unknown inputs, nightly, release and manual full runs retain full validation.
 - `.pre-commit-config.yaml` is the only list of checks. Do not add a linter to CI
   that is not in it, and do not add a check that CI cannot run.
 

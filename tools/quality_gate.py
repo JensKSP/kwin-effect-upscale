@@ -7,11 +7,19 @@ import os
 
 
 def passed(results: dict[str, dict[str, object]]) -> bool:
-    """Skipped required jobs fail; the conditional packaging smoke job may skip."""
-    required = ("commits", "checks", "instrumentation")
-    return all(results.get(name, {}).get("result") == "success" for name in required) and (
-        results.get("package-smoke", {}).get("result") in ("success", "skipped")
-    )
+    """Accept only successes and skips explicitly selected by the scope job."""
+    if any(results.get(name, {}).get("result") != "success" for name in ("commits", "checks")):
+        return False
+    outputs = results["commits"].get("outputs")
+    if not isinstance(outputs, dict):
+        return False
+    for flag, job in (("build", "instrumentation"), ("packaging", "package-smoke")):
+        if outputs.get(flag) not in ("true", "false"):
+            return False
+        expected = "success" if outputs[flag] == "true" else "skipped"
+        if results.get(job, {}).get("result") != expected:
+            return False
+    return True
 
 
 if __name__ == "__main__":

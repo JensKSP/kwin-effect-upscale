@@ -1489,7 +1489,22 @@ and bug analyzers. Findings fail the check. Container package versions follow
 the distribution so security updates remain available; checker versions are
 pinned.
 
-PR CI runs separate Trixie builds for GCC coverage, Clang ASan with UBSan and
+For PRs and pushes to `master`, `tools/ci_scope.py` selects a reduced path only
+when every changed file is Markdown at the repository root, under `doc/` or
+under `.github/`. It includes deletions and both sides of renames. Unknown paths,
+mixed changes, empty diffs or unavailable comparisons retain full validation.
+The `docs` check group uses pre-commit's native file filtering for both stages;
+history secret scanning, REUSE and whole-tree repository rules still run.
+Tooling regressions use the file patterns in `.pre-commit-config.yaml`, so they
+do not run for documentation-only changes. GCC, Clang, clang-tidy, sanitizers,
+coverage and packaging are skipped for that scope. The required Quality gate
+accepts skips only when the successful scope job explicitly selected them.
+Nightly, release and manual full runs always retain complete validation.
+
+Inside the maintained container, use `python3 -B tools/run-checks.py docs --base
+<base-commit>` for the same targeted checks; it rejects a non-documentation diff.
+
+Code-affecting PR CI runs separate Trixie builds for GCC coverage, Clang ASan with UBSan and
 leak detection, and Clang TSan. Sanitizers must not be combined with coverage
 or with each other beyond the supported ASan/UBSan combination. The address
 sanitizer build also runs libFuzzer against the resolution policy for 60 seconds;
@@ -1638,8 +1653,15 @@ The public repository protects `master`: changes go through pull requests,
 the branch must be up to date with a passing GitHub Actions `Quality gate`,
 and review conversations must be resolved. `.github/CODEOWNERS` assigns all
 paths to `JensKSP`, including the ownership policy itself. Code-owner review is
-required with zero additional approvals; the policy is owner approval
-for other authors without requiring a second reviewer for the owner's own PRs.
+required with zero additional approvals. For other authors, the owner's approval
+satisfies the ownership requirement. GitHub does not allow authors to approve
+their own PRs: zero additional approvals must not be assumed to waive code-owner
+review. An owner-authored PR that needs ownership approval requires another
+eligible code owner or an explicitly authorized administrator bypass. The
+requested owner-authored auto-merge behavior remains an acceptance
+requirement until observed with these settings. If native ownership enforcement
+blocks it, use an explicitly approved policy adjustment; do not silently bypass
+reviews or claim that self-approval is possible.
 GitHub uses the CODEOWNERS file from the PR's base branch. Changes to ownership
 therefore take effect after the owner merges them into `master`.
 Administrators retain GitHub's branch bypass
