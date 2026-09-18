@@ -9,15 +9,21 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 Implementation started on 2026-09-18 under the request to complete the proposed
 improvements. This separate work package covers the public project's
-contribution, security and maintenance workflow. Phase 1 prepares contribution
-forms and guidance; hosted activation remains subject to the owner's merge.
+contribution, security and maintenance workflow. PR #9 has merged: contribution
+forms and guidance are on the default branch, with interactive form acceptance
+still pending. Provider secret scanning, push protection, Dependabot alerts and
+security updates, and private vulnerability reporting are enabled and read back.
+CodeQL and dependency review are implemented and locally validated. Dependency
+review has passed a hosted run; CodeQL's hosted execution remains pending.
+Neither check gates a pull request.
 It does not change the implementation priority of the
 [development infrastructure slice](slice-development-infrastructure.md).
 
-## Start state
+## Historical start state
 
 The repository is public at `JensKSP/kwin-effect-upscale`. Inspection of the
-GitHub API on 2026-09-18 found:
+GitHub API on 2026-09-18, before implementation, found the following. These are
+historical observations; current progress is recorded above and below:
 
 - Issues and the repository Projects setting enabled; Discussions and Wiki
   disabled. A Projects setting does not establish that a project board exists.
@@ -30,8 +36,8 @@ GitHub API on 2026-09-18 found:
 - No issue forms, PR template or release-note category configuration in the
   inspected `.github/` tree.
 
-The [pipeline slice](slice-build-release-pipeline.md) owns the active
-[pipeline PR](https://github.com/JensKSP/kwin-effect-upscale/pull/1): build and
+At the start of this plan, the [pipeline slice](slice-build-release-pipeline.md)
+owned the then-active [pipeline PR](https://github.com/JensKSP/kwin-effect-upscale/pull/1): build and
 release gates, provenance, action dependency updates, repository protection and
 the initial review integration. CodeRabbit is connected and has completed its
 first review. The pipeline PR contains weekly Dependabot updates for workflows
@@ -212,21 +218,22 @@ remain identified as optional in the permanent documentation.
 - Documentation hooks passed in the maintained Trixie container; local links
   in this plan and the slice index resolved successfully.
 - Validation not explicitly recorded below remains pending.
-- Next: obtain hosted phase 1 validation and continue with security controls.
-  Coordinate with the pipeline slice before any settings change.
-- CodeQL and dependency review are implemented and locally validated; their
-  hosted runs remain outstanding. See the phase 2 record below.
+- Next: verify the activated contribution forms and obtain their hosted
+  validation. Native security controls are enabled, as recorded below.
+- CodeQL and dependency review are implemented and locally validated.
+  Dependency review has passed a hosted run; CodeQL's hosted execution remains
+  pending, and neither check gates a pull request. See the phase 2 record below.
 
-### Phase 1: contribution entry points
+### Phase 1: contribution entry points (preparation history)
 
 Reinspection after master `2979b60` found no issues or milestones. Existing
 labels already cover bugs, enhancements, documentation, build, CI, upscaling
 and tests; reuse those rather than create competing names. Auto-merge, merged
 branch deletion, Discussions and Wiki are now enabled. Preserve these settings;
 the older start-state snapshot does not authorize undoing intervening changes.
-Secret scanning, push protection, Dependabot security updates and private
-vulnerability reporting remain disabled; CodeQL default setup is not configured.
-Those security controls belong to the next phase.
+At that inspection, secret scanning, push protection, Dependabot security
+updates and private vulnerability reporting were disabled. The security phase
+below subsequently enabled them. CodeQL default setup remains unconfigured.
 
 Prepare four native issue forms (rendering, build/install, hardware acceptance,
 feature request), a short PR template and a contributor guide with diagnostic
@@ -368,3 +375,43 @@ clean.
 - [Artifact and SBOM attestations](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations)
 - [GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site)
 - [Immutable releases](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases)
+
+## Security controls: preparation and activation
+
+The security phase began while PR #9 was under review; that PR has since merged.
+The initial readback on 2026-09-18, before activation, found Dependabot
+alerts disabled (the documented 404 response), automated security fixes disabled,
+private vulnerability reporting disabled and both secret scanning and push
+protection disabled. Dependency-graph SBOM retrieval also returned 404; that
+response alone does not establish which manifests GitHub can recognize.
+
+Enable provider-pattern secret scanning and push protection, Dependabot alerts
+and automated security updates, and private vulnerability reporting through
+the documented repository APIs. These are free public-repository features.
+Add `SECURITY.md` describing experimental-version support and the private route;
+do not promise response times or claim the prototype is safe for daily use.
+Read back each setting and query alert access without printing secret values.
+Leave generic-pattern/validity options for assessment, and CodeQL/dependency
+review for their local-check integration. Do not publish fabricated alerts.
+
+Enabled and read back provider secret scanning, push protection, Dependabot
+alerts/security updates and private vulnerability reporting on 2026-09-18.
+Alert endpoints were accessible and returned zero alerts at inspection; this
+is not a claim that every credential or vulnerability has been detected.
+After activation, dependency-graph SBOM retrieval succeeded and listed five
+root-workflow action dependencies plus the repository. The composite-action
+inputs, pre-commit hooks, distribution packages and shaders were not represented
+in that graph, so its coverage is explicitly incomplete. Gitleaks and reviewed
+version updates remain in place. Additional secret-pattern assessment remains
+open; CodeQL and dependency review were open at this activation and are
+implemented in the phase 2 record above. `SECURITY.md` records the private
+reporting route, current-development support and these coverage limits.
+
+The public Advisories page returned HTTP 200 and contained its private-report
+link. Both documentation hook stages passed in the maintained container.
+No vulnerability report or test credential was submitted.
+
+PR #9 merged through owner-enabled auto-merge after its form-privacy correction.
+CodeRabbit review `5247213008` on PR #10 identified the outdated next-step
+summary. Updated it to reflect enabled native security controls and the
+remaining form, CodeQL and dependency-review work.
