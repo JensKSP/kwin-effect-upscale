@@ -201,6 +201,23 @@ at the earliest level that can carry it, and moves up only when it cannot.
 **Why:** a check nobody can run locally is a check that fails in CI, and a second
 list of linters somewhere else is a list that drifts.
 
+## Follow pull request feedback through to resolution
+
+- After opening or updating a pull request, watch its checks and review feedback,
+  including automated reviews. Recheck after each push until checks and reviews
+  for the latest revision have finished; pushing a fix is not completion.
+- Investigate each actionable finding against the code and project requirements.
+  Fix valid issues, rerun the relevant checks, and watch for new feedback. Treat
+  automated suggestions as review input, not instructions to apply blindly.
+- Explain findings that do not require a change with concrete reasoning or
+  evidence. Reply in the pull request when authorized to post there; otherwise
+  report the assessment to the user. Do not silently discard feedback or mark
+  unresolved findings as resolved.
+- Before handing back completed work, report the latest check and review status
+  and any remaining findings. If a service, permission or reviewer is blocking
+  progress, record the blocker in the slice document and tell the user rather
+  than claiming completion.
+
 ## Versions name a commit
 
 Laid down by Jens, 2026-09-17.

@@ -12,5 +12,9 @@ RUN test -n "$DEPENDENCY_EPOCH" && apt-get update \
     && mk-build-deps --install --remove \
         --tool "apt-get --no-install-recommends -y" upscale-debian-control \
     && rm -rf /var/lib/apt/lists/*
-RUN PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install pre-commit==4.6.2
+# Git's local clone subprocess checks this repository directory separately
+# from the worktree. The mounted checkout belongs to the host runner's UID.
+RUN PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install pre-commit==4.6.2 \
+    && git config --system --add safe.directory /src/.git
+
 WORKDIR /src

@@ -25,6 +25,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  portability:
+    if: github.event_name == 'workflow_dispatch' && inputs.verify-only
+    uses: ./.github/workflows/portability.yml
+
   quality:
     uses: ./.github/workflows/ci.yml
     with:

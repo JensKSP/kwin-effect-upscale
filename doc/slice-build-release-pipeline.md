@@ -194,3 +194,19 @@ Ubuntu packages with clean installed-plugin checks.
 - Record hardware acceptance in the rendering slice when displays are available.
 - Exercise the prepared FreeBSD workflow and the hosted arm64 matrix.
 - Apply repository protection only after the pending explicit approval.
+
+### Hosted feedback follow-up
+
+The first hosted candidate passed GCC, Clang, static analysis, coverage, both
+sanitisers, source archive checks and Ubuntu packages on both architectures.
+Debian packages and build-information regressions failed because the local Git
+clone subprocess did not inherit the exact repository trust setting. Reproduced
+with a foreign container UID: command-line and environment settings still fail;
+a system setting for `/src/.git` succeeds. The maintained images now carry that
+exact exception. Both container hook stages passed after the correction.
+
+Agents must now watch the latest PR checks and review feedback, fix valid issues
+and explain dismissed findings. Advisory CodeRabbit configuration passed schema
+validation, but its repository-rule exception and owner app installation remain
+pending. The verification-only nightly dispatch also exercises the prepared BSD
+workflow. Hosted validation of this follow-up is still pending.
