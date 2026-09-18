@@ -12,9 +12,17 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from git_fixture import detach
+
 TOOLS = Path(__file__).resolve().parent
 ARTIFACTS = TOOLS / "check-no-ai-artifacts.py"
 TRAILERS = TOOLS / "check-commit-trailers.py"
+
+
+def setUpModule() -> None:
+    """Keep fixture repositories out of the repository this check is running for."""
+    detach()
+
 
 TRAILER = "Co-authored-by: Claude <noreply@anthropic.com>"
 MIXED_CASE_TRAILER = "Co-Authored-By: Claude Opus <noreply@anthropic.com>"
