@@ -35,6 +35,10 @@ private:
     void showSettings();
     void applySettings();
     void addDisplayControls(QFormLayout *layout);
+    void addStatusControls(QFormLayout *layout);
+    void connectControls();
+    void showSupportInformation(const QString &information);
+    static QString installedBuild();
 
     QCheckBox *m_enabled;
     QComboBox *m_output;
@@ -50,6 +54,7 @@ private:
     QCheckBox *m_osdStatistics;
     QCheckBox *m_osdDeveloper;
     QSpinBox *m_osdTimeout;
+    QLabel *m_build;
     QLabel *m_status;
 };
 

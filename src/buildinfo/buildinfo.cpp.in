@@ -44,16 +44,16 @@ QString describe()
     return text;
 }
 
-namespace
+void announce()
 {
-// Printed once when KWin loads the plugin, so that a journal from a session
-// always names the exact build that ran in it. The default logging category is
-// deliberate: a Q_LOGGING_CATEGORY here would collide with the one the effect
-// declares for itself.
-const bool s_announced = []() {
+    // Called when the effect initializes, so that a journal from a session
+    // always names the exact build that ran in it, and so that a process which
+    // only reads the identity does not claim to have loaded the effect.
+    //
+    // The default logging category is deliberate: a Q_LOGGING_CATEGORY here
+    // would collide with the one the effect declares for itself, and this line
+    // has to appear with the default logging configuration in every build.
     qInfo("%s", qUtf8Printable(describe()));
-    return true;
-}();
 }
 
 } // namespace UpscaleBuildInfo

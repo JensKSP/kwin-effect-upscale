@@ -20,7 +20,11 @@ static QString unknown()
 
 static QString sizeText(const QSize &size)
 {
-    return size.isEmpty() ? unknown() : i18n("%1 × %2", size.width(), size.height());
+    // Pixel counts are substituted as text on purpose. Passing the integers
+    // lets the locale group them, and "3.840 × 2.160" reads as two fractional
+    // numbers rather than as a resolution.
+    return size.isEmpty() ? unknown()
+                          : i18n("%1 × %2", QString::number(size.width()), QString::number(size.height()));
 }
 
 static QString presetName(ResolutionPreset preset)
@@ -140,7 +144,7 @@ QString upscaleStatusText(const UpscaleSnapshot &snapshot)
 {
     const QString wish = snapshot.preset == ResolutionPreset::Automatic
         ? i18n("Automatic (no request)")
-        : i18n("Select %1 × %2 in the game", snapshot.desired.width, snapshot.desired.height);
+        : i18n("Select %1 × %2 in the game", QString::number(snapshot.desired.width), QString::number(snapshot.desired.height));
     QString state;
     if (snapshot.selected) {
         if (snapshot.scaling) {
@@ -158,9 +162,8 @@ QString upscaleStatusText(const UpscaleSnapshot &snapshot)
             state += QLatin1Char(' ') + i18n("Supplied format: %1.", snapshot.format);
         }
     }
-    return i18n("Desired: %1\nSupplied input: %2 × %3\nDestination: %4 × %5\n%6\nHDR follows KWin colour management. Actual VRR presentation is not measured.",
-                wish, snapshot.supplied.width(), snapshot.supplied.height(),
-                snapshot.destination.width(), snapshot.destination.height(), state);
+    return i18n("Desired: %1\nSupplied input: %2\nDestination: %3\n%4\nHDR follows KWin colour management. Actual VRR presentation is not measured.",
+                wish, sizeText(snapshot.supplied), sizeText(snapshot.destination), state);
 }
 
 QString upscaleDeveloperInformation(const UpscaleSnapshot &snapshot)

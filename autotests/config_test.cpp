@@ -109,6 +109,11 @@ void UpscaleConfigTest::displayDefaults()
     QCheckBox *statistics = module.widget()->findChild<QCheckBox *>(QStringLiteral("osdStatistics"));
     QCheckBox *developer = module.widget()->findChild<QCheckBox *>(QStringLiteral("osdDeveloper"));
     QSpinBox *timeout = module.widget()->findChild<QSpinBox *>(QStringLiteral("osdTimeout"));
+    QLabel *build = module.widget()->findChild<QLabel *>(QStringLiteral("build"));
+    QVERIFY(build);
+    // Built without the generated identity, as an upstream copy inside KWin
+    // would be, the page still says something rather than showing a blank row.
+    QVERIFY(!build->text().isEmpty());
     QVERIFY(osd);
     QVERIFY(detection);
     QVERIFY(statistics);

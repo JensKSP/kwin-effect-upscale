@@ -76,8 +76,8 @@ void UpscaleIntegrationTest::lifecycle()
         });
         QVERIFY(client.show(QSize(64, 64)));
         QTRY_VERIFY2(status().contains(QStringLiteral("FSR 1, sharpening 0%")), qPrintable(status()));
-        QVERIFY(status().contains(QStringLiteral("Supplied input: 64 × 64")));
-        QVERIFY(status().contains(QStringLiteral("Destination: 128 × 128")));
+        QVERIFY2(status().contains(QStringLiteral("Supplied input: 64 × 64")), qPrintable(status()));
+        QVERIFY2(status().contains(QStringLiteral("Destination: 128 × 128")), qPrintable(status()));
         client.commit();
         configure(true, true, 3);
         QTRY_VERIFY2(status().contains(QStringLiteral("FSR 1, sharpening 50%")), qPrintable(status()));

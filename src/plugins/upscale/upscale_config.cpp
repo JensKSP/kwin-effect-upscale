@@ -9,6 +9,16 @@
 #include "resolution.h"
 #include "upscaleconfig.h"
 
+// Kept out of the plugin folder, because that folder has to stay a folder KDE
+// could copy into KWin unchanged. Out of tree the build adds its include path;
+// copied into KWin the header is absent and the page says so.
+#if __has_include("buildinfo.h")
+#include "buildinfo.h"
+#define UPSCALE_BUILD_INFO 1
+#else
+#define UPSCALE_BUILD_INFO 0
+#endif
+
 #include <KLocalizedString>
 #include <KPluginFactory>
 
@@ -48,6 +58,7 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     , m_osdStatistics(new QCheckBox(i18n("Keep statistics on screen"), widget()))
     , m_osdDeveloper(new QCheckBox(i18n("Add developer information"), widget()))
     , m_osdTimeout(new QSpinBox(widget()))
+    , m_build(new QLabel(widget()))
     , m_status(new QLabel(widget()))
 {
     m_enabled->setObjectName(QStringLiteral("enabled"));
@@ -73,6 +84,22 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     layout->addRow(i18n("Sharpening strength:"), m_strength);
     layout->addRow(m_strengthLabel);
     addDisplayControls(layout);
+    addStatusControls(layout);
+    connectControls();
+    connect(qGuiApp, &QGuiApplication::screenAdded, this, &UpscaleEffectConfig::updateOutputs);
+    connect(qGuiApp, &QGuiApplication::screenRemoved, this, &UpscaleEffectConfig::updateOutputs);
+    updateOutputs();
+    UpscaleEffectConfig::load();
+}
+
+void UpscaleEffectConfig::addStatusControls(QFormLayout *layout)
+{
+    m_build->setObjectName(QStringLiteral("build"));
+    m_build->setWordWrap(true);
+    m_build->setTextFormat(Qt::PlainText);
+    m_build->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    m_build->setText(installedBuild());
+    layout->addRow(i18n("Version:"), m_build);
     m_status->setWordWrap(true);
     m_status->setTextFormat(Qt::PlainText);
     m_status->setTextInteractionFlags(Qt::TextSelectableByMouse);
@@ -80,6 +107,10 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     auto refresh = new QPushButton(i18n("Refresh supplied-buffer status"), widget());
     layout->addRow(refresh);
     connect(refresh, &QPushButton::clicked, this, &UpscaleEffectConfig::refreshStatus);
+}
+
+void UpscaleEffectConfig::connectControls()
+{
     connect(m_output, &QComboBox::currentIndexChanged, this, &UpscaleEffectConfig::updatePreview);
     connect(m_preset, &QComboBox::currentIndexChanged, this, [this]() {
         updatePreview();
@@ -101,10 +132,6 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
         updatePreview();
         setNeedsSave(true);
     });
-    connect(qGuiApp, &QGuiApplication::screenAdded, this, &UpscaleEffectConfig::updateOutputs);
-    connect(qGuiApp, &QGuiApplication::screenRemoved, this, &UpscaleEffectConfig::updateOutputs);
-    updateOutputs();
-    UpscaleEffectConfig::load();
 }
 
 void UpscaleEffectConfig::addDisplayControls(QFormLayout *layout)
@@ -246,6 +273,29 @@ void UpscaleEffectConfig::save()
     refreshStatus();
 }
 
+// Whether the identity the running effect reported is this build's own. The
+// version string names the commit, so containing it is enough.
+static bool sameAsInstalled(const QString &loaded)
+{
+#if UPSCALE_BUILD_INFO
+    return loaded.contains(UpscaleBuildInfo::version());
+#else
+    Q_UNUSED(loaded)
+    return true;
+#endif
+}
+
+QString UpscaleEffectConfig::installedBuild()
+{
+#if UPSCALE_BUILD_INFO
+    const QString branch = UpscaleBuildInfo::branch();
+    return i18n("%1, %2, built %3", UpscaleBuildInfo::version(),
+                branch.isEmpty() ? i18n("no branch or tag recorded") : branch, UpscaleBuildInfo::buildDate());
+#else
+    return i18n("unknown");
+#endif
+}
+
 void UpscaleEffectConfig::refreshStatus()
 {
     QDBusMessage message = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"), QStringLiteral("/Effects"),
@@ -254,11 +304,41 @@ void UpscaleEffectConfig::refreshStatus()
     auto watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(message), this);
     connect(watcher, &QDBusPendingCallWatcher::finished, this, [this, watcher]() {
         const QDBusPendingReply<QString> reply = *watcher;
-        m_status->setText(reply.isError() || reply.value().isEmpty()
-                              ? i18n("Live status unavailable. Enable Upscale in Desktop Effects, then refresh while the game is running.")
-                              : reply.value());
+        if (reply.isError() || reply.value().isEmpty()) {
+            m_status->setText(i18n("Live status unavailable. Enable Upscale in Desktop Effects, then refresh while the game is running."));
+        } else {
+            showSupportInformation(reply.value());
+        }
         watcher->deleteLater();
     });
+}
+
+void UpscaleEffectConfig::showSupportInformation(const QString &information)
+{
+    // KWin assembles this from the effect's properties: a line naming the
+    // effect, then "<property>: <value>" for each one, the last of which runs
+    // over several lines. Strip that framing rather than showing it.
+    QStringList lines = information.split(QLatin1Char('\n'));
+    if (!lines.isEmpty() && lines.constFirst().endsWith(QLatin1Char(':'))) {
+        lines.removeFirst();
+    }
+    QString loaded;
+    for (qsizetype index = 0; index < lines.size(); ++index) {
+        if (lines.at(index).startsWith(QStringLiteral("build: "))) {
+            loaded = lines.takeAt(index).mid(7).trimmed();
+            break;
+        }
+    }
+    if (!lines.isEmpty() && lines.constFirst().startsWith(QStringLiteral("status: "))) {
+        lines.replace(0, lines.constFirst().mid(8));
+    }
+    m_status->setText(lines.join(QLatin1Char('\n')).trimmed());
+    // The compositor keeps a plugin it has already loaded, so an installed
+    // update is not the build that is running until the session restarts.
+    // Saying so is the only honest way to report the difference.
+    m_build->setText(loaded.isEmpty() || sameAsInstalled(loaded)
+                         ? installedBuild()
+                         : i18n("%1\nRunning in KWin: %2", installedBuild(), loaded));
 }
 
 } // namespace KWin

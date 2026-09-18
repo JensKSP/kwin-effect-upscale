@@ -338,7 +338,11 @@ Planned checks, not observed results:
 - [ ] Verify minimum-version dialog APIs; the upstreamable data seam is chosen
   and implemented (see the implementation findings above).
 - [ ] Audit exact dependency/component notices and delivery obligations.
-- [ ] Implement generation, metadata, About/details access and initialization log.
+- [ ] Implement generation, metadata and About/details access. The
+  initialization log and a settings version line exist: the identity is logged
+  when the effect initializes instead of when its library loads, the settings
+  module links the same record, and the effect exposes it as a property so the
+  page can report the loaded build beside the installed one.
 - [x] Implement candidate selection and rejection reporting first, so the
   rendering slice's scaler-effective gate can be diagnosed. Every documented
   condition now has its own reason, including the paint-pass conditions and the

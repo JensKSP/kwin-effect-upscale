@@ -391,6 +391,15 @@ both stable versions and the tracked development version.
 
 ### About, build identity and third-party notices
 
+Implemented so far: the settings page names the installed build with its
+version, branch or tag and build time, and names the build the running
+compositor answers with when that differs, because KWin keeps a plugin it has
+already loaded until the session restarts. The effect writes the same identity
+to the log once, when it initializes, rather than when its library is loaded,
+so a process that only reads the identity does not claim to have loaded the
+effect. The full About dialog, the plugin metadata below and the component
+notices remain unimplemented.
+
 Required extension, not yet implemented: provide **About Upscale** from the
 effect's settings using KDE's standard About presentation. Prefer the host's
 About action if it can show the effect's own complete data. Otherwise add a

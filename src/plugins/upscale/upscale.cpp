@@ -52,6 +52,12 @@ UpscaleEffect::UpscaleEffect(ItemRenderer *renderer)
         m_renderer = effects->scene()->renderer();
     }
 #endif
+#if UPSCALE_BUILD_INFO
+    m_build = UpscaleBuildInfo::describe();
+    // One complete identity record per successful initialization. Repaints,
+    // reconfiguration and opening the settings do not repeat it.
+    UpscaleBuildInfo::announce();
+#endif
     UpscaleEffect::reconfigure(ReconfigureAll);
     connect(effects, &EffectsHandler::windowAdded, this, &UpscaleEffect::watchWindow);
     const auto windows = effects->stackingOrder();
@@ -263,9 +269,7 @@ EffectWindow *UpscaleEffect::displayed() const
 UpscaleSnapshot UpscaleEffect::snapshot(EffectWindow *window, const RenderTarget *target) const
 {
     UpscaleSnapshot state;
-#if UPSCALE_BUILD_INFO
-    state.build = UpscaleBuildInfo::describe();
-#endif
+    state.build = m_build;
     state.buildType = upscaleDebugBuild ? i18n("Debug") : i18n("Release");
     state.graphics = usingOpenGLES() ? i18n("OpenGL ES") : i18n("OpenGL");
 
@@ -346,6 +350,11 @@ UpscalePaintResult UpscaleEffect::paintScreen(const RenderTarget &target, const 
     effects->paintScreen(target, viewport, mask, region, screen);
     paintDisplay(target, viewport, screen);
 #endif
+}
+
+QString UpscaleEffect::build() const
+{
+    return m_build;
 }
 
 QString UpscaleEffect::status() const

@@ -55,4 +55,8 @@ function(kwin_add_effect_config name)
     list(REMOVE_ITEM ARGV ${name})
     kcoreaddons_add_plugin(${name} INSTALL_NAMESPACE "kwin/effects/configs" SOURCES ${ARGV})
     target_compile_definitions(${name} PRIVATE -DTRANSLATION_DOMAIN=\"kwin_effect_upscale\")
+    # The settings page names the build it was installed with, beside the one
+    # the running compositor reports. Only the data is linked here; announcing
+    # an effect load belongs to the effect and stays there.
+    upscale_add_build_info(${name})
 endfunction()

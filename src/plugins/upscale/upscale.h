@@ -11,6 +11,8 @@
 #include "eligibility.h"
 
 #include <QPointer>
+#include <QString>
+
 #include <memory>
 
 namespace KWin
@@ -22,6 +24,10 @@ class UpscaleScaler;
 class UpscaleEffect : public Effect
 {
     Q_OBJECT
+    // Declared before status so that the support information KWin assembles
+    // from these properties keeps the single-line identity ahead of the
+    // multi-line status, which is what the settings page parses.
+    Q_PROPERTY(QString build READ build)
     Q_PROPERTY(QString status READ status)
 
 public:
@@ -44,6 +50,7 @@ public:
     int requestedEffectChainPosition() const override;
     UpscalePaintResult drawWindow(const RenderTarget &target, const RenderViewport &viewport, EffectWindow *window,
                                   int mask, const UpscaleRegion &region, WindowPaintData &data) override;
+    QString build() const;
     QString status() const;
 
 private:
@@ -76,6 +83,9 @@ private:
     // never keeps the next frame from being scaled.
     UpscaleRefusal m_passRefusal = UpscaleRefusal::None;
     UpscaleDisplay m_display;
+    // The build this effect came from. Empty where the generated record is not
+    // part of the build, as in a copy of this folder inside KWin.
+    QString m_build;
 };
 
 } // namespace KWin
