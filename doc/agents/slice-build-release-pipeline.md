@@ -210,10 +210,6 @@ supersede earlier pending statuses.
 
 ## Remaining work
 
-- Verify the implemented file-based selection in hosted CI: a full run for this
-  workflow change and a subsequent documentation-only run. Local scope tests,
-  full checks, reduced checks and mixed-change refusal have passed. Observe
-  the intended skips and required Quality gate before claiming hosted acceptance.
 - The owner-review setting now requires code-owner review with zero additional
   approvals. `.github/CODEOWNERS` is on `master` and assigns `JensKSP` to all paths.
   Owner-authored auto-merge passed on PR #6 with both required statuses green.
@@ -426,7 +422,14 @@ review with zero additional approvals and both status checks. This establishes
 owner-authored auto-merge for the deployed settings; outside-author ownership
 enforcement and live approval revocation remain separate acceptance items.
 
-A documentation-only follow-up records these observations and exercises the
-reduced hosted path. It must run the documentation hooks and Quality gate while
-skipping compiler, instrumentation and package jobs. Its hosted result remains
-pending until the new PR completes CI.
+PR #7 at `3eeeb40` passed documentation-only CI run `35336895198` in 1 minute
+54 seconds; the full PR #6 run took 5 minutes 9 seconds. These are individual
+observations, not a timing guarantee. The hosted logs show both native hook
+stages passed spelling, Markdown, licensing, secret scanning and repository
+rules. Tooling regressions were skipped; the source-line limit did not apply to
+Markdown. Scope outputs selected only `docs`, with instrumentation and packaging
+skipped. The required Quality gate accepted exactly those intended skips.
+Master CI run `35336663775` also passed the full path after PR #6 merged.
+Hosted file selection is accepted; subsequent revisions still need their own
+checks and review, and documentation-only master-push selection has local test
+coverage but has not yet been observed on GitHub.
