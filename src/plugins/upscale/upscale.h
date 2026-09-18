@@ -24,6 +24,9 @@ class UpscaleEffect : public Effect
 
 public:
     UpscaleEffect();
+    // The supplied renderer is borrowed until a render-device change replaces
+    // it. A null renderer uses KWin's scene renderer.
+    explicit UpscaleEffect(ItemRenderer *renderer);
     ~UpscaleEffect() override;
 
     static bool supported();
@@ -45,6 +48,9 @@ private:
     void watchWindow(EffectWindow *window);
 
     std::unique_ptr<UpscaleScaler> m_scaler;
+    // The candidate whose render target this scaler cannot handle. Held as a
+    // window rather than a flag so a different one is always tried again.
+    mutable QPointer<EffectWindow> m_unsupportedColors;
     bool m_enabled = true;
     bool m_failed = false;
     double m_strength = 0;

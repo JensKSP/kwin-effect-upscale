@@ -13,6 +13,8 @@
 #include "opengl/gltexture.h"
 #include "scene/itemrenderer.h"
 
+#include <QByteArrayView>
+
 #include <cmath>
 
 // KWin's development API replaced Qt regions and changed paint callbacks.
@@ -84,6 +86,14 @@ inline std::unique_ptr<GLTexture> allocateFloatTexture(const QSize &size)
     return texture;
 }
 
+// GL_VERSION always starts with "OpenGL ES" on an OpenGL ES implementation.
+// Asking the context itself would need a different KWin class per version.
+inline bool usingOpenGLES()
+{
+    const char *version = reinterpret_cast<const char *>(glGetString(GL_VERSION));
+    return version && QByteArrayView(version).startsWith("OpenGL ES");
+}
+
 inline RenderViewport captureViewport(const UpscaleRectF &geometry, double scale, const RenderTarget &target)
 {
 #if UPSCALE_NEW_API
@@ -112,6 +122,14 @@ inline const ColorDescription &targetColors(const RenderTarget &target)
     return target.colorDescription();
 #endif
 }
+
+// The shaders select their transfer function by number. KWin has kept these
+// values stable and only appended to the enumeration; anything it adds later
+// is rejected below rather than silently decoded with the wrong curve.
+static_assert(int(TransferFunction::sRGB) == 0);
+static_assert(int(TransferFunction::linear) == 1);
+static_assert(int(TransferFunction::PerceptualQuantizer) == 2);
+static_assert(int(TransferFunction::gamma22) == 3);
 
 inline bool supportsUpscaleColors(const ColorDescription &colors)
 {

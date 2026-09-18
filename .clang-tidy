@@ -29,6 +29,7 @@ Checks: >
   -misc-no-recursion,
   -misc-non-private-member-variables-in-classes,
   -misc-use-anonymous-namespace,
+  -misc-use-internal-linkage,
   modernize-*,
   -modernize-avoid-c-arrays,
   -modernize-concat-nested-namespaces,
@@ -61,6 +62,10 @@ FormatStyle: file
 #   modernize-use-nodiscard, modernize-use-designated-initializers,
 #   performance-enum-size         off: legitimate C++ that KWin never writes
 #   -misc-use-anonymous-namespace off, as in Calligra
+#   -misc-use-internal-linkage    off: it reports the function that
+#                                 Q_LOGGING_CATEGORY defines, which KWin's own
+#                                 effects declare at file scope in exactly the
+#                                 same way
 #   -misc-include-cleaner         off: it cannot see through KWin's
 #                                 KWIN_EFFECT_FACTORY_* macros and reports the
 #                                 macro itself as an undeclared include
@@ -116,6 +121,11 @@ CheckOptions:
     value: s_
   - key: readability-identifier-naming.MacroDefinitionCase
     value: UPPER_CASE
+  # Q_LOGGING_CATEGORY turns its category name into a function. KWin declares
+  # its own the same way, in src/plugins/blur/blur.cpp among others, so the
+  # accessor keeps the macro's upper-case name rather than the function style.
+  - key: readability-identifier-naming.FunctionIgnoredRegexp
+    value: 'KWIN_[A-Z0-9_]+'
   # Abbreviations are out per AGENTS.md, so short names are not exempt.
   - key: readability-identifier-naming.IgnoreMainLikeFunctions
     value: 'false'

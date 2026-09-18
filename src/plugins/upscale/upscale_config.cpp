@@ -155,11 +155,14 @@ void UpscaleEffectConfig::load()
 
 void UpscaleEffectConfig::defaults()
 {
-    m_enabled->setChecked(true);
-    m_percentage->setValue(67);
-    m_preset->setCurrentIndex(int(ResolutionPreset::Automatic));
-    m_sharpening->setChecked(false);
-    m_strength->setValue(50);
+    // The defaults live in upscaleconfig.kcfg. Repeating them here is how the
+    // dialog and the effect start to disagree about what "default" means.
+    UpscaleConfig::self()->setDefaults();
+    m_enabled->setChecked(UpscaleConfig::enabled());
+    m_percentage->setValue(UpscaleConfig::percentage());
+    m_preset->setCurrentIndex(UpscaleConfig::preset());
+    m_sharpening->setChecked(UpscaleConfig::sharpening());
+    m_strength->setValue(UpscaleConfig::strength());
     updatePreview();
     setNeedsSave(true);
 }

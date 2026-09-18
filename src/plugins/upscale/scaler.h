@@ -39,6 +39,7 @@ private:
         Buffer();
         ~Buffer();
         bool resize(const QSize &size);
+        void release();
         std::unique_ptr<GLTexture> texture;
         std::unique_ptr<GLFramebuffer> framebuffer;
     };
