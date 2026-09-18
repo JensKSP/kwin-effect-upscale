@@ -12,11 +12,12 @@ that already work. FSR 1 rendering, optional RCAS and the settings page are
 implemented. Container rendering tests cover the shaders and configuration;
 compositor lifecycle and real-game, HDR and VRR acceptance remain open.
 
-Each major implementation slice has its own temporary document for its plan,
-progress, findings, TODOs and test results. The current slice is
-[FSR 1 with HDR and VRR](slice-fsr1-hdr-vrr.md). Completing a slice removes only
-its working document; this handbook remains. Durable implementation details
-also belong in source comments and tests.
+This handbook and the source code, including comments and tests, are the
+single source of truth. Temporary working documents for coding agents under
+[`doc/agents/`](agents/) track bounded, unfinished work packages. Once a package
+is implemented and all required tests pass, including real-device acceptance
+where required, its working document is removed after lasting information has
+been preserved here and beside the code. This handbook remains.
 
 Statements about KWin below were read in the source at
 `v6.3.6` (commit `b8de432`, the version Debian Trixie ships as `4:6.3.6-1`) and
@@ -150,6 +151,44 @@ runs its modified SGSR filter followed by RCAS; that is a different pipeline
 from Qualcomm's single-pass reference. Neither pipeline establishes HDR
 correctness or performance for this KWin effect without separate validation.
 
+### Aspect ratio and integer scaling
+
+Required extension, not yet implemented: support fullscreen content whose
+aspect ratio differs from the output, and provide integer scaling for pixel
+art and older games. Add global settings with sparse application overrides.
+This expands the initial geometry restrictions; it does not imply that the
+current FSR path handles these cases.
+
+- **Fit, preserve aspect ratio:** enlarge the complete supplied image as far as
+  the selected filter permits without stretching or cropping it. Centre it and
+  fill the remaining output area with black bars. For example, 1440 × 1080
+  content on a 3840 × 2160 output occupies 2880 × 2160, with 480-pixel bars on
+  each side. Fit is the default geometry when this extension is available.
+- **Integer:** use the largest positive whole-number factor that fits both
+  dimensions, centre the result and leave black bars where needed. Combine it
+  with **Nearest neighbour** filtering for exact pixel replication, with
+  sharpening off. For example, 320 × 240 becomes 2880 × 2160 at 9× on a 4K
+  output. Expose geometry and filtering separately; nearest filtering alone
+  must not be labelled integer scaling.
+
+Calculate the destination in physical pixels, independently of desktop scale.
+Permit at most the unavoidable one-pixel imbalance between opposite bars when
+centering. If no positive integer factor fits, report that integer scaling is
+unavailable and retain normal rendering; do not silently downscale or crop.
+A factor of one is valid centred presentation without enlargement. The wider
+integer range belongs to the nearest-neighbour path; retain FSR's supported
+scale limits and report a filter/geometry combination that cannot be honoured.
+Never apply sharpening to bars or filter across the image boundary.
+
+Preserve the complete image and the physical output mode. A buffer that already
+contains letterboxing is treated as supplied; automatic bar detection or
+cropping is outside this requirement. Geometry changes must also preserve
+absolute pointer mapping, relative motion, confinement, locking, popups and
+separate overlays. Keep this input and surface-tree work explicit rather than
+assuming a different draw rectangle alone implements the feature. Rendering,
+HDR/VRR and real-game acceptance are tracked in the
+[geometry slice](agents/slice-scaling-geometry.md).
+
 ## HDR and variable refresh rate
 
 HDR and VRR are required, including simultaneous HDR upscaling and VRR.
@@ -253,6 +292,161 @@ compatibility layer rather than in the effect's logic.
 
 ## Configuration
 
+### About, build identity and third-party notices
+
+Required extension, not yet implemented: provide **About Upscale** from the
+effect's settings using KDE's standard About presentation. Prefer the host's
+About action if it can show the effect's own complete data. Otherwise add a
+small standard About/information button in the settings page, with an accessible
+name, tooltip and keyboard access. Use a KDE About dialog, such as
+[KAboutPluginDialog](https://api.kde.org/kaboutplugindialog.html), rather than
+replacing the settings host's application-wide About data. A linked details
+dialog or tab may hold the additional build and component information.
+
+The settings entry must work without a running game or active upscaling.
+Opening or closing About must not apply settings, start the effect or change
+the module's unsaved state. Information is selectable and copyable, with a
+**Copy build information** action for reporting a particular build.
+
+#### Required identity fields
+
+| Field | Content |
+| --- | --- |
+| Plugin name | Upscale, with project identifier `kwin-effect-upscale` where useful. |
+| Author | Jens Koehler, from the project's maintained author metadata. Preserve additional contributor and third-party credits separately. |
+| Version | The exact compiled version, including package/snapshot suffix and dirty state where applicable; derive it from the existing single version definition. |
+| Project | Clickable [GitHub project](https://github.com/JensKSP/kwin-effect-upscale) link. |
+| Branch/tag | Label the build's branch or tag accurately; show both when known. A tag is not a branch and detached HEAD must not be described as master. |
+| Git revision | Full commit hash as an independent field, including release builds whose version has no hash suffix. A shortened display may offer the full value for copying. |
+| Build date and time | Complete ISO 8601 UTC timestamp, with the timezone visible. Honour `SOURCE_DATE_EPOCH`; identify a reproducible timestamp as such instead of claiming it is a measured wall-clock compilation time. |
+| License | `GPL-2.0-or-later`, a clickable [license link](https://github.com/JensKSP/kwin-effect-upscale/blob/master/LICENSES/GPL-2.0-or-later.txt), and access to the bundled full text. |
+
+Use one consistent identity record for the settings dialog, startup log and
+optional overlay. Run the generator on **every build invocation**, including
+builds without source changes and direct builds of the effect or settings
+target. Recompute revision, ref and the complete timestamp then, not only during
+configuration or after a new commit. Read the timestamp through CMake with
+`SOURCE_DATE_EPOCH` support; do not retain an earlier wall-clock build time just
+because the sources are unchanged.
+
+Put changing values in one small generated `.cpp` behind stable declarations.
+Replace it only when the generated content differs. A changed timestamp or
+revision must require only that small unit to compile and the affected binaries
+to link; it must not rebuild the scaler, settings UI or other consumers. An
+invocation with identical resulting values, including a fixed reproducible
+timestamp, should write nothing and need no compilation. Keep volatile values
+out of headers, embedded plugin JSON and Qt resource inputs, and verify that
+they do not trigger metadata/resource regeneration. Standard plugin metadata
+can hold stable identity and the base version; the exact build record augments
+the About presentation at runtime.
+
+Never query Git from the installed plugin. Keep project-specific generation
+outside the copyable plugin folder. Preserve known source revision/ref metadata
+when producing source archives. For arbitrary archives without that information,
+show **Unavailable**
+or **Unknown** explicitly; do not infer a full commit or branch from a version.
+
+Show which binary a record describes. If a newly installed settings module and
+the effect already loaded in KWin differ, distinguish their records and indicate
+that the loaded build remains older until reloaded. Never silently present the
+installed build as the one currently rendering. If loaded-build information
+cannot be obtained, label that state and retain access to installed information.
+
+#### Startup log
+
+Emit the complete identity above at information level when the effect is
+initialized, including initialization during KWin startup and explicit loading
+later. One concise record or small labelled block per initialization is enough;
+do not repeat it on frames, reconfiguration, dialog opening or game detection.
+This extends the current version/branch/date/Qt announcement. Include the
+project and license URLs and where the installed third-party notices can be
+read; full license texts do not need to fill the startup log. A settings-only
+metadata inspection must not announce that the compositor effect was started.
+
+#### Third-party components and licenses
+
+Provide **Third-party components and licenses…** from About, either in the same
+dialog or a linked, searchable details dialog. Include the libraries, shaders
+and other dependencies used by the selected build, distinguishing bundled or
+adapted code, linked runtime libraries and build-only tools. Identify relevant
+transitive components when their code or notices are included in the delivered
+artifacts. Do not list merely considered scalers as incorporated components.
+
+For each component provide its name, purpose, version or source revision where
+known, authors and copyright holders as supplied upstream, copyright notices,
+applicable license expression and exceptions, upstream/source link, and access
+to its full license and required notice texts. Preserve modification notices
+where applicable. Retain complete upstream attribution rather than replacing
+it with a project name or inventing individual authors from a commit log.
+When build-time and runtime library versions are both shown, label them.
+
+Review the licenses of the actual files/modules and how they are distributed;
+do not assign every Qt or KDE component a single assumed license, and preserve
+`AND`, `OR`, `WITH` and “or later” distinctions. Keep an audited notices inventory
+in sync with SPDX headers, `LICENSES/`, package copyright information and actual
+build inputs. It describes attribution, not a second build-dependency list.
+Unresolved licensing or missing required notices must be corrected before a
+release is described as complete.
+
+Required attribution and license texts must be accessible offline from the
+installed package as well as through the settings UI. External links supplement
+those texts; they are not the only access route. Package the notices even when
+the settings module is omitted. The current EASU and RCAS sources retain
+Advanced Micro Devices, Inc.'s 2021 copyright and MIT notices; include these
+explicitly in the viewer and package metadata. The
+[MIT terms](https://spdx.org/licenses/MIT.html) require preservation of the
+copyright and permission notice, so a generic license name or author list alone
+is insufficient for these incorporated shaders.
+
+The About UI provides access to notices; it does not by itself satisfy every
+distribution obligation. The release process must preserve required notices
+and provide corresponding source or other materials under the applicable
+licenses. For example, [GPL version 2, sections 1–3](https://spdx.org/licenses/GPL-2.0-or-later.html)
+sets notice and source-distribution conditions. Verify the chosen delivery
+route and link the matching released source where available; a link to the
+latest development branch is not an exact source record for an older binary.
+
+#### Optional overlay access
+
+An About view in the shared in-game overlay is optional and does not gate the
+settings/logging implementation. If provided, reuse the same identity and
+component notices, offer access to the full details, and follow the overlay's
+focus, capture and cleanup rules. Keep it separate from the game-detection
+announcement and passive statistics; displaying a startup About overlay is
+not required.
+
+Implementation and acceptance are tracked in the next
+[development infrastructure slice](agents/slice-development-infrastructure.md),
+together with diagnostic logging and the passive OSD.
+
+### Diagnostic logging and state
+
+Required extension, not yet implemented: About, logs, settings diagnostics and
+the developer overlay must describe the same loaded build and observed effect
+state. Keep build identity separate from changing runtime state. Offer a
+copyable diagnostic snapshot in settings, including explicit unavailable values
+when the effect is not loaded. Do not load the effect just to inspect it.
+
+Always emit the initialization identity at information level in both Debug
+and release builds with the default logging configuration. Use the effect's
+logging category for diagnostic state transitions: candidate selection and
+rejection reasons, effective configuration changes, processing-path selection,
+resource failures and recovery. Keep detailed transition tracing at debug
+level, independently selectable through logging configuration; turning on the
+developer overlay does not itself enable verbose logs. Warnings identify
+actionable failures and the resulting fallback. Suppress repeated identical
+events and keep per-frame metrics out of routine logs.
+
+Snapshots and logs must distinguish configured intent from actual state and
+include enough context to associate a transition with its game/output and build.
+Do not collect or dump complete process environments, credentials or unrelated
+application data. Launch diagnostics report the selected method and outcome;
+they do not expose arbitrary command-line arguments or environment values.
+The diagnostic path must remain bounded and must not block rendering or query
+the GPU synchronously.
+
+### Settings page
+
 Configuration follows KWin's own pattern:
 `upscaleconfig.kcfg` and a page registered as `X-KDE-ConfigModule` in System
 Settings. The page implements the controls below. Resolution wishes currently
@@ -273,6 +467,184 @@ as a successfully applied client request.
 HDR and VRR follow KWin's display settings. They are mandatory supported paths,
 not optional quality presets. An enabled VRR setting must not be labelled as
 proof of currently variable presentation.
+
+### Per-application overrides
+
+Required extension, not yet implemented: maintain a user-editable list of
+application profiles with create, inspect, edit and delete operations. Each
+profile contains application matching information and only explicitly selected
+setting overrides. Every absent setting follows the current global value;
+changing a global setting must update all profiles that inherit it. False and
+zero are valid overrides. An explicit value equal to today's global value stays
+an override until the user selects **Use global**.
+
+Identify windows through KWin's application ID/window class and optional instance,
+using its interactive window detection service when adding a running application.
+Do not use process scanning or a changing window title as the primary identity.
+Known-application recommendations must remain editable and removable, and must
+not overwrite user changes on update. Profiles do not bypass rendering
+eligibility or automatically implement client-resolution negotiation.
+
+The proposed model, code reuse findings, catalogue policy and required checks
+are in the [application profiles slice](agents/slice-application-profiles.md).
+
+### Game detection OSD
+
+The planned on-screen display (OSD) must optionally announce when a game is
+recognized by an application profile. Provide a **Show game detection** switch
+and a configurable display timeout in seconds. Both settings follow the same
+global-default and sparse per-application override model as other settings.
+
+Enable detection announcements by default in all build types. Also provide
+**Show basic settings**, initially enabled, to include a short summary in the
+same timed message: actual input/output dimensions or scale and the active
+shader path, including sharpening when active. If processing is bypassed or
+unsupported, state that instead of naming the configured shader as active.
+The summary can be disabled independently. Use a bounded, positive timeout,
+initially three seconds; the summary shares it and does not extend it on every
+frame. After a user changes an effective setting, one brief updated summary may
+appear with the same timeout, without claiming a new game detection.
+
+Show the detected game and selected profile on the game's output. Detection
+alone must not be presented as proof that upscaling is active or that a desired
+resolution was applied. Announce the first match when the game's window becomes
+active and visible, including identities discovered after window creation.
+Do not repeat the message for every frame, title change or focus return to the
+same window and profile. A newly launched game or a different selected profile
+can produce a new announcement. Hide the OSD when its timeout expires or the
+game ceases to be active and visible; suppress it while the screen is locked.
+
+Use the planned OSD rather than introducing a second notification surface. Draw
+it independently of the game's captured buffer so it remains sharp and cannot
+be processed by the upscaler. This behaviour is specified, not yet implemented.
+
+### OSD defaults by build type
+
+Required extension, not yet implemented: expose an OSD enable switch and
+separate choices for timed detection, basic settings, persistent statistics
+and **Developer information**. The developer option adds the complete active
+configuration and runtime state to the persistent statistics view. An overall
+Off hides every OSD mode without changing effect settings or disabling logging.
+
+| Setting when no explicit preference exists | Debug build | Release build |
+| --- | --- | --- |
+| OSD enabled | On | On |
+| Timed game detection | On | On |
+| Timed basic scale/shader summary | On | On |
+| Persistent statistics | On | Off |
+| Developer information | On | Off |
+
+Use the actual build configuration: only `Debug` selects developer defaults;
+`Release`, `RelWithDebInfo` and `MinSizeRel` select release defaults. For a
+multi-configuration build, use the configuration of the built binary. Debug
+symbols alone do not enable developer defaults. Apply defaults only to absent
+preferences. Preserve explicit user choices, including Off, through upgrades
+and switching build types; do not write inferred defaults as user overrides.
+Future application profiles follow the same explicit-override rules.
+
+In a Debug build the persistent view appears for the selected active window
+without an extra opt-in. In a release build only the brief timed announcements
+appear by default. Users may enable statistics and developer information in
+release builds and disable them in Debug builds. Detection timeout never hides
+a deliberately enabled persistent view. With no active window, or while locked,
+do not retain an overlay showing a previous game's state.
+
+### In-game controls and applying settings
+
+Required extension, not yet implemented: extend the same overlay with an
+on-demand settings panel and configurable shortcuts. Let users enable or
+disable scaling, adjust sharpening, select available filters and geometry, and
+change the desired resolution without leaving the game. Show the selected
+game/profile and whether a value is inherited or explicitly overridden. An
+explicit **Apply to this game** saves profile overrides; **Use global** clears
+an override. Keep editing global defaults a separate, labelled action.
+
+The panel must distinguish configured, effective and pending values. Classify
+each change by the active control method's verified capabilities:
+
+| Change | When it takes effect |
+| --- | --- |
+| Effect enable, sharpening, supported filter/geometry, overlay visibility | Apply during play, without restarting the game. Geometry also requires working input mapping; unavailable combinations remain disabled with a reason. |
+| Preferred resolution with a verified live negotiation path | Request during play and show the pending target until an actual buffer change confirms the result. Report ignored or adjusted requests accurately. |
+| Preferred resolution controlled in the game's own settings | Show the requested pixels as guidance; applying our settings does not establish that the game changed resolution. |
+| A helper, resolution method or launch parameter that requires a new process | Save for the next launch and show **Restart required**, while retaining the current effective settings for the running game. |
+
+Mixed changes apply their live portion immediately and keep only the remaining
+portion pending. Reverting a pending value to the effective value clears that
+pending change. Saving or applying settings must never restart a game on its
+own. Offer **Restart game and apply** alongside **Apply on next launch**, using
+the [restart workflow](#restarting-a-game-with-pending-settings) below.
+The controls must remain available when a matched game is not being upscaled.
+
+Provide a temporary visual comparison between ordinary KWin scaling, FSR and
+FSR with sharpening at unchanged supplied-buffer and destination dimensions.
+Comparison must not alter saved settings or negotiate another resolution.
+For an optional split view, both sides must use the same source frame. Keep
+comparison separate from performance measurement because showing two paths
+adds work.
+
+### Optional statistics overlay
+
+Required extension, not yet implemented: add an optional persistent statistics
+view to the same OSD, independently switchable from the brief game-detection
+announcement and the interactive settings panel. Use the build defaults above,
+provide a shortcut to show or hide it, and allow global defaults with sparse
+profile overrides for visibility and displayed fields. Detection timeout must not hide
+a statistics view the user has enabled.
+
+Useful fields are the game/profile, actual supplied-buffer and destination
+dimensions, desired resolution when different, active filter and sharpening,
+effective resolution method, pending restart, frame rate and frame time. Show
+the drawn image dimensions as well as the output size when black bars are used.
+Give a specific reason when scaling is inactive. Colour/HDR information and
+presentation state may be included only to the extent actually observed.
+
+Label every timing measure by what is counted: client buffer updates,
+presentation events or output refresh rate. A compositor repaint counter or
+configured refresh rate must not be presented as the game's rendered FPS.
+Deduplicate the same update drawn in multiple passes, state the sampling
+interval, and show unavailable or stale values honestly, including when a
+game stops supplying frames. GPU filter timing is an optional field only where
+supported and measured; it is not total game GPU time or end-to-end latency.
+Configured HDR/VRR settings alone do not prove the corresponding active path.
+
+Use event-driven samples and bounded text updates, with no synchronous GPU
+readback or continuous full-screen repaint loop just to animate statistics.
+Hiding the view stops its sampling overhead and releases its resources and
+any composition requirement. Draw text at output resolution after the game
+pass, outside the captured image. Keep passive statistics from taking focus
+or input; restore game focus and pointer state after closing interactive
+controls. Suppress all overlay modes while locked and discard stale game data
+when the selected game closes or changes outputs.
+
+#### Developer information
+
+Add **Developer information** to the OSD settings. It extends the ordinary
+FPS/resolution view with the complete effective configuration and diagnostic
+state, grouped and labelled so developers can explain what the effect is doing.
+Keep the passive view readable at output resolution; detailed inspection and
+copying are also available through the settings diagnostic snapshot. This is
+required development infrastructure, not the optional full About overlay.
+
+| Group | Required information when available |
+| --- | --- |
+| Build and runtime | Loaded plugin version, branch/tag, full revision and build time from the shared identity record; build configuration, KWin/Qt versions and active graphics backend. Preserve access to full values if the passive view abbreviates them. |
+| Selection | Selected application/window identity and output, selection or rejection reason, profile and match origin when implemented, active/visible/fullscreen state, and ambiguous or missing candidates. Do not call an arbitrary fullscreen client a recognized game. |
+| Configuration | Every implemented setting's effective value, with global/profile origin where supported; include effect enable, scaler, sharpening enable/strength, desired input, geometry and OSD choices. Distinguish requested and pending values from those currently applied. |
+| Geometry | Actual supplied buffer, desired buffer, destination and drawn image dimensions, scale factors, output scale/transform, viewport and bars where relevant. |
+| Processing | Active shader/pass path, enabled versus bypassed stages and exact fallback or ineligibility reason, resource readiness/failure, capture/intermediate formats and the effect's own scanout-blocking state. |
+| Colour and presentation | Known input/output colour descriptions, transfer functions, HDR state, configured versus observed VRR/presentation state, and limitations of the available observations. |
+| Measurements | The ordinary FPS/frame-time fields, their event source and sampling interval, sample freshness, and optional measured filter timing; never substitute output refresh for game FPS. |
+| Resolution and launch | Current control capability/method, requested versus confirmed input, pending restart and last operation outcome when those features exist. |
+
+Update this inventory as implemented settings and states grow. A consistent
+snapshot must not combine a new window's settings with the previous window's
+buffers. Distinguish unknown, stale, unsupported and not-yet-implemented fields;
+do not implement future launching, profiles or rendering modes just to fill
+them. Report only state actually exposed by KWin/the effect, and identify the
+scope of observations such as the effect's own scanout block rather than
+claiming knowledge of the whole compositor. Apply the same bounded sampling,
+capture exclusion, focus, lock-screen and cleanup rules as ordinary statistics.
 
 ### Percentage and pixel resolution
 
@@ -481,6 +853,97 @@ corresponding action. Present each trial's method, observed dimensions, checks,
 failure reason and remaining uncertainties, with **Retest** and **Clear results**.
 Keep these results distinct from the user's launch configuration and profile
 settings so clearing results does not delete either.
+
+### Restarting a game with pending settings
+
+Required extension, not yet implemented: **Restart game and apply** reuses the
+launch definition for the current game, including the executable or launcher,
+exact argument list, working directory, environment, runtime/version, prefix
+or compatibility-data location and game identifier. Preserve a record of the
+resolved launch used for helper-managed instances, including inherited
+application environment values and explicit removals. Replace only the
+settings the user changed and regenerate helper-owned connection values for
+the new instance; do not reuse a private display socket that was destroyed.
+Keep environment values in memory for the running launch, out of routine logs;
+save only the configured overrides in the profile.
+
+Present the pending changes and make clear that restarting closes the game and
+may lose unsaved progress. The explicit restart action begins one controlled
+close-and-relaunch operation; an ordinary Apply or profile match cannot trigger
+it. Validate the new launch before closing the current instance. Request a
+graceful close, allow the game's save/exit dialog to complete and wait for
+confirmed termination before cleaning up owned helpers and starting one
+replacement. If closing is refused or times out, leave the game running,
+retain pending settings and report the outcome; do not force-kill or start a
+duplicate. Cancellation stops the next launch and must not report success.
+
+Use the existing launcher integration to identify and restart the actual game,
+including child processes. Do not close Steam or an unrelated game to restart
+one title. A window match alone cannot reconstruct its command and environment:
+for an externally started game without a verified launch record or adapter,
+show **Launch setup required** and allow the user to supply its launch
+definition. Do not claim an identical relaunch from guessed arguments or a
+launcher process's environment.
+
+Keep failures actionable and preserve the launch definition and pending
+changes for retry. After relaunch, associate the new window with the same
+profile and verify the actual method and supplied buffer before marking the
+requested change effective. Restart is not a method-discovery session and
+must not cycle through alternative helpers.
+
+### Optional later extensions
+
+The following are accepted directions for later work, not requirements for
+the current slices and not implemented capabilities:
+
+- **Display-specific overrides:** optionally choose different game settings
+  for a TV and monitor, with explicit inheritance and stable display matching.
+  Define how those overrides interact with application profiles before adding
+  another configuration layer.
+- **Fullscreen presentation of windowed games:** optionally select a game
+  window and enlarge it across an output while preserving its smaller supplied
+  buffer. This needs its own input, focus, dialog and restoration design; the
+  required geometry extension still targets fullscreen content.
+- **Sharpening at native resolution:** optionally run sharpening without
+  enlargement. Keep it explicitly enabled and explain its processing cost and
+  possible loss of direct scanout. Native-resolution bypass remains the default.
+
+### Launching through a launcher's own options
+
+Proposed route, not decided and not implemented. A launcher that already wraps
+every game command is a cheaper path to launch-time control than reproducing
+the launcher inside the configuration module. Steam applies a per-game launch
+option template to the actual game process, so a wrapper named there sits
+between Steam and the game:
+
+```sh
+kwin-upscale-run -- %command%
+```
+
+Lutris, Heroic and Bottles offer an equivalent command-prefix field, and the
+same executable can be used by hand from a terminal. This addresses the
+limitation recorded above: starting Steam itself with a modified environment
+does not establish what its eventual game inherits, while a wrapper in that
+game's own launch options runs in the game's process ancestry. The wrapper,
+not KWin, would start a display proxy or gamescope where a method needs one.
+
+- The wrapper ships as a separate executable in the package and runs without a
+  running configuration module. KWin must not execute game commands.
+- It correlates its launch with a profile explicitly, by an identifier it
+  passes to the helper environment, so the effect can associate the resulting
+  window and any child processes. A wrapper identity alone does not identify a
+  game.
+- Argument boundaries, empty arguments, spaces and Unicode survive unchanged,
+  including the launcher's own quoting of `%command%`. Ordinary launches do not
+  interpret shell operators.
+- It exits with the wrapped command's status and forwards signals. A game the
+  launcher can no longer stop is worse than no wrapper at all.
+- With no verified method available for that profile, it runs the command
+  unchanged rather than failing the launch, and says so.
+- The profile editor shows the exact line to paste, where to paste it, and
+  that the launcher applies it only to the next launch. Generating copyable
+  text is the feature; the paste stays with the user, and a game started
+  without the wrapper cannot be adopted by it afterwards.
 
 ### Selecting the game
 

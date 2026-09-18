@@ -96,7 +96,7 @@ class ArtifactTest(RepositoryTest):
                 self.assertIn("agent leftover", result.stderr)
 
     def test_agents_file_is_allowed(self) -> None:
-        """AGENTS.md is the one agent-facing file this project keeps."""
+        """The repository's AGENTS.md instructions are permitted."""
         self.stage("AGENTS.md", "# Rules\n")
         self.assertEqual(self.check(ARTIFACTS).returncode, 0)
 

@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Reject agent-specific tooling and attribution anywhere in the tree.
 
-This enforces the first rule of AGENTS.md. Temporary slice documents under
-doc/ are ordinary project development files and are left alone.
+This enforces the first rule of AGENTS.md. The repository's AGENTS.md files
+and temporary slice documents under doc/agents/ are permitted by that rule.
 
 Run without arguments it checks what is staged, which is how the pre-commit
 hook calls it. With --all it checks every tracked file, which is what the
@@ -63,7 +63,7 @@ def main() -> int:
     for name in tracked_files(everything=arguments.all):
         if is_forbidden_path(name):
             print(
-                f"error: {name} is agent leftover; AGENTS.md is the only agent-facing file here",
+                f"error: {name} is agent leftover; see the permitted files in AGENTS.md",
                 file=sys.stderr,
             )
             status = 1

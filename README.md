@@ -47,9 +47,7 @@ interface at full resolution.
 ## Technical details
 
 The permanent [developer handbook](doc/upscaling.md) describes requirements,
-specification and design. The current implementation plan, progress, findings
-and remaining work are recorded separately in the
-[FSR 1 slice](doc/slice-fsr1-hdr-vrr.md).
+specification and design, including implemented behaviour and open acceptance.
 
 HDR and variable refresh rate (VRR) support are requirements for the effect,
 including their combined use while upscaling. They are part of the acceptance
@@ -264,14 +262,17 @@ We use Codex and Claude to help write code for this project. We aim to keep
 explain or verify. The standard is readable code that fits KWin's conventions,
 with human review and checks for correctness. Responsibility stays with us.
 
-For each major slice, we keep one separate working document under `doc/`:
-the plan first, then progress, findings, test results and remaining tasks in
-the same file.
-Durable explanations belong in source comments. Once implementation and
-required testing are complete, we remove that slice's working document and its
-links. The developer handbook remains and is kept current with requirements
-and design conclusions. Code, comments and tests specify the implemented
-behaviour.
+Documentation under `doc/` is permanent and written for humans. For each major
+slice, coding agents keep one temporary working document under
+[`doc/agents/`](doc/agents/): one topic with defined start and end states,
+scope, dependencies and acceptance criteria, then progress, findings, test
+results and remaining tasks in the same file. Once implementation is complete
+and all required tests pass, including real-device acceptance where required,
+we remove that working document and update its links. Before removal, lasting
+requirements and design conclusions go into the permanent documentation and
+implementation explanations into source comments. The source code, including
+comments and tests, together with human documentation is the single source of
+truth. The `AGENTS.md` instruction files remain permanently.
 
 Every check in this repository runs from one command:
 
@@ -343,7 +344,8 @@ src/plugins/upscale/     the effect, laid out exactly as KWin lays out its own
 cmake/                   stand-ins for KWin's in-tree build macros
 containers/              build environments: Trixie minimum, KDE neon unstable
 tools/                   checks that run in the pre-commit hook and in CI
-doc/                     what the effect does and why
+doc/                     permanent human documentation: what the effect does and why
+doc/agents/              temporary slice documents for coding agents
 ```
 
 `src/plugins/upscale/` is meant to be copyable into KWin's own `src/plugins/`
