@@ -60,6 +60,16 @@ static bool readableFormat(uint32_t format)
     case DRM_FORMAT_ARGB2101010:
     case DRM_FORMAT_XBGR2101010:
     case DRM_FORMAT_ABGR2101010:
+    // Sixteen bits per channel, as a Vulkan client asking for the best format
+    // it can get will choose. The unsigned ones sample exactly like the eight
+    // bit formats above, normalized to the same range, so the shaders need to
+    // know nothing about them; refusing them only refused the client.
+    case DRM_FORMAT_XRGB16161616:
+    case DRM_FORMAT_ARGB16161616:
+    case DRM_FORMAT_XBGR16161616:
+    case DRM_FORMAT_ABGR16161616:
+    case DRM_FORMAT_XRGB16161616F:
+    case DRM_FORMAT_ARGB16161616F:
     case DRM_FORMAT_XBGR16161616F:
     case DRM_FORMAT_ABGR16161616F:
         return true;
@@ -203,7 +213,17 @@ UpscaleRefusal passRefusal(const RenderTarget &target, const RenderViewport &vie
     if (viewport.scale() != window->screen()->scale()) {
         return UpscaleRefusal::ScaledPass;
     }
-    if (target.transform() != OutputTransform::Normal) {
+    // A flipped target is the ordinary case, not an exception: KWin's DRM
+    // backend begins every frame with the output's transform combined with
+    // OutputTransform::FlipY, so on an upright screen every composed frame
+    // arrives flipped. The projection matrix a RenderViewport hands out
+    // already carries that transform, and the render tests draw through a
+    // flipped target to prove it, so nothing here has to compensate. Refusing
+    // it would refuse every frame on real hardware. Orientations beyond the
+    // flip stay refused because nothing has drawn through one: a rotated
+    // output is already refused by its own condition, above.
+    const OutputTransform transform = target.transform();
+    if (transform != OutputTransform::Normal && transform != OutputTransform::FlipY) {
         return UpscaleRefusal::TransformedRenderTarget;
     }
     return UpscaleRefusal::None;
@@ -309,7 +329,7 @@ QString describeRefusal(UpscaleRefusal refusal)
     case UpscaleRefusal::ScaledPass:
         return i18n("this frame paints at a different scale than the output.");
     case UpscaleRefusal::TransformedRenderTarget:
-        return i18n("this frame's render target is rotated or flipped.");
+        return i18n("this frame's render target has an orientation the scaler does not handle.");
     }
     return QString();
 }

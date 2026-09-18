@@ -38,8 +38,9 @@ private:
     {
         Buffer();
         ~Buffer();
-        bool resize(const QSize &size);
+        bool resize(const QSize &size, GLenum internalFormat);
         void release();
+        GLenum format = 0;
         std::unique_ptr<GLTexture> texture;
         std::unique_ptr<GLFramebuffer> framebuffer;
     };
@@ -50,8 +51,12 @@ private:
 
     Buffer m_input;
     Buffer m_scaled;
+    // One pair per filter space. Selecting with a uniform instead would keep
+    // the transfer-function arithmetic in the shader that does not need it.
     std::unique_ptr<GLShader> m_easu;
     std::unique_ptr<GLShader> m_rcas;
+    std::unique_ptr<GLShader> m_easuDirect;
+    std::unique_ptr<GLShader> m_rcasDirect;
     ItemRenderer *m_renderer;
 };
 

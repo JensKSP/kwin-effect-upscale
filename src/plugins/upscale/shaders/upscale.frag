@@ -14,9 +14,20 @@ out vec4 fragColor;
 
 #include "upscale/workingcolor.glsl"
 
+// A tap. Where the destination is already perceptually encoded and inside
+// zero to one, which is every case but a linear one, that encoding is what
+// EASU asks for and the image can be filtered exactly as it arrived: no
+// decode, and four bytes per texel instead of sixteen for the twelve taps
+// behind every output pixel. A linear destination carries values below zero
+// and above one, so it is folded into the bounded working encoding first.
 vec3 sampleInput(ivec2 pixel)
 {
-    return toWorking(fromDestination(texelFetch(sampler, clamp(pixel, ivec2(0), ivec2(inputSize) - 1), 0).rgb));
+    vec3 texel = texelFetch(sampler, clamp(pixel, ivec2(0), ivec2(inputSize) - 1), 0).rgb;
+#ifdef UPSCALE_DIRECT
+    return texel;
+#else
+    return toWorking(fromDestination(texel));
+#endif
 }
 
 // Emulate gather with texelFetch for OpenGL ES 3.0. Texture storage coordinates
@@ -44,5 +55,9 @@ void main()
              vec4(1.0, 1.0, 1.0, -1.0) / inputSize.xyxy,
              vec4(-1.0, 2.0, 1.0, 2.0) / inputSize.xyxy,
              vec4(0.0, 4.0, 0.0, 0.0) / inputSize.xyxy);
+#ifdef UPSCALE_DIRECT
+    fragColor = vec4(color, 1.0);
+#else
     fragColor = vec4(intermediate ? color : toDestination(fromWorking(color)), 1.0);
+#endif
 }

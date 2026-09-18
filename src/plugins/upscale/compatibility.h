@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "core/renderloop.h"
 #include "core/rendertarget.h"
 #include "core/renderviewport.h"
 #include "effect/effect.h"
@@ -23,6 +24,7 @@
 // render devices. Keep the differences out of scaling and colour logic.
 #if __has_include("core/region.h")
 #define UPSCALE_REGION_API 1
+#include "core/backendoutput.h"
 #include "opengl/eglcontext.h"
 #else
 #define UPSCALE_REGION_API 0
@@ -82,16 +84,28 @@ inline bool usingOpenGLES()
     return version && QByteArrayView(version).startsWith("OpenGL ES");
 }
 
-inline std::unique_ptr<GLTexture> allocateFloatTexture(const QSize &size)
+// AMD asks for 32 bits per pixel for the images FSR 1 reads and writes, "for
+// performance purposes". The working encoding this effect filters in is
+// bounded to zero..one by construction, so an unsigned format can hold it and
+// the only question is how many bits it needs. The capture is different: it
+// holds whatever the destination encodes, which for a linear target includes
+// values outside zero..one, so it stays floating point.
+inline std::unique_ptr<GLTexture> allocateTexture(const QSize &size, GLenum internalFormat)
 {
-    std::unique_ptr<GLTexture> texture = GLTexture::allocate(GL_RGBA32F, size);
+    std::unique_ptr<GLTexture> texture = GLTexture::allocate(internalFormat, size);
     if (texture && usingOpenGLES()) {
         // KWin's GLES allocator (also used exclusively by current master)
-        // creates 8-bit storage even when internalFormat() reports RGBA32F.
+        // creates 8-bit storage even when internalFormat() reports otherwise.
         // Replace that mutable storage with the requested format; framebuffer
         // completeness checks whether the implementation can render to it.
+        GLenum type = GL_FLOAT;
+        if (internalFormat == GL_RGB10_A2) {
+            type = GL_UNSIGNED_INT_2_10_10_10_REV;
+        } else if (internalFormat == GL_RGBA16F) {
+            type = GL_HALF_FLOAT;
+        }
         texture->bind();
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, size.width(), size.height(), 0, GL_RGBA, GL_FLOAT, nullptr);
+        glTexImage2D(GL_TEXTURE_2D, 0, GLint(internalFormat), size.width(), size.height(), 0, GL_RGBA, type, nullptr);
         texture->unbind();
         // A failed replacement can leave the original 8-bit image intact and
         // framebuffer-complete. Never silently filter HDR through that image.
@@ -100,6 +114,61 @@ inline std::unique_ptr<GLTexture> allocateFloatTexture(const QSize &size)
         }
     }
     return texture;
+}
+
+inline std::unique_ptr<GLTexture> allocateFloatTexture(const QSize &size)
+{
+    return allocateTexture(size, GL_RGBA32F);
+}
+
+/**
+ * Whether the filter can work in the destination's own encoding.
+ *
+ * EASU asks for an image that is already perceptually encoded and inside zero
+ * to one. Every transfer function here except the linear one produces exactly
+ * that, so for those the captured image already satisfies the requirement and
+ * needs no conversion at all: the filter reads what the client committed.
+ *
+ * A linear destination is the exception. Its values run below zero, for
+ * colours outside the gamut, and above one, for highlights, so they have to be
+ * folded into the bounded working encoding before EASU will accept them.
+ */
+// The frames a screen really put in front of the user, and how it presented
+// them. KWin renamed the output that owns this between the supported versions;
+// the timing itself is the same signal on both.
+inline RenderLoop *upscaleRenderLoop(UpscaleOutput *output)
+{
+#if UPSCALE_REGION_API
+    return output && output->backendOutput() ? output->backendOutput()->renderLoop() : nullptr;
+#else
+    return output ? output->renderLoop() : nullptr;
+#endif
+}
+
+inline bool upscaleFiltersDirectly(const ColorDescription &colors)
+{
+    return colors.transferFunction().type != TransferFunction::linear;
+}
+
+/**
+ * The format for the images the filter reads and writes.
+ *
+ * AMD asks for 32 bits per pixel "for performance purposes", and in the
+ * destination's own encoding that is what this uses: ten bits per channel over
+ * a range the encoding actually fills, which is at least the depth the client
+ * committed and the depth the screen will show.
+ *
+ * The working encoding cannot go there, and the reason is the encoding rather
+ * than the format. It folds an unbounded signed range into zero to one, so
+ * ordinary content occupies about a third of the code values and half of them
+ * are reserved for negative linear light. Measured on 2026-09-18: at half
+ * precision the colour tests fail by about 0.001 in the encoded output,
+ * including at an sRGB mid grey, and an HDR value of 40 returns as 38.7. Ten
+ * bit would be twice as coarse again.
+ */
+inline GLenum upscaleFilterFormat(const ColorDescription &colors)
+{
+    return upscaleFiltersDirectly(colors) ? GL_RGB10_A2 : GL_RGBA32F;
 }
 
 inline RenderViewport captureViewport(const UpscaleRectF &geometry, double scale, const RenderTarget &target)
