@@ -31,7 +31,7 @@ jobs:
         distribution: ${{ fromJSON(inputs.smoke && '["trixie"]' || '["trixie", "resolute"]') }}
         architecture: ${{ fromJSON(inputs.smoke && '["amd64"]' || '["amd64", "arm64"]') }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: ./.github/actions/environment
@@ -65,12 +65,12 @@ jobs:
       - name: Make artifacts readable
         if: always()
         run: sudo chown -R "$(id -u):$(id -g)" build
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: deliverable-${{ matrix.distribution }}-${{ matrix.architecture }}
           path: build/artifacts/*
           if-no-files-found: error
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: reports-package-${{ matrix.distribution }}-${{ matrix.architecture }}
@@ -87,7 +87,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: ./.github/actions/environment
@@ -101,12 +101,12 @@ jobs:
       - name: Make artifacts readable
         if: always()
         run: sudo chown -R "$(id -u):$(id -g)" build
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: deliverable-source
           path: build/artifacts/*.tar.gz
           if-no-files-found: error
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: reports-source
