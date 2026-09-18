@@ -336,6 +336,14 @@ scan, the SARIF upload and the Security tab results therefore depend on the
 owner merging this pull request. Local results do not establish hosted
 behaviour.
 
+CodeRabbit review `5248718111` on `b7adc8b` raised one valid finding: the
+installer reused whatever bundle was already unpacked, so raising the pin would
+have left the scan on the command line a previous pin had unpacked. The
+installation now records the release tag and digest beside the bundle and reuses
+it only on an exact match. Observed both branches: an existing unmarked
+installation was discarded and refetched, and a marked one was reused without a
+download, each followed by a passing scan with no results.
+
 A defect surfaced while pushing this branch and is fixed here rather than worked
 around. Git exports `GIT_DIR` and its companions to a hook, and the four
 fixture-driven regression suites inherited them, so under the real pre-push hook
