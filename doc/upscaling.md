@@ -1657,10 +1657,10 @@ required with zero additional approvals. For other authors, the owner's approval
 satisfies the ownership requirement. GitHub does not allow authors to approve
 their own PRs: zero additional approvals must not be assumed to waive code-owner
 review. An owner-authored PR that needs ownership approval requires another
-eligible code owner or an explicitly authorized administrator bypass. The
-requested owner-authored auto-merge behavior remains an acceptance
-requirement until observed with these settings. If native ownership enforcement
-blocks it, use an explicitly approved policy adjustment; do not silently bypass
+eligible code owner or an explicitly authorized administrator bypass.
+Owner-enabled auto-merge has been verified for owner-authored PRs with these
+settings and both required statuses passing. If native ownership enforcement
+blocks a PR, use an explicitly approved policy adjustment; do not silently bypass
 reviews or claim that self-approval is possible.
 GitHub uses the CODEOWNERS file from the PR's base branch. Changes to ownership
 therefore take effect after the owner merges them into `master`.

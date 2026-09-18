@@ -210,15 +210,11 @@ supersede earlier pending statuses.
 
 ## Remaining work
 
-- Verify the implemented file-based selection in hosted CI: a full run for this
-  workflow change and a subsequent documentation-only run. Local scope tests,
-  full checks, reduced checks and mixed-change refusal have passed. Observe
-  the intended skips and required Quality gate before claiming hosted acceptance.
 - The owner-review setting now requires code-owner review with zero additional
   approvals. `.github/CODEOWNERS` is on `master` and assigns `JensKSP` to all paths.
-  Verify owner-authored and outside-authored PR behaviour;
-  configuration alone is not acceptance evidence. Agents
-  must not merge or enable auto-merge without permission for the specific PR.
+  Owner-authored auto-merge passed on PR #6 with both required statuses green.
+  Verify outside-authored PR behaviour; configuration alone is not acceptance
+  evidence. Agents must not merge or enable auto-merge without permission for the specific PR.
 - The owner approved required CodeRabbit approval and the narrow configuration
   exception. Its request-changes workflow is configured; verify an actual bot
   approval for the current PR head in a required `CodeRabbit approval` status.
@@ -228,8 +224,9 @@ supersede earlier pending statuses.
   code or downloading its artifacts. Missing/stale approval must stay blocked.
   Local regression tests cover rejection, dismissal, subsequent pushes and API
   failures. The trusted workflow is on `master`; status publication was verified
-  on PR #6 and the context is now required. Observe live approval/revocation
-  transitions; a published pending status is not approval evidence.
+  on PR #6 and the context is now required. The exact-head approval transition
+  passed on PR #6. Live revocation remains to be observed; local regressions
+  cover it.
 - Finish automated review of the latest revision and process valid findings;
   keep its hosted quality gate green. The owner approved versioned CodeRabbit
   configuration and required approval on 2026-09-18; activation is recorded below.
@@ -412,3 +409,27 @@ spelling and Markdown checks ran, as did whole-tree REUSE, history secret scanni
 and repository rules; tooling regression tests reported skipped. Adding a source
 change to that same fixture made the docs entry point reject it before checking.
 Hosted full/reduced-path validation remains open until this update is published.
+
+### Targeted CI and approval acceptance
+
+PR #6 at `573d3da` passed the complete hosted CI run `35336028742`, including
+package and source smoke builds. CodeRabbit marked finding `4045861564`
+addressed and approved that exact revision in review `5246959952`. The trusted
+approval workflow `35336627559` published a successful required status.
+GitHub then merged the PR as `2979b60` through auto-merge enabled by Jens.
+No agent requested a merge or bypass. Protection still required code-owner
+review with zero additional approvals and both status checks. This establishes
+owner-authored auto-merge for the deployed settings; outside-author ownership
+enforcement and live approval revocation remain separate acceptance items.
+
+PR #7 at `3eeeb40` passed documentation-only CI run `35336895198` in 1 minute
+54 seconds; the full PR #6 run took 5 minutes 9 seconds. These are individual
+observations, not a timing guarantee. The hosted logs show both native hook
+stages passed spelling, Markdown, licensing, secret scanning and repository
+rules. Tooling regressions were skipped; the source-line limit did not apply to
+Markdown. Scope outputs selected only `docs`, with instrumentation and packaging
+skipped. The required Quality gate accepted exactly those intended skips.
+Master CI run `35336663775` also passed the full path after PR #6 merged.
+Hosted file selection is accepted; subsequent revisions still need their own
+checks and review, and documentation-only master-push selection has local test
+coverage but has not yet been observed on GitHub.
