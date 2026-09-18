@@ -18,8 +18,11 @@ analyze = SCANNER["analyze"]
 configuration = SCANNER["configuration"]
 create = SCANNER["create"]
 findings = SCANNER["findings"]
+BUNDLE = SCANNER["BUNDLE"]
 BUNDLE_SHA256 = SCANNER["BUNDLE_SHA256"]
 BUNDLE_URL = SCANNER["BUNDLE_URL"]
+install = SCANNER["install"]
+installed = SCANNER["installed"]
 executable = SCANNER["executable"]
 existing = SCANNER["existing"]
 
@@ -187,3 +190,33 @@ class BundleTest(unittest.TestCase):
         )
         self.assertNotIn("latest", BUNDLE_URL)
         self.assertRegex(BUNDLE_SHA256, "^[0-9a-f]{64}$")
+
+    def unpacked(self, root: Path, recorded: str | None) -> Path:
+        """Lay out a bundle directory as a completed installation leaves it."""
+        (root / "codeql").mkdir()
+        (root / "codeql/codeql").write_text("", encoding="utf-8")
+        if recorded is not None:
+            (root / "pinned-bundle").write_text(recorded, encoding="utf-8")
+        return root
+
+    def test_matching_bundle_is_reused(self) -> None:
+        """A bundle recorded as the current pin is what the scan may reuse."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = self.unpacked(Path(directory), f"{BUNDLE} {BUNDLE_SHA256}\n")
+            self.assertEqual(installed(root), f"{BUNDLE} {BUNDLE_SHA256}")
+            self.assertEqual(install(root), root / "codeql")
+
+    def test_bundle_from_another_pin_is_not_reused(self) -> None:
+        """Raising the pin must not leave the scan on what an older one unpacked."""
+        stale = "codeql-bundle-v1.0.0 " + "0" * 64
+        for recorded in (f"{stale}\n", None):
+            with self.subTest(recorded=recorded), tempfile.TemporaryDirectory() as directory:
+                root = self.unpacked(Path(directory), recorded)
+                self.assertNotEqual(installed(root), f"{BUNDLE} {BUNDLE_SHA256}")
+
+    def test_incomplete_installation_is_not_reused(self) -> None:
+        """A marker without a command line describes an extraction that failed."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "pinned-bundle").write_text(f"{BUNDLE} {BUNDLE_SHA256}\n", encoding="utf-8")
+            self.assertEqual(installed(root), "")

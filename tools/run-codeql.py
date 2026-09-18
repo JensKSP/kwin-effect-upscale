@@ -192,12 +192,32 @@ def executable(selected: str | None, directory: Path) -> str:
     return str(install(directory) / "codeql")
 
 
+# What is unpacked into the bundle directory cannot say which release it came
+# from, so it is recorded next to it. Without that, raising the pin would leave
+# the scan running on the command line a previous pin had already unpacked.
+MARKER = "pinned-bundle"
+
+
+def installed(directory: Path) -> str:
+    """Name the bundle unpacked here, or nothing when none is complete."""
+    marker = directory / MARKER
+    if not (directory / "codeql" / "codeql").exists() or not marker.exists():
+        return ""
+    return marker.read_text(encoding="utf-8").strip()
+
+
 def install(directory: Path) -> Path:
     """Fetch the pinned bundle once, and refuse anything but the pinned bytes."""
     distribution = directory / "codeql"
-    if (distribution / "codeql").exists():
-        print(f"Using the CodeQL bundle already unpacked in {distribution}")
+    pinned = f"{BUNDLE} {BUNDLE_SHA256}"
+    present = installed(directory)
+    if present == pinned:
+        print(f"Using {BUNDLE} already unpacked in {distribution}")
         return distribution
+    if present:
+        print(f"Replacing {present.split()[0]}, which is no longer the pinned bundle")
+    shutil.rmtree(distribution, ignore_errors=True)
+    (directory / MARKER).unlink(missing_ok=True)
     directory.mkdir(parents=True, exist_ok=True)
     archive = directory / BUNDLE_FILE
     if not BUNDLE_URL.startswith("https://github.com/github/codeql-action/releases/download/"):
@@ -212,6 +232,8 @@ def install(directory: Path) -> Path:
     with tarfile.open(archive) as bundle:
         bundle.extractall(directory, filter="data")
     archive.unlink()
+    # Only after a complete extraction, so an interrupted one is not trusted.
+    (directory / MARKER).write_text(pinned + "\n", encoding="utf-8")
     return distribution
 
 
