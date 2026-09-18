@@ -83,9 +83,10 @@ version. Question 4 decides how packaging has to deal with KWin updates.
 2. Establish the HDR colour path and VRR behaviour during active composition
    before committing to the integration. HDR and VRR are requirements of this
    slice, including their simultaneous use.
-3. Confirm that a real Proton/Xwayland game supplies a smaller buffer with a
-   4K destination. Keep the session on Wayland. Record an unavailable path as
-   a blocker instead of introducing resolution spoofing.
+3. Confirm that native Wayland and Proton/Xwayland games supply smaller buffers
+   with a 4K destination. Keep the session on Wayland and KWin unpatched.
+   Investigate per-game resolution advertising as specified in the handbook;
+   record unavailable control paths and actual buffer behaviour separately.
 4. Implement EASU through KWin's OpenGL abstractions, initially using FP32
    fragment shader arithmetic. Reuse intermediate textures and avoid CPU
    readback. A controlled SDR path is an intermediate step; complete the HDR
@@ -163,10 +164,118 @@ The fractional-scale protocol allows a compositor to suggest a surface scale;
 KWin 6.3.6 exposes a preferred-buffer-scale setter. Neither establishes safe
 scale-policy ownership by this effect or general Proton game support. Sources
 and the intended user-visible behaviour are recorded in the handbook's
-[configuration section](upscaling.md#configuration). No client negotiation has
-been implemented or tested.
+[configuration section](upscaling.md#configuration). The production effect
+sends no client requests; isolated resolution-control experiments are recorded below.
 
 ## Progress and remaining work
+
+### Resolution-control investigation, 2026-09-18
+
+Wayland is the primary session and native Wayland and Xwayland games are both
+required. KWin must remain unpatched. The handbook now permits investigation
+of per-game fullscreen resolution advertising and, if necessary, a virtual
+output; the earlier blanket exclusion of resolution spoofing no longer applies.
+These are investigation findings, not an implemented resolution-control path.
+
+Observed source and binary evidence:
+
+- In KWin 6.3.6, `EffectWindow::window()` reaches `Window`; application identity,
+  geometry requests and output assignment are accessible. Native application
+  IDs populate the resource class in `XdgToplevelWindow::handleWindowClassChanged()`.
+- Inspected the exported symbols with `nm -D -C` in the existing Trixie and
+  neon project containers. Packages were `kwin-dev` version `4:6.3.6-1` and
+  `4:6.7.5+p24.04+vunstable+git20260915.1132-0`, respectively. Both export
+  `OutputBackend::createVirtualOutput()`, `Window::moveResize()`,
+  `Window::sendToOutput()`, `Window::setNextTargetScale()`,
+  `OutputInterface::clientResources()` and input-filter installation.
+  This verifies symbol availability, not successful calls or runtime behaviour.
+- KWin 6.3.6's `SurfaceInterface::setPreferredBufferScale()` sends fractional
+  hints in units of 1/120 and rounds up for the integer protocol. Fullscreen
+  configure events resend KWin's target scale. A one-time surface override can
+  therefore be overwritten; scale ownership and restoration remain unresolved.
+- `OutputInterface::clientResources()` exposes per-client output resources,
+  but the reviewed public API has no complete per-game mode-override operation.
+  Sending a mode event alone does not change fullscreen geometry, logical
+  output information or the game's chosen buffer size.
+- Xwayland mode emulation belongs to the requesting X client. A separate mode
+  request cannot be assumed to affect the game. The reviewed master KWin source
+  handles `_XWAYLAND_RANDR_EMU_MONITOR_RECTS`; 6.3.6 lacks that integration.
+- KWin's 6.3.6 DRM backend creates ordinary virtual outputs with a software
+  60 Hz presentation clock. Its base backend implementation returns null;
+  support must be checked. An extra output is not a private screen for one game.
+- `Window::inputTransformation()` and hit testing use window geometry rather
+  than effect paint transforms. Scaling a small window visually requires
+  separate input handling. Physical-output VRR policy also considers which
+  output owns the active window (`compositor_wayland.cpp`).
+
+Remaining investigation: validate native scale-policy ownership across output
+changes and effect lifecycle; resolve the Xwayland fullscreen compatibility gap
+on the minimum supported KWin; determine whether consistent per-game display
+advertising can be implemented through existing APIs; test game identity,
+launch-time mode caching, input, cleanup, HDR and VRR. Game-resolution enforcement
+and virtual-output presentation remain unaccepted. The runtime probes below
+establish narrower results with controlled clients.
+
+#### Resolution-control experiments on both KWin versions
+
+A separate temporary effect, a Qt Widgets client, a cooperative fractional-scale
+client and an XCB RandR client were built under `build/resolution-probe/`.
+The final experimental sources compiled with warnings as errors using GCC 14
+and Clang 19 in Trixie and GCC 13 and Clang 18 in neon. These are probe builds,
+not verification of the production scaler. Neither KWin installation was patched.
+
+Runtime experiments used a 3840 × 2160 virtual output at desktop scale 1.
+Trixie used QPainter; neon's virtual backend required OpenGL and access to the
+GPU render node. No physical display-control device was passed to the containers.
+The observed results were:
+
+| Experiment | Trixie, KWin 6.3.6 | neon, KWin 6.7.5 development package |
+| --- | --- | --- |
+| Cooperative native client; next target scales 0.5, 0.75, then 1 | Buffers changed to 1920 × 1080, 2880 × 1620, then 3840 × 2160; fullscreen frame and surface destination stayed 3840 × 2160. | Same buffer and geometry results. |
+| Qt Widgets native client; next target scales 0.5 and 0.75 | Continued supplying 3840 × 2160 at device pixel ratio 1. | Same result with the container's Qt 6.11.1. |
+| Qt Widgets native client; send only smaller current/preferred `wl_output.mode` events to its bound output resource | Screen geometry, fullscreen window and buffer stayed 3840 × 2160. | Same result. |
+| XCB client requests an emulated 1920 × 1080 RandR mode on its own connection, then enters fullscreen | Request succeeded, but KWin configured 3840 × 2160 and received a 3840 × 2160 buffer. | KWin configured 1920 × 1080 and received that buffer with a 3840 × 2160 surface destination and fullscreen frame. |
+
+The XCB test queried the CRTC from both the requesting connection and a separate
+observer. The requester saw the emulated mode ID while the observer retained
+the original mode ID, on both versions. The CRTC width/height fields remained
+3840 × 2160 even for the requester; mode IDs, window configures and committed
+buffers were therefore recorded separately. The request was made by the test
+client itself, not by an effect on behalf of another application.
+
+A Qt Widgets Xwayland client on Trixie also kept its 3840 × 2160 buffer when
+`Window::setNextTargetScale()` requested 0.5 and 0.75. The XCB mode test's buffer
+sizes likewise remained unchanged by those subsequent scale requests. A native
+Wayland scale request is not an Xwayland resolution-control mechanism.
+
+A native build of the cooperative-client demonstration also ran in nested,
+unmodified KWin 6.3.6 on wzpc. Logs confirmed the same 4K, 1080p, 2880 × 1620,
+and restored 4K buffers. The existing TV session was a Sway kiosk: its fullscreen
+main menu initially covered the test. A later run brought the nested compositor
+fullscreen using the kiosk's IPC and restored the menu afterwards. The IPC
+reported successful focus/fullscreen changes and a final query confirmed the
+menu was focused and fullscreen again. Jens reported seeing only the menu;
+the IPC results do not establish that the test reached the TV. Visible
+acceptance therefore remains open. This demonstration used ordinary KWin
+scaling, not the FSR effect; it establishes neither image-quality nor HDR/VRR
+acceptance.
+
+Conclusions: no KWin patch is needed to request smaller buffers from a
+cooperative native client. Neither that hint nor a single advertised-mode event
+forces an arbitrary client to change resolution. Xwayland's existing mode
+emulation works for the tested client on neon, but the same test fails to
+produce a smaller fullscreen buffer on the minimum supported KWin. This is a
+compatibility issue to resolve, not grounds to silently drop Xwayland or 6.3.6.
+Actual games, launch-time mode caching, fractional desktop scales, input,
+output changes and lifecycle restoration still require acceptance. These
+experiments did not implement a private virtual display or a universal override.
+
+Documentation checks: `pre-commit run --all-files` and its `pre-push` stage
+passed in the Trixie container against the documentation changes. The first
+regression run failed because the isolated check copy lacked Git history;
+using the existing repository history resolved that test-setup error.
+
+### Implementation checklist
 
 - [x] Select FSR 1 with optional RCAS as the initial implementation approach.
 - [x] Make HDR and VRR mandatory, including combined use while scaling.

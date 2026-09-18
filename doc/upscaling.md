@@ -40,8 +40,16 @@ carries FSR or NIS.
 
 ## What this effect does
 
-It takes the other route from gamescope: **the game picks its resolution and
-reports it honestly; the compositor decides only how the image is enlarged.**
+The initial rendering path scales the buffer supplied by the game. Per-game
+resolution control is a separate requirement under investigation: the effect
+should help obtain a smaller buffer without patching KWin, then enlarge that
+buffer on the physical output.
+
+**The primary platform is a KWin Wayland session. Both native Wayland games
+and Xwayland games, including Proton games, must be supported.** Xwayland
+compatibility is required within the Wayland session; it does not imply a
+requirement for a separate X11 desktop session. Resolution-control mechanisms
+may differ between the two client types and require separate validation.
 
 The effect acts on a window when all of this holds:
 
@@ -49,8 +57,10 @@ The effect acts on a window when all of this holds:
 - its buffer is smaller than the output area it covers, and
 - the effect is enabled and a scaler is configured.
 
-Everything else is left alone. There is no virtual screen, the reported screen
-size is never faked, and a window that renders at native size is not touched.
+Everything else uses normal KWin rendering. A window that supplies a native-size
+buffer is not scaled. The initial path creates no virtual screen and does not
+alter advertised screen sizes; the resolution-control investigation below
+revisits that restriction without claiming an implemented feature.
 
 ## What it does not do
 
@@ -60,8 +70,9 @@ size is never faked, and a window that renders at native size is not touched.
   faking them would produce artefacts the game cannot correct for.
 - **No replacement for in-game upscalers.** A game that ships FSR 2 or DLSS
   should use it; it has data this effect will never see.
-- **No resolution spoofing.** Making a game believe the screen is smaller is
-  gamescope's design, not this one.
+- **No KWin patches.** Resolution control and upscaling must work with an
+  unmodified supported KWin. Calling exported KWin APIs from the C++ plugin is
+  allowed; requiring a patched compositor is not.
 
 ## Scalers
 
@@ -245,7 +256,9 @@ the game's rendering work and must not implement this slider.
 | Game's own settings | The game selects a smaller output buffer or its own internal render scale. An internal scale alone need not produce a smaller submitted buffer. | Always offer the calculated desired pixel size as guidance; verify what buffer actually arrives. |
 | Cooperative native Wayland client | A compositor can suggest a preferred surface scale. The client must support and act on that hint. | Investigate for this slice; enable requests only after the supported KWin integration and client behaviour are verified. |
 | Proton/Xwayland game | Resolution selection and delivery depend on the game and Xwayland integration. The Wayland hint is not a generic control for Windows game render settings. | Verify separately on a real game; otherwise show that the resolution must be selected in the game. |
-| Virtual output or nested compositor | A separate environment can advertise chosen screen modes, as gamescope does. | Outside the current design, which does not spoof output modes or run another compositor. |
+| Per-game display information | Advertising a smaller fullscreen resolution might cause the game to select a smaller buffer. | Investigate without KWin patches; keep mode information, fullscreen geometry, scale and input consistent. Not implemented or verified. |
+| Virtual output | KWin has backend APIs for creating an additional output. This does not itself give one game a private display environment. | Investigate only if simpler per-game control is insufficient; preserve physical-output HDR and VRR. Not part of the initial rendering path. |
+| Nested compositor | A separate environment can advertise chosen screen modes, as gamescope does. | Not the selected solution: the objective remains integration into the existing KWin session. |
 
 The [Wayland fractional-scale protocol](https://gitlab.freedesktop.org/wayland/wayland-protocols/-/blob/main/staging/fractional-scale/fractional-scale-v1.xml)
 defines a preferred scale relative to surface-local dimensions, in units of
@@ -268,6 +281,85 @@ client ignores or adjusts it, show the actual dimensions and continue scaling
 eligible buffers at their actual size. Do not repeatedly resend an ignored
 request or repaint continuously while waiting. Apply a request on slider
 release or explicit Apply, rather than at every drag position.
+
+### Selecting the game
+
+Resolution changes need explicit per-game selection. The proposed interface
+lets the user select the active game window and optionally remember a profile
+with its desired resolution. Match native Wayland windows by their application
+ID and Xwayland windows by their window class and instance. KWin exposes these
+through its window objects. Titles are optional refinements, not the primary
+identity, because they can change during play.
+
+An editable allowlist of profiles is preferable to a mandatory catalogue of
+games. A fullscreen window alone does not identify a game: browsers and video
+players can also be fullscreen. Desktop-entry categories or Steam identifiers
+can suggest a match but must not silently authorize resolution changes.
+[Proton's X11 driver](https://github.com/ValveSoftware/wine/blob/proton_10.0/dlls/winex11.drv/window.c)
+uses `steam_app_<SteamAppId>` as its window class when that environment value
+is present. This is a useful identifier, not a guarantee for every game or
+launcher. Distinguish the main game window from launchers, dialogs and overlays,
+and allow selection for one session when its identity is ambiguous. Profiles
+must not depend on Linux process inspection.
+
+### Advertising a smaller fullscreen resolution
+
+Investigate whether a selected game can be told that its fullscreen target is,
+for example, 1920 × 1080 while the physical output remains 3840 × 2160. A
+separate virtual output is not required if per-game information alone produces
+the desired buffer and correct presentation. The control must leave other
+applications' display information, the monitor mode and desktop scale alone.
+
+There are three distinct sizes: advertised display modes, configured window
+geometry and committed buffer pixels. Changing one does not guarantee a change
+in the others or in the game's internal 3D rendering. Some games cache display
+modes before their first window appears; determine whether a launch-time
+mechanism or restart is necessary before claiming automatic control.
+
+For native Wayland, investigate a preferred fractional surface scale first:
+it can request fewer buffer pixels while preserving fullscreen logical
+geometry and input coordinates. It is a client hint, not enforcement or a
+replacement for advertised modes. Express the request relative to logical
+surface dimensions, accounting for desktop scale. Changing only `wl_output`
+mode information is insufficient to establish a coherent override: clients
+also receive logical output geometry, surface scale and fullscreen configure
+events. An implementation must keep these consistent and restore KWin's normal
+policy after deactivation or output changes.
+
+For Xwayland, the game queries the X server, which shares a Wayland connection
+across X11 applications. Rewriting that connection's output information is not
+a per-game solution. Xwayland's
+[RandR implementation](https://github.com/mirror/xserver/blob/master/hw/xwayland/xwayland-output.c)
+already supports per-client mode emulation, but associates a mode request with
+the requesting X client. Running `xrandr` separately does not select an emulated
+mode for the game. KWin's
+[RandR integration](https://github.com/KDE/kwin/commit/bc5a2002e9afb78b336e9ea2b7699015c578b2bc)
+is present in the reviewed master source and absent from the reviewed 6.3.6
+source. Do not assume identical fullscreen behaviour across supported versions
+or treat the emulation property as a generic game-resolution setter.
+
+If a virtual output is needed, creation alone is not acceptance. Establish
+game placement and display selection, mapping to the physical output, input
+coordinates and pointer confinement, focus and overlays, colour descriptions,
+and presentation timing driven by the physical output. Likewise, enlarging a
+small window in an effect does not automatically enlarge its input region.
+
+Experiments with unmodified KWin establish a limited native control path:
+`Window::setNextTargetScale()` can produce a smaller committed buffer from a
+cooperative fractional-scale client while preserving fullscreen geometry.
+It does not enforce that size: the tested Qt Widgets client retained its 4K
+buffer. Sending only a smaller current/preferred output-mode event also left
+that client's buffer unchanged. The test Xwayland client's own RandR request
+produced a 1080p buffer with a 4K destination on neon, but a 4K buffer on 6.3.6.
+Treat this as an unresolved minimum-version compatibility issue. These findings
+concern test clients, not acceptance of real games or the production effect.
+
+No universal forcing mechanism has been established. Both client types remain
+required; an unsupported resolution request must be reported as such, with
+in-game guidance and continued scaling of eligible buffers. Acceptance must
+measure actual committed sizes and exercise native Wayland and Xwayland games,
+including borderless fullscreen, ignored requests and mode changes. HDR and VRR
+remain requirements for any selected route.
 
 ## Rendering and lifecycle requirements
 
