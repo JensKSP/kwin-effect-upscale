@@ -518,11 +518,18 @@ together with diagnostic logging and the passive OSD.
 
 ### Diagnostic logging and state
 
-Required extension, not yet implemented: About, logs, settings diagnostics and
-the developer overlay must describe the same loaded build and observed effect
-state. Keep build identity separate from changing runtime state. Offer a
-copyable diagnostic snapshot in settings, including explicit unavailable values
-when the effect is not loaded. Do not load the effect just to inspect it.
+About, logs, settings diagnostics and the developer overlay must describe the
+same loaded build and observed effect state. Keep build identity separate from
+changing runtime state. Offer a copyable diagnostic snapshot in settings,
+including explicit unavailable values when the effect is not loaded. Do not
+load the effect just to inspect it.
+
+Implemented: the effect builds one snapshot of its current state in a single
+pass, and the settings status text and the on-screen display are both formatted
+from it, so they cannot describe different moments. Values the effect cannot
+observe, such as the destination colour description outside a paint pass, are
+reported as unknown. About, the copy action and the transition logging below
+remain unimplemented.
 
 Always emit the initialization identity at information level in both Debug
 and release builds with the default logging configuration. Use the effect's
@@ -560,7 +567,8 @@ as a successfully applied client request.
 | Preferred game resolution | Automatic (use the supplied buffer), or a percentage slider with a numeric percentage and live width by height in physical pixels. |
 | Resolution preset | Native, Ultra Quality, Quality, Balanced, Performance, or Custom; changing the slider selects Custom. |
 | Sharpening | RCAS switch, initially off, and a 0–100% strength slider. Zero bypasses sharpening; increasing the value increases strength. The UI must not expose AMD's reversed parameter directly. |
-| Status | Desired input, actual supplied input, destination resolution, active scaler, and a reason when upscaling is inactive. Show HDR and VRR information only to the extent actually known. |
+| Status | Desired input, actual supplied input, destination resolution, active scaler, and a reason when upscaling is inactive. Show HDR and VRR information only to the extent actually known. The reason names the one condition that refused the window, not the general eligibility rule. |
+| On-screen display | The master switch, the announcement and summary choices with their timeout, and the persistent statistics and developer information choices. Their defaults come from the build type; the page writes an entry only where the user's choice differs from that default. |
 
 HDR and VRR follow KWin's display settings. They are mandatory supported paths,
 not optional quality presets. An enabled VRR setting must not be labelled as
@@ -614,15 +622,34 @@ game ceases to be active and visible; suppress it while the screen is locked.
 
 Use the planned OSD rather than introducing a second notification surface. Draw
 it independently of the game's captured buffer so it remains sharp and cannot
-be processed by the upscaler. This behaviour is specified, not yet implemented.
+be processed by the upscaler.
+
+Implemented: the surface exists and is drawn after the screen pass, at
+destination resolution, outside the captured image, taking no focus and no
+input. While it is visible the effect reports itself active, because KWin skips
+the paint methods of an inactive effect, and a refused window is exactly when
+the explanation is needed; the composition requirement that comes with it ends
+when the display is hidden. It announces the *selected* application and shows the basic summary for
+the configured timeout. Nothing recognizes games yet, so no profile match or
+game identity is claimed, and the announcement is keyed to the window and to
+what it said, so a repaint, a title change or focus returning to the same
+window does not announce it again.
 
 ### OSD defaults by build type
 
-Required extension, not yet implemented: expose an OSD enable switch and
-separate choices for timed detection, basic settings, persistent statistics
-and **Developer information**. The developer option adds the complete active
-configuration and runtime state to the persistent statistics view. An overall
-Off hides every OSD mode without changing effect settings or disabling logging.
+Expose an OSD enable switch and separate choices for timed detection, basic
+settings, persistent statistics and **Developer information**. The developer
+option adds the complete active configuration and runtime state to the
+persistent statistics view. An overall Off hides every OSD mode without
+changing effect settings or disabling logging.
+
+Implemented: the switches exist in the settings page and in `kwinrc` as `Osd`,
+`OsdDetection`, `OsdSummary`, `OsdStatistics`, `OsdDeveloper` and `OsdTimeout`.
+The two persistent choices default to the build configuration of the binary
+that reads them, decided by whether `NDEBUG` is defined, which is exactly the
+Debug versus Release distinction above. A choice equal to that default is
+stored as no entry at all, so a build type's default is never written back as
+if the user had chosen it.
 
 | Setting when no explicit preference exists | Debug build | Release build |
 | --- | --- | --- |
@@ -683,7 +710,7 @@ adds work.
 
 ### Optional statistics overlay
 
-Required extension, not yet implemented: add an optional persistent statistics
+Add an optional persistent statistics
 view to the same OSD, independently switchable from the brief game-detection
 announcement and the interactive settings panel. Use the build defaults above,
 provide a shortcut to show or hide it, and allow global defaults with sparse
@@ -706,6 +733,14 @@ game stops supplying frames. GPU filter timing is an optional field only where
 supported and measured; it is not total game GPU time or end-to-end latency.
 Configured HDR/VRR settings alone do not prove the corresponding active path.
 
+Implemented: the persistent view shows what the effect is doing with the
+buffer, the supplied and destination sizes, the output, and separately counted
+client buffer updates and compositor repaints with their one-second sampling
+interval and the age of the sample. A game that stops supplying frames
+therefore shows an ageing sample rather than a frozen rate presented as
+current. Desired resolution, black bars, resolution method, pending restart and
+filter timing belong to features that do not exist yet and are not shown.
+
 Use event-driven samples and bounded text updates, with no synchronous GPU
 readback or continuous full-screen repaint loop just to animate statistics.
 Hiding the view stops its sampling overhead and releases its resources and
@@ -723,6 +758,13 @@ state, grouped and labelled so developers can explain what the effect is doing.
 Keep the passive view readable at output resolution; detailed inspection and
 copying are also available through the settings diagnostic snapshot. This is
 required development infrastructure, not the optional full About overlay.
+
+Implemented: build and runtime, selection, configuration, geometry, processing
+and colour are populated from the same snapshot, alongside the measurements
+above. Profile and match origin, pending values, drawn image and bars, capture
+and intermediate formats, observed VRR state and measured filter timing name
+features that are not implemented; they are absent rather than filled with
+plausible values, and the colour line says that VRR is not observed.
 
 | Group | Required information when available |
 | --- | --- |

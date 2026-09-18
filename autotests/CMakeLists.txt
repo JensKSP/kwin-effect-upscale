@@ -48,7 +48,11 @@ target_link_libraries(
 if(KWin_VERSION VERSION_LESS 6.7)
     set(driver_sources
         effect_driver.cpp
+        ../src/plugins/upscale/display.cpp
+        ../src/plugins/upscale/display.h
         ../src/plugins/upscale/eligibility.cpp
+        ../src/plugins/upscale/overlay.cpp
+        ../src/plugins/upscale/snapshot.cpp
         ../src/plugins/upscale/upscale.cpp
         ../src/plugins/upscale/upscale.h
         ../src/plugins/upscale/scaler.cpp
@@ -81,18 +85,22 @@ endif()
 add_executable(
     upscale_render_test
     render_test.cpp
+    ../src/plugins/upscale/overlay.cpp
     ../src/plugins/upscale/scaler.cpp
     ../src/plugins/upscale/upscale.qrc
 )
 target_include_directories(upscale_render_test PRIVATE ../src/plugins/upscale)
 target_link_libraries(upscale_render_test PRIVATE kwin Qt6::Test)
 add_test(NAME upscale-render COMMAND upscale_render_test)
-set_tests_properties(upscale-render PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1")
+set_tests_properties(
+    upscale-render
+    PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;QT_QPA_PLATFORM=offscreen"
+)
 if(KWin_VERSION VERSION_LESS 6.7)
     add_test(NAME upscale-render-gles COMMAND upscale_render_test)
     set_tests_properties(
         upscale-render-gles
-        PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;KWIN_COMPOSE=O2ES"
+        PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;KWIN_COMPOSE=O2ES;QT_QPA_PLATFORM=offscreen"
     )
 endif()
 

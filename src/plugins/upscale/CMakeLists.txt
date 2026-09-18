@@ -2,9 +2,12 @@
 # Effect
 
 set(upscale_SOURCES
+    display.cpp
     eligibility.cpp
     main.cpp
+    overlay.cpp
     scaler.cpp
+    snapshot.cpp
     upscale.cpp
     upscale.qrc
 )

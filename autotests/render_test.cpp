@@ -4,6 +4,7 @@
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
+#include "overlay.h"
 #include "scaler.h"
 
 #include "opengl/eglcontext.h"
@@ -33,6 +34,7 @@ private Q_SLOTS:
     void sharpeningAndClipping();
     void preservesScissorState();
     void rejectsOversizedIntermediate();
+    void overlayPlacement();
 
 private:
     std::vector<float> render(const std::vector<float> &pixels, const QSize &inputSize, const QSize &outputSize,
@@ -274,6 +276,58 @@ void UpscaleRenderTest::rejectsOversizedIntermediate()
     QCOMPARE(render(pixels, QSize(8, 8), QSize(16, 16), TransferFunction(TransferFunction::gamma22), 1).size(), size_t(16 * 16 * 4));
 }
 
-QTEST_GUILESS_MAIN(UpscaleRenderTest)
+// The overlay measures and draws text, which needs a font database, so this
+// test needs a GUI application even though it renders offscreen.
+void UpscaleRenderTest::overlayPlacement()
+{
+    const QSize targetSize(320, 160);
+    std::unique_ptr<GLTexture> output = allocateFloatTexture(targetSize);
+    QVERIFY(output);
+    GLFramebuffer framebuffer(output.get());
+    QVERIFY(framebuffer.valid());
+#if UPSCALE_REGION_API
+    const auto colors = ColorDescription::sRGB;
+#else
+    const auto &colors = ColorDescription::sRGB;
+#endif
+    const RenderTarget target(&framebuffer, colors);
+    // A pass that renders an output which does not start at the origin. The
+    // text has to land at that output's own corner, which is what a second
+    // monitor to the right of the first one would ask for.
+    const QPointF origin(200, 100);
+    const RenderViewport viewport = captureViewport(UpscaleRectF(origin, QSizeF(targetSize)), 1, target);
+    UpscaleOverlay overlay;
+    overlay.setText(QStringLiteral("Upscale developer information"), 1);
+    QVERIFY(!overlay.isEmpty());
+    QVERIFY(overlay.size().width() > 0);
+    QVERIFY(overlay.size().height() > 0);
+    QVERIFY(overlay.size().width() < targetSize.width());
+    GLFramebuffer::pushFramebuffer(&framebuffer);
+    GLVertexBuffer::streamingBuffer()->beginFrame();
+    glClearColor(1, 1, 1, 1);
+    glClear(GL_COLOR_BUFFER_BIT);
+    const bool painted = overlay.paint(target, viewport, origin);
+    std::vector<float> pixels(size_t(targetSize.width()) * size_t(targetSize.height()) * 4);
+    glReadPixels(0, 0, targetSize.width(), targetSize.height(), GL_RGBA, GL_FLOAT, pixels.data());
+    GLVertexBuffer::streamingBuffer()->endOfFrame();
+    GLFramebuffer::popFramebuffer();
+    QVERIFY(painted);
+    QCOMPARE(glGetError(), GL_NO_ERROR);
+    const auto red = [&](int x, int y) {
+        return pixels[(size_t(y) * size_t(targetSize.width()) + size_t(x)) * 4];
+    };
+    // Readback is bottom-up, so the last row is the top of the screen, where
+    // the plate is. It is dark; the opposite corner keeps the background.
+    QVERIFY2(red(3, targetSize.height() - 4) < 0.5F, "the overlay did not cover the top left corner of the pass");
+    QVERIFY2(red(targetSize.width() - 3, 3) > 0.9F, "the overlay covered more than its own area");
+    // Hiding it has to give the texture back rather than keep it for later.
+    overlay.release();
+    QVERIFY(overlay.isEmpty());
+    QCOMPARE(overlay.size(), QSizeF());
+}
+
+// The overlay measures and draws text, which needs a font database, so this
+// test needs a GUI application even though it renders offscreen.
+QTEST_MAIN(UpscaleRenderTest)
 
 #include "render_test.moc"

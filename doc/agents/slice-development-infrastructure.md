@@ -47,7 +47,8 @@ The effect metadata declares the name and a generic GPL license, without
 authors, website or version. AMD shader headers retain their copyright and MIT
 text, and the repository carries license texts, but there is no installed
 component-notice viewer or audited inventory covering the shipped build.
-This slice is specification and investigation only; no implementation is claimed.
+This section describes the state before implementation began; what has been
+implemented since is recorded under progress and remaining work below.
 
 The settings module can show supplied-buffer status, and the effect logs a
 render-resource failure. Detection OSD and persistent statistics are specified
@@ -218,6 +219,40 @@ result for the proposed feature.
   The viewer is an access route for notices; package/source obligations still
   have to be satisfied by the corresponding delivery artifacts.
 
+## Implementation findings, 2026-09-18
+
+Observed while implementing, not planned behaviour:
+
+- `RenderViewport::projectionMatrix()` already accounts for the render rect's
+  origin: translating by the absolute logical position times the scale puts a
+  quad at that position on the output being painted, including an output that
+  does not start at the origin. Verified by `overlayPlacement` in
+  `autotests/render_test.cpp`, which renders a pass for an output at (200, 100)
+  and requires the text at that output's own corner. The scaler already used
+  this convention; it is now covered by a test rather than assumed.
+- The upstreamable-folder seam for build identity is resolved with
+  `__has_include("buildinfo.h")` in `upscale.cpp`. Out of tree the build adds
+  `src/buildinfo` to the effect's include path; copied into KWin the header is
+  absent, the guard removes the reference and the display reports the build as
+  unknown. No cross-directory include or target dependency is added to
+  `src/plugins/upscale/CMakeLists.txt`.
+- KConfigXT stores a value equal to the current default as no entry at all.
+  That is what makes build-type defaults safe: a Debug user who leaves the
+  developer view on writes nothing, and a user who switches it off writes an
+  explicit `false` that survives a later release build. Covered by
+  `displayDefaults` in `autotests/config_test.cpp`.
+- The render test needed a `QGuiApplication` for the font database once it
+  measured text, so it runs with the offscreen platform.
+- KWin excludes an effect whose `isActive()` is false from the chained paint
+  methods of the next frame, which its own `effect/effect.h` states. An effect
+  that refused every window would therefore never be called to say why, so the
+  display keeps the effect active while it has something to show, and the
+  scanout block follows that same state. No automated test covers this: the
+  `activeEffects` D-Bus property reports the same value with and without the
+  change, so an assertion on it would pass either way. It is verified in the
+  native session instead, where the display has to appear over a refused
+  fullscreen window.
+
 ## Acceptance criteria
 
 Planned checks, not observed results:
@@ -300,13 +335,21 @@ Planned checks, not observed results:
 - [x] Inspect KWin settings conventions and current build/license metadata.
 - [x] Make diagnostics infrastructure the next slice and specify developer
   fields, build-type defaults and shared state/logging responsibilities.
-- [ ] Verify minimum-version dialog APIs and choose the upstreamable data seam.
+- [ ] Verify minimum-version dialog APIs; the upstreamable data seam is chosen
+  and implemented (see the implementation findings above).
 - [ ] Audit exact dependency/component notices and delivery obligations.
 - [ ] Implement generation, metadata, About/details access and initialization log.
-- [ ] Implement candidate selection and rejection reporting first, so the
-  rendering slice's scaler-effective gate can be diagnosed.
-- [ ] Implement state snapshots, settings diagnostics and transition logging.
-- [ ] Implement passive OSD, statistics/developer view and preference defaults.
+- [x] Implement candidate selection and rejection reporting first, so the
+  rendering slice's scaler-effective gate can be diagnosed. Every documented
+  condition now has its own reason, including the paint-pass conditions and the
+  refused buffer format, reported with its DRM four-character code.
+- [x] Implement the state snapshot and settings diagnostics. One snapshot per
+  pass feeds both the settings status and the display. Transition logging
+  remains open.
+- [ ] Implement transition logging on the effect's logging category.
+- [x] Implement the passive OSD, the statistics and developer view and the
+  build-type preference defaults. A shortcut to toggle the view, profile
+  overrides and per-profile visibility remain open.
 - [ ] Complete automated, package and native acceptance; preserve lasting design
   in source/human documentation before removing this slice.
 
@@ -317,6 +360,18 @@ documentation. Local links and heading anchors resolved. These checks cover
 the specification; no About implementation, dependency-license audit,
 incremental-build acceptance or native dialog/log test has been performed.
 This recorded result predates the expanded diagnostics scope and slice rename.
+
+Implementation validation, 2026-09-18: built in both containers with GCC and
+with Clang, warnings as errors, and `ctest` passed in each: six tests in Trixie
+(KWin 6.3.6) and four against KWin master, where the integration test is not
+built. New coverage: each refused window reported by its own condition in
+`autotests/integration_test.cpp`, each size relation in
+`tools/upscale-resolution-test.cpp`, overlay placement and resource release in
+`autotests/render_test.cpp`, and build-type display defaults in
+`autotests/config_test.cpp`. Both pre-commit stages and clang-tidy passed in
+Trixie. No native session acceptance has been performed yet: legibility, game
+input, HDR/VRR behaviour and lock/unlock on wzpc remain open, and so does the
+refusal this package exists to explain.
 
 Expanded documentation validation, 2026-09-18: both pre-commit stages passed
 in Trixie on the isolated documentation candidate under

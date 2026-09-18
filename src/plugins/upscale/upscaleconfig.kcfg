@@ -6,6 +6,7 @@ SPDX-License-Identifier: GPL-2.0-or-later
 <kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
       xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0 http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
+    <include>buildtype.h</include>
     <kcfgfile name="kwinrc"/>
     <group name="Effect-upscale">
         <entry name="Enabled" type="Bool"><default>true</default></entry>
@@ -13,5 +14,11 @@ SPDX-License-Identifier: GPL-2.0-or-later
         <entry name="Percentage" type="Int"><default>67</default><min>50</min><max>100</max></entry>
         <entry name="Sharpening" type="Bool"><default>false</default></entry>
         <entry name="Strength" type="Int"><default>50</default><min>0</min><max>100</max></entry>
+        <entry name="Osd" type="Bool"><default>true</default></entry>
+        <entry name="OsdDetection" type="Bool"><default>true</default></entry>
+        <entry name="OsdSummary" type="Bool"><default>true</default></entry>
+        <entry name="OsdStatistics" type="Bool"><default code="true">KWin::upscaleDebugBuild</default></entry>
+        <entry name="OsdDeveloper" type="Bool"><default code="true">KWin::upscaleDebugBuild</default></entry>
+        <entry name="OsdTimeout" type="Int"><default>3</default><min>1</min><max>60</max></entry>
     </group>
 </kcfg>

@@ -7,6 +7,7 @@
 #pragma once
 
 #include "compatibility.h"
+#include "display.h"
 #include "eligibility.h"
 
 #include <QPointer>
@@ -33,6 +34,8 @@ public:
     static bool supported();
 
     void reconfigure(ReconfigureFlags flags) override;
+    UpscalePaintResult paintScreen(const RenderTarget &target, const RenderViewport &viewport, int mask,
+                                   const UpscaleRegion &region, UpscaleOutput *screen) override;
 #if UPSCALE_RENDER_DEVICE_API
     void prePaintScreen(ScreenPrePaintData &data) override;
 #endif
@@ -48,6 +51,14 @@ private:
     // refused it. The reason is computed only when asked for, because every
     // painted frame asks for the candidate and none of them asks why.
     EffectWindow *candidate(UpscaleRefusal *refusal = nullptr) const;
+    // The window the on-screen display describes: the candidate, or the
+    // active fullscreen window that was refused, which is the case a
+    // developer needs to see explained.
+    EffectWindow *displayed() const;
+    // The render target is the frame being painted, and null when the caller
+    // is outside a paint pass and colour is therefore not observable.
+    UpscaleSnapshot snapshot(EffectWindow *window, const RenderTarget *target) const;
+    void paintDisplay(const RenderTarget &target, const RenderViewport &viewport, UpscaleOutput *screen);
     void watchWindow(EffectWindow *window);
 
     std::unique_ptr<UpscaleScaler> m_scaler;
@@ -64,6 +75,7 @@ private:
     // describes one frame rather than the window, so it is diagnostic only and
     // never keeps the next frame from being scaled.
     UpscaleRefusal m_passRefusal = UpscaleRefusal::None;
+    UpscaleDisplay m_display;
 };
 
 } // namespace KWin

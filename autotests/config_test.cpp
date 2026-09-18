@@ -4,6 +4,7 @@
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
+#include "buildtype.h"
 #include "upscale_config.h"
 
 #include <KConfigGroup>
@@ -17,6 +18,7 @@
 #include <QLabel>
 #include <QScreen>
 #include <QSlider>
+#include <QSpinBox>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -27,6 +29,7 @@ class UpscaleConfigTest : public QObject
 private Q_SLOTS:
     void presetsAndKeyboard();
     void saveAndRestore();
+    void displayDefaults();
 };
 
 void UpscaleConfigTest::presetsAndKeyboard()
@@ -94,6 +97,52 @@ void UpscaleConfigTest::saveAndRestore()
     QVERIFY(sharpening->isChecked());
     QVERIFY(strength->isEnabled());
     QCOMPARE(strength->value(), 0);
+}
+
+void UpscaleConfigTest::displayDefaults()
+{
+    QWidget host;
+    KWin::UpscaleEffectConfig module(&host, KPluginMetaData());
+    module.defaults();
+    QCheckBox *osd = module.widget()->findChild<QCheckBox *>(QStringLiteral("osd"));
+    QCheckBox *detection = module.widget()->findChild<QCheckBox *>(QStringLiteral("osdDetection"));
+    QCheckBox *statistics = module.widget()->findChild<QCheckBox *>(QStringLiteral("osdStatistics"));
+    QCheckBox *developer = module.widget()->findChild<QCheckBox *>(QStringLiteral("osdDeveloper"));
+    QSpinBox *timeout = module.widget()->findChild<QSpinBox *>(QStringLiteral("osdTimeout"));
+    QVERIFY(osd);
+    QVERIFY(detection);
+    QVERIFY(statistics);
+    QVERIFY(developer);
+    QVERIFY(timeout);
+    // The announcement is on in both build types; the persistent views follow
+    // the build configuration of this binary and nothing else.
+    QVERIFY(osd->isChecked());
+    QVERIFY(detection->isChecked());
+    QCOMPARE(timeout->value(), 3);
+    QCOMPARE(statistics->isChecked(), KWin::upscaleDebugBuild);
+    QCOMPARE(developer->isChecked(), KWin::upscaleDebugBuild);
+    // The master switch hides every mode without changing what they are set to.
+    osd->setChecked(false);
+    QVERIFY(!statistics->isEnabled());
+    QVERIFY(statistics->isChecked() == KWin::upscaleDebugBuild);
+    osd->setChecked(true);
+    QVERIFY(statistics->isEnabled());
+
+    const auto stored = []() {
+        return KConfigGroup(KSharedConfig::openConfig(QStringLiteral("kwinrc")), QStringLiteral("Effect-upscale"));
+    };
+    // An explicit choice against the build default is kept as an override, so
+    // it survives a later build of the other type.
+    developer->setChecked(!KWin::upscaleDebugBuild);
+    module.save();
+    QCOMPARE(stored().readEntry("OsdDeveloper", KWin::upscaleDebugBuild), !KWin::upscaleDebugBuild);
+    module.load();
+    QCOMPARE(developer->isChecked(), !KWin::upscaleDebugBuild);
+    // Choosing what this build defaults to writes no override at all, rather
+    // than freezing this build's inferred default into the configuration.
+    developer->setChecked(KWin::upscaleDebugBuild);
+    module.save();
+    QVERIFY(!stored().hasKey("OsdDeveloper"));
 }
 
 int main(int argc, char **argv)
