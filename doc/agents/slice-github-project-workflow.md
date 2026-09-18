@@ -7,9 +7,10 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 ## Status and priority
 
-Planning only, requested on 2026-09-18. This is a separate work package for the
-public project's contribution, security and maintenance workflow. No settings,
-issues, notifications or new services are enabled by writing this plan.
+Implementation started on 2026-09-18 under the request to complete the proposed
+improvements. This separate work package covers the public project's
+contribution, security and maintenance workflow. Phase 1 prepares contribution
+forms and guidance; hosted activation remains subject to the owner's merge.
 It does not change the implementation priority of the
 [development infrastructure slice](slice-development-infrastructure.md).
 
@@ -124,11 +125,12 @@ copy of those working records.
 | CodeQL | Analyze production C++, Python tools and GitHub Actions. Use the maintained CMake build for C++; start with a scheduled scan and tune valid findings before considering PR enforcement. | A successful scan produces the intended databases/results; sampled production files and generated build inputs are represented; local execution is documented and runnable; findings are assessed rather than suppressed wholesale. |
 | Dependency review | Review newly introduced supported dependencies for relevant vulnerabilities, with explicit severity/exception policy. | A representative supported-manifest change is recognized; a controlled fixture exercises policy failure through the configured local check. Record that Debian/CMake dependency coverage is incomplete instead of claiming apt vulnerabilities are covered. |
 
-CodeRabbit remains advisory and the pipeline Quality gate remains required.
+The pipeline slice owns the approved CodeRabbit approval gate and its narrowly
+authorized configuration, alongside the required Quality gate and owner review.
 Follow the repository rule for watching each submitted revision, investigating
 findings, fixing valid issues and explaining dismissed findings. Do not add a
-second AI reviewer as part of this slice. Versioned reviewer configuration is
-outside this plan unless its pending repository-rule exception is approved.
+second AI reviewer as part of this slice. Verify that the pipeline's gate is
+active before relying on it; do not duplicate its implementation here.
 
 ### 3. Routine maintenance and merge convenience
 
@@ -163,7 +165,7 @@ option was not selected:
 | --- | --- |
 | GitHub Projects | Issues and milestones no longer give enough overview. Use one board built from existing issues/PRs, with minimal fields and native automation. |
 | Discussions | User support and configuration questions need a home separate from actionable defects. Establish categories and moderation ownership first. |
-| CODEOWNERS | Additional maintainers actually own areas. Do not simulate independent review by assigning everything to the sole owner. |
+| Additional code owners | The pipeline slice now owns the requested sole-owner review policy. Extend ownership only when additional maintainers actually own areas; do not imply independent review of the owner's own PRs. |
 | Public build images in GHCR | Measurements show caching leaves significant repeated environment setup. Define image refresh, digest selection, retention and trust before moving consumers. |
 | Manual hardware workflows | The two Debian machines and acceptance commands are ready. Explicit trusted dispatch only; never execute arbitrary public PR code on personal workstations. Actual hardware setup and tests remain in their own slice. |
 | Signed commits or release tags | The maintainer selects an identity/signing method and recovery policy. This is separate from artifact signing and must not introduce a secret signing key into PR jobs. |
@@ -206,12 +208,51 @@ remain identified as optional in the permanent documentation.
 ## Observed progress and remaining work
 
 - Repository settings and the pipeline dependency were inspected on 2026-09-18.
-- This plan was written; implementation has not started.
+- The initial plan was written; phase 1 implementation is recorded below.
 - Documentation hooks passed in the maintained Trixie container; local links
   in this plan and the slice index resolved successfully.
-- Planned checks above have not been run for these proposed features.
-- Next: start this separate slice when selected, revalidate the start state and
-  prepare phase 1. Coordinate with the pipeline slice before any settings change.
+- Validation not explicitly recorded below remains pending.
+- Next: obtain hosted phase 1 validation and continue with security controls.
+  Coordinate with the pipeline slice before any settings change.
+
+### Phase 1: contribution entry points
+
+Reinspection after master `2979b60` found no issues or milestones. Existing
+labels already cover bugs, enhancements, documentation, build, CI, upscaling
+and tests; reuse those rather than create competing names. Auto-merge, merged
+branch deletion, Discussions and Wiki are now enabled. Preserve these settings;
+the older start-state snapshot does not authorize undoing intervening changes.
+Secret scanning, push protection, Dependabot security updates and private
+vulnerability reporting remain disabled; CodeQL default setup is not configured.
+Those security controls belong to the next phase.
+
+Prepare four native issue forms (rendering, build/install, hardware acceptance,
+feature request), a short PR template and a contributor guide with diagnostic
+sources and maintained container commands. Forms reference only existing labels,
+accept unknown/not-tested evidence honestly and require the minimum facts for
+each report. Keep blank issues available for reports the forms cannot express.
+Do not post synthetic issues or invent a release milestone without agreed
+contents. Validate YAML and Markdown with both maintained hook stages, compare
+form fields with GitHub's current schema and verify referenced files/labels.
+Hosted rendering and required-field behaviour remain acceptance items after the
+forms reach the default branch.
+
+Prepared the four forms, the PR template and `CONTRIBUTING.md`; the README links
+the guide. All form labels already exist in GitHub. Required fields use empty
+inputs or placeholders rather than prefilled results, so untested hardware
+cannot acquire a default passing result. Compared form element types, IDs,
+attributes and validation keys against GitHub's form-schema documentation. Both
+maintained container hook stages passed with the new files staged, including
+YAML, Markdown, spelling, licensing, repository rules and tooling regressions.
+Hosted CI/review and default-branch form rendering remain pending. No issues,
+milestones or account settings were changed in this phase.
+
+Hosted CI run `35338278702` passed for `c44c4f7`. CodeRabbit review
+`5247163132` found that the build/install and hardware forms requested raw
+package/artifact URLs, which can carry temporary access tokens. Changed those
+fields to request package filenames/versions or workflow run/artifact IDs and
+explicitly exclude signed URLs and tokens. Latest-revision CI and review remain
+required after publishing the correction.
 
 ## References
 

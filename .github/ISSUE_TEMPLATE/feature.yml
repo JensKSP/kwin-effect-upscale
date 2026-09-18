@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+name: Feature request
+description: Describe a problem or workflow the effect should support.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check the [requirements](https://github.com/JensKSP/kwin-effect-upscale/blob/master/doc/upscaling.md)
+        and existing issues first. Describe your need; an implementation design is not required.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or workflow
+      description: What are you trying to do, and what prevents it today?
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Desired behavior and example
+      description: Describe the observable result you need and a concrete example.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and related work
+      description: Optional workarounds, affected applications/hardware, or links to existing requests and proposed patches.

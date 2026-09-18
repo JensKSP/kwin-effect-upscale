@@ -210,12 +210,29 @@ supersede earlier pending statuses.
 
 ## Remaining work
 
+- The owner-review setting now requires code-owner review with zero additional
+  approvals. `.github/CODEOWNERS` is on `master` and assigns `JensKSP` to all paths.
+  Owner-authored auto-merge passed on PR #6 with both required statuses green.
+  Verify outside-authored PR behaviour; configuration alone is not acceptance
+  evidence. Agents must not merge or enable auto-merge without permission for the specific PR.
+- The owner approved required CodeRabbit approval and the narrow configuration
+  exception. Its request-changes workflow is configured; verify an actual bot
+  approval for the current PR head in a required `CodeRabbit approval` status.
+  Keep the human code-owner requirement independent. Use native PR/review events:
+  an unprivileged review-event signal wakes a trusted default-branch workflow,
+  which reads GitHub review metadata and publishes status without executing PR
+  code or downloading its artifacts. Missing/stale approval must stay blocked.
+  Local regression tests cover rejection, dismissal, subsequent pushes and API
+  failures. The trusted workflow is on `master`; status publication was verified
+  on PR #6 and the context is now required. The exact-head approval transition
+  passed on PR #6. Live revocation remains to be observed; local regressions
+  cover it.
 - Finish automated review of the latest revision and process valid findings;
-  keep its hosted quality gate green. Versioned CodeRabbit configuration is
-  optional while the connected app uses defaults.
-- Merge through the reviewed PR when authorized, then verify default-branch
-  scheduling and dependency-update activation. Branch publication alone does
-  not activate scheduled workflows on the default branch.
+  keep its hosted quality gate green. The owner approved versioned CodeRabbit
+  configuration and required approval on 2026-09-18; activation is recorded below.
+- PRs #1 and #5 merged through owner-enabled GitHub auto-merge. Dependabot opened
+  updates for all three configured locations; the owner merged those updates.
+  Default-branch scheduled execution still needs observation.
 - Observe the first authorized rolling-nightly publication and stable-tag
   release, including downloaded-asset and provenance verification. Do not
   create a stable version solely to test publication or count the existing
@@ -225,7 +242,7 @@ supersede earlier pending statuses.
 
 ### Hosted feedback and review integration
 
-- Draft pull request #1 is open. Hosted package validation exposed Git's
+- Initially, draft pull request #1 was open. Hosted package validation exposed Git's
   ownership check on the local clone's `.git` directory inside Docker. A fix
   trusting that exact source repository is prepared; hosted revalidation is
   still pending.
@@ -233,8 +250,8 @@ supersede earlier pending statuses.
   investigate findings, fix valid issues and explain dismissed findings.
 - Prepared advisory CodeRabbit settings and validated them against its official
   schema. Automatic approval review rejected staging the configuration under
-  the repository's tool-configuration ban; a specific exception is awaiting
-  approval. GitHub App installation by the repository owner remains required.
+  the repository's tool-configuration ban. The owner subsequently installed the
+  app and approved the exception and required approval on 2026-09-18.
 - Current Debian package builds were byte-identical and passed lintian. The
   extracted source archive built, passed all five runtime tests and installed
   into a staging directory.
@@ -251,8 +268,8 @@ exact exception. Both container hook stages passed after the correction.
 
 Agents must now watch the latest PR checks and review feedback, fix valid issues
 and explain dismissed findings. Advisory CodeRabbit configuration passed schema
-validation, but its repository-rule exception and owner app installation remain
-pending. The verification-only nightly dispatch also exercises the prepared BSD
+validation; its repository-rule exception and owner app installation were still
+pending at that point. The verification-only nightly dispatch also exercises the prepared BSD
 workflow. Hosted validation of this follow-up is still pending.
 
 The owner installed CodeRabbit and connected the account. On 2026-09-18 its
@@ -313,3 +330,106 @@ required after pushing the consolidation.
 The owner requested the CodeRabbit review badge in the README on 2026-09-18.
 Added it alongside the existing CI badges and recorded that specific exception
 in the repository rules; the general restriction on tool attribution remains.
+
+### Owner review and approval gate follow-up
+
+GitHub merged PR #1 as `461322a` through the owner's previously enabled
+auto-merge. No agent initiated that merge. Dependabot subsequently opened
+PRs #3 and #4 for the root workflows and environment composite action, providing
+observed default-branch activation evidence for those two locations.
+
+The follow-up branch adds the README's non-working warning and TL;DR, assigns
+all paths to the owner, and explicitly forbids agents from merging or enabling
+auto-merge without permission for the particular PR. The live review setting
+requires code-owner review with zero additional approvals; CODEOWNERS must
+reach the base branch before its enforcement can be tested.
+
+The owner explicitly approved `.coderabbit.yaml` and required bot approval.
+The configuration passed validation against CodeRabbit's official schema.
+The event-driven approval verifier reads authenticated review metadata and
+checks the exact head commit, including paginated review history. Its trusted
+workflow runs only default-branch code. A separate unprivileged review signal
+supports fork PR events without granting write access to PR code.
+
+Both standard container hook stages passed after formatting and docstring
+corrections. The local regression suite covers absent/stale approval, another
+identity, requested changes, dismissal, head movement/closure, API failure,
+same-commit PRs and read-only inspection. Hosted review, live status publication,
+requiring the status and owner/outside-author enforcement remain to be verified
+after publication and the owner's merge of the trusted workflow.
+
+PR #5 contains this follow-up. Its first hosted CI run, `35331593827`, passed
+the complete Quality gate at `44f4b1d`. GitHub reported no CODEOWNERS syntax
+errors, and CodeRabbit confirmed it loaded `.coderabbit.yaml`; its review is
+still pending. The owner enabled auto-merge and merged dependency PRs #2–#4.
+The follow-up incorporates those changes and uses their checkout pin in the new
+approval workflow. Work continues in an isolated worktree under `build/` so
+concurrent C++ implementation cannot change the tree being checked or submitted.
+
+The final PR #5 revision `9bc7760` passed CI run `35332688551` and merged through
+the owner's auto-merge as `f6a3bf3` on 2026-09-18. The first default-branch
+`Review approval` dispatch, run `35333197316`, succeeded. No PRs were open, so
+that run establishes workflow execution but not status publication or approval.
+CodeRabbit had not submitted a review on PR #5 at merge time; the bootstrap
+merge is not evidence of bot approval. A documentation follow-up records the
+deployed policy and provides the first open PR for status-source verification.
+
+PR #6 triggered successful run `35333375566`, which published `CodeRabbit
+approval: pending` for `300afb6`. The individual status record identified
+`github-actions[bot]` (ID 41898282) as its creator; CodeRabbit itself separately
+reported review in progress. Protection was then updated and read back:
+`Quality gate` and `CodeRabbit approval` are both required from GitHub Actions
+(app ID 15368), with strict up-to-date checking. Owner bypass, code-owner review,
+stale-review dismissal, conversation resolution and force-push/deletion blocks
+were retained. No agent enabled a merge or auto-merge for PR #6. Its owner-authored
+PR requested no human reviewer; outside-author enforcement and the successful
+bot-approval transition still await observation.
+
+The owner requested green workflow badges and targeted checks for documentation
+changes. Master Nightly verification run `35334154552` passed every job at
+`f6a3bf3`, including all four package targets, both KWin-master compilers,
+FreeBSD, the 600-second fuzz run and artifact signing/verification. The actual
+badge SVGs then reported `CI - passing` and `Nightly - passing`. The CodeRabbit
+badge reports a review count and uses the owner's requested orange colour;
+it does not indicate pass/fail.
+
+CodeRabbit review `5246743546` requested correction of the handbook's claim
+that owner-authored PRs need no ownership approval. The text now states that
+GitHub forbids self-approval, zero additional approvals do not prove an
+ownership exemption, and normal owner auto-merge remains unverified. Where
+ownership approval is required, another eligible owner or an explicitly
+authorized administrator bypass is needed. No review was dismissed or overridden.
+
+Implemented conservative file selection for PRs and master pushes. Native
+pre-commit file filtering skips tooling regressions for Markdown-only changes;
+whole-tree licensing, history secret scanning and repository rules remain.
+The full container hook stages passed with the scope/gate regression suite.
+A real documentation-only Git-tree fixture passed both native pre-commit stages:
+spelling and Markdown checks ran, as did whole-tree REUSE, history secret scanning
+and repository rules; tooling regression tests reported skipped. Adding a source
+change to that same fixture made the docs entry point reject it before checking.
+Hosted full/reduced-path validation remains open until this update is published.
+
+### Targeted CI and approval acceptance
+
+PR #6 at `573d3da` passed the complete hosted CI run `35336028742`, including
+package and source smoke builds. CodeRabbit marked finding `4045861564`
+addressed and approved that exact revision in review `5246959952`. The trusted
+approval workflow `35336627559` published a successful required status.
+GitHub then merged the PR as `2979b60` through auto-merge enabled by Jens.
+No agent requested a merge or bypass. Protection still required code-owner
+review with zero additional approvals and both status checks. This establishes
+owner-authored auto-merge for the deployed settings; outside-author ownership
+enforcement and live approval revocation remain separate acceptance items.
+
+PR #7 at `3eeeb40` passed documentation-only CI run `35336895198` in 1 minute
+54 seconds; the full PR #6 run took 5 minutes 9 seconds. These are individual
+observations, not a timing guarantee. The hosted logs show both native hook
+stages passed spelling, Markdown, licensing, secret scanning and repository
+rules. Tooling regressions were skipped; the source-line limit did not apply to
+Markdown. Scope outputs selected only `docs`, with instrumentation and packaging
+skipped. The required Quality gate accepted exactly those intended skips.
+Master CI run `35336663775` also passed the full path after PR #6 merged.
+Hosted file selection is accepted; subsequent revisions still need their own
+checks and review, and documentation-only master-push selection has local test
+coverage but has not yet been observed on GitHub.

@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: None
+# SPDX-License-Identifier: CC0-1.0
+
+name: Review event
+
+on:
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+
+# Fork reviews only receive a read-only token. This workflow is an event signal,
+# never the authority for approval and never a consumer of PR code or artifacts.
+permissions: {}
+
+jobs:
+  signal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - run: 'true'
