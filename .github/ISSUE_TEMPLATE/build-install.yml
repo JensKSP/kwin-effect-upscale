@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+name: Build or installation problem
+description: Report a build, dependency, package or installation failure.
+labels: [bug, 'area:build']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use the [reporting guide](https://github.com/JensKSP/kwin-effect-upscale/blob/master/CONTRIBUTING.md#reporting-a-problem)
+        to collect diagnostics. Packages must match their distribution and KWin.
+        Passing installation does not establish working rendering.
+  - type: input
+    id: candidate
+    attributes:
+      label: Source revision or package filename/version
+      description: For source builds, include git rev-parse HEAD and whether the tree has local changes. For packages, include the download URL.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Build or installation environment
+      description: Distribution/release, architecture, KWin version and container image if used. For builds, include compiler and CMake versions.
+    validations:
+      required: true
+  - type: textarea
+    id: commands
+    attributes:
+      label: Commands and expected result
+      description: Include exact configure/build/install commands and what you expected them to do. Redact personal paths or credentials.
+    validations:
+      required: true
+  - type: textarea
+    id: failure
+    attributes:
+      label: Failure and relevant log
+      description: Include the first failing diagnostic with surrounding context, not only the final exit status. Attach a redacted log if useful.
+    validations:
+      required: true
