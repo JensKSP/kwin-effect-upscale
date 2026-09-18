@@ -462,3 +462,12 @@ errors in Trixie and Neon, all nine Trixie and six Neon runtime tests, Trixie
 clang-tidy and plugin metadata validation. Coverage measured 1057 of 1136 lines
 (93.0%), above the unchanged 90% threshold. Hosted CI and the next review of this
 revision remain pending; real-device acceptance remains open.
+
+Hosted CI run `35344183917` passed every job and the Quality gate for `127d318`.
+CodeRabbit marked the four latest findings resolved and reported no new findings,
+but skipped all ten changed files as similar to previous changes. Its latest
+formal review still requests changes on `33ce7f4`; the approval gate therefore
+correctly remains pending. The eight earlier review threads also remain open
+although their fixes and regression coverage are published. A fresh full review
+has been proposed to the owner; permission to post that request is pending.
+No review override, merge or change to protection has been performed.
