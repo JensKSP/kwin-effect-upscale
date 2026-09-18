@@ -340,13 +340,16 @@ void UpscaleRenderTest::displayShowsTheState()
         return KConfigGroup(KSharedConfig::openConfig(QStringLiteral("kwinrc")), QStringLiteral("Effect-upscale"));
     };
     settings().deleteGroup();
+    // Ask for the modes this test drives instead of relying on the build
+    // type's defaults: those differ between a Debug and a release build, and
+    // which defaults apply is the settings module's test, not this one.
+    settings().writeEntry("OsdStatistics", true);
+    settings().writeEntry("OsdDeveloper", true);
     KSharedConfig::openConfig(QStringLiteral("kwinrc"))->sync();
 
     UpscaleDisplay display;
     UpscaleConfig::self()->read();
     display.reconfigure();
-    // This test binary is built the way the effect is, so the build type that
-    // decides the defaults is the same one the assertions below expect.
     QVERIFY(display.enabled());
     QVERIFY(display.wantsSnapshot(nullptr));
 

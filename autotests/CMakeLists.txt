@@ -11,6 +11,7 @@ add_executable(
     ../src/plugins/upscale/snapshot.cpp
 )
 target_include_directories(upscale_snapshot_test PRIVATE ../src/plugins/upscale)
+target_compile_definitions(upscale_snapshot_test PRIVATE -DTRANSLATION_DOMAIN="kwin_effect_upscale")
 target_link_libraries(upscale_snapshot_test PRIVATE kwin KF6::I18n Qt6::Test Libdrm::Libdrm)
 add_test(NAME upscale-snapshot COMMAND upscale_snapshot_test)
 
@@ -73,6 +74,10 @@ if(KWin_VERSION VERSION_LESS 6.7)
     kconfig_add_kcfg_files(driver_sources ../src/plugins/upscale/upscaleconfig.kcfgc)
     add_library(upscale_test_driver MODULE ${driver_sources})
     target_include_directories(upscale_test_driver PRIVATE ../src/plugins/upscale)
+    target_compile_definitions(
+        upscale_test_driver
+        PRIVATE -DTRANSLATION_DOMAIN="kwin_effect_upscale"
+    )
     target_link_libraries(upscale_test_driver PRIVATE kwin KF6::ConfigGui KF6::I18n Libdrm::Libdrm)
     set_target_properties(
         upscale_test_driver
@@ -107,6 +112,7 @@ set(render_test_SOURCES
 kconfig_add_kcfg_files(render_test_SOURCES ../src/plugins/upscale/upscaleconfig.kcfgc)
 add_executable(upscale_render_test ${render_test_SOURCES})
 target_include_directories(upscale_render_test PRIVATE ../src/plugins/upscale)
+target_compile_definitions(upscale_render_test PRIVATE -DTRANSLATION_DOMAIN="kwin_effect_upscale")
 target_link_libraries(
     upscale_render_test
     PRIVATE kwin KF6::ConfigGui KF6::I18n Qt6::Test Libdrm::Libdrm
@@ -139,6 +145,10 @@ if(KWIN_BUILD_KCMS)
     kconfig_add_kcfg_files(config_test_SOURCES ../src/plugins/upscale/upscaleconfig.kcfgc)
     add_executable(upscale_config_test ${config_test_SOURCES})
     target_include_directories(upscale_config_test PRIVATE ../src/plugins/upscale)
+    target_compile_definitions(
+        upscale_config_test
+        PRIVATE -DTRANSLATION_DOMAIN="kwin_effect_upscale"
+    )
     target_link_libraries(
         upscale_config_test
         PRIVATE KF6::KCMUtils KF6::ConfigGui KF6::CoreAddons KF6::I18n Qt6::DBus Qt6::Test
