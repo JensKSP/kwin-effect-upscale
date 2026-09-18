@@ -14,13 +14,33 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDBusConnection>
 #include <QDir>
 #include <QLabel>
+#include <QProcess>
+#include <QPushButton>
 #include <QScreen>
 #include <QSlider>
 #include <QSpinBox>
 #include <QTemporaryDir>
 #include <QTest>
+
+// This service only exists on the private bus started by main(). Real KWin
+// must never receive configuration or refresh calls from these tests.
+class TestEffects : public QObject
+{
+    Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "org.kde.kwin.Effects")
+
+public:
+    QString information;
+
+public Q_SLOTS:
+    QString supportInformation(const QString &effect)
+    {
+        return effect == QStringLiteral("upscale") ? information : QString();
+    }
+};
 
 class UpscaleConfigTest : public QObject
 {
@@ -30,6 +50,7 @@ private Q_SLOTS:
     void presetsAndKeyboard();
     void saveAndRestore();
     void displayDefaults();
+    void runningBuildStatus();
 };
 
 void UpscaleConfigTest::presetsAndKeyboard()
@@ -150,6 +171,56 @@ void UpscaleConfigTest::displayDefaults()
     QVERIFY(!stored().hasKey("OsdDeveloper"));
 }
 
+void UpscaleConfigTest::runningBuildStatus()
+{
+    TestEffects effects;
+    QDBusConnection bus = QDBusConnection::sessionBus();
+    QVERIFY(bus.isConnected());
+    QVERIFY(bus.registerService(QStringLiteral("org.kde.KWin")));
+    QVERIFY(bus.registerObject(QStringLiteral("/Effects"), &effects, QDBusConnection::ExportAllSlots));
+    effects.information = QStringLiteral("upscale:\nbuild: older-running-build\nstatus: Supplied input: 1280 × 720\nDestination: 2560 × 1440");
+    QWidget host;
+    KWin::UpscaleEffectConfig module(&host, KPluginMetaData());
+    QLabel *build = module.widget()->findChild<QLabel *>(QStringLiteral("build"));
+    QLabel *status = module.widget()->findChild<QLabel *>(QStringLiteral("status"));
+    QPushButton *refresh = module.widget()->findChild<QPushButton *>(QStringLiteral("refreshStatus"));
+    QVERIFY(build);
+    QVERIFY(status);
+    QVERIFY(refresh);
+    QTRY_VERIFY(build->text().contains(QStringLiteral("Running in KWin: older-running-build")));
+    QCOMPARE(status->text(), QStringLiteral("Supplied input: 1280 × 720\nDestination: 2560 × 1440"));
+
+    // Older effects can return status without a build property. That does not
+    // establish that the running effect matches the package now installed.
+    effects.information = QStringLiteral("upscale:\nstatus: No build identity available");
+    refresh->click();
+    QTRY_COMPARE(status->text(), QStringLiteral("No build identity available"));
+    QVERIFY(build->text().contains(QStringLiteral("Running in KWin: unknown")));
+    QVERIFY(!build->text().contains(QStringLiteral("older-running-build")));
+
+    effects.information = QStringLiteral("upscale:\nbuild: refreshed-running-build\nstatus: Updated");
+    refresh->click();
+    QTRY_COMPARE(status->text(), QStringLiteral("Updated"));
+    QVERIFY(build->text().contains(QStringLiteral("refreshed-running-build")));
+    effects.information.clear();
+    refresh->click();
+    QTRY_VERIFY(status->text().startsWith(QStringLiteral("Live status unavailable")));
+    QVERIFY(build->text().contains(QStringLiteral("Running in KWin: unknown")));
+    QVERIFY(!build->text().contains(QStringLiteral("refreshed-running-build")));
+
+    // Losing the service after a successful reply must clear the old identity
+    // just as an empty reply does.
+    effects.information = QStringLiteral("upscale:\nbuild: stale-running-build\nstatus: Available");
+    refresh->click();
+    QTRY_COMPARE(status->text(), QStringLiteral("Available"));
+    bus.unregisterObject(QStringLiteral("/Effects"));
+    QVERIFY(bus.unregisterService(QStringLiteral("org.kde.KWin")));
+    refresh->click();
+    QTRY_VERIFY(status->text().startsWith(QStringLiteral("Live status unavailable")));
+    QVERIFY(build->text().contains(QStringLiteral("Running in KWin: unknown")));
+    QVERIFY(!build->text().contains(QStringLiteral("stale-running-build")));
+}
+
 int main(int argc, char **argv)
 {
     QTemporaryDir configuration(QDir::currentPath() + QStringLiteral("/config-test-XXXXXX"));
@@ -159,9 +230,25 @@ int main(int argc, char **argv)
     qputenv("XDG_CONFIG_HOME", configuration.path().toUtf8());
     // Never connect the settings test to a developer's session bus.
     qputenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/nonexistent-upscale-test-bus");
+    QProcess bus;
+    bus.start(QStringLiteral("dbus-daemon"), {QStringLiteral("--session"), QStringLiteral("--nofork"), QStringLiteral("--print-address=1")});
+    if (!bus.waitForStarted() || !bus.waitForReadyRead()) {
+        return 1;
+    }
+    const QByteArray address = bus.readLine().trimmed();
+    if (address.isEmpty()) {
+        return 1;
+    }
+    qputenv("DBUS_SESSION_BUS_ADDRESS", address);
     QApplication application(argc, argv);
     UpscaleConfigTest test;
-    return QTest::qExec(&test, argc, argv);
+    const int result = QTest::qExec(&test, argc, argv);
+    bus.terminate();
+    if (!bus.waitForFinished()) {
+        bus.kill();
+        bus.waitForFinished();
+    }
+    return result;
 }
 
 #include "config_test.moc"

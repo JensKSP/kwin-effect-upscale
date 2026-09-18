@@ -33,6 +33,7 @@
 #include <KLocalizedString>
 
 #include <QLoggingCategory>
+#include <QScopedValueRollback>
 
 Q_LOGGING_CATEGORY(KWIN_UPSCALE, "kwin_effect_upscale", QtWarningMsg)
 
@@ -97,9 +98,9 @@ void UpscaleEffect::watchWindow(EffectWindow *window)
             // EASU and RCAS read neighbouring pixels. Full-window damage is
             // conservative and follows client commits, never a repaint timer.
             window->addRepaintFull();
-            // This is the one event that counts a frame the client produced.
-            // A compositor repaint is not the same thing and is counted apart.
-            m_display.countClientUpdate();
+        }
+        if (m_display.enabled() && !effects->isScreenLocked()) {
+            m_display.countClientUpdate(window);
         }
     });
 }
@@ -111,6 +112,7 @@ void UpscaleEffect::reconfigure(ReconfigureFlags flags)
     m_enabled = UpscaleConfig::enabled();
     m_strength = sharpeningAmount(UpscaleConfig::sharpening(), UpscaleConfig::strength());
     m_failed = false;
+    m_candidateCached = false;
     m_renderedWindow.clear();
     m_unsupportedColors.clear();
     m_passRefusal = UpscaleRefusal::None;
@@ -145,7 +147,9 @@ bool UpscaleEffect::isActive() const
     // an effect that refused every window would never get to say why. The
     // display keeps it in the chain for exactly the case its explanation is
     // needed, and drops out again as soon as it has nothing to show.
-    return m_display.enabled() && !effects->isScreenLocked() && displayed() != nullptr;
+    EffectWindow *window = effects->activeWindow();
+    return !effects->isScreenLocked() && window && window->isFullScreen()
+        && !window->isDeleted() && m_display.activeFor(window);
 }
 
 bool UpscaleEffect::blocksDirectScanout() const
@@ -158,6 +162,21 @@ bool UpscaleEffect::blocksDirectScanout() const
 }
 
 EffectWindow *UpscaleEffect::candidate(UpscaleRefusal *refusal) const
+{
+    if (!m_inPaint) {
+        return findCandidate(refusal);
+    }
+    if (!m_candidateCached) {
+        m_candidate = findCandidate(&m_candidateRefusal);
+        m_candidateCached = true;
+    }
+    if (refusal) {
+        *refusal = m_candidateRefusal;
+    }
+    return m_candidate;
+}
+
+EffectWindow *UpscaleEffect::findCandidate(UpscaleRefusal *refusal) const
 {
     const auto refuse = [refusal](UpscaleRefusal reason) -> EffectWindow * {
         if (refusal) {
@@ -207,8 +226,8 @@ EffectWindow *UpscaleEffect::candidate(UpscaleRefusal *refusal) const
 UpscalePaintResult UpscaleEffect::drawWindow(const RenderTarget &target, const RenderViewport &viewport, EffectWindow *window,
                                              int mask, const UpscaleRegion &region, WindowPaintData &data)
 {
-    // Eligibility is the cheap per-window test; only a window that passes it
-    // is worth searching the stacking order for a second, unique candidate.
+    // Selection is shared by the draws in this paint pass. Check the actual
+    // window again before using its surface, which may have been replaced.
     if (m_renderer && eligible(window) && window == candidate()) {
         if (!supportsUpscaleColors(targetColors(target))) {
             // Unlike the conditions above, this one follows the output's
@@ -217,6 +236,7 @@ UpscalePaintResult UpscaleEffect::drawWindow(const RenderTarget &target, const R
             // output is not held in composition for a frame that will be
             // handed back to KWin anyway. Another candidate clears it.
             m_unsupportedColors = window;
+            m_candidateCached = false;
             effects->addRepaintFull();
         } else if (m_passRefusal = passRefusal(target, viewport, window, mask, data); m_passRefusal == UpscaleRefusal::None) {
             if (!m_scaler) {
@@ -241,6 +261,7 @@ UpscalePaintResult UpscaleEffect::drawWindow(const RenderTarget &target, const R
             // keep blocking scanout. Retry only after a reconfiguration.
             qCWarning(KWIN_UPSCALE, "shader, texture or framebuffer failure; using normal rendering until reconfiguration");
             m_failed = true;
+            m_candidateCached = false;
             m_scaler.reset();
             effects->addRepaintFull();
         }
@@ -337,6 +358,8 @@ void UpscaleEffect::paintDisplay(const RenderTarget &target, const RenderViewpor
 UpscalePaintResult UpscaleEffect::paintScreen(const RenderTarget &target, const RenderViewport &viewport, int mask,
                                               const UpscaleRegion &region, UpscaleOutput *screen)
 {
+    const QScopedValueRollback painting(m_inPaint, true);
+    m_candidateCached = false;
     // The display is drawn after the screen pass, which is after the scaler
     // captured the game's surface. That ordering is what keeps this text out
     // of the captured image and out of the enlargement.
@@ -365,7 +388,7 @@ QString UpscaleEffect::status() const
     if (!window) {
         window = effects->activeWindow();
     }
-    if (!window || !window->screen() || !window->windowItem() || !window->windowItem()->surfaceItem()) {
+    if (!window) {
         return i18n("Inactive: %1", describeRefusal(UpscaleRefusal::NoWindow));
     }
     return upscaleStatusText(snapshot(window, nullptr));

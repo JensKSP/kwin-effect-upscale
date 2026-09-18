@@ -26,6 +26,7 @@ private:
     QString status();
     void configure(bool enabled, bool sharpening, int preset = 0);
     void configureColors(bool unsupported);
+    void configureDisplay(bool enabled, bool statistics);
     QDBusInterface m_effects{QStringLiteral("org.kde.KWin"), QStringLiteral("/Effects"),
                              QStringLiteral("org.kde.kwin.Effects"), QDBusConnection::sessionBus()};
 };
@@ -59,6 +60,21 @@ void UpscaleIntegrationTest::configureColors(bool unsupported)
     QVERIFY(reply.type() != QDBusMessage::ErrorMessage);
 }
 
+void UpscaleIntegrationTest::configureDisplay(bool enabled, bool statistics)
+{
+    const KSharedConfig::Ptr config = KSharedConfig::openConfig(QStringLiteral("kwinrc"));
+    KConfigGroup group(config, QStringLiteral("Effect-upscale"));
+    group.writeEntry("Osd", enabled);
+    group.writeEntry("OsdDetection", true);
+    group.writeEntry("OsdSummary", true);
+    group.writeEntry("OsdStatistics", statistics);
+    group.writeEntry("OsdDeveloper", false);
+    group.writeEntry("OsdTimeout", 1);
+    group.sync();
+    const QDBusMessage reply = m_effects.call(QStringLiteral("reconfigureEffect"), QStringLiteral("upscale_test_driver"));
+    QVERIFY(reply.type() != QDBusMessage::ErrorMessage);
+}
+
 void UpscaleIntegrationTest::lifecycle()
 {
     QTRY_VERIFY(m_effects.isValid());
@@ -66,7 +82,7 @@ void UpscaleIntegrationTest::lifecycle()
     QVERIFY(supported.isValid() && !supported.value());
     const QDBusReply<bool> loaded = m_effects.call(QStringLiteral("loadEffect"), QStringLiteral("upscale_test_driver"));
     QVERIFY(loaded.isValid());
-    QTRY_VERIFY2(status().contains(QStringLiteral("Inactive: no supplied window buffer")), qPrintable(status()));
+    QTRY_VERIFY2(status().contains(QStringLiteral("Inactive: there is no window to scale")), qPrintable(status()));
     {
         WaylandClient client;
         QVERIFY(client.initialize());
@@ -103,6 +119,21 @@ void UpscaleIntegrationTest::lifecycle()
             QVERIFY(client.show(refusal.size));
             QTRY_VERIFY2(status().contains(refusal.reason), qPrintable(status()));
         }
+        // Refused native-size content only needs composition while its notice
+        // is visible. Subsequent damage must not reannounce the same window.
+        QVERIFY(client.show(QSize(128, 128)));
+        QTRY_VERIFY(status().contains(QStringLiteral("not smaller than the destination")));
+        configureDisplay(true, false);
+        QTRY_VERIFY(status().contains(QStringLiteral("blocksScanout: true")));
+        QTRY_VERIFY(status().contains(QStringLiteral("blocksScanout: false")));
+        client.commit();
+        QTest::qWait(100);
+        QVERIFY(status().contains(QStringLiteral("blocksScanout: false")));
+        configureDisplay(true, true);
+        QTRY_VERIFY(status().contains(QStringLiteral("blocksScanout: true")));
+        configureDisplay(false, false);
+        QTRY_VERIFY(status().contains(QStringLiteral("blocksScanout: false")));
+        configureDisplay(true, true);
         QVERIFY(client.show(QSize(64, 64), false));
         QTRY_VERIFY2(status().contains(QStringLiteral("not fully opaque")), qPrintable(status()));
         QVERIFY(client.show(QSize(64, 64)));
@@ -140,7 +171,7 @@ void UpscaleIntegrationTest::lifecycle()
         client.commit();
         QTRY_VERIFY(status().contains(QStringLiteral("FSR 1, sharpening 0%")));
     }
-    QTRY_VERIFY(status().contains(QStringLiteral("Inactive: no supplied window buffer")));
+    QTRY_VERIFY(status().contains(QStringLiteral("Inactive: there is no window to scale")));
     m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
     QCOMPARE(status(), QString());
 }

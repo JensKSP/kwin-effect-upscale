@@ -382,3 +382,32 @@ in Trixie on the isolated documentation candidate under
 `build/documentation-commit-check`. This includes the checker regressions and
 REUSE licensing check. Local paths and heading anchors resolved in all 13
 documentation files. No feature implementation or runtime acceptance is claimed.
+
+### PR #8 coverage follow-up
+
+Hosted run `35338192292` failed the unchanged 90% C++ line gate: 744 of 1079
+lines were exercised (69.0%). The new snapshot formatter had 14.9% line
+coverage, display policy 35.6%, and eligibility diagnostics 52.1%; existing
+compilers, lint, sanitizers and package smoke checks passed. Work proceeds in an
+isolated checkout so the implementation checkout stays available.
+
+Add behavioral tests for snapshot accuracy, refusal-specific explanations,
+unknown measurements, configured versus effective state, and display visibility
+and sampling. Exercise settings status through an isolated bus if needed, and
+ensure the configured runtime-test entry point includes the new tests. Preserve
+the coverage denominator and 90% threshold. Validate coverage in Trixie, both
+compiler/container combinations and both repository hook stages before pushing
+the fix, then process hosted checks and review for the latest PR revision.
+These automated checks do not establish native display acceptance.
+
+Review follow-up: distinguish a missing window from a missing buffer; include
+the rejected buffer format in every diagnostic view; restore all blend factors
+after painting the overlay; clear stale running-build identity on missing or
+failed status replies. Display counters now belong to one observed window and
+reset on window changes, hiding and reconfiguration. Timed notices release the
+composition requirement when they expire, and selection is reused only inside
+one synchronous screen paint. A private D-Bus service and the virtual KWin
+lifecycle exercise these paths without contacting the user's desktop.
+
+Trixie coverage passed after extending the runtime tests. Final compiler, lint,
+static-analysis and hosted validation for this correction remain pending.

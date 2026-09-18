@@ -33,12 +33,8 @@ void UpscaleDisplay::reconfigure()
     m_statistics = UpscaleConfig::osdStatistics();
     m_developer = UpscaleConfig::osdDeveloper();
     m_timeout = UpscaleConfig::osdTimeout();
-    // A changed setting is a new state to announce, not a continuation of the
-    // old one, and the old text may describe a mode that is now switched off.
-    m_announced.clear();
-    m_announcement.clear();
-    m_announcedAt.invalidate();
-    m_overlay.release();
+    // New settings invalidate both the announcement and its measurements.
+    hide();
 }
 
 bool UpscaleDisplay::enabled() const
@@ -46,9 +42,18 @@ bool UpscaleDisplay::enabled() const
     return m_enabled && (m_detection || m_summary || m_statistics || m_developer);
 }
 
-void UpscaleDisplay::countClientUpdate()
+bool UpscaleDisplay::activeFor(EffectWindow *window) const
 {
-    ++m_clientUpdates;
+    return enabled() && (m_statistics || m_developer || window != m_announced || !m_announcedAt.isValid() || m_announcedAt.elapsed() < qint64(m_timeout) * 1000);
+}
+
+void UpscaleDisplay::countClientUpdate(EffectWindow *window)
+{
+    // Count only the window whose sample is running, including a refused
+    // fullscreen window. Other clients' commits are not this window's rate.
+    if (window == m_announced && m_sampled.isValid()) {
+        ++m_clientUpdates;
+    }
 }
 
 void UpscaleDisplay::countRepaint()
@@ -66,6 +71,9 @@ bool UpscaleDisplay::wantsSnapshot(EffectWindow *window) const
 
 void UpscaleDisplay::update(UpscaleSnapshot snapshot, EffectWindow *window)
 {
+    if (window != m_announced) {
+        resetSampling();
+    }
     // How long counting runs before it becomes a reported rate. The interval
     // is part of what the display says, so that a rate is never presented
     // without the window it was measured over.
@@ -101,6 +109,10 @@ void UpscaleDisplay::update(UpscaleSnapshot snapshot, EffectWindow *window)
 
 void UpscaleDisplay::compose()
 {
+    if (!enabled() || !m_composed.isValid()) {
+        m_overlay.release();
+        return;
+    }
     QStringList blocks;
     const bool announcing = m_announcedAt.isValid() && m_announcedAt.elapsed() < qint64(m_timeout) * 1000;
     if (announcing && m_detection) {
@@ -146,6 +158,17 @@ void UpscaleDisplay::hide()
     m_composed.invalidate();
     m_area = UpscaleRectF();
     m_expiry.stop();
+    resetSampling();
+}
+
+void UpscaleDisplay::resetSampling()
+{
+    m_sampled.invalidate();
+    m_clientUpdates = 0;
+    m_repaints = 0;
+    m_clientUpdateRate = -1;
+    m_repaintRate = -1;
+    m_interval = 0;
 }
 
 } // namespace KWin

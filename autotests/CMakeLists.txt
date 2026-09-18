@@ -104,6 +104,36 @@ if(KWin_VERSION VERSION_LESS 6.7)
     )
 endif()
 
+add_executable(
+    upscale_snapshot_test
+    snapshot_test.cpp
+    ../src/plugins/upscale/snapshot.cpp
+    ../src/plugins/upscale/eligibility.cpp
+)
+target_include_directories(upscale_snapshot_test PRIVATE ../src/plugins/upscale)
+target_link_libraries(upscale_snapshot_test PRIVATE kwin Qt6::Test KF6::I18n Libdrm::Libdrm)
+add_test(NAME upscale-snapshot COMMAND upscale_snapshot_test)
+
+set(display_test_sources
+    display_test.cpp
+    ../src/plugins/upscale/display.cpp
+    ../src/plugins/upscale/overlay.cpp
+    ../src/plugins/upscale/snapshot.cpp
+    ../src/plugins/upscale/eligibility.cpp
+)
+kconfig_add_kcfg_files(display_test_sources ../src/plugins/upscale/upscaleconfig.kcfgc)
+add_executable(upscale_display_test ${display_test_sources})
+target_include_directories(upscale_display_test PRIVATE ../src/plugins/upscale)
+target_link_libraries(
+    upscale_display_test
+    PRIVATE kwin Qt6::Test KF6::ConfigGui KF6::I18n Libdrm::Libdrm
+)
+add_test(NAME upscale-display COMMAND upscale_display_test)
+set_tests_properties(
+    upscale-display
+    PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;QT_QPA_PLATFORM=offscreen"
+)
+
 if(KWIN_BUILD_KCMS)
     set(config_test_SOURCES config_test.cpp ../src/plugins/upscale/upscale_config.cpp)
     kconfig_add_kcfg_files(config_test_SOURCES ../src/plugins/upscale/upscaleconfig.kcfgc)

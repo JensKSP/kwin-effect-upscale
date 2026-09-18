@@ -249,7 +249,7 @@ QString describeRefusal(UpscaleRefusal refusal)
     case UpscaleRefusal::UnsupportedColors:
         return i18n("this output's colour handling is not supported.");
     case UpscaleRefusal::NoWindow:
-        return i18n("no supplied window buffer.");
+        return i18n("there is no window to scale.");
     case UpscaleRefusal::NotFullScreen:
         return i18n("the window is not fullscreen.");
     case UpscaleRefusal::Closing:

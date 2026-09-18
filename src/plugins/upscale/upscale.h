@@ -58,6 +58,7 @@ private:
     // refused it. The reason is computed only when asked for, because every
     // painted frame asks for the candidate and none of them asks why.
     EffectWindow *candidate(UpscaleRefusal *refusal = nullptr) const;
+    EffectWindow *findCandidate(UpscaleRefusal *refusal) const;
     // The window the on-screen display describes: the candidate, or the
     // active fullscreen window that was refused, which is the case a
     // developer needs to see explained.
@@ -68,6 +69,12 @@ private:
     void paintDisplay(const RenderTarget &target, const RenderViewport &viewport, UpscaleOutput *screen);
     void watchWindow(EffectWindow *window);
 
+    // Reuse selection only within one synchronous screen paint. Outside it,
+    // queries must see current buffer, geometry, focus and lock state.
+    bool m_inPaint = false;
+    mutable bool m_candidateCached = false;
+    mutable QPointer<EffectWindow> m_candidate;
+    mutable UpscaleRefusal m_candidateRefusal = UpscaleRefusal::NoWindow;
     std::unique_ptr<UpscaleScaler> m_scaler;
     // The candidate whose render target this scaler cannot handle. Held as a
     // window rather than a flag so a different one is always tried again.

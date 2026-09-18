@@ -121,11 +121,17 @@ bool UpscaleOverlay::paint(const RenderTarget &target, const RenderViewport &vie
     shader->setUniform(GLShader::Mat4Uniform::ModelViewProjectionMatrix, matrix);
     shader->setUniform(GLShader::IntUniform::Sampler, 0);
     const bool blending = glIsEnabled(GL_BLEND);
+    GLint sourceRgb, destinationRgb, sourceAlpha, destinationAlpha;
+    glGetIntegerv(GL_BLEND_SRC_RGB, &sourceRgb);
+    glGetIntegerv(GL_BLEND_DST_RGB, &destinationRgb);
+    glGetIntegerv(GL_BLEND_SRC_ALPHA, &sourceAlpha);
+    glGetIntegerv(GL_BLEND_DST_ALPHA, &destinationAlpha);
     glEnable(GL_BLEND);
     glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
     m_texture->bind();
     m_texture->render(m_image.size());
     m_texture->unbind();
+    glBlendFuncSeparate(sourceRgb, destinationRgb, sourceAlpha, destinationAlpha);
     if (!blending) {
         glDisable(GL_BLEND);
     }

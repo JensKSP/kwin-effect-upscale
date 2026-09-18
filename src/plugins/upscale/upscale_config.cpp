@@ -100,11 +100,13 @@ void UpscaleEffectConfig::addStatusControls(QFormLayout *layout)
     m_build->setTextInteractionFlags(Qt::TextSelectableByMouse);
     m_build->setText(installedBuild());
     layout->addRow(i18n("Version:"), m_build);
+    m_status->setObjectName(QStringLiteral("status"));
     m_status->setWordWrap(true);
     m_status->setTextFormat(Qt::PlainText);
     m_status->setTextInteractionFlags(Qt::TextSelectableByMouse);
     layout->addRow(m_status);
     auto refresh = new QPushButton(i18n("Refresh supplied-buffer status"), widget());
+    refresh->setObjectName(QStringLiteral("refreshStatus"));
     layout->addRow(refresh);
     connect(refresh, &QPushButton::clicked, this, &UpscaleEffectConfig::refreshStatus);
 }
@@ -281,7 +283,7 @@ static bool sameAsInstalled(const QString &loaded)
     return loaded.contains(UpscaleBuildInfo::version());
 #else
     Q_UNUSED(loaded)
-    return true;
+    return false;
 #endif
 }
 
@@ -305,6 +307,7 @@ void UpscaleEffectConfig::refreshStatus()
     connect(watcher, &QDBusPendingCallWatcher::finished, this, [this, watcher]() {
         const QDBusPendingReply<QString> reply = *watcher;
         if (reply.isError() || reply.value().isEmpty()) {
+            m_build->setText(i18n("%1\nRunning in KWin: unknown", installedBuild()));
             m_status->setText(i18n("Live status unavailable. Enable Upscale in Desktop Effects, then refresh while the game is running."));
         } else {
             showSupportInformation(reply.value());
@@ -336,9 +339,9 @@ void UpscaleEffectConfig::showSupportInformation(const QString &information)
     // The compositor keeps a plugin it has already loaded, so an installed
     // update is not the build that is running until the session restarts.
     // Saying so is the only honest way to report the difference.
-    m_build->setText(loaded.isEmpty() || sameAsInstalled(loaded)
+    m_build->setText(!loaded.isEmpty() && sameAsInstalled(loaded)
                          ? installedBuild()
-                         : i18n("%1\nRunning in KWin: %2", installedBuild(), loaded));
+                         : i18n("%1\nRunning in KWin: %2", installedBuild(), loaded.isEmpty() ? i18n("unknown") : loaded));
 }
 
 } // namespace KWin

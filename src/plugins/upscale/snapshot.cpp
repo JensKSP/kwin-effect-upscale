@@ -64,6 +64,15 @@ static QString transferName(int transferFunction)
     }
 }
 
+static QString refusalText(const UpscaleSnapshot &snapshot)
+{
+    QString reason = describeRefusal(snapshot.refusal);
+    if (snapshot.refusal == UpscaleRefusal::UnsupportedBufferFormat) {
+        reason += QLatin1Char(' ') + i18n("Supplied format: %1.", snapshot.format.isEmpty() ? unknown() : snapshot.format);
+    }
+    return reason;
+}
+
 // What the effect is doing with the buffer, in the words the settings page
 // uses. A bypassed or refused path is never described as the configured
 // scaler being active.
@@ -75,7 +84,7 @@ static QString processing(const UpscaleSnapshot &snapshot)
             : i18n("FSR 1, no sharpening");
     }
     if (snapshot.refusal != UpscaleRefusal::None) {
-        return i18n("not scaling: %1", describeRefusal(snapshot.refusal));
+        return i18n("not scaling: %1", refusalText(snapshot));
     }
     // Eligible, but no frame has come through the scaler yet.
     return i18n("not scaling yet");
@@ -152,15 +161,12 @@ QString upscaleStatusText(const UpscaleSnapshot &snapshot)
         } else if (snapshot.refusal != UpscaleRefusal::None) {
             // A selected window carries the reason its last frame was handed
             // back, which describes that frame rather than the window.
-            state = i18n("Eligible buffer; the last frame was not scaled because %1", describeRefusal(snapshot.refusal));
+            state = i18n("Eligible buffer; the last frame was not scaled because %1", refusalText(snapshot));
         } else {
             state = i18n("Eligible buffer; waiting for a compatible render pass.");
         }
     } else {
-        state = i18n("Inactive: %1", describeRefusal(snapshot.refusal));
-        if (snapshot.refusal == UpscaleRefusal::UnsupportedBufferFormat) {
-            state += QLatin1Char(' ') + i18n("Supplied format: %1.", snapshot.format);
-        }
+        state = i18n("Inactive: %1", refusalText(snapshot));
     }
     return i18n("Desired: %1\nSupplied input: %2\nDestination: %3\n%4\nHDR follows KWin colour management. Actual VRR presentation is not measured.",
                 wish, sizeText(snapshot.supplied), sizeText(snapshot.destination), state);

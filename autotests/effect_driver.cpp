@@ -68,6 +68,7 @@ class UpscaleTestDriver : public Effect
 {
     Q_OBJECT
     Q_PROPERTY(QString status READ status)
+    Q_PROPERTY(bool blocksScanout READ blocksDirectScanout)
 
 public:
     UpscaleTestDriver()
@@ -128,6 +129,20 @@ public:
         return m_effect->blocksDirectScanout();
     }
 
+    void paintScreen(const RenderTarget &target, const RenderViewport &viewport, int mask,
+                     const UpscaleRegion &region, UpscaleOutput *screen) override
+    {
+        // Continue the real QPainter scene once, with a current offscreen GL
+        // target for the injected scaler and the diagnostic display. Keep one
+        // streaming-buffer frame around the entire screen, including the OSD.
+        m_context->makeCurrent();
+        GLFramebuffer::pushFramebuffer(m_framebuffer.get());
+        GLVertexBuffer::streamingBuffer()->beginFrame();
+        m_effect->paintScreen(target, viewport, mask, region, screen);
+        GLVertexBuffer::streamingBuffer()->endOfFrame();
+        GLFramebuffer::popFramebuffer();
+    }
+
     void drawWindow(const RenderTarget &target, const RenderViewport &viewport, EffectWindow *window,
                     int mask, const UpscaleRegion &region, WindowPaintData &data) override
     {
@@ -148,7 +163,6 @@ public:
             const RenderTarget offscreen(m_framebuffer.get(), colors);
             const RenderViewport offscreenViewport = captureViewport(UpscaleRectF(0, 0, 128, 128), 1, offscreen);
             GLFramebuffer::pushFramebuffer(m_framebuffer.get());
-            GLVertexBuffer::streamingBuffer()->beginFrame();
             glClearColor(0, 0, 0, 0);
             glClear(GL_COLOR_BUFFER_BIT);
             const int previous = m_renderer.captures;
@@ -160,7 +174,6 @@ public:
                     qFatal("Effect did not preserve the captured red pixel");
                 }
             }
-            GLVertexBuffer::streamingBuffer()->endOfFrame();
             GLFramebuffer::popFramebuffer();
             effects->drawWindow(target, viewport, window, mask, region, data);
         } else {

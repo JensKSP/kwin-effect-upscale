@@ -34,6 +34,7 @@ private Q_SLOTS:
     void sharpeningAndClipping();
     void preservesScissorState();
     void rejectsOversizedIntermediate();
+    void overlayPlacement_data();
     void overlayPlacement();
 
 private:
@@ -278,8 +279,16 @@ void UpscaleRenderTest::rejectsOversizedIntermediate()
 
 // The overlay measures and draws text, which needs a font database, so this
 // test needs a GUI application even though it renders offscreen.
+void UpscaleRenderTest::overlayPlacement_data()
+{
+    QTest::addColumn<bool>("blending");
+    QTest::newRow("blending-disabled") << false;
+    QTest::newRow("blending-enabled") << true;
+}
+
 void UpscaleRenderTest::overlayPlacement()
 {
+    QFETCH(bool, blending);
     const QSize targetSize(320, 160);
     std::unique_ptr<GLTexture> output = allocateFloatTexture(targetSize);
     QVERIFY(output);
@@ -306,7 +315,25 @@ void UpscaleRenderTest::overlayPlacement()
     GLVertexBuffer::streamingBuffer()->beginFrame();
     glClearColor(1, 1, 1, 1);
     glClear(GL_COLOR_BUFFER_BIT);
+    if (blending) {
+        glEnable(GL_BLEND);
+    } else {
+        glDisable(GL_BLEND);
+    }
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_DST_ALPHA, GL_DST_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     const bool painted = overlay.paint(target, viewport, origin);
+    QCOMPARE(bool(glIsEnabled(GL_BLEND)), blending);
+    GLint factor;
+    glGetIntegerv(GL_BLEND_SRC_RGB, &factor);
+    QCOMPARE(factor, GLint(GL_SRC_ALPHA));
+    glGetIntegerv(GL_BLEND_DST_RGB, &factor);
+    QCOMPARE(factor, GLint(GL_ONE_MINUS_DST_ALPHA));
+    glGetIntegerv(GL_BLEND_SRC_ALPHA, &factor);
+    QCOMPARE(factor, GLint(GL_DST_ALPHA));
+    glGetIntegerv(GL_BLEND_DST_ALPHA, &factor);
+    QCOMPARE(factor, GLint(GL_ONE_MINUS_SRC_ALPHA));
+    glDisable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ZERO);
     std::vector<float> pixels(size_t(targetSize.width()) * size_t(targetSize.height()) * 4);
     glReadPixels(0, 0, targetSize.width(), targetSize.height(), GL_RGBA, GL_FLOAT, pixels.data());
     GLVertexBuffer::streamingBuffer()->endOfFrame();

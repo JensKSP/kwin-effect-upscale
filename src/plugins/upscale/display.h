@@ -44,9 +44,12 @@ public:
 
     /** Whether any mode is enabled at all. */
     bool enabled() const;
+    // A new window needs its first paint; the same window stops requiring
+    // composition when only its timed announcement was enabled and expires.
+    bool activeFor(EffectWindow *window) const;
 
     /** One client buffer commit for the window being displayed. */
-    void countClientUpdate();
+    void countClientUpdate(EffectWindow *window);
 
     /** One compositor repaint of the output being displayed. */
     void countRepaint();
@@ -69,6 +72,7 @@ public:
 
 private:
     void compose();
+    void resetSampling();
 
     UpscaleOverlay m_overlay;
     UpscaleSnapshot m_snapshot;
