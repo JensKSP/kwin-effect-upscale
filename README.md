@@ -154,7 +154,7 @@ it, so the development files have to belong to the KWin that is actually run.
 | libdrm, Wayland and xkbcommon headers | — | `libdrm-dev`, `libwayland-dev`, `libxkbcommon-dev` |
 | pkg-config, used by KWin's CMake config | — | `pkgconf` |
 | gettext, for `msgfmt` | — | `gettext` |
-| Ninja, optional | — | `ninja-build` |
+| Ninja | — | `ninja-build` |
 | clang-format, only to commit changes | 19, the version CI uses | `clang-format` |
 
 On Debian Trixie, on Kubuntu, or on a derivative of either:
@@ -163,10 +163,11 @@ On Debian Trixie, on Kubuntu, or on a derivative of either:
 sudo apt install build-essential cmake extra-cmake-modules qt6-base-dev \
     libkf6config-dev libkf6coreaddons-dev libkf6i18n-dev kwin-dev \
     libepoxy-dev libdrm-dev libwayland-dev libxkbcommon-dev pkgconf \
-    gettext git
+    gettext git ninja-build
 ```
 
-The last four are easy to miss on Kubuntu. `KWinConfig.cmake` looks for Libdrm,
+The DRM, Wayland and xkbcommon headers and pkgconf are easy to miss on Kubuntu.
+`KWinConfig.cmake` looks for Libdrm,
 Wayland and XKB through pkg-config, and Debian's `kwin-dev` happens to pull
 those headers in while Ubuntu's does not. Without them the configure step stops
 at `Could NOT find Libdrm`, which sounds like a missing KWin and is not.
@@ -196,7 +197,7 @@ machine needs a lower job limit.
 
 In-source builds are refused; `-B build` is the way. Without
 `-DCMAKE_BUILD_TYPE` the project configures a debug build, which is not what
-you want for playing games. `-G Ninja` works if Ninja is installed.
+you want for playing games. The dependency installation above includes Ninja.
 
 ## Installing
 
@@ -276,13 +277,17 @@ links. The developer handbook remains and is kept current with requirements
 and design conclusions. Code, comments and tests specify the implemented
 behaviour.
 
-Every check in this repository runs from one command:
+Pre-commit defines every repository check. Install both hooks and run both stages:
 
 ```bash
 pip install pre-commit    # or: pipx install pre-commit
 pre-commit install --hook-type pre-commit --hook-type pre-push
 pre-commit run --all-files
+pre-commit run --all-files --hook-stage pre-push
 ```
+
+Inside the maintained container, `python3 -B tools/run-checks.py lint` runs both
+stages with one command, exactly as CI does.
 
 Linters run when you commit and look at what changed; the whole-tree checks and
 the regression tests run when you push. CI runs both over everything, adds a
@@ -292,7 +297,7 @@ leaves the packages and the build against KWin master to the nightly.
 That covers KDE's coding style via `clang-format` and KWin's own
 `.clang-format`, CMake formatting and static checks, Markdown linting, spelling
 in documentation and comments, REUSE compliance and a limit on how large a
-source file may grow. CI runs the same command, because a hook can be skipped.
+source file may grow. CI runs both stages, because a hook can be skipped.
 The CMake linter also checks the plugin folder, with its formatting rules
 disabled to preserve KWin's style. Gersemi formats only the surrounding project.
 
@@ -303,7 +308,7 @@ C++ and CMake. `ruff` lints and formats it with every rule switched on, and
 The file budget allows 400 code lines, with warnings above 300. Comments and
 blank lines are excluded; multiline strings such as embedded shaders count.
 Files that cannot be read or measured fail the check. Regression tests for
-these checks and the build metadata run through the same pre-commit command.
+these checks and the build metadata run through the pre-push stage.
 Install the hook to enforce the checks on ordinary commits; require the CI
 check in branch protection to enforce them when merging.
 

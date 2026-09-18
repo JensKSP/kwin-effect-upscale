@@ -986,6 +986,11 @@ matrix, its build records and the source archive. Reports and fuzz corpora are
 never release assets. A SHA-256 manifest covers all deliverables. The workflow
 uploads a draft and downloads it again to compare every asset before publishing.
 The preceding nightly remains available until that verification succeeds.
+The final replacement is not atomic: after removing the previous nightly, the
+publisher retries promotion three times by release ID. A persistent API failure
+can leave the nightly unavailable. The failure log prints the exact command to
+promote the already verified candidate; run it after service recovery. It uses
+the permanent release ID so a lost success response does not invalidate retries.
 
 A manual Nightly run defaults to `verify-only`: it builds the complete package
 matrix and source archive, runs the quality gates, attests the deliverables and
@@ -993,6 +998,18 @@ verifies their provenance. The resulting `verified-release-candidate` workflow
 artifact is retained for 14 days; the public nightly release is unchanged.
 This mode also permits a review branch. Clear `verify-only` only when publishing
 from master. Scheduled runs continue publishing changed master commits.
+
+### Pull request reviews
+
+CodeRabbit is connected through its GitHub App to review pull requests. Reviews
+on this public repository use its [free open-source offer](https://www.coderabbit.ai/oss).
+The app is managed in GitHub's installed-app settings; no model API key or CI
+secret is required. Its service settings currently use the defaults.
+
+Review findings are advisory and do not replace the required `Quality gate`.
+Investigate each finding against the code and requirements, fix valid issues,
+and explain findings that do not require a change. After pushing fixes, check
+both CI and review feedback for the latest revision before handing back the PR.
 
 ### Signing and verification
 

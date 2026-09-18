@@ -10,3 +10,17 @@ updates:
     groups:
       actions:
         patterns: ['*']
+  - package-ecosystem: github-actions
+    directory: /.github/actions/environment
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']
+  - package-ecosystem: github-actions
+    directory: /.github/actions/check
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']

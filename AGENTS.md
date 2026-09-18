@@ -132,14 +132,15 @@ Laid down by Jens, 2026-09-17.
 **Why:** an effect that only works on the author's distribution cannot be
 upstreamed, and arm64 is not hypothetical here - packages are built for it.
 
-## One command runs every check
+## One configuration defines every check
 
 Laid down by Jens, 2026-09-17.
 
-- **`pre-commit run --all-files`.** That is the whole checking story: formatting,
-  linting, spelling, licensing and the repository rules. CI runs the same
-  command, so a green run locally means a green run there. Install both hooks
-  once with
+- **Run both pre-commit stages:** `pre-commit run --all-files` and
+  `pre-commit run --all-files --hook-stage pre-push`. The default stage alone
+  omits whole-tree checks, strict type checking and regression tests. Inside
+  the maintained container, `python3 -B tools/run-checks.py lint` runs both with
+  one command, as CI does. Install both hooks once with
   `pre-commit install --hook-type pre-commit --hook-type pre-push`.
 - `.pre-commit-config.yaml` is the only list of checks. Do not add a linter to CI
   that is not in it, and do not add a check that CI cannot run.

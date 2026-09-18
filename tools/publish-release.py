@@ -6,8 +6,10 @@
 import argparse
 import json
 import os
+import shlex
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 from release_assets import digest, validate_version
@@ -27,6 +29,39 @@ def verify_download(tag: str, directory: Path) -> None:
         if downloaded != expected:
             message = "Uploaded release contents differ from the validated artifacts"
             raise ValueError(message)
+
+
+def promote(repository: str, release_id: int, tag: str, commit: str) -> None:
+    """Retry the idempotent final update and report a precise recovery command."""
+    # Address the release by ID: a successful update with a lost response has
+    # already renamed the draft, so retrying by its former tag would fail.
+    command = (
+        "gh",
+        "api",
+        "--method",
+        "PATCH",
+        f"repos/{repository}/releases/{release_id}",
+        "-f",
+        f"tag_name={tag}",
+        "-f",
+        f"target_commitish={commit}",
+        "-F",
+        "draft=false",
+    )
+    attempts = 3
+    for attempt in range(attempts):
+        try:
+            run(*command)
+        except subprocess.CalledProcessError as error:
+            if attempt == attempts - 1:
+                message = (
+                    "Release promotion failed after three attempts. "
+                    "The assets were verified; retry promotion with: " + shlex.join(command)
+                )
+                raise RuntimeError(message) from error
+            time.sleep(2**attempt)
+        else:
+            return
 
 
 def main() -> None:
@@ -80,11 +115,14 @@ def main() -> None:
         *(str(path) for path in sorted(arguments.directory.iterdir())),
     )
     verify_download(draft, arguments.directory)
+    release_id = int(
+        run("gh", "release", "view", draft, "--json", "databaseId", "--jq", ".databaseId")
+    )
     # The old nightly remains downloadable until the replacement's assets have
     # been uploaded and checked. A failure before here leaves it untouched.
     if nightly and tag in releases:
         run("gh", "release", "delete", tag, "--cleanup-tag", "--yes")
-    run("gh", "release", "edit", draft, "--tag", tag, "--target", commit, "--draft=false")
+    promote(repository, release_id, tag, commit)
 
 
 if __name__ == "__main__":

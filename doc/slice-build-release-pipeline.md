@@ -210,3 +210,39 @@ and explain dismissed findings. Advisory CodeRabbit configuration passed schema
 validation, but its repository-rule exception and owner app installation remain
 pending. The verification-only nightly dispatch also exercises the prepared BSD
 workflow. Hosted validation of this follow-up is still pending.
+
+The owner installed CodeRabbit and connected the account. On 2026-09-18 its
+GitHub status became pending and its comment confirmed an active review of
+PR #1 through commit `28767b0`, using default settings. No review was complete at
+that observation. Versioned settings remain pending the requested exception.
+The current Debian clean-container installation, plugin loading, reinstallation,
+removal and purge check also passed.
+
+Hosted CI for `28767b0` passed every job, including the final Quality gate.
+The verification-only nightly passed the FreeBSD 15 Clang build with warnings
+as errors and both resolution/configuration tests. Both arm64 package jobs also
+passed reproducibility and installation checks. The full rehearsal, attestation
+and CodeRabbit review were still running at this observation.
+
+### First review findings
+
+The first CodeRabbit review completed with three inline findings and two
+additional suggestions. Accepted the missing pre-push instructions, missing
+Ninja dependency, missing final-promotion recovery and omitted Dependabot
+composite-action directories. Corrections and promotion-failure regressions
+are prepared; validation is pending. Promotion addresses the permanent release
+ID and retries three times, retaining an explicit recovery command on failure.
+
+Did not adopt immutable base-image digests: this pipeline intentionally tracks
+maintained distribution images and refreshes apt dependencies daily. It promises
+byte-identical repeated builds within the same environment, not an immutable
+dependency lock across dates. Build records identify the packages actually used.
+Digest pinning would require a separate image-update policy; the suggestion's
+condition of immutable supply-chain inputs is not a project requirement.
+
+The complete verification-only nightly for `28767b0` passed on GitHub (run
+35323664547): supported checks, four package targets, extracted source, both
+neon compilers, BSD, keyless attestation and provenance verification. It retained
+a verified candidate without publishing a release. Both container hook stages
+and the publication recovery regressions passed for the first review fixes.
+Hosted checks and incremental review of those fixes remain pending.

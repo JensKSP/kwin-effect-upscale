@@ -14,7 +14,7 @@ PUBLISH = Path(__file__).with_name("publish-release.py").resolve()
 
 
 class PublicationTest(unittest.TestCase):
-    """A failed replacement must leave the existing nightly available."""
+    """Protect the old nightly until verification, then recover promotion errors."""
 
     def setUp(self) -> None:
         """Provide a local gh stand-in that simulates uploads and downloads."""
@@ -38,13 +38,23 @@ args = sys.argv[1:]
 with Path("calls.jsonl").open("a") as stream:
     stream.write(json.dumps(args) + "\\n")
 mode = os.environ["TEST_FAILURE"]
-if args[0] == "api":
+if args[:3] == ["api", "--method", "PATCH"]:
+    state = Path("promotion-attempts")
+    count = int(state.read_text()) + 1 if state.exists() else 1
+    state.write_text(str(count))
+    if mode == "promotion" or (mode == "transient" and count < 3):
+        sys.exit(1)
+elif args[0] == "api":
     if mode == "api":
         sys.exit(1)
     print(json.dumps(["nightly", False]))
     print(json.dumps(["v0.1.0", False]))
 elif args[1] == "upload" and mode == "upload":
     sys.exit(1)
+elif args[1] == "view":
+    if mode == "view":
+        sys.exit(1)
+    print("123")
 elif args[1] == "download":
     destination = Path(args[args.index("--dir") + 1])
     for source in Path("assets").iterdir():
@@ -81,20 +91,46 @@ elif args[1] == "download":
 
     def test_failure_preserves_previous_nightly(self) -> None:
         """API, upload and verification errors never delete a published release."""
-        for failure in ("api", "upload", "corrupt"):
+        for failure in ("api", "upload", "corrupt", "view"):
             with self.subTest(failure=failure):
                 (self.root / "calls.jsonl").unlink(missing_ok=True)
                 result = self.publish(failure)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertFalse(any(call[:2] == ["release", "delete"] for call in self.calls()))
                 self.assertFalse(any(call[:2] == ["release", "edit"] for call in self.calls()))
+                self.assertFalse(any("PATCH" in call for call in self.calls()))
 
     def test_success_checks_upload_before_replacing(self) -> None:
         """The final tag moves only after replacement assets have been downloaded."""
         result = self.publish()
         self.assertEqual(result.returncode, 0, result.stderr)
         operations = [call[1] for call in self.calls() if call[0] == "release"]
-        self.assertEqual(operations, ["create", "upload", "download", "delete", "edit"])
+        self.assertEqual(operations, ["create", "upload", "download", "view", "delete"])
+        self.assertEqual(
+            self.calls()[-1][:4], ["api", "--method", "PATCH", "repos/example/project/releases/123"]
+        )
+
+    def test_transient_promotion_failure_recovers(self) -> None:
+        """Failure after deletion retries the same release ID without reuploading."""
+        result = self.publish("transient")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        patches = [call for call in self.calls() if "PATCH" in call]
+        self.assertEqual(len(patches), 3)
+        self.assertTrue(all(call == patches[0] for call in patches))
+        self.assertIn("tag_name=nightly", patches[0])
+        self.assertIn("draft=false", patches[0])
+        self.assertEqual(sum(call[:2] == ["release", "delete"] for call in self.calls()), 1)
+
+    def test_persistent_promotion_failure_reports_recovery(self) -> None:
+        """Exhausted retries retain the verified candidate and expose recovery."""
+        result = self.publish("promotion")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(sum("PATCH" in call for call in self.calls()), 3)
+        self.assertIn("retry promotion with: gh api --method PATCH", result.stderr)
+        self.assertIn("repos/example/project/releases/123", result.stderr)
+        self.assertFalse(
+            any(call[:3] == ["release", "delete", "nightly-staging-42"] for call in self.calls())
+        )
 
     def test_stable_release_is_never_overwritten(self) -> None:
         """Re-running publication validates the existing release without mutating it."""
