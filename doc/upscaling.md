@@ -23,6 +23,40 @@ Statements about KWin below were read in the source at
 `v6.3.6` (commit `b8de432`, the version Debian Trixie ships as `4:6.3.6-1`) and
 at `master` (commit `c1ca390`, 2026-09-13).
 
+## Product vision
+
+The user experience must cover the complete gaming and upscaling workflow:
+obtaining an appropriate game buffer, selecting suitable processing, presenting
+the result correctly, and explaining the effective state through native KDE
+settings and an on-screen display. The ideal first-run experience is to install
+the matching Debian package and play, with no further setup required.
+
+This is a product requirement, not a claim that the current prototype delivers
+it. The implementation must work toward these outcomes:
+
+- Installation and updates use the distribution's normal package tools.
+  Packaging resolves dependencies and expresses KWin compatibility; users do
+  not assemble a toolchain, reconcile conflicting library versions or edit
+  configuration files to obtain the normal gaming experience.
+- Settings, shortcuts, notifications and the on-screen display follow KDE
+  conventions. The ordinary path offers a small set of understandable choices;
+  advanced tuning remains optional, and diagnostics explain actual behavior.
+- A comprehensive, maintained catalogue of well-known games supplies tested
+  profiles and recommended settings. Recommendations account for the game,
+  hardware and display rather than presenting one preset as universally
+  optimal. Users retain explicit overrides and can see what was selected.
+- Game matching, launch/resolution handling and upscaling cooperate as one
+  experience. Supported games should not require users to compose launch
+  commands or discover a sequence of unrelated workarounds. Unsupported cases
+  must be identified clearly, without pretending that a requested setting took
+  effect.
+
+The existing requirements for application profiles, resolution control, managed
+launching, settings and validation specify the pieces of this experience.
+Installing a package, loading the plugin or passing CI alone does not establish
+that the vision has been achieved; acceptance must exercise the complete user
+journey on supported hardware.
+
 ## The gap
 
 A game that renders below the resolution of the screen it covers has to be

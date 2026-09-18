@@ -25,6 +25,30 @@ SPDX-License-Identifier: GPL-2.0-or-later
 - **For now:** source and build instructions are for development and debugging.
   Do not install this expecting working game upscaling.
 
+## Our vision
+
+**Install the package and enjoy your games.** That is the experience we want
+upscaling on KDE to offer: one integrated solution that takes care of the whole
+journey, from launching a game at a suitable rendering resolution to presenting
+it clearly and smoothly on your display.
+
+The goal is a KDE plugin with simple settings, familiar desktop behavior and a
+useful on-screen display. A comprehensive, maintained library of well-known
+games should provide tested settings suited to the game, hardware and display,
+so good results come from sensible defaults rather than repeated trial and
+error. Advanced controls should be available when wanted, without becoming
+homework for everyone else.
+
+Installation and updates should be equally straightforward. The distribution's
+package manager should handle dependencies and compatible versions, with no
+hand-edited configuration files, manual dependency hunting or fragile setup
+recipes. Ideally, installing the matching Debian package is the only setup a
+user needs to perform.
+
+**This is our destination, not the current state.** The project is still not
+working; automatic game setup, the game-profile library and real-hardware
+acceptance remain work to be done.
+
 ## Why this project?
 
 KDE Plasma is my desktop of choice, and I also use my PC for gaming with Steam.
