@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+# The tooling launches fixed build/check commands with argument lists. Keep
+# shell-injection checks enabled; importing subprocess and resolving a tool on
+# PATH are expected for repository scripts, not findings on their own.
+skips: [B404, B603, B607]

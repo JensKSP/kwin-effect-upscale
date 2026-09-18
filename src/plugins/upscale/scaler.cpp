@@ -14,6 +14,7 @@
 #include "scene/surfaceitem.h"
 #include "scene/workspacescene.h"
 
+#include <QFile>
 #include <QScopeGuard>
 
 #include <array>
@@ -34,6 +35,12 @@ UpscaleScaler::~UpscaleScaler() = default;
 UpscaleScaler::Buffer::Buffer() = default;
 UpscaleScaler::Buffer::~Buffer() = default;
 
+void UpscaleScaler::Buffer::release()
+{
+    framebuffer.reset();
+    texture.reset();
+}
+
 bool UpscaleScaler::Buffer::resize(const QSize &size)
 {
     GLint maximumSize = 0;
@@ -41,10 +48,12 @@ bool UpscaleScaler::Buffer::resize(const QSize &size)
     if (size.isEmpty() || size.width() > maximumSize || size.height() > maximumSize) {
         return false;
     }
-    if (texture && texture->size() == size) {
-        return framebuffer && framebuffer->valid();
+    if (texture && texture->size() == size && framebuffer && framebuffer->valid()) {
+        return true;
     }
-    framebuffer.reset();
+    // A texture whose framebuffer could not be completed is of no use, and
+    // keeping it would make every later attempt at this size fail as well.
+    release();
     texture = allocateFloatTexture(size);
     if (!texture) {
         return false;
@@ -55,11 +64,29 @@ bool UpscaleScaler::Buffer::resize(const QSize &size)
     return framebuffer->valid();
 }
 
+// KWin hands a shader file to the compiler unchanged, so the preamble has to
+// come from here. OpenGL ES 3.0 needs "#version 300 es", which desktop OpenGL
+// rejects, and its fragment language defines no default precision for floats
+// or samplers and only a medium one for integers. Medium precision would
+// discard HDR detail while sampling and cannot address a 4K pixel grid.
+// KWin versions that supply their own preamble ignore this one's directive.
+static std::unique_ptr<GLShader> loadShader(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return nullptr;
+    }
+    const QByteArray preamble = usingOpenGLES()
+        ? QByteArrayLiteral("#version 300 es\nprecision highp float;\nprecision highp sampler2D;\nprecision highp int;\n")
+        : QByteArrayLiteral("#version 140\n");
+    return ShaderManager::instance()->generateCustomShader(ShaderTrait::MapTexture, QByteArray(), preamble + file.readAll());
+}
+
 bool UpscaleScaler::initialize()
 {
     ensureResources();
-    m_easu = ShaderManager::instance()->generateShaderFromFile(ShaderTrait::MapTexture, QString(), QStringLiteral(":/effects/upscale/shaders/upscale.frag"));
-    m_rcas = ShaderManager::instance()->generateShaderFromFile(ShaderTrait::MapTexture, QString(), QStringLiteral(":/effects/upscale/shaders/sharpen.frag"));
+    m_easu = loadShader(QStringLiteral(":/effects/upscale/shaders/upscale.frag"));
+    m_rcas = loadShader(QStringLiteral(":/effects/upscale/shaders/sharpen.frag"));
     return validShader(m_easu.get()) && validShader(m_rcas.get());
 }
 
@@ -146,8 +173,14 @@ bool UpscaleScaler::renderTexture(const RenderTarget &target, const RenderViewpo
     });
     const QSize inputSize = input->size();
     const QSize outputSize = (destination.size() * viewport.scale()).toSize();
-    if (strength > 0 && !m_scaled.resize(outputSize)) {
-        return false;
+    if (strength > 0) {
+        if (!m_scaled.resize(outputSize)) {
+            return false;
+        }
+    } else {
+        // A destination-sized floating point image is the largest allocation
+        // this effect makes. Switching sharpening off has to return it.
+        m_scaled.release();
     }
 
     // The input is opaque. Preserve GL state also when KWin's item renderer

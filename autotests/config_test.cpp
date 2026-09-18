@@ -31,7 +31,9 @@ private Q_SLOTS:
 
 void UpscaleConfigTest::presetsAndKeyboard()
 {
-    KWin::UpscaleEffectConfig module(nullptr, KPluginMetaData());
+    // KCModule's outer layout belongs to the hosting widget.
+    QWidget host;
+    KWin::UpscaleEffectConfig module(&host, KPluginMetaData());
     module.defaults();
     QComboBox *preset = module.widget()->findChild<QComboBox *>(QStringLiteral("preset"));
     QSlider *percentage = module.widget()->findChild<QSlider *>(QStringLiteral("percentage"));
@@ -61,7 +63,8 @@ void UpscaleConfigTest::presetsAndKeyboard()
 
 void UpscaleConfigTest::saveAndRestore()
 {
-    KWin::UpscaleEffectConfig module(nullptr, KPluginMetaData());
+    QWidget host;
+    KWin::UpscaleEffectConfig module(&host, KPluginMetaData());
     module.defaults();
     QComboBox *preset = module.widget()->findChild<QComboBox *>(QStringLiteral("preset"));
     QSlider *percentage = module.widget()->findChild<QSlider *>(QStringLiteral("percentage"));

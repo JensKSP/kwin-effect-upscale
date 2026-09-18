@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: None
+# SPDX-License-Identifier: CC0-1.0
+
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']
+  - package-ecosystem: github-actions
+    directory: /.github/actions/environment
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']
+  - package-ecosystem: github-actions
+    directory: /.github/actions/check
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']

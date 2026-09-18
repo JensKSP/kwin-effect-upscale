@@ -1,13 +1,9 @@
-#version 140
 // SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
 // SPDX-License-Identifier: GPL-2.0-or-later
-
-#ifdef GL_ES
-// Float arithmetic alone does not raise the sampler's default precision.
-// Low-precision texture results would discard HDR detail before filtering.
-precision highp sampler2D;
-precision highp int;
-#endif
+//
+// The version directive and the OpenGL ES precision declarations are added by
+// the loader in scaler.cpp, because a single directive cannot satisfy both
+// desktop OpenGL and OpenGL ES. Do not add one here.
 
 uniform sampler2D sampler;
 uniform vec2 inputSize;

@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+# Observed at shutdown of Debian's KWin 6.3.6 virtual compositor: input filters
+# and Wayland globals created before the test plugin loads survive teardown.
+# Match allocation stacks, never whole libraries or the plugin's functions.
+leak:KWin::KeyboardInputRedirection::init()
+leak:KWin::OutputDeviceV2Interface::OutputDeviceV2Interface
+leak:KWin::OutputInterface::OutputInterface
+leak:KWin::XdgOutputManagerV1Interface::offer
+leak:KWin::SeatInterface::SeatInterface
+leak:KWin::WaylandServer::init()
+# KF6 Config 6.13 recreates watcher state during static shortcut destruction.
+leak:KStandardShortcut::StandardShortcutWatcher::~StandardShortcutWatcher

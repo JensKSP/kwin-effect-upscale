@@ -48,13 +48,13 @@ void UpscaleRenderTest::initTestCase()
     // A headless EGL display exercises KWin's real shader manager and textures
     // under Mesa. It does not establish compositor lifecycle or hardware VRR.
     const EGLDisplay display = eglGetPlatformDisplayEXT(EGL_PLATFORM_SURFACELESS_MESA, EGL_DEFAULT_DISPLAY, nullptr);
-#if UPSCALE_NEW_API
+#if UPSCALE_RENDER_DEVICE_API
     m_display = EglDisplay::create(display, nullptr);
 #else
     m_display = EglDisplay::create(display);
 #endif
     QVERIFY(m_display);
-#if UPSCALE_NEW_API
+#if UPSCALE_RENDER_DEVICE_API
     m_context = EglContext::create(m_display.get(), EGL_NO_CONFIG_KHR, {});
 #else
     m_context = EglContext::create(m_display.get(), EGL_NO_CONFIG_KHR, EGL_NO_CONTEXT);
@@ -87,7 +87,7 @@ std::vector<float> UpscaleRenderTest::render(const std::vector<float> &pixels, c
     if (!framebuffer.valid()) {
         return {};
     }
-#if UPSCALE_NEW_API
+#if UPSCALE_REGION_API
     const auto colors = ColorDescription::sRGB->withTransferFunction(transfer);
 #else
     const auto colors = ColorDescription::sRGB.withTransferFunction(transfer);
@@ -133,7 +133,7 @@ void UpscaleRenderTest::constantColors()
     const QSize inputSize(8, 8);
     const QSize outputSize(16, 16);
     const TransferFunction transfer(static_cast<TransferFunction::Type>(transferType));
-#if UPSCALE_NEW_API
+#if UPSCALE_REGION_API
     const double reference = ColorDescription::sRGB->referenceLuminance();
 #else
     const double reference = ColorDescription::sRGB.referenceLuminance();
@@ -177,7 +177,7 @@ void UpscaleRenderTest::orientationAndResize()
             input[pixel + 3] = 1;
         }
     }
-#if UPSCALE_NEW_API
+#if UPSCALE_REGION_API
     const double reference = ColorDescription::sRGB->referenceLuminance();
 #else
     const double reference = ColorDescription::sRGB.referenceLuminance();

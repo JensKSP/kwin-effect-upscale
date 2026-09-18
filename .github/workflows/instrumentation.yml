@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: None
+# SPDX-License-Identifier: CC0-1.0
+
+name: Instrumented tests
+
+on:
+  workflow_call:
+    inputs:
+      fuzz-seconds:
+        type: number
+        default: 60
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  instrumented:
+    name: ${{ matrix.check }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        check: [coverage, address, thread]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/check
+        with:
+          mode: ${{ matrix.check }}
+          fuzz-seconds: ${{ inputs.fuzz-seconds || 60 }}

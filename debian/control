@@ -3,10 +3,12 @@ Section: kde
 Priority: optional
 Maintainer: Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
 Build-Depends: debhelper-compat (= 13),
+               dbus-daemon <!nocheck>,
                cmake (>= 3.24),
                extra-cmake-modules (>= 6.13.0),
                gettext,
                kwin-dev,
+               kwin-wayland <!nocheck>,
                libdrm-dev,
                libepoxy-dev,
                libegl-mesa0 <!nocheck>,
@@ -18,10 +20,12 @@ Build-Depends: debhelper-compat (= 13),
                libkf6i18n-dev (>= 6.13.0),
                libkf6kcmutils-dev (>= 6.13.0),
                libwayland-dev,
+               libwayland-bin <!nocheck>,
                libxkbcommon-dev,
                ninja-build,
                pkgconf,
                qt6-base-dev (>= 6.8.0),
+               wayland-protocols <!nocheck>,
 Standards-Version: 4.7.2
 Rules-Requires-Root: no
 Homepage: https://github.com/JensKSP/kwin-effect-upscale

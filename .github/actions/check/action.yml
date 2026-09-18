@@ -1,0 +1,68 @@
+# SPDX-FileCopyrightText: None
+# SPDX-License-Identifier: CC0-1.0
+name: Container checks
+description: Build the maintained environment and run the local check entry point
+inputs:
+  mode:
+    description: Check group selected by tools/run-checks.py
+    required: true
+  environment:
+    description: Container directory under containers
+    default: trixie
+  fuzz-seconds:
+    description: Time budget for the fuzzing job
+    default: '60'
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/environment
+      with:
+        environment: ${{ inputs.environment }}
+    - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: |
+          build/pre-commit
+          build/ccache
+          build/address/fuzz-corpus
+        key: checks-${{ runner.arch }}-${{ inputs.environment }}-${{ inputs.mode }}-${{ hashFiles('.pre-commit-config.yaml') }}-${{ github.sha }}
+        restore-keys: |
+          checks-${{ runner.arch }}-${{ inputs.environment }}-${{ inputs.mode }}-${{ hashFiles('.pre-commit-config.yaml') }}-
+    - name: Run checks
+      shell: bash
+      env:
+        CHECK_MODE: ${{ inputs.mode }}
+        UPSCALE_FUZZ_SECONDS: ${{ inputs.fuzz-seconds }}
+      run: |
+        options=()
+        if [ "$CHECK_MODE" = thread ]; then
+          options+=(--security-opt seccomp=unconfined)
+        fi
+        mkdir -p build
+        docker run --rm "${options[@]}" \
+          -v "$GITHUB_WORKSPACE:/src" -w /src \
+          -e UPSCALE_FUZZ_SECONDS -e GITHUB_REF_NAME -e GITHUB_HEAD_REF \
+          upscale-check:local python3 -B tools/run-checks.py "$CHECK_MODE" \
+          2>&1 | tee "build/$CHECK_MODE.log"
+    - name: Make reports and caches readable by the runner
+      if: always()
+      shell: bash
+      run: |
+        if [ -d build ]; then
+          sudo chown -R "$(id -u):$(id -g)" build
+        fi
+    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      if: always()
+      with:
+        name: reports-${{ inputs.environment }}-${{ inputs.mode }}
+        path: |
+          build/${{ inputs.mode }}.log
+          build/${{ inputs.mode }}/runtime-tests.xml
+          build/${{ inputs.mode }}/Testing/
+          build/${{ inputs.mode }}/CMakeFiles/CMakeConfigureLog.yaml
+          build/${{ inputs.mode }}/coverage/
+          build/${{ inputs.mode }}/fuzz-artifacts/
+          build/${{ inputs.mode }}/fuzz-corpus/
+          build/${{ inputs.mode }}/fuzz-*.log
+          build/pre-commit/pre-commit.log
+        if-no-files-found: ignore
+        retention-days: 14

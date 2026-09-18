@@ -8,116 +8,99 @@ on:
     branches: [master]
   pull_request:
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      fuzz-seconds:
+        type: number
+        default: 60
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   commits:
     name: Commit messages
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      packaging: ${{ steps.changed.outputs.packaging }}
+      version: ${{ steps.changed.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-      - name: No AI attribution in commit messages
+          persist-credentials: false
+      - name: Check commit messages
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            tools/check-commit-trailers.py "${{ github.event.pull_request.base.sha }}..${{ github.sha }}"
+          if [ -n "$BASE" ] && git cat-file -e "$BASE^{commit}"; then
+            tools/check-commit-trailers.py "$BASE..HEAD"
           else
-            tools/check-commit-trailers.py "${{ github.event.before }}..${{ github.sha }}" || \
             tools/check-commit-trailers.py HEAD
           fi
 
-  lint:
-    name: Linters, format and spelling
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-      # The same command an agent runs locally. Every check lives in
-      # .pre-commit-config.yaml and nowhere else, so the two cannot drift.
-      - name: pre-commit
+      - id: changed
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
         run: |
-          pip install pre-commit
-          pre-commit run --all-files --show-diff-on-failure --color=always
-      # The regression tests are a pre-push hook, and `pre-commit run` only runs
-      # the hooks of one stage. Without this they would never run in CI.
-      - name: Regression tests
-        run: pre-commit run --all-files --hook-stage pre-push --color=always
+          python3 -B tools/release-version.py snapshot >> "$GITHUB_OUTPUT"
+          changed=''
+          if [ -n "$BASE" ]; then
+            changed=$(git diff --name-only "$BASE" HEAD)
+          fi
+          if grep -Eq '^(debian/|containers/|cmake/|CMakeLists.txt|autotests/|tools/|\.github/)' <<< "$changed"; then
+            echo "packaging=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "packaging=false" >> "$GITHUB_OUTPUT"
+          fi
 
-  build-trixie:
-    name: Trixie (${{ matrix.compiler }})
+  checks:
+    name: Trixie (${{ matrix.mode }})
     runs-on: ubuntu-latest
-    container: docker.io/library/debian:trixie
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        compiler: [g++, clang++]
+        mode: [lint, gcc, clang, tidy]
     steps:
-      - name: Install the packaging tools
-        run: |
-          apt-get update
-          apt-get install --no-install-recommends -y \
-            ca-certificates build-essential devscripts equivs git \
-            clang clang-tidy clazy libclang-rt-19-dev pipx
-      - uses: actions/checkout@v4
-      # Build dependencies come from debian/control, so this job cannot drift
-      # away from what the packages are built with.
-      - name: Install build dependencies
-        run: |
-          mk-build-deps --install --remove \
-            --tool "apt-get --no-install-recommends -y" debian/control
-      - name: Configure
-        run: |
-          cmake -B build -S . \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_CXX_COMPILER=${{ matrix.compiler }} \
-            -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
-      - name: Build
-        run: cmake --build build --parallel
-      - name: Render regression tests
-        run: |
-          PIPX_BIN_DIR=/usr/local/bin pipx install pre-commit
-          pre-commit run upscale-render-tests --all-files --hook-stage manual
-      - name: Install into a staging prefix
-        run: DESTDIR=$PWD/stage cmake --install build
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/check
+        with:
+          mode: ${{ matrix.mode }}
 
-  tidy:
-    name: clang-tidy
+  instrumentation:
+    uses: ./.github/workflows/instrumentation.yml
+    with:
+      fuzz-seconds: ${{ inputs.fuzz-seconds || 60 }}
+
+  package-smoke:
+    needs: commits
+    if: github.event_name == 'pull_request' && needs.commits.outputs.packaging == 'true'
+    uses: ./.github/workflows/package.yml
+    with:
+      version: ${{ needs.commits.outputs.version }}
+      channel: check
+      smoke: true
+
+  quality:
+    name: Quality gate
+    if: always()
+    needs: [commits, checks, instrumentation, package-smoke]
     runs-on: ubuntu-latest
-    container: docker.io/library/debian:trixie
+    timeout-minutes: 5
     steps:
-      - name: Install the packaging tools
-        run: |
-          apt-get update
-          apt-get install --no-install-recommends -y \
-            ca-certificates build-essential devscripts equivs git clang clang-tidy pipx
-      - uses: actions/checkout@v4
-      - name: Install build dependencies
-        run: |
-          mk-build-deps --install --remove \
-            --tool "apt-get --no-install-recommends -y" debian/control
-      # clang-tidy reads compile_commands.json, so the tree has to be configured
-      # first. Clang is used for it because clang-tidy shares its headers.
-      - name: Configure
-        run: |
-          cmake -B build -S . \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_CXX_COMPILER=clang++ \
-            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-      - name: Build generated sources
-        run: cmake --build build --parallel
-      - name: clang-tidy
-        run: |
-          clang-tidy --version
-          find src -name '*.cpp' -print0 \
-            | xargs -0 --no-run-if-empty clang-tidy -p build --quiet
-
-      # What ECM's JSON_SCHEMA commit hook checks. It runs here rather than in
-      # the linting job because the schema comes from KDE Frameworks, which only
-      # the jobs that build have installed.
-      - name: Validate the plugin metadata
-        run: |
-          PIPX_BIN_DIR=/usr/local/bin pipx install check-jsonschema
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          tools/check-plugin-metadata.py
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Require all supported-platform checks
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: python3 -B tools/quality_gate.py

@@ -7,6 +7,7 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 [![CI](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/ci.yml/badge.svg)](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/ci.yml)
 [![Nightly](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/nightly.yml/badge.svg)](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/nightly.yml)
+[![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/JensKSP/kwin-effect-upscale?utm_source=oss&utm_medium=github&utm_campaign=JensKSP%2Fkwin-effect-upscale&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)](https://coderabbit.ai)
 
 A KWin effect that upscales fullscreen windows rendering below the resolution
 of the output they cover.
@@ -47,9 +48,7 @@ interface at full resolution.
 ## Technical details
 
 The permanent [developer handbook](doc/upscaling.md) describes requirements,
-specification and design. The current implementation plan, progress, findings
-and remaining work are recorded separately in the
-[FSR 1 slice](doc/slice-fsr1-hdr-vrr.md).
+specification and design, including implemented behaviour and open acceptance.
 
 HDR and variable refresh rate (VRR) support are requirements for the effect,
 including their combined use while upscaling. They are part of the acceptance
@@ -154,7 +153,7 @@ it, so the development files have to belong to the KWin that is actually run.
 | libdrm, Wayland and xkbcommon headers | — | `libdrm-dev`, `libwayland-dev`, `libxkbcommon-dev` |
 | pkg-config, used by KWin's CMake config | — | `pkgconf` |
 | gettext, for `msgfmt` | — | `gettext` |
-| Ninja, optional | — | `ninja-build` |
+| Ninja | — | `ninja-build` |
 | clang-format, only to commit changes | 19, the version CI uses | `clang-format` |
 
 On Debian Trixie, on Kubuntu, or on a derivative of either:
@@ -163,10 +162,11 @@ On Debian Trixie, on Kubuntu, or on a derivative of either:
 sudo apt install build-essential cmake extra-cmake-modules qt6-base-dev \
     libkf6config-dev libkf6coreaddons-dev libkf6i18n-dev kwin-dev \
     libepoxy-dev libdrm-dev libwayland-dev libxkbcommon-dev pkgconf \
-    gettext git
+    gettext git ninja-build
 ```
 
-The last four are easy to miss on Kubuntu. `KWinConfig.cmake` looks for Libdrm,
+The DRM, Wayland and xkbcommon headers and pkgconf are easy to miss on Kubuntu.
+`KWinConfig.cmake` looks for Libdrm,
 Wayland and XKB through pkg-config, and Debian's `kwin-dev` happens to pull
 those headers in while Ubuntu's does not. Without them the configure step stops
 at `Could NOT find Libdrm`, which sounds like a missing KWin and is not.
@@ -187,13 +187,16 @@ cd kwin-effect-upscale
 ## Building
 
 ```bash
-cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
-cmake --build build --parallel
+cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build
 ```
+
+Ninja uses its native parallelism. Set `CMAKE_BUILD_PARALLEL_LEVEL` when a
+machine needs a lower job limit.
 
 In-source builds are refused; `-B build` is the way. Without
 `-DCMAKE_BUILD_TYPE` the project configures a debug build, which is not what
-you want for playing games. `-G Ninja` works if Ninja is installed.
+you want for playing games. The dependency installation above includes Ninja.
 
 ## Installing
 
@@ -264,22 +267,29 @@ We use Codex and Claude to help write code for this project. We aim to keep
 explain or verify. The standard is readable code that fits KWin's conventions,
 with human review and checks for correctness. Responsibility stays with us.
 
-For each major slice, we keep one separate working document under `doc/`:
-the plan first, then progress, findings, test results and remaining tasks in
-the same file.
-Durable explanations belong in source comments. Once implementation and
-required testing are complete, we remove that slice's working document and its
-links. The developer handbook remains and is kept current with requirements
-and design conclusions. Code, comments and tests specify the implemented
-behaviour.
+Documentation under `doc/` is permanent and written for humans. For each major
+slice, coding agents keep one temporary working document under
+[`doc/agents/`](doc/agents/): one topic with defined start and end states,
+scope, dependencies and acceptance criteria, then progress, findings, test
+results and remaining tasks in the same file. Once implementation is complete
+and all required tests pass, including real-device acceptance where required,
+we remove that working document and update its links. Before removal, lasting
+requirements and design conclusions go into the permanent documentation and
+implementation explanations into source comments. The source code, including
+comments and tests, together with human documentation is the single source of
+truth. The `AGENTS.md` instruction files remain permanently.
 
-Every check in this repository runs from one command:
+Pre-commit defines every repository check. Install both hooks and run both stages:
 
 ```bash
 pip install pre-commit    # or: pipx install pre-commit
 pre-commit install --hook-type pre-commit --hook-type pre-push
 pre-commit run --all-files
+pre-commit run --all-files --hook-stage pre-push
 ```
+
+Inside the maintained container, `python3 -B tools/run-checks.py lint` runs both
+stages with one command, exactly as CI does.
 
 Linters run when you commit and look at what changed; the whole-tree checks and
 the regression tests run when you push. CI runs both over everything, adds a
@@ -289,7 +299,7 @@ leaves the packages and the build against KWin master to the nightly.
 That covers KDE's coding style via `clang-format` and KWin's own
 `.clang-format`, CMake formatting and static checks, Markdown linting, spelling
 in documentation and comments, REUSE compliance and a limit on how large a
-source file may grow. CI runs the same command, because a hook can be skipped.
+source file may grow. CI runs both stages, because a hook can be skipped.
 The CMake linter also checks the plugin folder, with its formatting rules
 disabled to preserve KWin's style. Gersemi formats only the surrounding project.
 
@@ -300,7 +310,7 @@ C++ and CMake. `ruff` lints and formats it with every rule switched on, and
 The file budget allows 400 code lines, with warnings above 300. Comments and
 blank lines are excluded; multiline strings such as embedded shaders count.
 Files that cannot be read or measured fail the check. Regression tests for
-these checks and the build metadata run through the same pre-commit command.
+these checks and the build metadata run through the pre-push stage.
 Install the hook to enforce the checks on ordinary commits; require the CI
 check in branch protection to enforce them when merging.
 
@@ -343,7 +353,8 @@ src/plugins/upscale/     the effect, laid out exactly as KWin lays out its own
 cmake/                   stand-ins for KWin's in-tree build macros
 containers/              build environments: Trixie minimum, KDE neon unstable
 tools/                   checks that run in the pre-commit hook and in CI
-doc/                     what the effect does and why
+doc/                     permanent human documentation: what the effect does and why
+doc/agents/              temporary slice documents for coding agents
 ```
 
 `src/plugins/upscale/` is meant to be copyable into KWin's own `src/plugins/`

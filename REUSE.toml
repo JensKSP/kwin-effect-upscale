@@ -9,7 +9,7 @@
 version = 1
 
 [[annotations]]
-path = "src/plugins/upscale/metadata.json"
+path = ["src/plugins/upscale/metadata.json", "autotests/effect_driver.json"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>"
 SPDX-License-Identifier = "GPL-2.0-or-later"

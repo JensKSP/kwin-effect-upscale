@@ -18,15 +18,27 @@
 
 #include <KLocalizedString>
 
+#include <QLoggingCategory>
+
 #include <drm_fourcc.h>
+
+Q_LOGGING_CATEGORY(KWIN_UPSCALE, "kwin_effect_upscale", QtWarningMsg)
 
 namespace KWin
 {
 
 UpscaleEffect::UpscaleEffect()
+    : UpscaleEffect(nullptr)
 {
-#if !UPSCALE_NEW_API
-    m_renderer = effects->scene()->renderer();
+}
+
+UpscaleEffect::UpscaleEffect(ItemRenderer *renderer)
+    : m_renderer(renderer)
+{
+#if !UPSCALE_RENDER_DEVICE_API
+    if (!m_renderer) {
+        m_renderer = effects->scene()->renderer();
+    }
 #endif
     UpscaleEffect::reconfigure(ReconfigureAll);
     connect(effects, &EffectsHandler::windowAdded, this, &UpscaleEffect::watchWindow);
@@ -36,7 +48,7 @@ UpscaleEffect::UpscaleEffect()
     }
 }
 
-#if UPSCALE_NEW_API
+#if UPSCALE_RENDER_DEVICE_API
 void UpscaleEffect::prePaintScreen(ScreenPrePaintData &data)
 {
     ItemRenderer *renderer = effects->scene()->renderer(data.view->renderDevice());
@@ -56,8 +68,8 @@ UpscaleEffect::~UpscaleEffect()
 
 void UpscaleEffect::watchWindow(EffectWindow *window)
 {
-    connect(window, &EffectWindow::windowDamaged, this, [this, window]() {
-        if (window == candidate()) {
+    connect(window, &EffectWindow::windowDamaged, this, [window]() {
+        if (eligible(window)) {
             // EASU and RCAS read neighbouring pixels. Full-window damage is
             // conservative and follows client commits, never a repaint timer.
             window->addRepaintFull();
@@ -73,6 +85,7 @@ void UpscaleEffect::reconfigure(ReconfigureFlags flags)
     m_strength = sharpeningAmount(UpscaleConfig::sharpening(), UpscaleConfig::strength());
     m_failed = false;
     m_renderedWindow.clear();
+    m_unsupportedColors.clear();
     effects->makeOpenGLContextCurrent();
     m_scaler.reset();
     effects->addRepaintFull();
@@ -84,9 +97,12 @@ bool UpscaleEffect::supported()
         return false;
     }
     const auto context = effects->openglContext();
-#if UPSCALE_NEW_API
+#if UPSCALE_RENDER_DEVICE_API
+    // KWin dropped its desktop OpenGL backend along with this API, so version
+    // 3.0 means OpenGL ES 3.0 and supplies the GLSL ES 3.00 the shaders need.
     return context->hasVersion(Version(3, 0));
 #else
+    // GLSL 1.40 arrives with desktop OpenGL 3.1 and GLSL ES 3.00 with ES 3.0.
     return context->hasVersion(context->isOpenGLES() ? Version(3, 0) : Version(3, 1));
 #endif
 }
@@ -105,9 +121,14 @@ bool UpscaleEffect::blocksDirectScanout() const
 
 static bool rgbBuffer(SurfaceItem *surface)
 {
-#if UPSCALE_NEW_API
+#if UPSCALE_REGION_API
     GraphicsBuffer *buffer = surface->buffer();
 #else
+    // This call is required, not an optimisation: KWin creates the surface
+    // pixmap inside ItemRenderer::renderItem, which runs after the effect
+    // chain, so nothing else has made the buffer reachable by the time an
+    // effect first looks. Without it the effect is never eligible and never
+    // reaches a paint pass that would create the pixmap.
     surface->updatePixmap();
     SurfacePixmap *pixmap = surface->pixmap();
     GraphicsBuffer *buffer = pixmap ? pixmap->buffer() : nullptr;
@@ -162,7 +183,7 @@ bool UpscaleEffect::eligible(EffectWindow *window)
         || surface->bufferSourceBox() != UpscaleRectF(QPointF(), input)) {
         return false;
     }
-#if UPSCALE_NEW_API
+#if UPSCALE_RENDER_DEVICE_API
     const bool opaque = surface->opaque().contains(surface->rect());
 #else
     const bool opaque = surface->opaque().contains(surface->rect().toAlignedRect());
@@ -185,47 +206,70 @@ EffectWindow *UpscaleEffect::candidate() const
             selected = window;
         }
     }
+    if (selected && selected == m_unsupportedColors) {
+        return nullptr;
+    }
+    m_unsupportedColors.clear();
     return selected;
+}
+
+// What the paint pass adds to eligibility. These describe one frame rather
+// than the window, so a frame that fails them says nothing about the next.
+static bool compatiblePass(const RenderTarget &target, const RenderViewport &viewport, EffectWindow *window,
+                           int mask, const WindowPaintData &data)
+{
+    return !(mask & (Effect::PAINT_WINDOW_TRANSFORMED | Effect::PAINT_SCREEN_TRANSFORMED))
+        && data.opacity() == 1.0 && data.brightness() == 1.0 && data.saturation() == 1.0
+        && data.toMatrix(viewport.scale()).isIdentity()
+        && viewport.scale() == window->screen()->scale()
+        && target.transform() == OutputTransform::Normal;
 }
 
 UpscalePaintResult UpscaleEffect::drawWindow(const RenderTarget &target, const RenderViewport &viewport, EffectWindow *window,
                                              int mask, const UpscaleRegion &region, WindowPaintData &data)
 {
-    if (m_renderer && window == candidate() && !(mask & (PAINT_WINDOW_TRANSFORMED | PAINT_SCREEN_TRANSFORMED))
-        && data.opacity() == 1.0 && data.brightness() == 1.0 && data.saturation() == 1.0
-        && data.toMatrix(viewport.scale()).isIdentity()
-        && viewport.scale() == window->screen()->scale()
-        && supportsUpscaleColors(targetColors(target))
-        && target.transform() == OutputTransform::Normal) {
-        if (!m_scaler) {
-            m_scaler = std::make_unique<UpscaleScaler>(m_renderer);
-            m_failed = !m_scaler->initialize();
-        }
-#if UPSCALE_NEW_API
-        const UpscaleRegion clip = region;
+    // Eligibility is the cheap per-window test; only a window that passes it
+    // is worth searching the stacking order for a second, unique candidate.
+    if (m_renderer && eligible(window) && window == candidate()) {
+        if (!supportsUpscaleColors(targetColors(target))) {
+            // Unlike the conditions above, this one follows the output's
+            // colour setup and will hold for every frame of this window.
+            // Remembering it takes the effect out of the active set, so the
+            // output is not held in composition for a frame that will be
+            // handed back to KWin anyway. Another candidate clears it.
+            m_unsupportedColors = window;
+            effects->addRepaintFull();
+        } else if (compatiblePass(target, viewport, window, mask, data)) {
+            if (!m_scaler) {
+                m_scaler = std::make_unique<UpscaleScaler>(m_renderer);
+                m_failed = !m_scaler->initialize();
+            }
+#if UPSCALE_REGION_API
+            const UpscaleRegion clip = region;
 #else
-        const UpscaleRegion clip = region == infiniteRegion() ? region : viewport.mapToRenderTarget(region);
+            const UpscaleRegion clip = region == infiniteRegion() ? region : viewport.mapToRenderTarget(region);
 #endif
-        if (!m_failed && m_scaler->render(target, viewport, window->windowItem()->surfaceItem(), window->frameGeometry(), clip, m_strength)) {
-            m_renderedWindow = window;
-            m_renderedInput = window->windowItem()->surfaceItem()->bufferSize();
-#if UPSCALE_NEW_API
-            return true;
+            if (!m_failed && m_scaler->render(target, viewport, window->windowItem()->surfaceItem(), window->frameGeometry(), clip, m_strength)) {
+                m_renderedWindow = window;
+                m_renderedInput = window->windowItem()->surfaceItem()->bufferSize();
+#if UPSCALE_RENDER_DEVICE_API
+                return true;
 #else
-            return;
+                return;
 #endif
+            }
+            // A failed allocation or shader must not leave a blank frame or
+            // keep blocking scanout. Retry only after a reconfiguration.
+            qCWarning(KWIN_UPSCALE, "shader, texture or framebuffer failure; using normal rendering until reconfiguration");
+            m_failed = true;
+            m_scaler.reset();
+            effects->addRepaintFull();
         }
-        // A failed allocation or shader must not leave a blank frame or keep
-        // blocking scanout. Retry only after an explicit reconfiguration.
-        qWarning("Upscale: shader, texture or framebuffer failure; using normal rendering until reconfiguration");
-        m_failed = true;
-        m_scaler.reset();
-        effects->addRepaintFull();
     }
     if (m_renderedWindow == window) {
         m_renderedWindow.clear();
     }
-#if UPSCALE_NEW_API
+#if UPSCALE_RENDER_DEVICE_API
     return effects->drawWindow(target, viewport, window, mask, region, data);
 #else
     effects->drawWindow(target, viewport, window, mask, region, data);
@@ -234,10 +278,8 @@ UpscalePaintResult UpscaleEffect::drawWindow(const RenderTarget &target, const R
 
 QString UpscaleEffect::status() const
 {
-    EffectWindow *window = candidate();
-    if (!window) {
-        window = effects->activeWindow();
-    }
+    EffectWindow *scaled = candidate();
+    EffectWindow *window = scaled ? scaled : effects->activeWindow();
     if (!window || !window->screen() || !window->windowItem()->surfaceItem()) {
         return i18n("Inactive: no supplied window buffer.");
     }
@@ -251,7 +293,9 @@ QString UpscaleEffect::status() const
         state = i18n("Inactive: graphics resource failure; apply settings to retry.");
     } else if (!m_enabled) {
         state = i18n("Inactive: disabled.");
-    } else if (candidate() == window) {
+    } else if (window == m_unsupportedColors) {
+        state = i18n("Inactive: this output's colour handling is not supported.");
+    } else if (scaled == window) {
         if (m_renderedWindow == window && m_renderedInput == input) {
             state = i18n("FSR 1, sharpening %1%", qRound(m_strength * 100));
         } else {
