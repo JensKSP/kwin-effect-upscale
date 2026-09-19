@@ -1538,6 +1538,36 @@ separately declares the advertised scale, so its image covers the screen only
 when both are given together. Neither was guessed from behaviour alone; both
 were read in the source and then confirmed by running them.
 
+#### How that list grows
+
+Required extension, not yet implemented: a route by which someone who got a game
+working submits what they measured, and a written rule for what we do with it.
+The four entries above were measured on one machine, and a list assembled that
+way reaches exactly as far as the games one person owns.
+
+An entry is a measurement, so a submission is one too. It states the identity
+fields read off the running window, the program behind the connection, the
+method that was observed working, the version of the game that was running and
+the conditions it ran under. Success means three things together: the supplied
+buffer got smaller, the image still covered the screen, and the pointer still
+landed where it looked. A method nobody observed is not shipped, and an entry
+whose method asks for nothing is still worth shipping, because it records that
+the question was already asked.
+
+The effect produces that text itself, so that the fields come from what it
+observed rather than from memory. The report names the program as a file name
+and never the path it was found at, and carries no window title, no environment
+and nothing else about the person running it.
+
+Three boundaries hold regardless of how the list grows. It stays a file in the
+package, reviewed before it ships: nothing is fetched into a compositor effect
+at runtime. Nothing is ever sent from the user's machine on its own; a
+submission is text a person read and chose to paste. And the installed file
+carries no personal data, because it is system configuration that reaches
+everyone who installs the package. The submission route, the acceptance rule and
+the open decision about shipping entries we could not verify ourselves are in the
+[application submissions slice](agents/slice-application-submissions.md).
+
 ### Application launch configuration and method discovery
 
 Managed launch configuration and launch-time method discovery are outside the

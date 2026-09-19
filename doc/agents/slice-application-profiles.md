@@ -410,6 +410,13 @@ Sparse per-setting overrides, profile ordering in the interface and the notes'
 translation, which needs the localized-entry extraction KDE uses for `.desktop`
 files, all remain part of this slice.
 
+How the shipped list grows beyond the applications one machine can run is not
+part of it. Producing a submittable report, the route people send it by and the
+rule for accepting one belong to
+[application submissions](slice-application-submissions.md), which builds on the
+storage, matching and editor implemented here and must not hold this package
+open.
+
 ## Acceptance criteria
 
 Planned checks, not observed results:

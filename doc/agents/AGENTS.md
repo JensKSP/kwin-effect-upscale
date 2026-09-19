@@ -58,6 +58,7 @@ not imply that already implemented diagnostics or resolution control are absent.
 | Development infrastructure: About, logging and diagnostic OSD | [Development infrastructure](slice-development-infrastructure.md) |
 | FSR rendering, HDR/VRR and acceptance | [FSR rendering](slice-fsr1-hdr-vrr.md) |
 | Application matching and setting overrides | [Application profiles](slice-application-profiles.md) |
+| Submitted applications and the list we maintain | [Application submissions](slice-application-submissions.md) |
 | Obtaining original smaller game buffers | [Resolution control](slice-resolution-control.md) |
 | Superseded managed-launch proposal | [Application launching](slice-application-launching.md) |
 | Interactive in-game controls and comparison | [Game controls](slice-game-overlay.md) |

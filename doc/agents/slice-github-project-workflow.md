@@ -121,6 +121,11 @@ developer handbook remain authoritative for behavior and design. Temporary
 slice records remain under `doc/agents/`; issue bodies must not become a second
 copy of those working records.
 
+The form for submitting a recognized application is not listed above. Its
+fields, its privacy rule and the rule for accepting a submission belong to
+[application submissions](slice-application-submissions.md); this slice supplies
+the form conventions, labels and release-note categories it uses.
+
 ### 2. Security and review controls
 
 | Item | Implementation | Acceptance evidence |
