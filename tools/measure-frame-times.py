@@ -36,6 +36,11 @@ import sys
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Only ever named in an annotation, and this module postpones those.
+    from collections.abc import Mapping
 
 # The effect's own settings, in the group its KConfig file names. Preset values
 # are the ResolutionPreset enum in src/plugins/upscale/resolution.h, in order.
@@ -60,44 +65,58 @@ RATIOS = {
     "performance": 0.5,
 }
 
-# Games and how each one renders without a person at the keyboard. A demo or
-# profile mode is what makes a run repeatable: the same scene, the same route,
-# the same length, so that two runs differ by the resolution and nothing else.
+
+@dataclass(frozen=True)
+class Game:
+    """How one game is started so that it renders without a person present.
+
+    A demo or profile mode is what makes a run repeatable: the same scene, the
+    same route, the same length, so that two runs differ by the resolution and
+    by nothing else.
+    """
+
+    program: str
+    arguments: tuple[str, ...] = ()
+    window: str = ""
+    keys: tuple[str, ...] = ()
+    startup: float = 10.0
+    environment: Mapping[str, str] = field(default_factory=dict)
+
+
 GAMES = {
-    "supertuxkart": {
-        "program": "supertuxkart",
+    "supertuxkart": Game(
+        program="supertuxkart",
         # Drives itself for a fixed time and prints its own frame count when it
         # finishes, which is the game's render throughput rather than what the
         # screen presented. Both are worth having: they answer different
         # questions and disagree whenever frames are dropped or repeated.
-        "arguments": ["--profile-time={seconds}", "--fullscreen"],
-        "window": "supertuxkart",
+        arguments=("--profile-time={seconds}", "--fullscreen"),
+        window="supertuxkart",
         # SDL chooses its video driver per launch, and on this session it picks
-        # X11 even though Wayland is available. An Xwayland client never binds
-        # the compositor's wl_output, so the advertised-mode method can never
-        # reach it and the game renders at full resolution. Measured 2026-09-19:
-        # forced to Wayland it accepts the advertised mode and commits it.
-        "environment": {"SDL_VIDEODRIVER": "wayland"},
-    },
-    "extremetuxracer": {
-        "program": "etr",
+        # X11 even where Wayland is available. An Xwayland client never binds
+        # the compositor's wl_output, so the advertised-mode method cannot reach
+        # it and the game renders full size. Measured 2026-09-19: forced to
+        # Wayland the same build accepts the advertised mode and commits it.
+        environment={"SDL_VIDEODRIVER": "wayland"},
+    ),
+    "extremetuxracer": Game(
+        program="etr",
         # No demo mode of its own. The menu is keyboard driven, so the run is
-        # started by sending keys to the window; the sequence is a setting
-        # rather than a constant because it follows the menu, which moves
-        # between versions. Tux slides the course without further input.
-        "arguments": [],
-        "window": "etr",
-        "keys": ["Return", "Return", "Return"],
-    },
-    "left4dead2": {
-        "program": "steam",
-        # Steam hands the request to the running client, so this returns long
-        # before the game appears and the wait has to cover the whole launch.
-        "arguments": ["-applaunch", "550", "-novid", "-console"],
-        "window": "left4dead2",
-        "startup": 90,
-    },
+        # started by sending keys to the window; the sequence follows the menu,
+        # which moves between versions. Tux then slides the course unattended.
+        window="etr",
+        keys=("Return", "Return", "Return"),
+    ),
+    "left4dead2": Game(
+        program="steam",
+        # Steam hands the request to the running client, so the launch returns
+        # long before the game appears and the wait covers the whole startup.
+        arguments=("-applaunch", "550", "-novid", "-console"),
+        window="left4dead2",
+        startup=90.0,
+    ),
 }
+
 
 # The effect answers with a line written for programs: untranslated keys and
 # values, one space apart. The prose above it is built with i18n and says the
@@ -158,13 +177,15 @@ def parse_status(text: str) -> Sample:
     line = next((one for one in text.splitlines() if one.startswith(METRICS_PREFIX)), None)
     if line is None:
         return sample
-    for field in line[len(METRICS_PREFIX):].split():
-        key, separator, value = field.partition("=")
+    for entry in line[len(METRICS_PREFIX) :].split():
+        key, separator, value = entry.partition("=")
         if not separator or key not in METRIC_FIELDS:
             continue
         name, kind = METRIC_FIELDS[key]
         try:
-            setattr(sample, name, value if kind is str else kind(int(value) if kind is bool else value))
+            setattr(
+                sample, name, value if kind is str else kind(int(value) if kind is bool else value)
+            )
         except ValueError:
             # A value this build writes differently is skipped rather than
             # guessed at; the summary then reports it as not measured.
@@ -206,7 +227,7 @@ class Summary:
 
 
 def median_of(samples: list[Sample], name: str) -> float | None:
-    """The median of one field, ignoring the samples that did not carry it."""
+    """Take the median of one field, ignoring samples that did not carry it."""
     values = [getattr(sample, name) for sample in samples]
     present = [value for value in values if value is not None]
     return statistics.median(present) if present else None
@@ -234,11 +255,16 @@ def summarize(game: str, preset: str, samples: list[Sample]) -> Summary:
     # A run that reduced the buffer but was never scaled is the failure worth
     # naming: the game did what was asked and the effect still handed the frame
     # back. The reason is in the effect's own display, which is translated.
-    if summary.supplied and summary.destination and summary.supplied != summary.destination \
-            and not summary.scaling:
+    if (
+        summary.supplied
+        and summary.destination
+        and summary.supplied != summary.destination
+        and not summary.scaling
+    ):
         summary.notes.append(
             f"supplied {summary.supplied} for {summary.destination} but nothing was scaled; "
-            "the effect's display gives the reason")
+            "the effect's display gives the reason"
+        )
     summary.presented_rate = median_of(useful, "presented_rate")
     summary.presented_low = median_of(useful, "presented_low")
     summary.presented_percentile = median_of(useful, "presented_percentile")
@@ -257,36 +283,43 @@ def summarize(game: str, preset: str, samples: list[Sample]) -> Summary:
     # two runs that both reach it say nothing about their rendering cost. Say
     # so on the run rather than leaving a reader to compare two refresh rates
     # and conclude the resolution made no difference.
-    if summary.client_updates and summary.presented_rate \
-            and summary.client_updates > summary.presented_rate * 1.2:
+    if (
+        summary.client_updates
+        and summary.presented_rate
+        and summary.client_updates > summary.presented_rate * 1.2
+    ):
         summary.notes.append(
-            f"presented rate is limited by the screen ({summary.presented_rate:.0f}/s) while the game "
-            f"drew {summary.client_updates:.0f}/s; compare client buffer updates, not presented")
+            f"presented rate is limited by the screen ({summary.presented_rate:.0f}/s) "
+            f"while the game drew {summary.client_updates:.0f}/s; "
+            "compare client buffer updates, not presented"
+        )
     return summary
 
 
-def run_command(arguments: list[str], **extra: object) -> subprocess.CompletedProcess[str]:
+def run_command(arguments: list[str]) -> subprocess.CompletedProcess[str]:
     """Run a helper and return it, without raising on a non-zero exit."""
-    return subprocess.run(arguments, capture_output=True, text=True, check=False, **extra)  # type: ignore[arg-type]
+    return subprocess.run(arguments, capture_output=True, text=True, check=False)
 
 
 def qdbus() -> str:
-    """The Qt D-Bus helper this session has, under either of its two names."""
+    """Find the Qt D-Bus helper this session has, under either of its names."""
     for name in ("qdbus6", "qdbus-qt6", "qdbus"):
         found = shutil.which(name)
         if found:
             return found
-    raise SystemExit("no qdbus binary found; install qt6-tools or qttools5-dev-tools")
+    missing = "no qdbus binary found; install qt6-tools or qttools5-dev-tools"
+    raise SystemExit(missing)
 
 
 def status(tool: str) -> str:
     """Ask the running effect for its current state, accumulated."""
-    result = run_command([tool, "org.kde.KWin", "/Effects",
-                          "org.kde.kwin.Effects.supportInformation", "upscale"])
+    result = run_command(
+        [tool, "org.kde.KWin", "/Effects", "org.kde.kwin.Effects.supportInformation", "upscale"]
+    )
     return result.stdout
 
 
-def configure(preset: str, sharpening: bool) -> None:
+def configure(preset: str, *, sharpening: bool) -> None:
     """Set the effect's own settings for the next run and apply them.
 
     These are the effect's own settings, not the session's: the preset under
@@ -301,8 +334,9 @@ def configure(preset: str, sharpening: bool) -> None:
     }
     for key, value in settings.items():
         run_command(["kwriteconfig6", "--file", "kwinrc", "--group", GROUP, "--key", key, value])
-    run_command([qdbus(), "org.kde.KWin", "/Effects",
-                 "org.kde.kwin.Effects.reconfigureEffect", "upscale"])
+    run_command(
+        [qdbus(), "org.kde.KWin", "/Effects", "org.kde.kwin.Effects.reconfigureEffect", "upscale"]
+    )
 
 
 def launch(game: str, seconds: int) -> subprocess.Popen[str]:
@@ -313,27 +347,34 @@ def launch(game: str, seconds: int) -> subprocess.Popen[str]:
     sampling window would stop while the warm-up was still being discarded.
     """
     definition = GAMES[game]
-    program = shutil.which(str(definition["program"]))
+    program = shutil.which(definition.program)
     if not program:
-        raise SystemExit(f"{definition['program']} is not installed")
-    arguments = [str(item).format(seconds=seconds) for item in definition["arguments"]]
+        missing = f"{definition.program} is not installed"
+        raise SystemExit(missing)
+    arguments = [item.format(seconds=seconds) for item in definition.arguments]
     # A new process group, so that stopping the run stops the game and anything
     # it started rather than leaving a renderer behind holding the screen.
     environment = dict(os.environ)
-    environment.update({str(key): str(value) for key, value in definition.get("environment", {}).items()})
-    return subprocess.Popen([program, *arguments], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            text=True, start_new_session=True, env=environment)
+    environment.update(definition.environment)
+    return subprocess.Popen(
+        [program, *arguments],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        start_new_session=True,
+        env=environment,
+    )
 
 
 def send_keys(game: str) -> None:
     """Walk a menu-driven game into a running scene, where it needs one."""
-    keys = GAMES[game].get("keys")
-    if not keys or not shutil.which("xdotool"):
+    definition = GAMES[game]
+    if not definition.keys or not shutil.which("xdotool"):
         return
-    window = str(GAMES[game]["window"])
-    for key in list(keys):
+    window = definition.window
+    for key in definition.keys:
         time.sleep(1.5)
-        run_command(["xdotool", "search", "--classname", window, "key", "--window", "%1", str(key)])
+        run_command(["xdotool", "search", "--classname", window, "key", "--window", "%1", key])
 
 
 def stop(process: subprocess.Popen[str]) -> str:
@@ -351,7 +392,7 @@ def stop(process: subprocess.Popen[str]) -> str:
 
 
 def game_reported_rate(output: str) -> float | None:
-    """The frame rate a game reported itself, where its demo mode prints one."""
+    """Read the frame rate a game printed itself, where its demo mode prints one."""
     # SuperTuxKart's profile mode ends with a summary naming the frames it drew
     # and the time it took. That is its render throughput, which is not what
     # the screen presented and is reported separately for exactly that reason.
@@ -362,13 +403,24 @@ def game_reported_rate(output: str) -> float | None:
     return float(found.group(1)) if found else None
 
 
-def measure(game: str, preset: str, seconds: int, interval: float,
-            warmup: float, sharpening: bool) -> tuple[Summary, list[Sample]]:
-    """One run: set the preset, start the game, read the instrument, stop."""
+@dataclass
+class Plan:
+    """How one run is conducted, so that a run is described rather than listed."""
+
+    game: str = ""
+    seconds: int = 60
+    interval: float = 2.0
+    warmup: float = 10.0
+    sharpening: bool = False
+
+
+def measure(plan: Plan, preset: str) -> tuple[Summary, list[Sample]]:
+    """Conduct one run: set the preset, start the game, read the instrument, stop."""
+    game, seconds, interval, warmup = plan.game, plan.seconds, plan.interval, plan.warmup
+    sharpening = plan.sharpening
     tool = qdbus()
-    configure(preset, sharpening)
-    definition = GAMES[game]
-    startup = float(definition.get("startup", 10))
+    configure(preset, sharpening=sharpening)
+    startup = GAMES[game].startup
     # The game outlives the sampling window by the time it spends starting and
     # warming up, and then by a margin: a demo that ends one second early takes
     # the last sample with it and leaves the run one reading short.
@@ -408,7 +460,7 @@ def write_samples(path: Path, rows: list[tuple[str, Sample]]) -> None:
 
 
 def figure(value: float | None, digits: int = 1) -> str:
-    """A number, or the dash that says it was never measured."""
+    """Format a number, or the dash that says it was never measured."""
     return "-" if value is None else f"{value:.{digits}f}"
 
 
@@ -417,13 +469,18 @@ def report(summaries: list[Summary]) -> None:
     print()
     header = f"{'preset':<14}{'supplied':<12}{'presented/s':>12}{'frame ms':>10}"
     print(header + f"{'99th ms':>9}{'1% low/s':>10}{'client/s':>10}{'game/s':>9}{'spread':>8}")
-    print("-" * len(header + f"{'99th ms':>9}{'1% low/s':>10}{'client/s':>10}{'game/s':>9}{'spread':>8}"))
+    print(
+        "-"
+        * len(header + f"{'99th ms':>9}{'1% low/s':>10}{'client/s':>10}{'game/s':>9}{'spread':>8}")
+    )
     for summary in summaries:
-        print(f"{summary.preset:<14}{summary.supplied or '-':<12}"
-              f"{figure(summary.presented_rate):>12}{figure(summary.frame_time, 2):>10}"
-              f"{figure(summary.presented_percentile):>9}{figure(summary.presented_low):>10}"
-              f"{figure(summary.client_updates):>10}{figure(summary.game_rate):>9}"
-              f"{figure(summary.presented_spread):>8}")
+        print(
+            f"{summary.preset:<14}{summary.supplied or '-':<12}"
+            f"{figure(summary.presented_rate):>12}{figure(summary.frame_time, 2):>10}"
+            f"{figure(summary.presented_percentile):>9}{figure(summary.presented_low):>10}"
+            f"{figure(summary.client_updates):>10}{figure(summary.game_rate):>9}"
+            f"{figure(summary.presented_spread):>8}"
+        )
     baseline = next((item for item in summaries if item.preset == "native"), None)
     if not baseline or not baseline.frame_time:
         return
@@ -435,7 +492,9 @@ def report(summaries: list[Summary]) -> None:
         percent = 100.0 * change / baseline.frame_time
         spread = (baseline.presented_spread or 0) + (summary.presented_spread or 0)
         verdict = "within run-to-run spread" if abs(change) < spread else "outside the spread"
-        print(f"{summary.preset} vs native: frame time {change:+.2f} ms ({percent:+.1f}%), {verdict}")
+        print(
+            f"{summary.preset} vs native: frame time {change:+.2f} ms ({percent:+.1f}%), {verdict}"
+        )
     for summary in summaries:
         for note in summary.notes:
             print(f"note ({summary.preset}): {note}")
@@ -445,11 +504,16 @@ def main(argv: list[str] | None = None) -> int:
     """Run the comparison the handbook's matrix asks for and report it."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("game", choices=sorted(GAMES))
-    parser.add_argument("--presets", default="native,quality,performance",
-                        help="presets to run, in order, starting with the baseline")
+    parser.add_argument(
+        "--presets",
+        default="native,quality,performance",
+        help="presets to run, in order, starting with the baseline",
+    )
     parser.add_argument("--seconds", type=int, default=60, help="sampled length of each run")
     parser.add_argument("--interval", type=float, default=2.0, help="seconds between readings")
-    parser.add_argument("--warmup", type=float, default=10.0, help="seconds discarded before sampling")
+    parser.add_argument(
+        "--warmup", type=float, default=10.0, help="seconds discarded before sampling"
+    )
     parser.add_argument("--repeats", type=int, default=1, help="times to run the whole set")
     parser.add_argument("--sharpening", action="store_true", help="run with RCAS on")
     parser.add_argument("--output", type=Path, default=Path("build/measurements"))
@@ -464,14 +528,20 @@ def main(argv: list[str] | None = None) -> int:
 
     summaries: list[Summary] = []
     rows: list[tuple[str, Sample]] = []
+    plan = Plan(
+        game=options.game,
+        seconds=options.seconds,
+        interval=options.interval,
+        warmup=options.warmup,
+        sharpening=options.sharpening,
+    )
     for repeat in range(options.repeats):
         # Alternate nothing: run the presets in the order given, repeatedly, so
         # that drift over the session shows up as a difference between repeats
         # rather than hiding inside one of them.
         for preset in presets:
             print(f"run {repeat + 1}/{options.repeats}: {options.game} at {preset}", flush=True)
-            summary, samples = measure(options.game, preset, options.seconds,
-                                       options.interval, options.warmup, options.sharpening)
+            summary, samples = measure(plan, preset)
             summaries.append(summary)
             rows.extend((preset, sample) for sample in samples)
     stamp = time.strftime("%Y%m%d-%H%M%S")

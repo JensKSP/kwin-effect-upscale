@@ -16,9 +16,9 @@ Sample = HARNESS["Sample"]
 # The prose is translated and deliberately not read; only the machine line is.
 # It is reproduced here in German to prove that, because a parser that quietly
 # depended on English would pass a test written only in English.
-SCALING = """Gewünscht: 2560 × 1440 von SuperTuxKart als Bildschirmmodus angefordert
-Geliefertes Bild: 2560 × 1440
-Ziel: 3840 × 2160
+SCALING = """Gewünscht: 2560 x 1440 von SuperTuxKart als Bildschirmmodus angefordert
+Geliefertes Bild: 2560 x 1440
+Ziel: 3840 x 2160
 FSR 1, Schärfung 0%
 metrics: presented=118.40 low=61.20 p99=20.400 worst=31.700 frames=1024 \
 client=117.90 repaints=118.20 interval=1.000 supplied=2560x1440 \
@@ -27,15 +27,15 @@ destination=3840x2160 scaling=1 selected=1 windowsystem=wayland buffer=gpu""".re
 # The same window before the first sampling interval has completed. The line is
 # present but carries only what was known, so every measured field is absent
 # rather than zero.
-UNMEASURED = """Desired: Select 2560 × 1440 in the game
-Supplied input: 3840 × 2160
-Destination: 3840 × 2160
+UNMEASURED = """Desired: Select 2560 x 1440 in the game
+Supplied input: 3840 x 2160
+Destination: 3840 x 2160
 Inactive: the window is not fullscreen or a selected borderless window covering its output.
 metrics: supplied=3840x2160 destination=3840x2160 scaling=0 selected=0"""
 
 # A build that predates the machine line, or any answer without one.
 NO_CONTRACT = """Desired: Automatic (no request)
-Supplied input: 3840 × 2160
+Supplied input: 3840 x 2160
 Presentation is not being measured."""
 
 
@@ -84,13 +84,11 @@ class ParseStatusTest(unittest.TestCase):
         self.assertFalse(sample.scaling)
 
 
-
-
 class SummarizeTest(unittest.TestCase):
     """The reduction of a run's samples to the figures a comparison uses."""
 
-    def samples(self, rates: list[float | None]) -> list:
-        """Samples carrying the given rates, with one tail figure each."""
+    def samples(self, rates: list[float | None]) -> list[object]:
+        """Build samples carrying the given rates, with one tail figure each."""
         built = []
         for rate in rates:
             sample = parse_status(SCALING) if rate else parse_status(UNMEASURED)

@@ -25,8 +25,8 @@
 #include "effect/effectwindow.h"
 #include "scene/surfaceitem.h"
 #include "scene/windowitem.h"
-#include "window.h"
 #include "wayland/surface.h"
+#include "window.h"
 
 #include <KLocalizedString>
 
