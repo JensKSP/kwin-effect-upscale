@@ -211,7 +211,7 @@ def summarize(game: str, preset: str, samples: list[Sample], window: str = "") -
     summary.presented_percentile = median_of(useful, "presented_percentile")
     summary.presented_worst = median_of(useful, "presented_worst")
     summary.client_updates = median_of(useful, "client_updates")
-    committed = [sample.client_updates for sample in useful if sample.client_updates]
+    committed = [sample.client_updates for sample in useful if sample.client_updates is not None]
     if len(committed) > 1:
         summary.client_spread = max(committed) - min(committed)
     rates = [sample.presented_rate for sample in useful if sample.presented_rate]

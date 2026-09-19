@@ -150,8 +150,10 @@ The controls distinguish requested resolution from the actual supplied buffer.
 Profiles support resolution requests for cooperating Wayland and Xwayland
 clients, including Extreme Tux Racer on the primary display. Selected borderless
 windows qualify when their content exactly covers one output. Virtual sessions
-verify resolution changes and isolation; physical input, image quality,
-performance, HDR and VRR remain unverified. The effect is disabled by default.
+verify resolution changes and isolation; physical input, image quality, HDR and
+VRR remain unverified, and performance is measured only as the frame rates
+under [Measured](#measured) - not image quality at speed, not power, and not on
+a television. The effect is disabled by default.
 Application rules apply independently on each display. By default, outputs at
 or below 2,073,600 physical pixels (Full HD) bypass upscaling; the settings offer
 a global threshold and per-application overrides. A Native application rule
@@ -171,10 +173,10 @@ Each row is 30 samples taken over 60 seconds.
 | quality | 2560 x 1440 | yes | 833.3/s | 237.1/s |
 | performance | 1920 x 1080 | yes | 949.4/s | 237.3/s |
 
-Read the third column, not the fourth. The presented rate is pinned at the
-screen in all three runs, so it says nothing about the resolution; what changed
-is how fast the game itself could produce frames, which is what a smaller
-render target buys. At `performance` SuperTuxKart drew 1.93 times as many
+Read **Game's own frames**, not **Presented**. The presented rate is pinned at
+the screen in all three runs, so it says nothing about the resolution; what
+changed is how fast the game itself could produce frames, which is what a
+smaller render target buys. At `performance` SuperTuxKart drew 1.93 times as many
 frames as at native while still filling the same 4K screen.
 
 That headroom is the point: it is what a game spends on higher settings, or on

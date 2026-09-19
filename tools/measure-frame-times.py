@@ -185,6 +185,33 @@ def wait_for_window(window: str, seconds: float) -> bool:
     return False
 
 
+def focus_window(window: str) -> str:
+    """Put the keyboard focus on the game's window, or say why it did not.
+
+    Returns what went wrong, or nothing when the window holds the focus.
+    """
+    found = run_command(["xdotool", "search", "--classname", window])
+    identifier = found.stdout.split()[0] if found.stdout.split() else ""
+    if not identifier:
+        return f"no {window} window to type into, so the game stayed in its menu"
+    run_command(["xdotool", "windowactivate", "--sync", identifier])
+    # XTEST types into whatever holds the input focus, so an activation that
+    # quietly failed would send a menu sequence into whatever the person was
+    # last using. The activation's own exit status cannot answer that here:
+    # on a Wayland session xdotool reports "_NET_ACTIVE_WINDOW failed" and a
+    # non-zero status while having activated the window perfectly well,
+    # because that property belongs to an X11 window manager and nothing
+    # maintains it. What the X server will answer for is where it sends key
+    # events, which is what getwindowfocus reads.
+    focused = run_command(["xdotool", "getwindowfocus", "getwindowclassname"])
+    if window.lower() not in focused.stdout.strip().lower():
+        return (
+            f"{window} did not take the keyboard focus, so no keys were sent; "
+            f"the focus was on {focused.stdout.strip() or 'a window that did not name itself'}"
+        )
+    return ""
+
+
 def send_keys(game: str) -> str:
     """Walk a menu-driven game into a running scene, where it needs one.
 
@@ -207,11 +234,9 @@ def send_keys(game: str) -> str:
     # reporting that its keys had been sent. Without --window, xdotool uses the
     # XTEST extension, which is indistinguishable from real typing; the same
     # sequence then walks the menu exactly one step per key.
-    found = run_command(["xdotool", "search", "--classname", window])
-    identifier = found.stdout.split()[0] if found.stdout.split() else ""
-    if not identifier:
-        return f"no {window} window to type into, so the game stayed in its menu"
-    run_command(["xdotool", "windowactivate", "--sync", identifier])
+    failure = focus_window(window)
+    if failure:
+        return failure
     for key in definition.keys:
         # Long enough for a screen to appear, short enough that nobody watches
         # a menu for ten seconds before a run begins.
@@ -289,7 +314,11 @@ def measure(
         # happens once.
         time.sleep(warm_up)
         started = time.monotonic()
-        while time.monotonic() - started < seconds:
+        # A game that never reached its scene is sitting in a menu, and a menu
+        # renders whatever it likes at whatever rate it likes. Sampling it
+        # produces figures that look like a measurement and describe nothing,
+        # which is how three runs tonight reported a main menu as a benchmark.
+        while not driven and time.monotonic() - started < seconds:
             sample = parse_status(status(tool))
             sample.elapsed = round(time.monotonic() - started, 1)
             sample.run_id = run_id

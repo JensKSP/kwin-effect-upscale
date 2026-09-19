@@ -365,6 +365,21 @@ void UpscaleX11Resolution::restore(X11Window *window)
     })) {
         m_requested.remove(request.key);
     }
+    // present() sized the surface item to the frame so that KWin would paint
+    // the whole enlarged image rather than its top-left corner. A client that
+    // resizes to its normal geometry ends that by itself, because a buffer of
+    // another size makes KWin recompute the destination from the surface. A
+    // client that goes on committing the same buffer never does, and would
+    // stay stretched after this effect stopped presenting it - which is the
+    // case on an unload, where the request is withdrawn without the client
+    // having been asked for anything. Hand KWin's own value back instead of
+    // waiting for a size change that may never come.
+    if (request.presentedByEffect && !window->isDeleted()) {
+        WindowItem *item = window->effectWindow() ? window->effectWindow()->windowItem() : nullptr;
+        if (SurfaceItem *surface = item ? item->surfaceItem() : nullptr) {
+            surface->setDestinationSize(window->bufferGeometry().size());
+        }
+    }
     // The pointer gets KWin's own mapping back now, not at its next move.
     m_input->refresh();
     if (window->isDeleted() || !kwinApp()->x11Connection()) {
