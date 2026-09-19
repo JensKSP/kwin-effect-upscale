@@ -129,7 +129,7 @@ a game the way they always have, and it works.
    window. Reaching one program by changing something shared with others is
    not an implementation detail to weigh against convenience; it is the thing
    this requirement forbids. A mechanism whose reach is wider than its target
-   is unusable however well it performs, and being brief does not narrow it -
+   is unusable however well it performs, and being brief does not narrow it:
    a change that lasts only while a game runs still reached everything else
    while it lasted.
 
@@ -157,29 +157,42 @@ cover its output. Read it for that, and for what it had to do about input
 mapping and buffer forwarding. Do not read it as a shape to adopt: every
 version of it starts the game.
 
-**What is left.** Telling one recognized client that its screen has a smaller
-current mode, which needs no helper and no restart and is implemented. The
-game's own settings, with the desired size offered as guidance. Anything the
-compositor itself already offers to a plugin.
+**What is left.** Telling one recognized native Wayland client that its screen
+has a smaller current mode, which needs no helper and no restart and is
+implemented. Resizing one selected X11 window so that an application which
+handles resize asks for the smaller mode itself, demonstrated but not
+integrated. The game's own settings, with the desired size offered as guidance.
+Anything else the compositor already offers a plugin, for one window at a time.
 
-**What it means for Xwayland.** Nothing is left, and the reason is structural
-rather than a missing version. Read against Xwayland 24.1.6, the version Trixie
-ships:
+**What it means for Xwayland.** The direct routes are closed and an indirect
+one is open. Read against Xwayland 24.1.6, the version Trixie ships:
 
-- Xwayland does have per-X-client resolution emulation, at exactly the
-  granularity the fourth requirement asks for: it records an emulated mode per
-  X client and uses a viewport to present the smaller buffer at output size,
-  which is the shape this effect needs. It is not reachable from outside.
+- Xwayland has per-X-client resolution emulation, at exactly the granularity
+  the fourth requirement asks for: it records an emulated mode per X client and
+  uses a viewport to present the smaller buffer at output size, which is the
+  shape this effect needs. The compositor cannot set it.
   `xwl_output_set_emulated_mode` has two call sites, the RandR CRTC handler and
-  the XF86VidMode handler, and both pass `GetCurrentClient()`. Only the client
-  that asks can be put into a smaller mode. No compositor, window manager or
-  Wayland protocol can ask on its behalf.
-- The one lever a compositor does have is the `wl_output` it gives the Xwayland
-  connection, and every X11 client shares that connection. Using it to reach a
-  game reaches the whole X session with it, the fourth requirement forbids that,
-  and confining it to the minutes a game runs does not make it narrower.
-- A newer KWin changes what can be *scaled*, but not what can be *asked*. KWin
-  gained `_XWAYLAND_RANDR_EMU_MONITOR_RECTS` handling in `bc5a2002e9`,
+  the XF86VidMode handler, and both pass `GetCurrentClient()`, so only the
+  client that asks is placed in a smaller mode. Writing
+  `_XWAYLAND_RANDR_EMU_MONITOR_RECTS` is not a way around it either: that
+  property reports server state rather than establishing the mode.
+- Reaching the game through the `wl_output` given to the Xwayland connection is
+  what the fourth requirement forbids, because every X11 client shares that
+  connection, and confining it to the minutes a game runs does not make it
+  narrower.
+- **What is open is making the game ask.** The effect can resize the selected
+  X window, and an application that handles resize properly responds by
+  reselecting its fullscreen mode on its own connection — which is exactly the
+  request the compositor may not make for it. Xwayland's per-client emulation
+  then applies to that client alone and its viewport presents the smaller
+  buffer at output size. This has been demonstrated on KWin 6.3.6, so it needs
+  no newer compositor, and it leaves other X11 clients untouched. It is a
+  compatibility mechanism rather than enforcement: an application whose event
+  loop ignores resize keeps its size, and a smaller drawable alone does not
+  prove the application reduced what it renders into it. The resolution slice
+  records the demonstrated sequence and its limits.
+- A newer KWin opens a second, simpler case: a game whose resolution the user
+  chose in its own settings. KWin gained `_XWAYLAND_RANDR_EMU_MONITOR_RECTS` handling in `bc5a2002e9`,
   "x11window: support xrandr emulation", first tagged `v6.5.90` and so shipping
   in Plasma 6.6; `X11Window::configure()` reads the property and sizes a
   fullscreen X window to the emulated size instead of the output size, which is
@@ -198,18 +211,17 @@ ships:
   5. The effect sees a smaller buffer with a full-output destination, which is
      exactly what its eligibility rules require, and scales it.
 
-  What that does not do is make step 1 happen. The game asks because the user
-  chose a resolution in it, so this is the game-settings route working on
-  Xwayland, not effect-driven reduction. On KWin 6.3.6 the chain breaks at
-  step 3 and an Xwayland game cannot be scaled at all.
+  Step 1 happens there because the user chose a resolution in the game, so this
+  is the game-settings route working on Xwayland. On KWin 6.3.6 that chain
+  breaks at step 3, which is why the resize mechanism above matters: it reaches
+  the same viewport without needing the property at all.
 
-So an Xwayland game is scaled when it commits a smaller buffer by itself, and
-is otherwise left alone. Say that plainly rather than implying a setting
-exists. Effect-driven reduction for Xwayland needs something upstream that does
-not exist today: a way for the compositor to set an emulated mode for one
-nominated X client. That is a request to make of Xwayland, not a gap this
-plugin can close, and it should be checked against current Xwayland development
-before being treated as settled.
+So Xwayland is not closed to this effect, but nothing about it is free. The
+resize mechanism depends on the application handling resize, the game-settings
+route depends on the compositor version, and neither reduces what an
+application chooses to render into the buffer it was given. Report what was
+asked, what the drawable became and what the application committed as three
+separate observations, and never present one as the others.
 
 ### Clients that are not games
 
@@ -1158,7 +1170,7 @@ does not by itself establish that resolution control succeeded.
 | Auto | Choose a verified compatible method for the selected application and runtime. In-session negotiation only: the [four requirements](#four-requirements-that-bound-every-route) leave no launch-time method to fall back to. |
 | Advertised screen mode | **Implemented.** Tell one recognized application, and only it, that its screen has a smaller current mode, at the moment it binds the output. Needs no launch helper and no restart, and changes nothing outside that one connection. |
 | Wayland negotiation | Request a smaller buffer from a cooperative native Wayland client. |
-| Display proxy | Launch the application through a private Wayland display, with private Xwayland where needed. |
+| Display proxy | **Out of scope.** Sommelier's direct-scale mode supplied smaller buffers, native and through a private Xwayland, but every form of it starts the game. Kept as a measured mechanism and as technique worth reading, not an offered method. |
 | Gamescope | **Out of scope.** It forwarded smaller original buffers in testing, but the game has to be started through it, and its image arrives as a child surface this effect rejects. Kept here as a measured mechanism, not an offered method. |
 | Game settings only | Make no automatic resolution changes; show the desired pixels as guidance and scale eligible supplied buffers. |
 
