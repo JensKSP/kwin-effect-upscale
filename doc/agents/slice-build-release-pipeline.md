@@ -88,6 +88,41 @@ No fixed two-job caps or custom RAM/CPU scheduler.
 
 ## Progress and observed results
 
+### Hosted publication filename correction, 2026-09-19
+
+Nightly run `35431010340` built and attested its full package matrix but failed
+download verification. GitHub changed the package filename's `~` separator to
+`.`; the downloaded checksum manifest still named the original files. The old
+nightly remains published and the failed candidate remains a draft.
+
+Normalize the validated release filenames before generating checksums and
+attestations. Preserve package versions and the original Debian build records.
+Cover the hosted rename in regression tests and validate the full candidate
+through the existing nightly verification mode. Publication and physical-device
+acceptance remain separate from candidate verification. Planned checks are not
+yet results; no tag or release replacement is authorized by this investigation.
+
+The correction now normalizes filenames only after the original inventory and
+package metadata pass validation. Replaying it against all 17 actual artifacts
+from the failed nightly produced a manifest whose checksums all passed. Payloads,
+Debian versions and build-record contents remain unchanged. Regression coverage
+checks public names, payload preservation, rejection before renaming and the
+publication failure boundary when GitHub renames an unprepared filename.
+Hosted validation of the corrected candidate remains pending. Master verification
+run `35444430876` separately checks the current default branch without replacing
+the public release; it does not include this unmerged publication correction.
+
+Master verification run `35444430876` passed all jobs, including FreeBSD,
+both neon compilers, all four package targets, sanitizers and the 600-second
+fuzz run. Both full hook stages passed for the correction, including its new
+publication regressions. Static analysis and plugin metadata validation passed.
+The optional local archive check could not run its integration sessions from
+the nested worktree because the Unix socket path exceeded its limit. A shorter
+mount exposed a stale image lacking the declared XCB RandR development package;
+the image rebuild was interrupted. The hosted source-archive check must therefore
+validate the pushed revision before this PR is ready; no local archive pass is
+claimed. No release or tag was changed.
+
 The following is a chronological record of named candidates. Early failures,
 pending approvals and pending hosted runs are superseded where a later dated
 entry records their resolution; they are not the current PR’s status.

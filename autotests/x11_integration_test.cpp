@@ -95,7 +95,7 @@ void UpscaleX11IntegrationTest::lifecycle()
     X11Client target;
     QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(position, native), fullscreen));
     if (fullscreen) {
-        QTRY_VERIFY(target.isFullscreen());
+        QTRY_VERIFY_WITH_TIMEOUT(target.isFullscreen(), 10000);
     }
     QTRY_COMPARE(target.geometry(), QRect(position, native));
     configure(true);
@@ -112,7 +112,7 @@ void UpscaleX11IntegrationTest::lifecycle()
     QVERIFY(other.show(QByteArrayLiteral("unrelated-x11-test"), otherGeometry));
     // The initial unmanaged geometry can already match. Wait for KWin to
     // acknowledge fullscreen before checking the final monitor placement.
-    QTRY_VERIFY(other.isFullscreen());
+    QTRY_VERIFY_WITH_TIMEOUT(other.isFullscreen(), 10000);
     QTRY_COMPARE(other.geometry(), otherGeometry);
     target.resize(QSize(1600, 900));
     QTest::qWait(100);
@@ -142,6 +142,7 @@ void UpscaleX11IntegrationTest::refusesMissingEmulation()
     X11Client target(false);
     const QRect native(0, 0, 3840, 2160);
     QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), native));
+    QTRY_VERIFY_WITH_TIMEOUT(target.isFullscreen(), 10000);
     QTRY_COMPARE(target.geometry(), native);
     configure(true);
     QTRY_COMPARE(target.geometry().size(), QSize(1920, 1080));
@@ -161,7 +162,7 @@ void UpscaleX11IntegrationTest::expiresDepartedClientRefusal()
     {
         X11Client target(false);
         QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), native));
-        QTRY_VERIFY(target.isFullscreen());
+        QTRY_VERIFY_WITH_TIMEOUT(target.isFullscreen(), 10000);
         configure(true);
         QTRY_VERIFY_WITH_TIMEOUT(status().contains(QStringLiteral("did not supply the requested fullscreen buffer")), 9000);
     }
@@ -170,7 +171,7 @@ void UpscaleX11IntegrationTest::expiresDepartedClientRefusal()
     {
         X11Client replacement;
         QVERIFY(replacement.show(QByteArrayLiteral("upscale-x11-test"), native));
-        QTRY_VERIFY(replacement.isFullscreen());
+        QTRY_VERIFY_WITH_TIMEOUT(replacement.isFullscreen(), 10000);
         QTRY_VERIFY(status().contains(QStringLiteral("did not supply the requested fullscreen buffer")));
         QCOMPARE(replacement.geometry(), native);
     }
@@ -179,7 +180,7 @@ void UpscaleX11IntegrationTest::expiresDepartedClientRefusal()
     // now represents a later launch, without reconfiguring the plugin.
     X11Client relaunched;
     QVERIFY(relaunched.show(QByteArrayLiteral("upscale-x11-test"), native));
-    QTRY_VERIFY(relaunched.isFullscreen());
+    QTRY_VERIFY_WITH_TIMEOUT(relaunched.isFullscreen(), 10000);
     QTRY_COMPARE(relaunched.geometry().size(), QSize(1920, 1080));
     QVERIFY2(!status().contains(QStringLiteral("did not supply")), qPrintable(status()));
 }
@@ -189,6 +190,7 @@ void UpscaleX11IntegrationTest::refusesUnavailableMode()
     X11Client target;
     const QRect native(0, 0, 3840, 2160);
     QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), native));
+    QTRY_VERIFY_WITH_TIMEOUT(target.isFullscreen(), 10000);
     QTRY_COMPARE(target.geometry(), native);
     configure(true, 4); // Balanced is 2259 × 1271, absent from this output's modes.
     QTRY_VERIFY2(status().contains(QStringLiteral("requested X11 mode is unavailable")), qPrintable(status()));
@@ -210,7 +212,7 @@ void UpscaleX11IntegrationTest::repeatedFullscreenTransitions()
     // KWin from updating that logical frame to cover the output.
     for (int transition = 0; transition < 8; ++transition) {
         target.fullscreen(true);
-        QTRY_VERIFY(target.isFullscreen());
+        QTRY_VERIFY_WITH_TIMEOUT(target.isFullscreen(), 10000);
         QTRY_VERIFY2(status().contains(QStringLiteral("as its X11 window size")), qPrintable(status()));
         QTRY_VERIFY2(status().contains(QStringLiteral("QSize(1920, 1080) QSizeF(3840, 2160)")), qPrintable(status()));
         QTRY_VERIFY2(status().contains(QStringLiteral("true true QRectF(0,0 3840x2160)")), qPrintable(status()));
@@ -219,7 +221,7 @@ void UpscaleX11IntegrationTest::repeatedFullscreenTransitions()
         QTRY_VERIFY(!target.isFullscreen());
     }
     target.fullscreen(true);
-    QTRY_VERIFY(target.isFullscreen());
+    QTRY_VERIFY_WITH_TIMEOUT(target.isFullscreen(), 10000);
     QTest::qWait(3500);
     QVERIFY2(!status().contains(QStringLiteral("did not supply")), qPrintable(status()));
     QVERIFY2(!status().contains(QStringLiteral("repeatedly replaced")), qPrintable(status()));
@@ -231,6 +233,9 @@ void UpscaleX11IntegrationTest::respectsPrimaryOutputRestriction()
     X11Client target;
     const QRect native(3840, 0, 3840, 2160);
     QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), native));
+    // Management and fullscreen are asynchronous. Geometry can already match
+    // before either, and briefly changes while KWin chooses the output.
+    QTRY_VERIFY_WITH_TIMEOUT(target.isFullscreen(), 10000);
     QTRY_COMPARE(target.geometry(), native);
     const KSharedConfig::Ptr catalogue = KSharedConfig::openConfig(QStringLiteral("kwinupscalerc"));
     KConfigGroup group(catalogue, QStringLiteral("Application-test"));
@@ -245,6 +250,7 @@ void UpscaleX11IntegrationTest::retriesADroppedResizeOnce()
 {
     X11Client target(true, 1);
     QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 3840, 2160)));
+    QTRY_VERIFY_WITH_TIMEOUT(target.isFullscreen(), 10000);
     QTRY_COMPARE(target.geometry().size(), QSize(3840, 2160));
     configure(true);
     QTest::qWait(7000);
@@ -265,6 +271,8 @@ void UpscaleX11IntegrationTest::independentOutputRules()
     X11Client other;
     QVERIFY(first.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 3840, 2160)));
     QVERIFY(other.show(QByteArrayLiteral("second-x11-test"), QRect(3840, 0, 3840, 2160)));
+    QTRY_VERIFY_WITH_TIMEOUT(first.isFullscreen(), 10000);
+    QTRY_VERIFY_WITH_TIMEOUT(other.isFullscreen(), 10000);
     QTRY_COMPARE(first.geometry().size(), QSize(3840, 2160));
     QTRY_COMPARE(other.geometry().size(), QSize(3840, 2160));
     configure(true); // Global Performance must not override the Native rule.

@@ -61,7 +61,7 @@ class ReleaseAssetsTest(unittest.TestCase):
 
     def test_manifest_covers_every_deliverable(self) -> None:
         """Checksums cover binaries, symbols, build records and source."""
-        expected = {path.name for path in self.assets.iterdir()}
+        expected = {path.name.replace("~", ".") for path in self.assets.iterdir()}
         write_manifest(self.assets, self.version)
         entries = (self.assets / "SHA256SUMS").read_text().splitlines()
         self.assertEqual({line.split("  ")[1] for line in entries}, expected)
@@ -70,6 +70,27 @@ class ReleaseAssetsTest(unittest.TestCase):
             self.assertEqual(
                 checksum, hashlib.sha256((self.assets / name).read_bytes()).hexdigest()
             )
+
+    def test_public_names_preserve_package_versions_and_build_records(self) -> None:
+        """Hosted filenames must survive upload without changing any payload."""
+        original = {
+            path.name.replace("~", "."): path.read_bytes() for path in self.assets.iterdir()
+        }
+        write_manifest(self.assets, self.version)
+        for name, contents in original.items():
+            self.assertNotIn("~", name)
+            self.assertEqual((self.assets / name).read_bytes(), contents)
+        package = self.assets / "kwin-effect-upscale_0.1.0.trixie_amd64.deb"
+        version = subprocess.check_output(["dpkg-deb", "-f", str(package), "Version"], text=True)
+        self.assertEqual(version.strip(), "0.1.0~trixie")
+
+    def test_invalid_inventory_is_not_renamed(self) -> None:
+        """Validate everything before mutating names or creating a manifest."""
+        (self.assets / "unexpected.deb").write_bytes(b"unexpected")
+        original = {path.name for path in self.assets.iterdir()}
+        with self.assertRaises(ValueError):
+            write_manifest(self.assets, self.version)
+        self.assertEqual({path.name for path in self.assets.iterdir()}, original)
 
     def test_reject_missing_package(self) -> None:
         """A successful subset of the matrix must never publish."""

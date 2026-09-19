@@ -2449,7 +2449,13 @@ The source archive is extracted, configured, built, tested and staged without
 Git metadata. Publication accepts only the complete four-platform package
 matrix, its build records and the source archive. Reports and fuzz corpora are
 never release assets. A SHA-256 manifest covers all deliverables. The workflow
-uploads a draft and downloads it again to compare every asset before publishing.
+replaces `~` with `.` in public asset filenames before checksumming and attesting,
+because GitHub applies that rename on upload. Package versions retain the Debian
+`~distribution` suffix. The original `.buildinfo` and `.changes` records retain
+their build-time filenames; restore the `~` separator when using those records
+with Debian tools. The manifest names the files as downloaded from GitHub.
+The workflow uploads a draft and downloads it again to compare every asset
+before publishing.
 The preceding nightly remains available until that verification succeeds.
 The final replacement is not atomic: after removing the previous nightly, the
 publisher retries promotion three times by release ID. A persistent API failure

@@ -1336,3 +1336,28 @@ and all 15 runtime tests under address/undefined sanitizers and ThreadSanitizer.
 The X11 suite now passes 13 cases. The configured fuzzing hook passed; refreshed
 coverage is 93.7% (2317/2473 plugin C++ lines). Hosted checks and review must
 still validate the published revision; physical acceptance remains open.
+
+Hosted run `35442425006` passed compilers, instrumentation, static analysis and
+the binary package checks, but the source-archive test failed during initial
+secondary-output placement. Initial geometry settled just beyond the
+assertion's five-second timeout. Synchronize fixture setup with the
+fullscreen acknowledgement before inspecting placement, with an explicit bounded
+startup timeout. Repeat the virtual integration check and run the required
+container/compiler and hook checks before publishing the correction.
+
+The correction passed all 16 Trixie tests with GCC and Clang, warnings as errors,
+and three additional consecutive X11 integration runs (68.87, 69.08 and 63.97
+seconds). Both neon compilers built and passed all 11 available tests. These
+checks exercise virtual sessions only; physical acceptance remains open.
+Both full hook stages, clang-tidy and plugin metadata validation passed as well.
+The source-archive validation and its environment limitations are recorded in the
+[release pipeline](slice-build-release-pipeline.md#hosted-publication-filename-correction-2026-09-19).
+
+The seven open review threads were checked against the current implementation
+and resolved individually: non-null catalogue assertions, documented catalogue
+count, asynchronous window picking, cleared output measurements, per-client/output
+advertisements, plural-aware frame counts and departed-client state expiry are
+present with regression coverage. The two earlier findings outside the diff
+(historical rendering status and scoped GL allocation errors) are fixed too.
+No review was dismissed and no approval override was requested. Every push still
+requires a fresh approval for its exact revision.
