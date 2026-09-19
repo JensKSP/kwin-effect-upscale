@@ -335,16 +335,34 @@ def record_conditions(summary: Summary, plan: Plan, done: Conducted) -> None:
         )
 
 
-def write_samples(path: Path, rows: list[tuple[str, Sample]]) -> None:
+# What a reading needs beside it to stand on its own: which run it belongs to
+# and how that run was conducted. A row without them can only be understood
+# from a report it might get separated from.
+PLAN_COLUMNS = (
+    "preset",
+    "repeat",
+    "requested_window_system",
+    "requested_renderer",
+    "asked_for",
+    "sharpening",
+    "seconds",
+    "warm_up",
+    "sampled_every",
+)
+
+
+def write_samples(path: Path, rows: list[tuple[Summary, Sample]]) -> None:
     """Keep every reading, so a summary can be checked rather than believed."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
-        # Every row names the run it belongs to, so rows from repeated runs
-        # stay distinguishable once they are together in one file.
-        writer.writerow(["preset", *asdict(Sample()).keys()])
-        for preset, sample in rows:
-            writer.writerow([preset, *asdict(sample).values()])
+        # Every row carries the run it belongs to and the plan that run was
+        # conducted under, so rows from repeated runs stay distinguishable and
+        # a file of them can be read without the report beside it.
+        writer.writerow([*PLAN_COLUMNS, *asdict(Sample()).keys()])
+        for summary, sample in rows:
+            plan = [getattr(summary, column) for column in PLAN_COLUMNS]
+            writer.writerow([*plan, *asdict(sample).values()])
 
 
 def figure(value: float | None, digits: int = 1) -> str:
@@ -485,7 +503,7 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("no session to measure; this runs on a real desktop, not in a container")
 
     summaries: list[Summary] = []
-    rows: list[tuple[str, Sample]] = []
+    rows: list[tuple[Summary, Sample]] = []
     plan = Plan(
         game=options.game,
         seconds=options.seconds,
@@ -529,7 +547,7 @@ def main(argv: list[str] | None = None) -> int:
             summary, samples = measure(plan, preset, run_id, repeat + 1)
             summary.asked_for = preset_size(preset, conditions.output_pixels)
             summaries.append(summary)
-            rows.extend((preset, sample) for sample in samples)
+            rows.extend((summary, sample) for sample in samples)
             report(summary)
             records.append(asdict(summary))
 

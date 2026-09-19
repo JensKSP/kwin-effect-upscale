@@ -32,6 +32,7 @@ METRIC_FIELDS = {
     "scaling": ("scaling", bool),
     "selected": ("selected", bool),
     "window": ("window", str),
+    "scanout": ("scanout", str),
     "windowsystem": ("window_system", str),
     "buffer": ("buffer_kind", str),
 }
@@ -58,6 +59,10 @@ class Sample:
     scaling: bool = False
     selected: bool = False
     window: str = ""
+    # Whether the output kept direct scanout for this frame. Losing it is part
+    # of what enabling the effect costs, so a comparison that did not record it
+    # is comparing two different presentation paths without saying so.
+    scanout: str = ""
     window_system: str = ""
     buffer_kind: str = ""
 
@@ -143,6 +148,7 @@ class Summary:
     client_updates: float | None = None
     game_rate: float | None = None
     renderer_used: str = ""
+    scanout: str = ""
     # The size the game was put back to before it started, so a table can show
     # that a run began from the screen rather than from the run before it.
     started_at: str = ""
@@ -181,6 +187,7 @@ def summarize(game: str, preset: str, samples: list[Sample], window: str = "") -
     summary.destination = last.destination
     summary.scaling = any(sample.scaling for sample in useful)
     summary.window_system = last.window_system
+    summary.scanout = last.scanout
     summary.buffer_kind = last.buffer_kind
     # A run that reduced the buffer but was never scaled is the failure worth
     # naming: the game did what was asked and the effect still handed the frame

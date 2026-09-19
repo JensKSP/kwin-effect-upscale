@@ -11,6 +11,7 @@ go into the written record, which is why they are gathered here once.
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 from dataclasses import asdict, dataclass, field
@@ -36,6 +37,11 @@ class Environment:
     variable_refresh: str = ""
     high_dynamic_range: str = ""
     effect_build: str = ""
+    # The machine's state while measuring. A run taken under other load, or on
+    # a machine that had thermally throttled, is not comparable with one that
+    # was not, so what can be read is read and what cannot is said plainly.
+    load_average: str = ""
+    thermal_state: str = ""
     taken_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat(timespec="seconds"))
 
 
@@ -97,6 +103,16 @@ def read_environment(qdbus_tool: str = "qdbus6", output: str = "") -> Environmen
     )
     build = re.search(r"build:\s*(.+)", status)
     found.effect_build = build.group(1).strip() if build else "effect not loaded"
+
+    try:
+        one, five, fifteen = os.getloadavg()
+        found.load_average = f"{one:.2f} {five:.2f} {fifteen:.2f}"
+    except OSError:
+        found.load_average = "unavailable"
+    # No portable way to read this: it lives behind a driver interface that
+    # differs per vendor and per platform. Naming it as unavailable keeps the
+    # gap visible rather than leaving a reader to assume it was steady.
+    found.thermal_state = "not read"
     return found
 
 
@@ -180,6 +196,8 @@ def write_markdown(path: Path, environment: Environment, runs: list[dict[str, An
         f"| Variable refresh | {environment.variable_refresh} |",
         f"| High dynamic range | {environment.high_dynamic_range} |",
         f"| Effect build | {environment.effect_build} |",
+        f"| Load average while measuring | {environment.load_average} |",
+        f"| Thermal and power state | {environment.thermal_state} |",
         "",
         "## Runs",
         "",
@@ -195,7 +213,8 @@ def write_markdown(path: Path, environment: Environment, runs: list[dict[str, An
             f"| {run.get('game', '')} | {_cell(run.get('window_system'))}"
             f" | {_cell(run.get('renderer_used'))} | {run.get('preset', '')}"
             f" | {_cell(run.get('supplied'))} | {_cell(run.get('destination'))}"
-            f" | {_cell(run.get('scaling'))} | {_cell(run.get('presented_rate'))}"
+            f" | {_cell(run.get('scaling'))} | {_cell(run.get('scanout'))}"
+            f" | {_cell(run.get('presented_rate'))}"
             f" | {_cell(run.get('frame_time'), 2)} | {_cell(run.get('presented_percentile'))}"
             f" | {_cell(run.get('client_updates'))} | {run.get('samples', 0)} |"
             for run in runs

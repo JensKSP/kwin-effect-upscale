@@ -358,6 +358,10 @@ static QString metrics(const UpscaleSnapshot &snapshot)
         append(QLatin1String("window"), QString(snapshot.application).replace(QLatin1Char(' '), QLatin1Char('-')));
     }
     append(QLatin1String("scaling"), QString::number(snapshot.scaling ? 1 : 0));
+    // Whether this frame cost the output its direct scanout. A comparison that
+    // did not record it is comparing composition against scanout without
+    // saying so, and the difference between those is part of what is measured.
+    append(QLatin1String("scanout"), QLatin1String(snapshot.blocksScanout ? "blocked" : "direct"));
     append(QLatin1String("selected"), QString::number(snapshot.selected ? 1 : 0));
     switch (snapshot.windowSystem) {
     case UpscaleWindowSystem::Wayland:
