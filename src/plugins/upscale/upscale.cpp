@@ -147,6 +147,7 @@ void UpscaleEffect::watchWindow(EffectWindow *window)
 {
     connect(window, &QObject::destroyed, this, [this, window]() {
         m_renderedInputs.remove(window);
+        m_passRefusals.remove(window);
     });
     if (Window *internal = window->window()) {
         // An application ID can arrive after its window does, and an X11
@@ -193,7 +194,7 @@ void UpscaleEffect::reconfigure(ReconfigureFlags flags)
     m_candidateCached = false;
     m_renderedInputs.clear();
     m_unsupportedColors.clear();
-    m_passRefusal = UpscaleRefusal::None;
+    m_passRefusals.clear();
     effects->makeOpenGLContextCurrent();
     // Read once, where a context is guaranteed current: the settings page asks
     // for status outside every paint pass, and an unknown machine's limit is
@@ -358,6 +359,20 @@ EffectWindow *UpscaleEffect::findCandidate(UpscaleRefusal *refusal, UpscaleOutpu
     return selected;
 }
 
+// Keep why this window's last pass could not be replaced, and hand the reason
+// straight back so the caller can act on it. It describes one frame of one
+// window: an effect-wide value would answer a question about this window with
+// whatever another output's last pass happened to leave behind.
+UpscaleRefusal UpscaleEffect::rememberPassRefusal(EffectWindow *window, UpscaleRefusal refusal)
+{
+    if (refusal == UpscaleRefusal::None) {
+        m_passRefusals.remove(window);
+    } else {
+        m_passRefusals.insert(window, refusal);
+    }
+    return refusal;
+}
+
 UpscalePaintResult UpscaleEffect::drawWindow(const RenderTarget &target, const RenderViewport &viewport, EffectWindow *window,
                                              int mask, const UpscaleRegion &region, WindowPaintData &data)
 {
@@ -374,7 +389,8 @@ UpscalePaintResult UpscaleEffect::drawWindow(const RenderTarget &target, const R
             m_unsupportedColors.append(window);
             m_candidateCached = false;
             effects->addRepaintFull();
-        } else if (m_passRefusal = passRefusal(target, viewport, window, mask, data); m_passRefusal == UpscaleRefusal::None) {
+        } else if (const UpscaleRefusal pass = rememberPassRefusal(window, passRefusal(target, viewport, window, mask, data));
+                   pass == UpscaleRefusal::None) {
             if (!m_scaler) {
                 m_scaler = std::make_unique<UpscaleScaler>(m_renderer);
                 m_failed = !m_scaler->initialize();

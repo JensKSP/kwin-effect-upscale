@@ -398,6 +398,54 @@ static QString describeEffectRefusal(UpscaleRefusal refusal)
     }
 }
 
+// The buffer the client supplied: its size against the destination, and
+// whether the scaler can read it as it stands.
+static QString describeBufferRefusal(UpscaleRefusal refusal)
+{
+    switch (refusal) {
+    case UpscaleRefusal::NoBuffer:
+        return i18n("the window has not supplied a buffer yet.");
+    case UpscaleRefusal::EmptyBuffer:
+        return i18n("the supplied buffer is empty.");
+    case UpscaleRefusal::BufferNotSmaller:
+        return i18n("the supplied buffer is not smaller than the destination.");
+    case UpscaleRefusal::BufferBelowHalf:
+        return i18n("the supplied buffer is less than half the destination size.");
+    case UpscaleRefusal::BufferAspectRatio:
+        return i18n("the supplied buffer has a different aspect ratio than the destination.");
+    case UpscaleRefusal::TransformedBuffer:
+        return i18n("the supplied buffer is rotated or flipped.");
+    case UpscaleRefusal::CroppedBuffer:
+        return i18n("only part of the supplied buffer is displayed.");
+    case UpscaleRefusal::TranslucentContent:
+        return i18n("the supplied buffer is not fully opaque.");
+    case UpscaleRefusal::UnsupportedBufferFormat:
+        return i18n("the supplied buffer format cannot be read by the scaler.");
+    default:
+        return QString();
+    }
+}
+
+// One paint pass rather than the window. These describe the frame in hand and
+// may differ for the next one.
+static QString describePassRefusal(UpscaleRefusal refusal)
+{
+    switch (refusal) {
+    case UpscaleRefusal::TransformedPass:
+        return i18n("this frame paints the window or the screen with a transformation.");
+    case UpscaleRefusal::TranslucentPass:
+        return i18n("this frame paints the window with reduced opacity.");
+    case UpscaleRefusal::AdjustedPass:
+        return i18n("this frame paints the window with adjusted brightness or saturation.");
+    case UpscaleRefusal::ScaledPass:
+        return i18n("this frame paints at a different scale than the output.");
+    case UpscaleRefusal::TransformedRenderTarget:
+        return i18n("this frame's render target has an orientation the scaler does not handle.");
+    default:
+        return QString();
+    }
+}
+
 QString describeRefusal(UpscaleRefusal refusal)
 {
     switch (refusal) {
@@ -451,33 +499,21 @@ QString describeRefusal(UpscaleRefusal refusal)
     case UpscaleRefusal::ResizedSurface:
         return i18n("the window's surface is displayed at a different size than the window.");
     case UpscaleRefusal::NoBuffer:
-        return i18n("the window has not supplied a buffer yet.");
     case UpscaleRefusal::EmptyBuffer:
-        return i18n("the supplied buffer is empty.");
     case UpscaleRefusal::BufferNotSmaller:
-        return i18n("the supplied buffer is not smaller than the destination.");
     case UpscaleRefusal::BufferBelowHalf:
-        return i18n("the supplied buffer is less than half the destination size.");
     case UpscaleRefusal::BufferAspectRatio:
-        return i18n("the supplied buffer has a different aspect ratio than the destination.");
     case UpscaleRefusal::TransformedBuffer:
-        return i18n("the supplied buffer is rotated or flipped.");
     case UpscaleRefusal::CroppedBuffer:
-        return i18n("only part of the supplied buffer is displayed.");
     case UpscaleRefusal::TranslucentContent:
-        return i18n("the supplied buffer is not fully opaque.");
     case UpscaleRefusal::UnsupportedBufferFormat:
-        return i18n("the supplied buffer format cannot be read by the scaler.");
+        return describeBufferRefusal(refusal);
     case UpscaleRefusal::TransformedPass:
-        return i18n("this frame paints the window or the screen with a transformation.");
     case UpscaleRefusal::TranslucentPass:
-        return i18n("this frame paints the window with reduced opacity.");
     case UpscaleRefusal::AdjustedPass:
-        return i18n("this frame paints the window with adjusted brightness or saturation.");
     case UpscaleRefusal::ScaledPass:
-        return i18n("this frame paints at a different scale than the output.");
     case UpscaleRefusal::TransformedRenderTarget:
-        return i18n("this frame's render target has an orientation the scaler does not handle.");
+        return describePassRefusal(refusal);
     }
     return QString();
 }

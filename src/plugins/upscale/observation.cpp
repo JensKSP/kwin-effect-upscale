@@ -43,7 +43,10 @@ UpscaleSnapshot UpscaleEffect::snapshot(EffectWindow *window, const RenderTarget
     UpscaleRefusal refusal = UpscaleRefusal::None;
     const EffectWindow *scaled = candidate(&refusal, window->screen());
     state.selected = scaled == window;
-    state.refusal = state.selected ? m_passRefusal : refusal;
+    // The pass refusal describes one frame of one window. Reading an
+    // effect-wide value here would answer a question about this window with
+    // whatever another output's last pass happened to leave behind.
+    state.refusal = state.selected ? m_passRefusals.value(window, UpscaleRefusal::None) : refusal;
     state.window = window->caption();
     state.application = window->windowClass();
     describeApplication(state, window->window());

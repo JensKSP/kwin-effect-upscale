@@ -79,6 +79,7 @@ private:
     void describeApplication(UpscaleSnapshot &state, const Window *window) const;
     void watchWindow(EffectWindow *window);
     void watchOutput(UpscaleOutput *output);
+    UpscaleRefusal rememberPassRefusal(EffectWindow *window, UpscaleRefusal refusal);
     void releaseWhatTheGameLeftBehind();
 
     // Reuse selection only within one synchronous screen paint. Outside it,
@@ -109,7 +110,7 @@ private:
     // Why the last paint pass over the candidate could not be replaced. It
     // describes one frame rather than the window, so it is diagnostic only and
     // never keeps the next frame from being scaled.
-    UpscaleRefusal m_passRefusal = UpscaleRefusal::None;
+    QHash<EffectWindow *, UpscaleRefusal> m_passRefusals;
     UpscaleDisplay m_display;
     // The build this effect came from. Empty where the generated record is not
     // part of the build, as in a copy of this folder inside KWin.

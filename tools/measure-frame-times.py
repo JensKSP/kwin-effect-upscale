@@ -244,7 +244,10 @@ def summarize(game: str, preset: str, samples: list[Sample]) -> Summary:
     useful = [sample for sample in samples if measuring(sample)]
     summary = Summary(game=game, preset=preset, samples=len(useful))
     if not useful:
-        summary.notes.append("nothing was measured; the display has to be on to measure")
+        summary.notes.append(
+            "nothing was measured; the effect reported no presented frames, so either the "
+            "game never rendered or the effect was not loaded"
+        )
         return summary
     last = useful[-1]
     summary.supplied = last.supplied

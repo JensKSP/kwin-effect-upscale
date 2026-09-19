@@ -339,7 +339,9 @@ static QString metrics(const UpscaleSnapshot &snapshot)
     }
     number(QLatin1String("client"), snapshot.clientUpdates, 2);
     number(QLatin1String("repaints"), snapshot.repaints, 2);
-    number(QLatin1String("interval"), snapshot.interval, 3);
+    if (snapshot.interval > 0) {
+        number(QLatin1String("interval"), snapshot.interval, 3);
+    }
     size(QLatin1String("supplied"), snapshot.supplied);
     size(QLatin1String("destination"), snapshot.destination);
     append(QLatin1String("scaling"), QString::number(snapshot.scaling ? 1 : 0));
