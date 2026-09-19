@@ -100,11 +100,11 @@ static QString application(const UpscaleSnapshot &snapshot)
 
 QString upscaleAnnouncement(const UpscaleSnapshot &snapshot)
 {
-    // "Selected" for a window the effect merely picked, "recognized" only
+    // "Detected" for a window the effect merely picked, "recognized" only
     // where its identity matched the catalogue. A window that fills the
     // screen must not be presented as a match on that ground alone.
     if (snapshot.recognized.isEmpty()) {
-        return i18n("Upscale: selected %1", application(snapshot));
+        return i18n("Upscale: Detected %1", application(snapshot));
     }
     return i18n("Upscale: recognized %1", snapshot.recognized);
 }

@@ -141,7 +141,7 @@ void UpscaleSnapshotTest::reportsThePathActuallyTaken()
     // The announcement names the application without claiming it was matched
     // against anything, because nothing identifies games yet.
     const QString announcement = upscaleAnnouncement(snapshot);
-    QVERIFY2(announcement.contains(QStringLiteral("selected Tux Racer")), qPrintable(announcement));
+    QVERIFY2(announcement.contains(QStringLiteral("Detected Tux Racer")), qPrintable(announcement));
     QVERIFY(!announcement.contains(QStringLiteral("recognized")));
     QVERIFY(upscaleBasicSummary(snapshot).contains(QStringLiteral("1280 × 720 → 3840 × 2160")));
 
