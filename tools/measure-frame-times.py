@@ -191,23 +191,25 @@ def focus_window(window: str) -> str:
     Returns what went wrong, or nothing when the window holds the focus.
     """
     found = run_command(["xdotool", "search", "--classname", window])
-    identifier = found.stdout.split()[0] if found.stdout.split() else ""
-    if not identifier:
+    identifiers = found.stdout.split()
+    if not identifiers:
         return f"no {window} window to type into, so the game stayed in its menu"
-    run_command(["xdotool", "windowactivate", "--sync", identifier])
+    run_command(["xdotool", "windowactivate", "--sync", identifiers[0]])
     # XTEST types into whatever holds the input focus, so an activation that
     # quietly failed would send a menu sequence into whatever the person was
-    # last using. The activation's own exit status cannot answer that here:
-    # on a Wayland session xdotool reports "_NET_ACTIVE_WINDOW failed" and a
-    # non-zero status while having activated the window perfectly well,
-    # because that property belongs to an X11 window manager and nothing
-    # maintains it. What the X server will answer for is where it sends key
-    # events, which is what getwindowfocus reads.
-    focused = run_command(["xdotool", "getwindowfocus", "getwindowclassname"])
-    if window.lower() not in focused.stdout.strip().lower():
+    # last using. The activation's own exit status cannot answer for that
+    # here: on a Wayland session xdotool reports that _NET_ACTIVE_WINDOW
+    # failed and exits non-zero while having activated the window perfectly
+    # well, because that property belongs to an X11 window manager and nothing
+    # maintains it. getwindowfocus asks the X server where it will actually
+    # send key events, and its answer is compared by window id rather than by
+    # name: a class name is not the instance name the search matched, and
+    # Extreme Tux Racer's differ by more than case.
+    focused = run_command(["xdotool", "getwindowfocus"]).stdout.strip()
+    if focused not in identifiers:
         return (
             f"{window} did not take the keyboard focus, so no keys were sent; "
-            f"the focus was on {focused.stdout.strip() or 'a window that did not name itself'}"
+            f"the focus was on window {focused or 'nothing could name'}"
         )
     return ""
 

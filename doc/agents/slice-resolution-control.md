@@ -1491,6 +1491,26 @@ acceptance tasks below. HDR/VRR and image/performance acceptance retain their
 owner in the [rendering slice](slice-fsr1-hdr-vrr.md); source review cannot replace
 those checks. No new live compatibility result is claimed by this task list.
 
+### Extreme Tux Racer's own fullscreen is the wrong shape, 2026-09-20
+
+Observed on pcjensd, one 3840 x 2160 output, effect build
+`0.1.0+git20260920.e652374`. With `~/.config/etr/options` carrying
+`[fullscreen] 1` and `[res_type] 0`, the game comes up at 1024 x 768. That is
+4:3 against a 16:9 output, and the effect refuses a buffer whose aspect ratio
+does not match the destination, so no run of it measures the game: the readings
+describe whatever else the effect was following, at the compositor's idle rate.
+
+Without that options file the effect's own X11 resize decides the size instead,
+and the same game was observed at 1920 x 1080 into 3840 x 2160 with FSR 1 active
+while a course was running. So the path works; it is the game's stored
+resolution that does not, and `res_type` selects from a list this project has
+not read. Setting it by guess is not worth the risk of a run that looks
+configured and is not.
+
+This does not change what the game can show. It commits 59.8 buffers a second
+in its menu and on its course alike, at every preset, so it is frame-limited
+and reports headroom rather than cost whatever resolution it renders at.
+
 ## Remaining work on the X11 production integration
 
 ### Production X11 integration
