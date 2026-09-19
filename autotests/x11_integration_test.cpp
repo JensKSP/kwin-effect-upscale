@@ -13,6 +13,7 @@
 #include <QDBusInterface>
 #include <QDBusReply>
 #include <QFile>
+#include <QSaveFile>
 #include <QTest>
 
 class UpscaleX11IntegrationTest : public QObject
@@ -182,10 +183,13 @@ void UpscaleX11IntegrationTest::presentsWithoutEmulation()
 void UpscaleX11IntegrationTest::movePointer(const QPoint &position)
 {
     // Read and removed by the test driver inside the compositor; see there.
-    QFile request(QString::fromLocal8Bit(qgetenv("XDG_RUNTIME_DIR")) + QStringLiteral("/upscale-test-pointer"));
-    QVERIFY(request.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    // It polls, so the request has to appear whole: a truncated file it reads
+    // mid-write parses as too few fields, and it removes the file regardless,
+    // losing the motion. QSaveFile publishes it by rename instead.
+    QSaveFile request(QString::fromLocal8Bit(qgetenv("XDG_RUNTIME_DIR")) + QStringLiteral("/upscale-test-pointer"));
+    QVERIFY(request.open(QIODevice::WriteOnly));
     QVERIFY(request.write(QByteArray::number(position.x()) + ' ' + QByteArray::number(position.y())) > 0);
-    request.close();
+    QVERIFY(request.commit());
 }
 
 void UpscaleX11IntegrationTest::expiresDepartedClientRefusal()

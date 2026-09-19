@@ -1491,7 +1491,9 @@ acceptance tasks below. HDR/VRR and image/performance acceptance retain their
 owner in the [rendering slice](slice-fsr1-hdr-vrr.md); source review cannot replace
 those checks. No new live compatibility result is claimed by this task list.
 
-## Remaining work### Production X11 integration
+## Remaining work on the X11 production integration
+
+### Production X11 integration
 
 Jens requested integration of the demonstrated mechanism into the actual effect
 so that Tux Racer works without game configuration. Start state: the production

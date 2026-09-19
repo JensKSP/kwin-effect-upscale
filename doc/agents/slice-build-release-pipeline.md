@@ -480,8 +480,9 @@ The last green nightly was `75d5c96`. All three causes were introduced by work
 that no pull request had built, which is what `6bfcc78` had already begun to
 address by moving those grounds into the nightly.
 
-FreeBSD Clang failed in 50 seconds, before compiling anything, on
-`KeyError: 'libxcb-res0-dev'`. That build dependency was added to
+FreeBSD Clang failed in 50 seconds, before compiling anything, on a bare
+`KeyError` naming the `libxcb-res0-dev` build dependency. That name was
+added to
 `debian/control` because Ubuntu's `kwin-dev` does not pull in the package
 carrying `xcb/res.h`; `tools/freebsd-packages.py` is the only translation of
 those names for the one platform that does not read `debian/control`, and it

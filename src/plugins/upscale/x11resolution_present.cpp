@@ -27,6 +27,9 @@
 namespace KWin
 {
 
+// The X11 types these helpers take are declared only where X11 support is
+// built, and so is the request they read, so they cannot exist without it.
+#if KWIN_BUILD_X11
 static SurfaceItem *surfaceItem(X11Window *window)
 {
     EffectWindow *effectWindow = window ? window->effectWindow() : nullptr;
@@ -61,6 +64,7 @@ static QPointF presentationScale(const UpscaleX11Resolution::Request &request, Q
     }
     return QPointF(request.size.width() / frame.width(), request.size.height() / frame.height());
 }
+#endif
 
 UpscaleX11Presentation UpscaleX11Resolution::presentation(const Window *window) const
 {
