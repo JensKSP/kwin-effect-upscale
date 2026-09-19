@@ -60,13 +60,18 @@ def status(tool: str) -> str:
     return result.stdout
 
 
-def configure(preset: str, *, sharpening: bool) -> None:
+def configure(preset: str, *, sharpening: bool) -> str:
     """Set the effect's own settings for the next run and apply them.
 
     These are the effect's own settings, not the session's: the preset under
     test, resolution control and the sharpening state. The on-screen display is
     left exactly as the user had it, because measuring does not depend on it
     and showing it would cost every run the same composition it saves.
+
+    Returns what went wrong, or nothing. A setting that was not written, or an
+    effect that was never told to re-read them, leaves the run measuring the
+    preset before it: the worst kind of failure here, because it produces a
+    number rather than an error.
     """
     settings = {
         "Preset": str(PRESETS[preset]),
@@ -74,10 +79,24 @@ def configure(preset: str, *, sharpening: bool) -> None:
         "Sharpening": "true" if sharpening else "false",
     }
     for key, value in settings.items():
-        run_command(["kwriteconfig6", "--file", "kwinrc", "--group", GROUP, "--key", key, value])
-    run_command(
+        written = run_command(
+            ["kwriteconfig6", "--file", "kwinrc", "--group", GROUP, "--key", key, value]
+        )
+        if written.returncode != 0:
+            return f"could not set {key}={value}: {written.stderr.strip() or 'no reason given'}"
+    applied = run_command(
         [qdbus(), "org.kde.KWin", "/Effects", "org.kde.kwin.Effects.reconfigureEffect", "upscale"]
     )
+    if applied.returncode != 0:
+        return f"the effect was not told to re-read its settings: {applied.stderr.strip()}"
+
+    # Written is not the same as in force. The effect re-reads on request, and
+    # a request that was accepted can still leave an older value if the write
+    # landed after it, so the value is read back from where the effect reads it.
+    read = run_command(["kreadconfig6", "--file", "kwinrc", "--group", GROUP, "--key", "Preset"])
+    if read.stdout.strip() != str(PRESETS[preset]):
+        return f"the preset is {read.stdout.strip() or 'unset'}, not {preset}"
+    return ""
 
 
 def reset_game_resolution(game: str) -> str:

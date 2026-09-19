@@ -131,6 +131,10 @@ class Summary:
     buffer_kind: str = ""
     presented_rate: float | None = None
     presented_spread: float | None = None
+    # The same spread expressed as frame time, because that is what a
+    # difference between runs is stated in. A spread in frames per second
+    # cannot be compared against a difference in milliseconds.
+    frame_time_spread: float | None = None
     frame_time: float | None = None
     presented_low: float | None = None
     presented_percentile: float | None = None
@@ -198,6 +202,11 @@ def summarize(game: str, preset: str, samples: list[Sample], window: str = "") -
     rates = [sample.presented_rate for sample in useful if sample.presented_rate]
     if len(rates) > 1:
         summary.presented_spread = max(rates) - min(rates)
+        # Converted rather than reused: the slowest reading gives the longest
+        # frame time and the fastest the shortest, so the spread in
+        # milliseconds is the difference between those two, not the difference
+        # between the rates.
+        summary.frame_time_spread = 1000.0 / min(rates) - 1000.0 / max(rates)
     if summary.presented_rate:
         # The frame time the presented rate implies, which is what it is: the
         # reciprocal of an average, not a measured mean frame time. The

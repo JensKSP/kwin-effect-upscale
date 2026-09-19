@@ -138,6 +138,19 @@ class SummarizeTest(unittest.TestCase):
         self.assertAlmostEqual(measured(summary.presented_rate), 100.5)
         self.assertAlmostEqual(measured(summary.presented_spread), 42.0)
 
+    def test_the_spread_is_offered_in_the_unit_a_difference_uses(self) -> None:
+        """The spread is available as frame time, not only as a rate.
+
+        A comparison states its difference in milliseconds. Judging that
+        against a spread in frames per second is not a comparison at all: it
+        would call a real change inconclusive, or an inconclusive one real,
+        depending only on where the rates happened to sit.
+        """
+        summary = summarize("supertuxkart", "quality", self.samples([100.0, 50.0]))
+        self.assertAlmostEqual(measured(summary.presented_spread), 50.0)
+        # 1000/50 - 1000/100 = 20 - 10.
+        self.assertAlmostEqual(measured(summary.frame_time_spread), 10.0)
+
     def test_frame_time_is_the_reciprocal_of_the_rate(self) -> None:
         """The reported frame time follows the rate it was derived from."""
         summary = summarize("supertuxkart", "native", self.samples([50.0]))

@@ -219,7 +219,13 @@ def measure(
     game, seconds, interval, warm_up = plan.game, plan.seconds, plan.interval, plan.warm_up
     sharpening = plan.sharpening
     tool = qdbus()
-    configure(preset, sharpening=sharpening)
+    misconfigured = configure(preset, sharpening=sharpening)
+    if misconfigured:
+        # Measuring now would produce a number for the preset before this one,
+        # which is worse than producing nothing.
+        summary = Summary(game=game, preset=preset, run_id=run_id, repeat=repeat)
+        summary.notes.append(f"not measured: {misconfigured}")
+        return summary, []
     # Before anything starts, so the run is not inheriting the last one's size.
     clear_game_log(game)
     settings = prepare(game, plan.output)
@@ -378,7 +384,11 @@ def compare(summaries: list[Summary]) -> None:
             continue
         change = summary.frame_time - baseline.frame_time
         percent = 100.0 * change / baseline.frame_time
-        spread = (baseline.presented_spread or 0) + (summary.presented_spread or 0)
+        # Both in milliseconds. A spread in frames per second compared against
+        # a difference in milliseconds is not a comparison, and would call a
+        # real change inconclusive or an inconclusive one real depending only
+        # on where the rates happened to sit.
+        spread = (baseline.frame_time_spread or 0) + (summary.frame_time_spread or 0)
         verdict = "within run-to-run spread" if abs(change) < spread else "outside the spread"
         print(
             f"{summary.preset} vs native: frame time {change:+.2f} ms ({percent:+.1f}%), {verdict}"
