@@ -25,8 +25,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # A second operating system and a second libc catch the assumptions a Linux
+  # build never questions. Every nightly runs it, manual or scheduled: like
+  # kwin-master below it reports rather than gates, so it costs the packages
+  # nothing and a break is known within a day instead of by the next Monday.
   portability:
-    if: github.event_name == 'workflow_dispatch' && inputs.verify-only
     uses: ./.github/workflows/portability.yml
 
   quality:
