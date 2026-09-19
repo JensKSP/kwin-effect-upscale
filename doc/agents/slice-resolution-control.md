@@ -1783,3 +1783,57 @@ requires a fresh approval for its exact revision.
       actually supplied beside the one recommended. Asked for by Jens on
       2026-09-19, for games no per-client request can reach. The scaling half
       needs nothing: a smaller buffer is already scaled whoever chose its size.
+
+### X11 integration tests on KWin 6.6, 2026-09-19
+
+The two tests added with the per-application X11 rules,
+`repeatedFullscreenTransitions` and `independentOutputRules`, failed the
+nightly's Ubuntu 26.04 package jobs. They had been validated on Trixie's KWin
+6.3.6 and on neon, whose eleven available entries exclude the integration
+tests because they only register below KWin 6.7. Ubuntu 26.04 carries 6.6.6,
+where they register and run. Both failures were in the tests, not the plugin.
+
+`repeatedFullscreenTransitions` asserted the substring
+`"true true QRectF(0,0 3840x2160)"` against the driver's window dump. Those two
+booleans are `isNormalWindow()` and `noBorder()`, and the test is about neither:
+its own comment is about KWin updating the logical frame to cover the output
+while the native configure is blocked. On 6.6.6 the window reports `true false`
+with the frame geometry already correct, so the assertion was pinning KWin's
+decoration state by accident. The driver now labels the geometries it prints
+and the test anchors on `frame QRectF(0,0 3840x2160)`. Labelling was needed
+because the unlabelled dump is not stable across versions either: `geometryF()`
+returns `KWin::RectF` from 6.6 and `QRectF` before it, which is the same
+boundary `compatibility.h` already detects as `UPSCALE_REGION_API`.
+
+`independentOutputRules` reconfigured, waited a fixed 500 ms and compared.
+Reconfiguring restores every managed window before applying the rules again, so
+a window the changed rule does not concern still leaves its reduced mode and has
+to return to it, and 500 ms did not cover that on amd64. QtTest reported the
+round trip precisely: "8100 ms would have been sufficient this time". The test
+now waits for the window with a 15 s bound, and the fixed delay stays only after
+it has settled, where it still serves its purpose of catching the changed rule
+wrongly resizing the other window.
+
+The 8.1 s is this control's own documented retry path, not a stall. A request is
+validated 3 s after it is issued; a failed validation restores and reschedules
+250 ms later; that request is validated 3 s later again. About 6.25 s of timers
+plus round trips is what was measured.
+
+Open question, not a test defect and not a nightly blocker: on 6.6.6 the request
+issued after a reconfiguration's restore does not pass validation and only the
+retry recovers it, where 6.3.6 succeeds within the original 500 ms. It
+self-corrects, but it means roughly eight seconds at the wrong resolution after
+a settings change on 6.6. Worth a look of its own; not investigated here.
+
+Observed results, both from an isolated copy of the branch head under `build/`
+so that another session's concurrent edits could not affect them:
+
+- Ubuntu 26.04, KWin 6.6.6: `upscale-x11-integration` 100% passed, 66.65 s,
+  all thirteen cases. Before the fixes, on the same image, `independentOutputRules`
+  and `repeatedFullscreenTransitions` failed exactly as the nightly reported.
+- Debian Trixie, KWin 6.3.6, warnings as errors: 100% passed, 54.72 s.
+
+`upscale-check:local` on the development machine is stale and has no
+`/tmp/.X11-unix`, which `containers/trixie/Containerfile` creates. Every X11
+case fails there in about 210 ms with `kwin_xwl: /tmp/.X11-unix does not exist`
+before any test logic runs. That is an image to rebuild, not a code failure.
