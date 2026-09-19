@@ -2215,5 +2215,31 @@ exact package checksum, Debian, KWin and driver versions, display and connection
 and each observed SDR, HDR, VRR and performance result in the active slice.
 Untrusted PR jobs run on hosted runners, not on these desktop machines.
 
+The NVIDIA host is `pcjensd`. What it is made of is recorded here rather than
+in a slice, because the driver, the display mode and the KWin version together
+decide what the effect is allowed to attempt; a result from this host cannot be
+read without them, and they outlive the slice that first observed them.
+
+| Part | pcjensd |
+| --- | --- |
+| Distribution | Debian 13 (trixie), kernel 7.2.6-zabbly+ |
+| CPU | AMD Ryzen 9 9950X3D, 16 cores / 32 threads |
+| Memory | 62 GiB |
+| GPU | NVIDIA GeForce RTX 5090 (GB202, `10de:2b85`), 32 GiB VRAM |
+| Driver | `nvidia-driver` 615.71.09-2, proprietary; `nvidia_drm` with `modeset=1` and `fbdev=1` |
+| Display | LG ULTRAGEAR+ on DisplayPort (`DP-3`), 3840 × 2160 at 240 Hz, scale 1.45 |
+| Display state | SDR; HDR disabled, wide colour gamut disabled, VRR set to never |
+| Session | Plasma 6.3.6 on Wayland, KWin 6.3.6, Qt 6.8.2 |
+| Compositing | OpenGL through EGL; KWin reports the context as OpenGL 3.1, GLSL 1.40 |
+
+Two of those entries matter more than their neighbours. KWin 6.3.6 reports this
+card's **GPU class as `Unknown`**, so any behaviour that depends on KWin
+recognising the hardware is untested here by definition. And the display is
+**driven at 240 Hz**, which leaves well under five milliseconds per frame: a
+performance result from this host is a statement about that budget, not about a
+60 Hz one. HDR and VRR are both off at the time of writing, so neither has been
+exercised; turning either on is a change of test conditions and is recorded as
+one.
+
 The [pipeline slice](agents/slice-build-release-pipeline.md) records validation and
 remaining hosted, BSD and hardware acceptance work.
