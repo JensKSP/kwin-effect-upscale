@@ -51,13 +51,15 @@ if(KWin_VERSION VERSION_LESS 6.7)
         ../src/plugins/upscale/application.cpp
         ../src/plugins/upscale/display.cpp
         ../src/plugins/upscale/framestatistics.cpp
+        ../src/plugins/upscale/framestatistics.cpp
         ../src/plugins/upscale/display.h
         ../src/plugins/upscale/eligibility.cpp
         ../src/plugins/upscale/modeoverride.cpp
+        ../src/plugins/upscale/observation.cpp
         ../src/plugins/upscale/overlay.cpp
+        ../src/plugins/upscale/placement.cpp
         ../src/plugins/upscale/snapshot.cpp
         ../src/plugins/upscale/upscale.cpp
-        ../src/plugins/upscale/upscale_selection.cpp
         ../src/plugins/upscale/x11geometry.cpp
         ../src/plugins/upscale/x11resolution.cpp
         ../src/plugins/upscale/x11resolution_events.cpp
@@ -194,6 +196,7 @@ set(display_test_sources
     ../src/plugins/upscale/display.cpp
     ../src/plugins/upscale/framestatistics.cpp
     ../src/plugins/upscale/overlay.cpp
+    ../src/plugins/upscale/placement.cpp
     ../src/plugins/upscale/snapshot.cpp
     ../src/plugins/upscale/eligibility.cpp
 )
@@ -223,6 +226,7 @@ if(KWIN_BUILD_KCMS)
     set(settings_module_SOURCES
         ../src/plugins/upscale/application.cpp
         ../src/plugins/upscale/applicationeditor.cpp
+        ../src/plugins/upscale/placement.cpp
         ../src/plugins/upscale/supportinformation.cpp
         ../src/plugins/upscale/upscale_config.cpp
     )

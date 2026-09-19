@@ -8,11 +8,12 @@ set(upscale_SOURCES
     framestatistics.cpp
     main.cpp
     modeoverride.cpp
+    observation.cpp
     overlay.cpp
+    placement.cpp
     scaler.cpp
     snapshot.cpp
     upscale.cpp
-    upscale_selection.cpp
     x11geometry.cpp
     x11resolution.cpp
     x11resolution_events.cpp
@@ -45,6 +46,7 @@ if (KWIN_BUILD_KCMS)
         upscale_config.cpp
         application.cpp
         applicationeditor.cpp
+        placement.cpp
         supportinformation.cpp
     )
     kconfig_add_kcfg_files(kwin_upscale_config_SRCS upscaleconfig.kcfgc)

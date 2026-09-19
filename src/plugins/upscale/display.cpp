@@ -36,6 +36,7 @@ void UpscaleDisplay::reconfigure()
     m_summary = UpscaleConfig::osdSummary();
     m_statistics = UpscaleConfig::osdStatistics();
     m_developer = UpscaleConfig::osdDeveloper();
+    m_statisticsCorner = upscaleCorner(UpscaleConfig::osdPosition());
     m_timeout = UpscaleConfig::osdTimeout();
     // New settings invalidate both the announcement and its measurements.
     hide();
@@ -75,7 +76,7 @@ bool UpscaleDisplay::wantsSnapshot(EffectWindow *window) const
 
 void UpscaleDisplay::measure(UpscaleOutput *screen)
 {
-    if (screen && m_measured == screen) {
+    if (m_measured == screen) {
         return;
     }
     // Frame times from two screens are not one distribution, and a screen
@@ -94,16 +95,6 @@ void UpscaleDisplay::measure(UpscaleOutput *screen)
         m_presented.record(double(timestamp.count()) / 1000000.0);
         m_presentationMode = int(mode);
     });
-}
-
-void UpscaleDisplay::reportPresentation(UpscaleSnapshot &snapshot) const
-{
-    snapshot.presentedRate = m_presented.averageRate();
-    snapshot.presentedLow = m_presented.lowRate(0.01);
-    snapshot.presentedPercentile = m_presented.percentileFrameTime(0.99);
-    snapshot.presentedWorst = m_presented.worstFrameTime();
-    snapshot.presentedFrames = int(m_presented.frames());
-    snapshot.presentation = m_presentationMode;
 }
 
 void UpscaleDisplay::update(UpscaleSnapshot snapshot, EffectWindow *window)
@@ -125,7 +116,12 @@ void UpscaleDisplay::update(UpscaleSnapshot snapshot, EffectWindow *window)
         m_clientUpdates = 0;
         m_repaints = 0;
     }
-    reportPresentation(snapshot);
+    snapshot.presentedRate = m_presented.averageRate();
+    snapshot.presentedLow = m_presented.lowRate(0.01);
+    snapshot.presentedPercentile = m_presented.percentileFrameTime(0.99);
+    snapshot.presentedWorst = m_presented.worstFrameTime();
+    snapshot.presentedFrames = int(m_presented.frames());
+    snapshot.presentation = m_presentationMode;
     snapshot.clientUpdates = m_clientUpdateRate;
     snapshot.repaints = m_repaintRate;
     snapshot.interval = m_interval;
@@ -147,47 +143,61 @@ void UpscaleDisplay::update(UpscaleSnapshot snapshot, EffectWindow *window)
 void UpscaleDisplay::compose()
 {
     if (!enabled() || !m_composed.isValid()) {
-        m_overlay.release();
+        releaseBlocks();
         return;
     }
-    QStringList blocks;
+    QStringList timed;
     const bool announcing = m_announcedAt.isValid() && m_announcedAt.elapsed() < qint64(m_timeout) * 1000;
     if (announcing && m_detection) {
-        blocks.append(m_announcement);
+        timed.append(m_announcement);
     }
     if (announcing && m_summary) {
-        blocks.append(upscaleBasicSummary(m_snapshot));
+        timed.append(upscaleBasicSummary(m_snapshot));
     }
-    // Developer information extends the persistent view rather than replacing
-    // it, so enabling it also shows the statistics it annotates.
-    if (m_statistics || m_developer) {
-        blocks.append(upscaleStatistics(m_snapshot));
-    }
-    if (m_developer) {
-        blocks.append(upscaleDeveloperInformation(m_snapshot));
-    }
-    m_overlay.setText(blocks.join(QLatin1Char('\n')), m_snapshot.outputScale);
+    // Three texts, laid out separately. A block a person did not ask for is
+    // given no text at all, which is also what releases what it was holding.
+    // Turning the developer dump on no longer changes the view beside it: the
+    // measurements are their own block, in their own place, either way.
+    m_announcementOverlay.setText(timed.join(QLatin1Char('\n')), m_snapshot.outputScale);
+    // Larger than the rest: this is the block read at a glance mid-game, from
+    // as far away as the player is sitting, and it holds five figures for it.
+    constexpr double headsUpEmphasis = 1.6;
+    m_statisticsOverlay.setText(m_statistics ? upscaleHeadsUp(m_snapshot) : QString(), m_snapshot.outputScale, headsUpEmphasis);
+    m_developerOverlay.setText(m_developer ? upscaleDeveloperInformation(m_snapshot) : QString(), m_snapshot.outputScale);
+}
+
+void UpscaleDisplay::releaseBlocks()
+{
+    m_announcementOverlay.release();
+    m_statisticsOverlay.release();
+    m_developerOverlay.release();
 }
 
 void UpscaleDisplay::applyMeasurements(UpscaleSnapshot &snapshot) const
 {
-    // A rate below zero is the value that says nothing has been measured, and
-    // it is the one field worth testing: the others are only meaningful once
-    // frames have been counted, and copying them without it would turn "not
-    // measured" into a report of zero frames per second.
-    if (m_snapshot.presentedRate < 0 && m_snapshot.clientUpdates < 0) {
-        return;
+    // The frames come from the running statistics rather than from the last
+    // snapshot this display composed. The screen is followed whether or not
+    // anything is drawn on it, so a report asked for while the display is
+    // switched off still has frames to give; reading the composed snapshot
+    // would answer "nothing has been presented" for a screen that is plainly
+    // presenting. No frames at all is the one case worth testing, because the
+    // rest are only meaningful once intervals have been counted.
+    if (m_presented.frames() > 0) {
+        snapshot.presentedRate = m_presented.averageRate();
+        snapshot.presentedLow = m_presented.lowRate(0.01);
+        snapshot.presentedPercentile = m_presented.percentileFrameTime(0.99);
+        snapshot.presentedWorst = m_presented.worstFrameTime();
+        snapshot.presentedFrames = int(m_presented.frames());
+        snapshot.presentation = m_presentationMode;
     }
-    snapshot.presentedRate = m_snapshot.presentedRate;
-    snapshot.presentedLow = m_snapshot.presentedLow;
-    snapshot.presentedPercentile = m_snapshot.presentedPercentile;
-    snapshot.presentedWorst = m_snapshot.presentedWorst;
-    snapshot.presentedFrames = m_snapshot.presentedFrames;
-    snapshot.presentation = m_snapshot.presentation;
-    snapshot.clientUpdates = m_snapshot.clientUpdates;
-    snapshot.repaints = m_snapshot.repaints;
-    snapshot.interval = m_snapshot.interval;
-    snapshot.sampleAge = m_snapshot.sampleAge;
+    // The counted rates are the display's own sampling, which only runs while
+    // it is following a window, so they stay as the last completed sample.
+    if (m_clientUpdateRate >= 0) {
+        snapshot.clientUpdates = m_clientUpdateRate;
+        snapshot.repaints = m_repaintRate;
+        snapshot.interval = m_interval;
+        snapshot.sampleAge = m_snapshot.sampleAge;
+    }
 }
 
 void UpscaleDisplay::paint(const RenderTarget &target, const RenderViewport &viewport, const UpscaleRectF &screen)
@@ -196,32 +206,59 @@ void UpscaleDisplay::paint(const RenderTarget &target, const RenderViewport &vie
     // rest of it stays as it is. Recomposing is a string comparison when
     // nothing changed.
     compose();
-    if (m_overlay.isEmpty()) {
-        m_area = UpscaleRectF();
-        return;
-    }
     // The margin keeps the text off the edge of a television, which overscans.
     constexpr double margin = 32;
-    const QPointF position = screen.topLeft() + QPointF(margin, margin);
-    m_area = UpscaleRectF(position, m_overlay.size());
-    m_overlay.paint(target, viewport, position);
+    const auto size = screen.size();
+    UpscaleCornerLayout layout(screen.topLeft(), QSizeF(size.width(), size.height()), margin);
+    m_drawn = false;
+    const auto draw = [&](UpscaleOverlay &block, UpscaleCorner corner) {
+        if (block.isEmpty()) {
+            return;
+        }
+        m_drawn = block.paint(target, viewport, layout.place(corner, block.size())) || m_drawn;
+    };
+    // The persistent view is placed first, so that it keeps the corner the
+    // user chose even when the developer dump was sent to the same one.
+    draw(m_statisticsOverlay, m_statisticsCorner);
+    // A message arrives where messages arrive, and the dump stays out of the
+    // way at the bottom. Neither corner is a setting: only the view a person
+    // keeps on screen while playing is worth moving.
+    draw(m_developerOverlay, UpscaleCorner::BottomRight);
+    draw(m_announcementOverlay, UpscaleCorner::TopLeft);
 }
 
 QString UpscaleDisplay::text() const
 {
-    return m_overlay.text();
+    QStringList blocks;
+    for (const UpscaleOverlay *block : {&m_announcementOverlay, &m_statisticsOverlay, &m_developerOverlay}) {
+        if (!block->isEmpty()) {
+            blocks.append(block->text());
+        }
+    }
+    return blocks.join(QLatin1Char('\n'));
+}
+
+bool UpscaleDisplay::drawn() const
+{
+    return m_drawn;
 }
 
 void UpscaleDisplay::hide()
 {
-    m_overlay.release();
+    const bool wasDrawn = m_drawn;
+    m_drawn = false;
+    releaseBlocks();
     m_announced.clear();
     m_announcement.clear();
     m_announcedAt.invalidate();
     m_composed.invalidate();
-    m_area = UpscaleRectF();
     m_expiry.stop();
     resetSampling();
+    // Only a loaded effect has a compositor to ask, and only a display that
+    // reached the screen leaves anything behind to erase.
+    if (wasDrawn && effects) {
+        effects->addRepaintFull();
+    }
 }
 
 void UpscaleDisplay::resetSampling()

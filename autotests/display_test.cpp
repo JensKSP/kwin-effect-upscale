@@ -5,6 +5,7 @@
 */
 
 #include "display.h"
+#include "placement.h"
 #include "upscaleconfig.h"
 
 #include "opengl/eglcontext.h"
@@ -32,10 +33,12 @@ private Q_SLOTS:
     void initTestCase();
     void cleanupTestCase();
     void visibilityAndSampling();
+    void blocksKeepTheirOwnCorners();
     void displayShowsTheState();
 
 private:
     QImage paint(UpscaleDisplay &display);
+    QImage paintOn(UpscaleDisplay &display, const QSize &size, const UpscaleRectF &screen);
     std::unique_ptr<EglDisplay> m_display;
     std::shared_ptr<EglContext> m_context;
 };
@@ -64,6 +67,13 @@ void UpscaleDisplayTest::cleanupTestCase()
 QImage UpscaleDisplayTest::paint(UpscaleDisplay &display)
 {
     const QSize size(640, 512);
+    return paintOn(display, size, UpscaleRectF(QPointF(), QSizeF(size)));
+}
+
+// The screen is given apart from the target, because an output smaller than
+// the text it carries is exactly the case placement has to survive.
+QImage UpscaleDisplayTest::paintOn(UpscaleDisplay &display, const QSize &size, const UpscaleRectF &screen)
+{
     std::unique_ptr<GLTexture> texture = allocateFloatTexture(size);
     if (!texture) {
         return {};
@@ -73,7 +83,6 @@ QImage UpscaleDisplayTest::paint(UpscaleDisplay &display)
         return {};
     }
     const RenderTarget target(&framebuffer);
-    const UpscaleRectF screen(QPointF(), size);
     const RenderViewport viewport = captureViewport(screen, 1, target);
     GLFramebuffer::pushFramebuffer(&framebuffer);
     GLVertexBuffer::streamingBuffer()->beginFrame();
@@ -120,12 +129,16 @@ void UpscaleDisplayTest::visibilityAndSampling()
     QVERIFY(!snapshotDue || composing.elapsed() >= 500);
     const QImage announcement = paint(display);
     QVERIFY(!announcement.isNull());
+    QVERIFY2(display.drawn(), "the display did not record that it reached the screen");
     // The plate begins after the TV margin. Readback rows are bottom-up.
     QVERIFY(announcement.pixelColor(33, announcement.height() - 34).red() < 128);
     QCOMPARE(announcement.pixelColor(0, 0), QColor(Qt::white));
     QCOMPARE(paint(display), announcement);
 
     display.hide();
+    // Nothing is on the screen any more, which is what the effect reads to
+    // decide whether a frame has to be asked for to erase it.
+    QVERIFY(!display.drawn());
     QVERIFY(display.wantsSnapshot(nullptr));
     const QImage hidden = paint(display);
     QVERIFY(!hidden.isNull());
@@ -192,6 +205,143 @@ void UpscaleDisplayTest::visibilityAndSampling()
     display.hide();
     QCOMPARE(glGetError(), GLenum(GL_NO_ERROR));
     display.hide();
+}
+
+// Three things a person reads for three different reasons, in three places:
+// the timed message where messages appear, the measurements where the user
+// put them, and the developer dump out of the way at the bottom. What this
+// asserts is where each one landed, because that is the whole difference
+// between one growing column and three separate blocks.
+void UpscaleDisplayTest::blocksKeepTheirOwnCorners()
+{
+    UpscaleConfig::setOsd(true);
+    UpscaleConfig::setOsdDetection(false);
+    UpscaleConfig::setOsdSummary(false);
+    UpscaleConfig::setOsdStatistics(true);
+    UpscaleConfig::setOsdDeveloper(true);
+    UpscaleConfig::setOsdPosition(int(UpscaleCorner::TopRight));
+    UpscaleConfig::setOsdTimeout(60);
+    UpscaleDisplay display;
+    display.reconfigure();
+    QVERIFY(display.enabled());
+
+    UpscaleSnapshot state;
+    state.window = QStringLiteral("Tux Racer");
+    state.output = QStringLiteral("HDMI-A-1");
+    state.selected = true;
+    state.scaling = true;
+    state.supplied = QSize(1920, 1080);
+    state.destination = QSize(3840, 2160);
+    state.outputScale = 1;
+
+    // Big enough that a block's own width never decides where it starts. The
+    // output that is not is exercised at the end of this test.
+    const QSize size(1600, 900);
+    const UpscaleRectF screen{QPointF(), QSizeF(size)};
+    // Readback rows are bottom-up; the plate is dark over a white background.
+    const auto plate = [](const QImage &image, int x, int y) {
+        return image.pixelColor(x, image.height() - 1 - y).red() < 128;
+    };
+    const auto shown = [&]() {
+        display.update(state, nullptr);
+        return paintOn(display, size, screen);
+    };
+
+    QImage image = shown();
+    QVERIFY(!image.isNull());
+    QVERIFY2(plate(image, size.width() - 40, 40), "the measurements are not in the corner they were given");
+    QVERIFY2(plate(image, size.width() - 40, size.height() - 40), "the developer information is not at the bottom right");
+    QVERIFY(!plate(image, 40, 40));
+    QVERIFY(!plate(image, 40, size.height() - 40));
+
+    // A message keeps its own corner while both other blocks are on screen.
+    UpscaleConfig::setOsdDetection(true);
+    UpscaleConfig::setOsdSummary(true);
+    display.reconfigure();
+    image = shown();
+    QVERIFY2(plate(image, 40, 40), "the announcement is not in the top left");
+    QVERIFY(plate(image, size.width() - 40, 40));
+    UpscaleConfig::setOsdDetection(false);
+    UpscaleConfig::setOsdSummary(false);
+
+    // Moving the measurements moves nothing else.
+    UpscaleConfig::setOsdPosition(int(UpscaleCorner::BottomLeft));
+    display.reconfigure();
+    image = shown();
+    QVERIFY2(plate(image, 40, size.height() - 40), "the measurements did not follow the chosen corner");
+    QVERIFY(!plate(image, size.width() - 40, 40));
+    QVERIFY(plate(image, size.width() - 40, size.height() - 40));
+
+    // The two are separate entities now: the dump no longer carries the view
+    // beside it, and turning that view off leaves the dump where it was.
+    UpscaleConfig::setOsdStatistics(false);
+    display.reconfigure();
+    image = shown();
+    QVERIFY(!plate(image, 40, size.height() - 40));
+    QVERIFY(plate(image, size.width() - 40, size.height() - 40));
+    QVERIFY2(!display.text().contains(QStringLiteral("FPS")), qPrintable(display.text()));
+    QVERIFY2(display.text().contains(QStringLiteral("Build: ")), qPrintable(display.text()));
+
+    // The block a player reads mid-game is drawn larger than the diagnostic
+    // dump beside it, at the same text length.
+    UpscaleConfig::setOsdStatistics(true);
+    UpscaleConfig::setOsdDeveloper(false);
+    UpscaleConfig::setOsdPosition(int(UpscaleCorner::TopLeft));
+    display.reconfigure();
+    display.update(state, nullptr);
+    const QString glance = display.text();
+    QVERIFY2(glance.contains(QStringLiteral("FPS")), qPrintable(glance));
+    QVERIFY2(glance.count(QLatin1Char('\n')) <= 1, qPrintable(glance));
+
+    // Sent to the same corner, they stack rather than overdraw. The chosen
+    // view keeps the corner, and there is background between the two plates.
+    UpscaleConfig::setOsdDeveloper(true);
+    UpscaleConfig::setOsdStatistics(true);
+    UpscaleConfig::setOsdPosition(int(UpscaleCorner::BottomRight));
+    display.reconfigure();
+    image = shown();
+    const int column = size.width() - 40;
+    int row = size.height() - 33;
+    QVERIFY(plate(image, column, row));
+    while (row > 0 && plate(image, column, row)) {
+        --row;
+    }
+    const int gap = row;
+    while (row > 0 && !plate(image, column, row)) {
+        --row;
+    }
+    QVERIFY2(gap - row >= 24, "the two blocks were drawn without a gap between them");
+    QVERIFY2(plate(image, column, row), "the second block is not stacked above the first");
+
+    // The screen's configured scale factor sizes the text with it, so the
+    // same state covers about four times the area at twice the scale.
+    UpscaleConfig::setOsdDeveloper(false);
+    UpscaleConfig::setOsdPosition(int(UpscaleCorner::TopLeft));
+    display.reconfigure();
+    const auto covered = [&](const QImage &drawn) {
+        int count = 0;
+        for (int y = 0; y < drawn.height(); ++y) {
+            for (int x = 0; x < drawn.width(); ++x) {
+                count += drawn.pixelColor(x, y).red() < 128 ? 1 : 0;
+            }
+        }
+        return count;
+    };
+    const int unscaled = covered(shown());
+    QVERIFY(unscaled > 0);
+    state.outputScale = 2;
+    QVERIFY2(covered(shown()) > 3 * unscaled, "the screen's scale factor did not size the text");
+
+    // An output smaller than the block keeps its beginning on the screen,
+    // because a plate placed off the top left edge has no readable part left.
+    const UpscaleRectF small{QPointF(), QSizeF(80, 48)};
+    UpscaleConfig::setOsdPosition(int(UpscaleCorner::BottomRight));
+    display.reconfigure();
+    display.update(state, nullptr);
+    image = paintOn(display, size, small);
+    QVERIFY2(plate(image, 4, 4), "a block larger than its output was placed off it");
+    display.hide();
+    QCOMPARE(glGetError(), GLenum(GL_NO_ERROR));
 }
 
 void UpscaleDisplayTest::displayShowsTheState()

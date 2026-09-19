@@ -142,8 +142,15 @@ QString upscaleAnnouncement(const UpscaleSnapshot &snapshot);
 /** The timed basic summary: observed sizes and the path actually taken. */
 QString upscaleBasicSummary(const UpscaleSnapshot &snapshot);
 
-/** The persistent statistics view. */
-QString upscaleStatistics(const UpscaleSnapshot &snapshot);
+/**
+ * The persistent heads-up display: the few figures a player reads at a glance
+ * while playing, in the words every frame-rate overlay uses for them.
+ *
+ * Deliberately short and deliberately large. Everything that needs explaining
+ * before it means anything — the counters, the percentiles, the formats, the
+ * colour state — is developer information and belongs in that view.
+ */
+QString upscaleHeadsUp(const UpscaleSnapshot &snapshot);
 
 /** The complete effective configuration and diagnostic state. */
 QString upscaleDeveloperInformation(const UpscaleSnapshot &snapshot);

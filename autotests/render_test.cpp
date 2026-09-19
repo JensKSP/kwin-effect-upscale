@@ -35,6 +35,7 @@ private Q_SLOTS:
     void allocationIgnoresEarlierErrors();
     void overlayPlacement_data();
     void overlayPlacement();
+    void overlayEmphasis();
 
 private:
     UpscaleRenderFixture m_fixture;
@@ -255,7 +256,7 @@ void UpscaleRenderTest::overlayPlacement()
     const QPointF origin(200, 100);
     const RenderViewport viewport = captureViewport(UpscaleRectF(origin, QSizeF(targetSize)), 1, target);
     UpscaleOverlay overlay;
-    overlay.setText(QStringLiteral("Upscale developer information"), 1);
+    overlay.setText(QStringLiteral("Upscale"), 1);
     QVERIFY(!overlay.isEmpty());
     QVERIFY(overlay.size().width() > 0);
     QVERIFY(overlay.size().height() > 0);
@@ -300,6 +301,26 @@ void UpscaleRenderTest::overlayPlacement()
     overlay.release();
     QVERIFY(overlay.isEmpty());
     QCOMPARE(overlay.size(), QSizeF());
+}
+
+void UpscaleRenderTest::overlayEmphasis()
+{
+    UpscaleOverlay overlay;
+    const QString text = QStringLiteral("60 FPS   16.7 ms");
+    for (const double scale : {1.0, 1.5, 2.0}) {
+        overlay.setText(text, scale);
+        const QSizeF normal = overlay.size();
+        // Only emphasis changes: unchanged text must still be laid out at
+        // the new size, while output scaling remains in logical coordinates.
+        overlay.setText(text, scale, 1.6);
+        QVERIFY(overlay.size().width() > normal.width() * 1.4);
+        QVERIFY(overlay.size().height() > normal.height() * 1.4);
+        QVERIFY(overlay.size().width() < normal.width() * 1.8);
+        QVERIFY(overlay.size().height() < normal.height() * 1.8);
+        QCOMPARE(overlay.text(), text);
+        overlay.setText(text, scale);
+        QCOMPARE(overlay.size(), normal);
+    }
 }
 
 // The overlay measures and draws text, which needs a font database, so this

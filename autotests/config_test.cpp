@@ -5,6 +5,7 @@
 */
 
 #include "buildtype.h"
+#include "placement.h"
 #include "supportinformation.h"
 #include "upscale_config.h"
 
@@ -23,6 +24,7 @@
 #include <QDBusConnection>
 #include <QLabel>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QScreen>
 #include <QSlider>
 #include <QSpinBox>
@@ -53,6 +55,7 @@ private Q_SLOTS:
     void presetsAndKeyboard();
     void saveAndRestore();
     void displayDefaults();
+    void installedBuildVersion();
     void runningBuildStatus();
     void readsWhatTheCompositorReported();
 };
@@ -143,6 +146,7 @@ void UpscaleConfigTest::displayDefaults()
     QCheckBox *statistics = module.widget()->findChild<QCheckBox *>(QStringLiteral("osdStatistics"));
     QCheckBox *developer = module.widget()->findChild<QCheckBox *>(QStringLiteral("osdDeveloper"));
     QSpinBox *timeout = module.widget()->findChild<QSpinBox *>(QStringLiteral("osdTimeout"));
+    QComboBox *position = module.widget()->findChild<QComboBox *>(QStringLiteral("osdPosition"));
     QLabel *build = module.widget()->findChild<QLabel *>(QStringLiteral("build"));
     QVERIFY(build);
     // Built without the generated identity, as an upstream copy inside KWin
@@ -153,6 +157,7 @@ void UpscaleConfigTest::displayDefaults()
     QVERIFY(statistics);
     QVERIFY(developer);
     QVERIFY(timeout);
+    QVERIFY(position);
     // The announcement is on in both build types; the persistent views follow
     // the build configuration of this binary and nothing else.
     QVERIFY(osd->isChecked());
@@ -166,6 +171,13 @@ void UpscaleConfigTest::displayDefaults()
     QVERIFY(statistics->isChecked() == KWin::upscaleDebugBuild);
     osd->setChecked(true);
     QVERIFY(statistics->isEnabled());
+    // The corner belongs to the view it moves: there is nothing to place
+    // while that view is off, and the other two blocks have fixed corners.
+    QCOMPARE(position->currentIndex(), int(KWin::UpscaleCorner::TopRight));
+    statistics->setChecked(false);
+    QVERIFY(!position->isEnabled());
+    statistics->setChecked(true);
+    QVERIFY(position->isEnabled());
 
     const auto stored = []() {
         return KConfigGroup(KSharedConfig::openConfig(QStringLiteral("kwinrc")), QStringLiteral("Effect-upscale"));
@@ -182,6 +194,35 @@ void UpscaleConfigTest::displayDefaults()
     developer->setChecked(KWin::upscaleDebugBuild);
     module.save();
     QVERIFY(!stored().hasKey("OsdDeveloper"));
+    // A chosen corner is stored and read back as the corner, not as a number
+    // that happens to survive: the page is what a person sets it with.
+    position->setCurrentIndex(int(KWin::UpscaleCorner::BottomLeft));
+    QVERIFY(module.needsSave());
+    module.save();
+    QCOMPARE(stored().readEntry("OsdPosition", -1), int(KWin::UpscaleCorner::BottomLeft));
+    module.load();
+    QCOMPARE(position->currentIndex(), int(KWin::UpscaleCorner::BottomLeft));
+    module.defaults();
+    QCOMPARE(position->currentIndex(), int(KWin::UpscaleCorner::TopRight));
+}
+
+void UpscaleConfigTest::installedBuildVersion()
+{
+    QWidget host;
+    KWin::UpscaleEffectConfig module(&host, KPluginMetaData());
+    const QLabel *build = module.widget()->findChild<QLabel *>(QStringLiteral("build"));
+    QVERIFY(build);
+#if __has_include("buildinfo.h")
+    // Check the visible footer, including its field order and full base version.
+    // A snapshot package version is deliberately not the first field here.
+    const QString text = build->text();
+    QVERIFY(QRegularExpression(QStringLiteral("^[0-9]+\\.[0-9]+\\.[0-9]+ ")).match(text).hasMatch());
+    const QString revision = KWin::UpscaleBuildInfo::revision();
+    const QString branch = KWin::UpscaleBuildInfo::branch();
+    QCOMPARE(text, QStringLiteral("%1 %2 %3 %4").arg(KWin::UpscaleBuildInfo::baseVersion(), revision.isEmpty() ? QStringLiteral("unknown revision") : revision, KWin::UpscaleBuildInfo::buildDate(), branch.isEmpty() ? QStringLiteral("no branch or tag recorded") : branch));
+#else
+    QCOMPARE(build->text(), QStringLiteral("unknown"));
+#endif
 }
 
 void UpscaleConfigTest::runningBuildStatus()

@@ -574,8 +574,14 @@ both stable versions and the tracked development version.
 
 ### About, build identity and third-party notices
 
-Implemented so far: the settings page names the installed build with its
-version, branch or tag and build time, and names the build the running
+Implemented so far: the settings footer names the installed build as
+`X.X.X short_hash build_date branch/tag`, with the base project version, an
+independent abbreviated revision (also for releases), a UTC timestamp and the
+source branch or exact tag. Local changes append `-dirty` to the revision;
+missing revision or ref data is stated explicitly. The timestamp is refreshed
+on each build invocation; `SOURCE_DATE_EPOCH` controls reproducible builds.
+The package version retains its snapshot suffix independently of this compact
+display. The settings page also names the build the running
 compositor answers with when that differs, because KWin keeps a plugin it has
 already loaded until the session restarts. The effect writes the same identity
 to the log once, when it initializes, rather than when its library is loaded,
@@ -898,9 +904,14 @@ choosing where the session already states one.
 
 Implemented so far: the surface exists and is drawn after the screen pass, at
 destination resolution, outside the captured image, taking no focus and no
-input. It scales its text with the output's scale factor; taking the family
-and size from the session's font settings, and re-laying out when either
-changes, is specified above and not yet implemented. While it is visible the effect reports itself active, because KWin skips
+input. It takes the family and the size from the session's fixed-width font
+setting and multiplies that size by the scale factor of the output the text is
+drawn on, so the text is the same physical size as the rest of that desktop. A
+size the session states in points is converted at the ninety-six-pixel-per-inch
+reference every KDE scale factor is stated against. Nothing watches the font
+settings: a changed family or size applies to the next layout, which happens
+whenever the text or the scale changes, and a static message keeps the size it
+was drawn with until then. While it is visible the effect reports itself active, because KWin skips
 the paint methods of an inactive effect, and a refused window is exactly when
 the explanation is needed; the composition requirement that comes with it ends
 when the display is hidden. It announces the application and shows the basic summary for the configured
@@ -950,10 +961,44 @@ release builds and disable them in Debug builds. Detection timeout never hides
 a deliberately enabled persistent view. With no active window, or while locked,
 do not retain an overlay showing a previous game's state.
 
+### Four displays, four places
+
+The overlay is not one thing. Four separate displays share the same drawing
+surface, and mixing them into a single growing block makes each one harder to
+read than it was alone:
+
+| Display | What it is for | Where it goes |
+| --- | --- | --- |
+| Timed announcement | The selected or recognized application and its short summary. It goes away on its own and reappears whenever there is something new to say. | Top left. |
+| [Heads-up display](#the-heads-up-display) | The few figures a player watches while playing: frames per second, frame time, 1% low, and what the picture is being drawn at. Large text. | The corner the user chooses, top right by default. |
+| Developer information | The diagnostic dump: build, selection, configuration, geometry, processing, colour. | Bottom right. |
+| Interactive panel | Settings changed during play, opened and closed by a configurable key combination. Not implemented; specified in [in-game controls](#in-game-controls-and-applying-settings). | Its own placement, decided with that feature. |
+
+Each display is switched on and off on its own, and switching one on never
+moves, extends or replaces another. Only the persistent view's corner is a
+setting: it is the one a player keeps on screen next to a game, so it is the
+one that has to be movable away from a heads-up display, a score or a
+killfeed. The other corners are fixed, which is what keeps the three
+recognisable at a glance.
+
+Two displays sent to the same corner stack away from it, in the order above,
+with the same margin between them as to the screen edge; they never overdraw
+each other. A display wider or taller than the output it is drawn on keeps its
+beginning on the screen rather than starting outside it, because the part that
+would be lost is the part that names what is being read.
+
+Implemented: the three passive displays are separate blocks in separate
+corners, with the persistent view's corner stored as **Frame rate position**
+and offered in the settings page. Enabling developer information no longer
+extends or enables the persistent view; the two are independent. The
+interactive panel does not exist yet.
+
 ### In-game controls and applying settings
 
-Required extension, not yet implemented: extend the same overlay with an
-on-demand settings panel and configurable shortcuts. Let users enable or
+Required extension, not yet implemented: add an on-demand settings panel as a
+fourth display of its own, shown and hidden by a configurable key combination
+and placed apart from the three passive ones in
+[four displays, four places](#four-displays-four-places). Let users enable or
 disable scaling, adjust sharpening, select available filters and geometry, and
 change the desired resolution without leaving the game. Show the selected
 game/profile and whether a value is inherited or explicitly overridden. An
@@ -984,21 +1029,35 @@ For an optional split view, both sides must use the same source frame. Keep
 comparison separate from performance measurement because showing two paths
 adds work.
 
-### Optional statistics overlay
+### The heads-up display
 
-Add an optional persistent statistics
-view to the same OSD, independently switchable from the brief game-detection
-announcement and the interactive settings panel. Use the build defaults above,
-provide a shortcut to show or hide it, and allow global defaults with sparse
-profile overrides for visibility and displayed fields. Detection timeout must not hide
-a statistics view the user has enabled.
+Add an optional persistent heads-up display to the same OSD, independently
+switchable from the brief game-detection announcement and the interactive
+settings panel. Use the build defaults above, provide a shortcut to show or
+hide it, and allow global defaults with sparse profile overrides for
+visibility and displayed fields. Detection timeout must not hide a heads-up
+display the user has enabled.
 
-Useful fields are the game/profile, actual supplied-buffer and destination
-dimensions, desired resolution when different, active filter and sharpening,
-effective resolution method, pending restart, frame rate and frame time. Show
-the drawn image dimensions as well as the output size when black bars are used.
-Give a specific reason when scaling is inactive. Colour/HDR information and
-presentation state may be included only to the extent actually observed.
+**Few figures, large, in the words the industry already uses.** Decided by
+Jens, 2026-09-19, after the first version put everything on screen at once:
+this display is read at a glance, mid-game, from as far away as the player is
+sitting, and every figure it carries costs the legibility of the others. It
+shows the frames per second, the frame time in milliseconds, the 1% low, what
+the picture is being drawn at, and nothing else. The terms are the ones every
+frame-rate overlay uses for them, so that nobody has to learn ours: *FPS*,
+*ms*, *1% Low*, and a resolution by its common name — 4K, 1440p, 1080p — with
+the render scale as a per-axis percentage, the way upscaler presets state it.
+It is drawn larger than the blocks beside it.
+
+A figure that has not been measured shows a dash rather than a zero or a stale
+value. A game drawing at the size of the screen is named as native rather than
+left to look like a gain from upscaling, and sharpening is named because it
+changes the image. Everything that has to be explained before it means
+anything — the counters, the percentiles, the slowest frame, the buffer
+formats, the colour and presentation state — is
+[developer information](#developer-information) and appears in that display
+instead. The drawn image dimensions with black bars, the resolution method and
+any pending restart join it there when those features exist.
 
 Label every timing measure by what is counted: client buffer updates,
 presentation events or output refresh rate. A compositor repaint counter or
@@ -1009,16 +1068,22 @@ game stops supplying frames. GPU filter timing is an optional field only where
 supported and measured; it is not total game GPU time or end-to-end latency.
 Configured HDR/VRR settings alone do not prove the corresponding active path.
 
-Implemented: the persistent view shows what the effect is doing with the
-buffer, the supplied and destination sizes, the output, and separately counted
-client buffer updates and compositor repaints with their one-second sampling
-interval and the age of the sample. A game that stops supplying frames
-therefore shows an ageing sample rather than a frozen rate presented as
-current. Status and developer details also report desired resolution, matched
-profile, control method, advertisements and X11 requests/failures. Presented
-output frames are counted separately, with average rate, 1% low, 99th-percentile
-frame time, worst frame time, sample count and presentation mode. Black bars,
-managed restart and GPU filter timing are not implemented.
+Implemented: the heads-up display is its own block in the corner the user
+chose, top right unless they moved it, drawn at 1.6 times the session's font
+size. It shows the presented frame rate, the frame time that rate implies, the
+1% low once enough frames have been seen, and one line for the picture: either
+`FSR 1` with the sharpening state, the resolutions it is drawing between and
+the render scale, or the output resolution named as native when the supplied
+buffer matches it. A bypass with a different or unknown input size shows
+`FSR off` and the observed dimensions. Common resolution names describe exact
+sizes; other sizes retain both pixel dimensions, including ultrawide formats.
+Each timing figure not measured yet reads as a dash. The separately counted client buffer updates and
+compositor repaints, with their one-second sampling interval and the age of the
+sample, are developer information and appear in that block, where a game that
+stopped supplying frames shows an ageing sample rather than a frozen rate
+presented as current. Desired resolution, black bars, resolution method,
+pending restart and filter timing belong to features that do not exist yet and
+are shown nowhere.
 
 Use event-driven samples and bounded text updates, with no synchronous GPU
 readback or continuous full-screen repaint loop just to animate statistics.
@@ -1033,9 +1098,12 @@ when the selected game closes or changes outputs.
 
 #### Developer information
 
-Add **Developer information** to the OSD settings. It extends the ordinary
-FPS/resolution view with the complete effective configuration and diagnostic
-state, grouped and labelled so developers can explain what the effect is doing.
+Add **Developer information** to the OSD settings. It carries the complete
+effective configuration and diagnostic state, grouped and labelled so
+developers can explain what the effect is doing. It is its own display in its
+own corner, switched independently of the persistent view: a developer reading
+a dump and a player watching a frame rate are two different readers, and
+turning one on must not rearrange the other.
 Keep the passive view readable at the session's scale, by the same rule as the
 timed messages above; detailed inspection and copying are also available
 through the settings diagnostic snapshot. This is
@@ -1043,10 +1111,10 @@ required development infrastructure, not the optional full About overlay.
 
 Implemented: build and runtime, selection, configuration, geometry, processing
 and colour are populated from the same snapshot, alongside the measurements
-above. The matched application and method are reported, as is KWin’s observed
-presentation mode when frames have been presented. This does not establish
-physical-panel VRR acceptance. General override origin, drawn-image bars,
-intermediate formats and GPU filter timing remain absent.
+above, in a block of its own at the bottom right. Profile and match origin, pending values, drawn image and bars, capture
+and intermediate formats, observed VRR state and measured filter timing name
+features that are not implemented; they are absent rather than filled with
+plausible values, and the colour line says that VRR is not observed.
 
 | Group | Required information when available |
 | --- | --- |
@@ -1424,6 +1492,210 @@ data — the settings are values this effect defines, the list is data it ships
 and the user extends — and one button doing both would surprise people. The
 settings page states whether the list differs from the shipped one and offers
 restoration when it does; the editor displays the entries themselves.
+
+Every field was read off a running instance of the stated package version. A
+name never implies an identity, and a version is recorded with each entry so
+that a later mismatch can be traced rather than guessed at.
+
+| Application | Measured version | Window class | Instance | Program | Method | Resolution when the global preset is Automatic |
+| --- | --- | --- | --- | --- | --- | --- |
+| SuperTuxKart | 1.4 | `supertuxkart` | `supertuxkart` | `supertuxkart` | Advertised screen mode | Quality, 1 / 1.5 |
+| Extreme Tux Racer | 0.8.4 | not constrained | `etr` | `etr` | X11 window resize, primary output | Quality |
+| glmark2 | 2023.01 | `com.github.glmark2.glmark2` | `glmark2-wayland` | `glmark2-wayland` | Advertised screen scale | Automatic, no request |
+| vkmark | 2025.01 | `com.github.vkmark.vkmark` | `vkmark` | `vkmark` | Advertised screen mode and scale | Automatic, no request |
+
+Two details in that table are the reason identities are measured.
+
+Extreme Tux Racer reports its window class as `Extreme Tux Racer 0.8.4`, with
+the version in it, so an entry matching the class would stop matching at the
+next package update. Its instance name is the stable field, and the entry
+constrains that alone.
+
+Extreme Tux Racer uses [X11 window resizing](#per-window-x11-resize-and-fullscreen-emulation).
+Its profile requests Quality by default, giving 2560 × 1440 on a 3840 × 2160
+output without editing game settings. SFML 2.6.2 always selects the primary
+RandR output when recreating a fullscreen window. The profile therefore sets
+`X11PrimaryOutputOnly=true`: requests on another output are refused before
+resizing, so the game does not unexpectedly jump between displays. This is a
+client limitation, not an Xwayland server per display.
+
+SuperTuxKart carries a preset of its own so that a fresh installation already
+does something. The user's explicit choice always wins over it; Automatic means
+the user has not chosen, not that nothing may happen.
+
+The two benchmarks deliberately carry no preset. A benchmark exists to measure
+a machine, and quietly halving what it renders would make it report a number
+for something nobody asked for. They follow an explicit setting like anything
+else, which is what makes them usable for measuring this effect: the same
+binary, the same scene, once at the screen's resolution and once reduced.
+
+Their methods differ from SuperTuxKart's because their sources read different
+things. glmark2's Wayland backend takes the size the compositor configures,
+multiplies it by the advertised scale and declares that scale on its surface,
+consulting the advertised mode only when a fullscreen request was refused.
+vkmark takes its fullscreen size from the advertised mode in pixels and
+separately declares the advertised scale, so its image covers the screen only
+when both are given together. Neither was guessed from behaviour alone; both
+were read in the source and then confirmed by running them.
+
+### Fitting a request to what the machine can actually do
+
+A setting is a wish. Between the wish and a scaled frame sit the GPU, the
+driver, the shaders, the output's colour handling and the game itself, and each
+can refuse. The rule this effect follows is that every one of those limits is
+**asked for at runtime and never assumed**, because the machine it was written
+on is not the machine it will run on: KDE runs on drivers whose largest texture
+is a quarter of this one's, on OpenGL ES where high shader precision is
+optional, and on screens whose colour handling differs from a desktop monitor's.
+
+| What can refuse | How the effect finds out | What happens when it refuses |
+| --- | --- | --- |
+| OpenGL version | `hasVersion()` on the context KWin handed over | the effect reports itself unsupported and KWin never loads it |
+| High precision in fragment shaders | `glGetShaderPrecisionFormat(GL_FRAGMENT_SHADER, GL_HIGH_FLOAT)`, on OpenGL ES where the language makes it optional | unsupported, for the same reason: medium precision cannot address a 4K pixel grid and loses detail while sampling |
+| Shader compilation and linking | KWin's own shader manager, at initialization | the effect falls back to ordinary rendering until it is reconfigured |
+| A floating-point render target | allocate one, replace the storage where the ES allocator ignores the format, then check `glGetError` and framebuffer completeness | the same fallback; nothing is filtered through an 8-bit image that merely looked complete |
+| Largest texture | `GL_MAX_TEXTURE_SIZE`, read once per reconfiguration where a context is current | the allocation is refused; the value is in the developer information, so a report from unknown hardware carries it |
+| The destination's colour handling | the `ColorDescription` of the frame being painted: its transfer function must be one the shaders decode, and its luminances must be finite and ordered | the window is refused, naming colour handling |
+| The buffer the game supplied | its DRM format code, read from the surface | refused, naming the format code, so the unknown one can be looked up |
+| The orientation of the frame | `RenderTarget::transform()` of the frame being painted | flips are handled by the projection matrix and drawn through; anything else is refused by name and the value is reported |
+| The scaling ratio itself | `upscaleSizing()` against the committed buffer | refused as not smaller, below half, or a different aspect ratio: three distinct answers, because they need three different fixes |
+| What the game did with the request | the committed buffer size, observed | reported beside the advertised size, never in place of it |
+
+The resolution wish is calculated from the preset or percentage against the
+output's real pixel size, so it follows whatever screen is attached. It is
+constrained by one rule of the algorithm rather than by a table of modes: FSR 1
+enlarges by at most a factor of two per dimension, so a request below half the
+destination would produce a buffer the scaler then refuses. The presets are
+defined inside that range, and the checks cover every whole percentage against
+several real display sizes, including ultrawide and portrait ones.
+
+Sizes are not rounded to standard modes or to even numbers. That was measured
+rather than assumed: a client was told 2259 × 1271, the awkward size that
+1 / 1.7 of 3840 × 2160 produces, and committed exactly that, and the shader
+tests cover odd widths, odd heights and destinations that are not whole
+multiples of the source. Inventing a snapping rule would discard resolution the
+user asked for in exchange for a constraint no measurement found.
+
+What remains genuinely unknowable in advance is the application. No query
+establishes whether a program will act on the mode it is told, so the effect
+states what it advertised, observes what arrived, and reports the two
+separately rather than presenting the request as a result.
+
+### Telling one application that its screen is smaller
+
+This is the effect's implemented mode-advertising path for a game the user
+starts themselves. It is deliberately narrow, and what it cannot do is as
+important as what it can.
+
+**When it acts.** A program decides how large an image to render from the
+display information it was given when it connected, long before it has a
+window. Measured on KWin 6.3.6 against native Wayland SuperTuxKart: a fractional scale
+hint, a rewritten output mode and a smaller window all fail to reduce what it
+renders, and the smaller window is actively harmful because the game keeps
+rendering at full size and scales its own finished image down. The effect
+therefore advertises the mode when the client binds the output, and does
+nothing through this method to a game that was already running when the effect
+was loaded. Other clients can follow live resize requests; those are a
+separate mechanism.
+
+**What it changes.** The current and preferred mode sent to that one client's
+output resources. The output keeps its mode, the desktop keeps its scale,
+every other application keeps the display information KWin gave it, and the
+user's own game settings are never written. Nothing has to be restarted:
+KWin loads the effect at the start of the session, and the user starts the
+game after that.
+
+**How the size is chosen.** From the preset or percentage, against the pixel
+size of each output, exactly as the desired resolution is calculated
+everywhere else. Arbitrary calculated sizes are honoured, so a preset is not
+restricted to standard modes. When the global preset is Automatic, which means
+the user has not chosen, a recognized application uses the size recorded for
+it in the catalogue; an explicit global choice wins except for an application's
+Native opt-out. The output pixel threshold is checked before either request.
+Advertising
+the size the output already has is not a request and is not sent.
+
+**Which application.** Only one whose program matches the shipped catalogue.
+At the moment of the bind no window exists, so there is no window class to
+match: the identity available is the executable path KWin resolved for the
+connection, and only its file name is compared, because the same game lives in
+different directories depending on how it was installed. The window class and
+instance identify the window later, for reporting and for the scaler.
+
+**What it is not.** It is not enforcement. A program that ignores mode
+information, or that asks the compositor for its fullscreen size instead of
+selecting a mode, keeps its own resolution; SuperTuxKart's Vulkan renderer is
+a measured example of the latter. The advertised size, the desired size and
+the committed buffer are therefore three separate values, and status reports
+them separately. This Wayland output method cannot address one Xwayland game:
+Xwayland binds the output while KWin starts, before any effect is loaded, and
+serves every X11 application from one connection.
+
+**Its visible cost.** The game's own settings screen will offer resolutions
+only up to the advertised size, because that is what the game believes the
+screen is. Nothing outside the game observes a difference.
+
+#### Telling one application that its screen has a smaller scale
+
+Some clients never look at a display mode. They render the logical screen size
+multiplied by the scale they were told, and declare that scale on their own
+surface, which is how a program draws sharply on a high-density screen. For
+those, the lever is the scale rather than the mode, and it works because the
+compositor divides the buffer by the scale the client declared: a client told a
+smaller scale renders fewer pixels and still covers the whole screen.
+
+A third kind takes its fullscreen size from the mode in pixels but declares the
+output's scale on its surface. Giving it either alone leaves the two
+disagreeing, and the image stops covering the screen: the mode alone shrinks
+the window away from the edges, the scale alone stretches it past them. Such a
+client is told both, and the two are chosen to agree.
+
+Which kind an application is was read in its source and then confirmed by
+running it. It cannot be guessed from what it does, because all three look the
+same from outside until the request is made.
+
+**This lever is coarse, and that is a property of Wayland, not a shortcut.**
+The output scale in the protocol is an integer, so the only sizes reachable
+are the logical screen multiplied by a whole number. A screen at scale 2 offers
+exactly one reduction, a half. A screen at scale 3 offers two thirds and a
+third, and the third is below what FSR 1 enlarges from, so only two thirds is
+usable. **A screen at scale 1 offers nothing at all**, and an application of
+this kind is then reported as having no reduction available rather than being
+sent a request it would ignore.
+
+The wish is therefore answered with the reachable size nearest to it instead of
+being refused for not being reachable exactly. Asking for a quality reduction
+on a screen that can only halve gets the half, and the status reports the size
+that was actually asked for beside the one that was calculated. Steps the
+scaler would then refuse are never offered.
+
+#### The recognized applications shipped with this effect
+
+Installing the package is meant to be enough for a game the effect knows, so
+these entries are active without the user configuring anything.
+
+They live in `kwinupscalerc`. The effect installs its own copy of that file
+beside the session's other configuration defaults, replaces it with every
+package, and never writes to it. A user's own applications and changes go to
+their file of the same name in their configuration directory, and KConfig
+layers the two: a field nobody changed keeps following the installed package,
+so a later version can correct a method or add a game without disturbing an
+edit, and a field the user changed always wins. Nothing is ever copied from one
+file into the other, because a copy stops receiving corrections the moment it
+is made.
+
+Both layers name an entry the same way, `[Application-<identifier>]`, which is
+what lets them describe one application between them. An identifier generated
+per installation could not do that.
+
+Restoring the list therefore means discarding the user's file rather than
+copying anything: fields they overrode go back to what the installed package
+says, and applications they added are removed. It is deliberately separate from
+restoring the settings on the same page, because the two are different kinds of
+data — the settings are values this effect defines, the list is data it ships
+and the user extends — and one button doing both would surprise people. The
+settings page states how many applications are recognized and whether the list
+still matches the shipped one, and offers the restore only when it does not.
 
 Every field was read off a running instance of the stated package version. A
 name never implies an identity, and a version is recorded with each entry so

@@ -23,6 +23,16 @@ QString version()
     return QStringLiteral("@UPSCALE_VERSION@");
 }
 
+QString baseVersion()
+{
+    return QStringLiteral("@PROJECT_VERSION@");
+}
+
+QString revision()
+{
+    return QStringLiteral("@UPSCALE_GIT_HASH@@UPSCALE_GIT_DIRTY@");
+}
+
 QString branch()
 {
     return QStringLiteral("@UPSCALE_GIT_BRANCH@");

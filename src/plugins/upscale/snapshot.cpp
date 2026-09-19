@@ -167,6 +167,43 @@ static QString measurement(const UpscaleSnapshot &snapshot)
                 QString::number(snapshot.interval, 'f', 1), QString::number(snapshot.sampleAge, 'f', 1));
 }
 
+// How a resolution is named where people compare them: by its common name
+// where it has one, and by its pixels where it does not. "4K" is what a
+// television and a graphics setting call 3840 x 2160, and writing it out is
+// what makes this line readable at a glance rather than a row of numbers.
+static QString resolutionName(const QSize &size)
+{
+    if (!size.isValid() || size.isEmpty()) {
+        return unknown();
+    }
+    if (size == QSize(3840, 2160)) {
+        return i18n("4K");
+    }
+    if (size == QSize(2560, 1440)) {
+        return i18n("1440p");
+    }
+    if (size == QSize(1920, 1080)) {
+        return i18n("1080p");
+    }
+    if (size == QSize(1280, 720)) {
+        return i18n("720p");
+    }
+    // Equal height does not imply equal resolution, especially on ultrawide
+    // outputs. Keep both dimensions when no common name describes this size.
+    return sizeText(size);
+}
+
+// What share of the destination the game is actually drawing, in the linear
+// per-axis terms every upscaler states its presets in: FSR 1 Quality is
+// two thirds, not the four ninths of the pixels that implies.
+static QString renderScale(const UpscaleSnapshot &snapshot)
+{
+    if (snapshot.supplied.width() <= 0 || snapshot.destination.width() <= 0) {
+        return QString();
+    }
+    return i18n("%1%", qRound(100.0 * snapshot.supplied.width() / snapshot.destination.width()));
+}
+
 // What the client is, in the fewest words that stay true. This sits in the
 // block a person keeps on screen because it is the first thing to check when a
 // request had no effect: a game running through Xwayland cannot be reached by
@@ -199,12 +236,54 @@ static QString clientKind(const UpscaleSnapshot &snapshot)
     return system;
 }
 
-QString upscaleStatistics(const UpscaleSnapshot &snapshot)
+QString upscaleHeadsUp(const UpscaleSnapshot &snapshot)
 {
-    return i18n("Upscale: %1\n%2 → %3 on %4 · %5\n%6",
-                processing(snapshot), sizeText(snapshot.supplied), sizeText(snapshot.destination),
-                snapshot.output.isEmpty() ? unknown() : snapshot.output, clientKind(snapshot),
-                presented(snapshot));
+    QStringList figures;
+    // Frames per second and the milliseconds one frame took are the same
+    // measurement twice, and every overlay shows both, because a player reads
+    // the rate and a developer reads the time.
+    if (snapshot.presentedRate > 0) {
+        figures.append(i18n("%1 FPS", QString::number(snapshot.presentedRate, 'f', 0)));
+        figures.append(i18n("%1 ms", QString::number(1000.0 / snapshot.presentedRate, 'f', 1)));
+    } else {
+        // A dash is what an overlay shows before it has measured anything. It
+        // is not a zero, and it is not last minute's rate.
+        figures.append(i18n("— FPS"));
+        figures.append(i18n("— ms"));
+    }
+    // "1% Low" is the name this figure carries everywhere it is quoted: the
+    // mean of the slowest hundredth of the frames, as a rate.
+    if (snapshot.presentedLow > 0) {
+        figures.append(i18n("1% Low %1 FPS", QString::number(snapshot.presentedLow, 'f', 0)));
+    } else {
+        figures.append(i18n("1% Low — FPS"));
+    }
+    QStringList picture;
+    if (snapshot.scaling) {
+        picture.append(snapshot.sharpening > 0 ? i18n("FSR 1 + RCAS") : i18n("FSR 1"));
+        picture.append(i18n("%1 → %2", resolutionName(snapshot.supplied), resolutionName(snapshot.destination)));
+        const QString scale = renderScale(snapshot);
+        if (!scale.isEmpty()) {
+            picture.append(scale);
+        }
+    } else if (!snapshot.destination.isEmpty() && snapshot.supplied == snapshot.destination) {
+        // Native describes the observed buffer size. Bypassing FSR can still
+        // leave KWin enlarging a smaller buffer, so bypass alone is not native.
+        picture.append(i18n("%1 native", resolutionName(snapshot.destination)));
+    } else if (!snapshot.destination.isEmpty()) {
+        picture.append(i18n("FSR off"));
+        picture.append(i18n("%1 → %2", resolutionName(snapshot.supplied), resolutionName(snapshot.destination)));
+    }
+    // On the picture line rather than a line of its own: it belongs with what
+    // is being drawn, and a block read at a glance mid-game earns no third row
+    // for it.
+    picture.append(clientKind(snapshot));
+    const QString separator = QStringLiteral("   ");
+    QString text = figures.join(separator);
+    if (!picture.isEmpty()) {
+        text += QLatin1Char('\n') + picture.join(separator);
+    }
+    return text;
 }
 
 static QString desiredText(const UpscaleSnapshot &snapshot)

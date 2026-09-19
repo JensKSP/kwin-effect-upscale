@@ -62,6 +62,7 @@ private:
     QCheckBox *m_osdSummary;
     QCheckBox *m_osdStatistics;
     QCheckBox *m_osdDeveloper;
+    QComboBox *m_osdPosition;
     QSpinBox *m_osdTimeout;
     QCheckBox *m_unknown;
     UpscaleApplicationEditor *m_editor;

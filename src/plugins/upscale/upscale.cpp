@@ -77,6 +77,12 @@ UpscaleEffect::UpscaleEffect(ItemRenderer *renderer)
     for (UpscaleOutput *output : effects->screens()) {
         watchOutput(output);
     }
+    // The moments a display can stop having anything to describe. KWin calls
+    // no paint hook of an inactive effect, so these are the only chances to
+    // take what was drawn off the screen; see UpscaleDisplay::hide().
+    connect(effects, &EffectsHandler::windowClosed, this, &UpscaleEffect::releaseWhatTheGameLeftBehind);
+    connect(effects, &EffectsHandler::windowActivated, this, &UpscaleEffect::releaseWhatTheGameLeftBehind);
+    connect(effects, &EffectsHandler::screenLockingChanged, this, &UpscaleEffect::releaseWhatTheGameLeftBehind);
     const auto windows = effects->stackingOrder();
     for (EffectWindow *window : windows) {
         watchWindow(window);
@@ -101,6 +107,68 @@ UpscaleEffect::~UpscaleEffect()
     effects->makeOpenGLContextCurrent();
     m_scaler.reset();
     m_display.hide();
+}
+
+static bool eligible(EffectWindow *window)
+{
+    return windowRefusal(window) == UpscaleRefusal::None;
+}
+
+// A game that closed, a window that stopped being the one on screen, and a
+// locked session all end the display. Hiding it is what asks for the frame
+// that erases it; a display that still has its window is left alone, because
+// the game's own damage keeps redrawing it.
+//
+// The same moments are when a game that will never come back stops being a
+// reason to hold anything. A game does not have to exit cleanly: one killed
+// outright hands nothing back itself, and what this effect kept for it is the
+// scaler's buffers, which are the size of the image it was drawing.
+void UpscaleEffect::releaseWhatTheGameLeftBehind()
+{
+    if (m_display.drawn() && (!displayed() || effects->isScreenLocked())) {
+        m_display.hide();
+    }
+    if (candidate()) {
+        return;
+    }
+    // A window that was refused for its colours is remembered by pointer. The
+    // pointer is cleared when the window dies; the entry is not.
+    m_unsupportedColors.removeAll(nullptr);
+    if (m_scaler) {
+        // Two textures and their framebuffers at the game's resolution, which
+        // is tens of megabytes of video memory at 4K. Nothing on any screen
+        // can use them now, and the next game builds its own.
+        effects->makeOpenGLContextCurrent();
+        m_scaler.reset();
+    }
+}
+
+void UpscaleEffect::watchWindow(EffectWindow *window)
+{
+    connect(window, &QObject::destroyed, this, [this, window]() {
+        m_renderedInputs.remove(window);
+    });
+    if (Window *internal = window->window()) {
+        // An application ID can arrive after its window does, and an X11
+        // client may replace it later. Repaint so that what is shown on
+        // screen follows the identity rather than the first guess at it.
+        connect(internal, &Window::windowClassChanged, this, [window]() {
+            window->addRepaintFull();
+        });
+    }
+    connect(window, &EffectWindow::windowFullScreenChanged, this, [this]() {
+        releaseWhatTheGameLeftBehind();
+    });
+    connect(window, &EffectWindow::windowDamaged, this, [this, window]() {
+        if (eligible(window)) {
+            // EASU and RCAS read neighbouring pixels. Full-window damage is
+            // conservative and follows client commits, never a repaint timer.
+            window->addRepaintFull();
+        }
+        if (m_display.enabled() && !effects->isScreenLocked()) {
+            m_display.countClientUpdate(window);
+        }
+    });
 }
 
 void UpscaleEffect::reconfigure(ReconfigureFlags flags)
@@ -194,12 +262,108 @@ bool UpscaleEffect::blocksDirectScanout() const
     return isActive();
 }
 
+void UpscaleEffect::watchOutput(UpscaleOutput *output)
+{
+    const auto changed = [this, output]() {
+        // Colour refusal is valid only for the output configuration that was
+        // painted. Retry on a real change, never by repainting in a loop.
+        m_unsupportedColors.removeIf([output](const QPointer<EffectWindow> &window) {
+            return !window || window->screen() == output;
+        });
+        m_candidateCached = false;
+        effects->addRepaintFull();
+    };
+    connect(output, &UpscaleOutput::changed, this, changed);
+#if UPSCALE_REGION_API
+    connect(output, &UpscaleOutput::blendingColorChanged, this, changed);
+#else
+    connect(output, &UpscaleOutput::colorDescriptionChanged, this, changed);
+#endif
+}
+
+EffectWindow *UpscaleEffect::candidate(UpscaleRefusal *refusal, UpscaleOutput *output) const
+{
+    if (!output && m_inPaint) {
+        output = m_paintOutput;
+    }
+    if (!output) {
+        // A status/activation query has no paint output. Prefer the active
+        // output, then look for work elsewhere; a refusal on one must never
+        // disable a candidate on another.
+        EffectWindow *selected = findCandidate(refusal, effects->activeScreen());
+        for (UpscaleOutput *screen : effects->screens()) {
+            if (!selected && screen != effects->activeScreen()) {
+                selected = findCandidate(nullptr, screen);
+            }
+        }
+        return selected;
+    }
+    if (!m_inPaint) {
+        return findCandidate(refusal, output);
+    }
+    if (!m_candidateCached || m_candidateOutput != output) {
+        m_candidate = findCandidate(&m_candidateRefusal, output);
+        m_candidateOutput = output;
+        m_candidateCached = true;
+    }
+    if (refusal) {
+        *refusal = m_candidateRefusal;
+    }
+    return m_candidate;
+}
+
+EffectWindow *UpscaleEffect::findCandidate(UpscaleRefusal *refusal, UpscaleOutput *output) const
+{
+    const auto refuse = [refusal](UpscaleRefusal reason) -> EffectWindow * {
+        if (refusal) {
+            *refusal = reason;
+        }
+        return nullptr;
+    };
+    if (!m_enabled) {
+        return refuse(UpscaleRefusal::Disabled);
+    }
+    if (m_failed) {
+        return refuse(UpscaleRefusal::ResourceFailure);
+    }
+    if (effects->isScreenLocked()) {
+        return refuse(UpscaleRefusal::ScreenLocked);
+    }
+    if (effects->activeFullScreenEffect()) {
+        return refuse(UpscaleRefusal::OtherFullScreenEffect);
+    }
+    EffectWindow *selected = nullptr;
+    const auto windows = effects->stackingOrder();
+    for (EffectWindow *window : windows) {
+        if (window->screen() == output && eligible(window)) {
+            if (selected) {
+                return refuse(UpscaleRefusal::SeveralCandidates);
+            }
+            selected = window;
+        }
+    }
+    if (!selected) {
+        // Nothing here is eligible, so the interesting answer is why the
+        // window the user is looking at is not. Asking costs one more pass
+        // over the conditions and happens only for a caller that wants it.
+        EffectWindow *active = effects->activeWindow();
+        return refuse(active && active->screen() == output ? windowRefusal(active) : UpscaleRefusal::NoWindow);
+    }
+    if (m_unsupportedColors.contains(selected)) {
+        return refuse(UpscaleRefusal::UnsupportedColors);
+    }
+    if (refusal) {
+        *refusal = UpscaleRefusal::None;
+    }
+    return selected;
+}
+
 UpscalePaintResult UpscaleEffect::drawWindow(const RenderTarget &target, const RenderViewport &viewport, EffectWindow *window,
                                              int mask, const UpscaleRegion &region, WindowPaintData &data)
 {
     // Selection is shared by the draws in this paint pass. Check the actual
     // window again before using its surface, which may have been replaced.
-    if (m_renderer && windowRefusal(window) == UpscaleRefusal::None && window == candidate(nullptr, m_inPaint ? m_paintOutput : window->screen())) {
+    if (m_renderer && eligible(window) && window == candidate(nullptr, m_inPaint ? m_paintOutput : window->screen())) {
         if (!supportsUpscaleColors(targetColors(target))) {
             // Unlike the conditions above, this one follows the output's
             // colour setup and will hold for every frame of this window.
@@ -254,87 +418,6 @@ EffectWindow *UpscaleEffect::displayed() const
     // so the display follows it. Ordinary desktop windows are left alone.
     EffectWindow *active = effects->activeWindow();
     return active && upscalePresentation(active) && !active->isDeleted() ? active : nullptr;
-}
-
-UpscaleSnapshot UpscaleEffect::snapshot(EffectWindow *window, const RenderTarget *target) const
-{
-    UpscaleSnapshot state;
-    state.build = m_build;
-    state.buildType = upscaleDebugBuild ? i18n("Debug") : i18n("Release");
-    state.graphics = usingOpenGLES() ? i18n("OpenGL ES") : i18n("OpenGL");
-
-    UpscaleRefusal refusal = UpscaleRefusal::None;
-    const EffectWindow *scaled = candidate(&refusal, window->screen());
-    state.selected = scaled == window;
-    state.refusal = state.selected ? m_passRefusal : refusal;
-    state.window = window->caption();
-    state.application = window->windowClass();
-    describeApplication(state, window->window());
-    state.activeWindow = effects->activeWindow() == window;
-    state.fullScreen = window->isFullScreen();
-    state.blocksScanout = blocksDirectScanout();
-
-    state.enabled = m_enabled;
-    state.failed = m_failed;
-    state.maximumTexture = m_maximumTexture;
-    state.preset = static_cast<ResolutionPreset>(UpscaleConfig::preset());
-    state.percentage = UpscaleConfig::percentage();
-    state.sharpening = m_strength;
-
-    if (UpscaleOutput *output = window->screen()) {
-        state.output = output->name();
-        state.destination = output->pixelSize();
-        state.outputScale = output->scale();
-        state.desired = desiredResolution({state.destination.width(), state.destination.height()}, state.preset, state.percentage);
-    }
-    // Which window system the client speaks decides which requests can reach
-    // it at all, so it is recorded for every window, refused or not. Both are
-    // constant for a window's lifetime.
-    if (window->isWaylandClient()) {
-        state.windowSystem = UpscaleWindowSystem::Wayland;
-    } else if (window->isX11Client()) {
-        state.windowSystem = UpscaleWindowSystem::X11;
-    }
-    if (SurfaceItem *surface = window->windowItem() ? window->windowItem()->surfaceItem() : nullptr) {
-        state.supplied = surface->bufferSize();
-        state.format = describeSuppliedFormat(surface);
-        state.bufferKind = suppliedBufferKind(surface);
-        state.scaling = m_renderedInputs.contains(window) && m_renderedInputs.value(window) == state.supplied;
-    }
-
-    // The frames the screen presented are measured whether or not the display
-    // is drawn, so every report carries them, not only the one on screen.
-    m_display.reportPresentation(state);
-
-    // Colour is a property of the frame being painted. Outside a paint pass,
-    // as when the settings page asks, it stays unknown rather than guessed.
-    if (target) {
-        state.targetTransform = int(target->transform().kind());
-        const ColorDescription &colors = targetColors(*target);
-        state.transferFunction = int(colors.transferFunction().type);
-        state.referenceLuminance = colors.referenceLuminance();
-    }
-    return state;
-}
-
-void UpscaleEffect::describeApplication(UpscaleSnapshot &state, const Window *window) const
-{
-    // Read identity fields separately; EffectWindow::windowClass combines them.
-    const UpscaleApplication *known = window
-        ? upscaleApplicationForIdentity(window->resourceClass(), window->resourceName())
-        : nullptr;
-    if (!known) {
-        return;
-    }
-    state.recognized = known->name;
-    state.method = known->method;
-    if (m_modeOverride && window->surface() && window->output()) {
-        state.advertised = m_modeOverride->advertised(window->surface()->client(), window->output()->name());
-    }
-    if (known->method == UpscaleControlMethod::X11Resize) {
-        state.requested = m_x11Resolution->requested(window);
-        state.requestFailure = m_x11Resolution->failure(window);
-    }
 }
 
 void UpscaleEffect::paintDisplay(const RenderTarget &target, const RenderViewport &viewport, UpscaleOutput *screen)

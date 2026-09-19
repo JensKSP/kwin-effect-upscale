@@ -79,6 +79,7 @@ private:
     void describeApplication(UpscaleSnapshot &state, const Window *window) const;
     void watchWindow(EffectWindow *window);
     void watchOutput(UpscaleOutput *output);
+    void releaseWhatTheGameLeftBehind();
 
     // Reuse selection only within one synchronous screen paint. Outside it,
     // queries must see current buffer, geometry, focus and lock state.

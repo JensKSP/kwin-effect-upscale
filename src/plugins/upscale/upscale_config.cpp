@@ -8,7 +8,7 @@
 
 #include "application.h"
 #include "applicationeditor.h"
-
+#include "placement.h"
 #include "resolution.h"
 #include "supportinformation.h"
 #include "upscaleconfig.h"
@@ -65,6 +65,7 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     , m_osdSummary(new QCheckBox(i18n("Include a short summary in the announcement"), widget()))
     , m_osdStatistics(new QCheckBox(i18n("Show the frame rate on screen"), widget()))
     , m_osdDeveloper(new QCheckBox(i18n("Add developer information"), widget()))
+    , m_osdPosition(new QComboBox(widget()))
     , m_osdTimeout(new QSpinBox(widget()))
     , m_build(new QLabel(widget()))
     , m_status(new QLabel(widget()))
@@ -166,7 +167,10 @@ void UpscaleEffectConfig::addDisplayControls(QFormLayout *layout)
     m_osdSummary->setObjectName(QStringLiteral("osdSummary"));
     m_osdStatistics->setObjectName(QStringLiteral("osdStatistics"));
     m_osdDeveloper->setObjectName(QStringLiteral("osdDeveloper"));
+    m_osdPosition->setObjectName(QStringLiteral("osdPosition"));
     m_osdTimeout->setObjectName(QStringLiteral("osdTimeout"));
+    // The order is the stored one in upscaleconfig.kcfg.
+    m_osdPosition->addItems({i18n("Top left"), i18n("Top right"), i18n("Bottom left"), i18n("Bottom right")});
     m_osdTimeout->setRange(1, 60);
     m_osdTimeout->setSuffix(i18n(" s"));
     layout->addRow(m_osd);
@@ -177,6 +181,11 @@ void UpscaleEffectConfig::addDisplayControls(QFormLayout *layout)
                                      "running, with the slowest frames beside the average, because an average alone "
                                      "hides stutter."));
     layout->addRow(m_osdStatistics);
+    // Only the view that stays on screen during play is worth moving. The
+    // announcement appears in the top left and the developer information in
+    // the bottom right, so that three different things are never one block.
+    m_osdPosition->setToolTip(i18n("Where the frame rate is shown on the game's screen."));
+    layout->addRow(i18n("Frame rate position:"), m_osdPosition);
     layout->addRow(m_osdDeveloper);
     // A Debug build shows statistics and developer information unless the
     // user has said otherwise; a release build shows only the announcement.
@@ -188,6 +197,9 @@ void UpscaleEffectConfig::addDisplayControls(QFormLayout *layout)
         });
     }
     connect(m_osdTimeout, &QSpinBox::valueChanged, this, [this]() {
+        setNeedsSave(true);
+    });
+    connect(m_osdPosition, &QComboBox::currentIndexChanged, this, [this]() {
         setNeedsSave(true);
     });
 }
@@ -236,6 +248,11 @@ void UpscaleEffectConfig::updateApplicationSummary()
     m_resetApplications->setEnabled(customized);
 }
 
+// The application list is a different kind of setting from the rest of this
+// page: it is a list the effect ships and the user edits, kept in its own file
+// so that a new package can deliver a corrected entry without touching what
+// the user changed. Its restore is therefore separate from this page's
+// Defaults, which restores the values above and leaves the list alone.
 void UpscaleEffectConfig::resetApplications()
 {
     // A different file than Apply writes, and not recoverable afterwards, so
@@ -293,6 +310,7 @@ void UpscaleEffectConfig::updatePreview()
         control->setEnabled(m_osd->isChecked());
     }
     m_osdTimeout->setEnabled(m_osd->isChecked() && (m_osdDetection->isChecked() || m_osdSummary->isChecked()));
+    m_osdPosition->setEnabled(m_osd->isChecked() && m_osdStatistics->isChecked());
 }
 
 void UpscaleEffectConfig::showSettings()
@@ -308,6 +326,7 @@ void UpscaleEffectConfig::showSettings()
     m_osdSummary->setChecked(UpscaleConfig::osdSummary());
     m_osdStatistics->setChecked(UpscaleConfig::osdStatistics());
     m_osdDeveloper->setChecked(UpscaleConfig::osdDeveloper());
+    m_osdPosition->setCurrentIndex(int(upscaleCorner(UpscaleConfig::osdPosition())));
     m_osdTimeout->setValue(UpscaleConfig::osdTimeout());
     m_unknown->setChecked(UpscaleConfig::unknownApplications());
     updatePreview();
@@ -326,6 +345,7 @@ void UpscaleEffectConfig::applySettings()
     UpscaleConfig::setOsdSummary(m_osdSummary->isChecked());
     UpscaleConfig::setOsdStatistics(m_osdStatistics->isChecked());
     UpscaleConfig::setOsdDeveloper(m_osdDeveloper->isChecked());
+    UpscaleConfig::setOsdPosition(m_osdPosition->currentIndex());
     UpscaleConfig::setOsdTimeout(m_osdTimeout->value());
     UpscaleConfig::setUnknownApplications(m_unknown->isChecked());
     // A value equal to the current default is stored as no entry at all, so a
@@ -394,8 +414,8 @@ QString UpscaleEffectConfig::installedBuild()
 {
 #if UPSCALE_BUILD_INFO
     const QString branch = UpscaleBuildInfo::branch();
-    return i18n("%1, %2, built %3", UpscaleBuildInfo::version(),
-                branch.isEmpty() ? i18n("no branch or tag recorded") : branch, UpscaleBuildInfo::buildDate());
+    const QString revision = UpscaleBuildInfo::revision();
+    return QStringLiteral("%1 %2 %3 %4").arg(UpscaleBuildInfo::baseVersion(), revision.isEmpty() ? i18n("unknown revision") : revision, UpscaleBuildInfo::buildDate(), branch.isEmpty() ? i18n("no branch or tag recorded") : branch);
 #else
     return i18n("unknown");
 #endif

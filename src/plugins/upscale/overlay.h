@@ -35,10 +35,15 @@ public:
 
     /**
      * Replaces the displayed text, at the destination scale it will be drawn
-     * at. Rebuilding is skipped when neither changed, so a repeated snapshot
+     * at. Rebuilding is skipped when nothing changed, so a repeated snapshot
      * of unchanged state costs nothing.
+     *
+     * @p emphasis multiplies the session's font size for this block alone. A
+     * heads-up display read at a glance during play needs to be larger than a
+     * diagnostic dump read by leaning towards the screen, and both are drawn
+     * by this class.
      */
-    void setText(const QString &text, double scale);
+    void setText(const QString &text, double scale, double emphasis = 1);
 
     /** The logical size the text occupies, for placement and repaints. */
     QSizeF size() const;
@@ -61,6 +66,7 @@ public:
 private:
     QString m_text;
     double m_scale = 1;
+    double m_emphasis = 1;
     QImage m_image;
     std::unique_ptr<GLTexture> m_texture;
 };

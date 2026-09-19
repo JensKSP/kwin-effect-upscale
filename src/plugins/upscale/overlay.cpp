@@ -23,13 +23,31 @@ namespace KWin
 UpscaleOverlay::UpscaleOverlay() = default;
 UpscaleOverlay::~UpscaleOverlay() = default;
 
+// The session states a font and a size; the screen states how many pixels a
+// device-independent one is worth. Both apply: this is KDE user interface, so
+// it is the size the person chose for their desktop, at the scale factor that
+// screen was configured with, and it changes when either of them does.
+//
+// A point is a seventy-second of an inch and Qt's device-independent pixel a
+// ninety-sixth, which is the reference every KDE scale factor is stated
+// against. A font that states its size in pixels already speaks in those.
+static QFont displayFont(double scale)
+{
+    QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+    const double points = font.pointSizeF();
+    const double pixels = points > 0 ? points * (96.0 / 72.0) : double(font.pixelSize());
+    // A size nothing could be read at is not worth drawing; below this the
+    // configured size is ignored rather than the text being lost.
+    font.setPixelSize(std::max(11, int(std::lround(pixels * scale))));
+    return font;
+}
+
 // Text is measured and drawn at destination pixels rather than drawn small and
 // enlarged, because the whole point of this overlay is to stay readable beside
 // a game that is being enlarged.
 static QImage renderText(const QString &text, double scale)
 {
-    QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
-    font.setPixelSize(std::max(11, int(std::lround(13 * scale))));
+    const QFont font = displayFont(scale);
     const QFontMetricsF metrics(font);
     const QStringList lines = text.split(QLatin1Char('\n'));
     const double padding = std::round(8 * scale);
@@ -60,14 +78,18 @@ static QImage renderText(const QString &text, double scale)
     return image;
 }
 
-void UpscaleOverlay::setText(const QString &text, double scale)
+void UpscaleOverlay::setText(const QString &text, double scale, double emphasis)
 {
-    if (m_text == text && m_scale == scale) {
+    if (m_text == text && m_scale == scale && m_emphasis == emphasis) {
         return;
     }
     m_text = text;
     m_scale = scale;
-    m_image = text.isEmpty() ? QImage() : renderText(text, scale);
+    m_emphasis = emphasis;
+    // The emphasis enlarges what is drawn; the logical size this reports still
+    // divides by the screen's own scale, so placement stays in the output's
+    // coordinates and a larger block simply occupies more of them.
+    m_image = text.isEmpty() ? QImage() : renderText(text, scale * emphasis);
     // The texture belongs to the old image. Uploading happens in the paint
     // pass, where a current OpenGL context is guaranteed.
     m_texture.reset();
