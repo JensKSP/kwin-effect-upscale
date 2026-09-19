@@ -1154,7 +1154,7 @@ the game's rendering work and must not implement this slider.
 | Game's own settings | The game selects a smaller output buffer or its own internal render scale. An internal scale alone need not produce a smaller submitted buffer. | Always offer the calculated desired pixel size as guidance; verify what buffer actually arrives. |
 | Cooperative native Wayland client | A compositor can suggest a preferred surface scale. The client must support and act on that hint. | Investigate for this slice; enable requests only after the supported KWin integration and client behaviour are verified. |
 | Proton/Xwayland game | Resolution selection and delivery depend on the game and Xwayland integration. The Wayland hint is not a generic control for Windows game render settings. | Verify separately on a real game; otherwise report automatic control as unsupported for that path. |
-| Per-game display information | Advertising a smaller fullscreen resolution can cause the game to select a smaller buffer. | **Implemented** for recognized applications: the effect tells that client alone about a different current mode when it binds the output. Verified to change what SuperTuxKart commits; a client that ignores mode information is unaffected. |
+| Per-game display information | Advertising a smaller fullscreen resolution can cause the game to select a smaller buffer. | **Implemented for cooperating native Wayland clients with an enabled `AdvertisedMode` or `AdvertisedModeAndScale` profile:** the effect tells that connection alone about a different current mode when it binds the output. Verified with SuperTuxKart's OpenGL path; clients that ignore mode information are unaffected. Xwayland games require the separate X11 method. |
 | Virtual output | KWin can create an additional output, visible to clients of the shared session. | Not an isolated per-application resolution control; not implemented. |
 | Nested compositor | A separate environment can advertise chosen screen modes, as gamescope does. | Out of scope: it requires wrapping the game launch. Retained only as research. |
 | Cooperative X11 client | Resize its window so its own X connection can select an emulated mode. | Implemented as X11Resize with bounded validation and restoration; no shared output change. |
@@ -1234,7 +1234,7 @@ does not by itself establish that resolution control succeeded.
 | Method | Intended behaviour |
 | --- | --- |
 | Auto | Choose a verified compatible method for the selected application and runtime. In-session negotiation only: the [four requirements](#four-requirements-that-bound-every-route) leave no launch-time method to fall back to. |
-| Advertised screen mode | **Implemented.** Tell one recognized application, and only it, that its screen has a smaller current mode, at the moment it binds the output. Needs no launch helper and no restart, and changes nothing outside that one connection. |
+| Advertised screen mode | **Implemented for verified native Wayland client/runtime combinations.** Tell one recognized native Wayland client that its screen has a smaller current mode when it binds the output. This does not control Xwayland games. It needs no launch helper or restart and changes nothing outside that connection. |
 | Wayland negotiation | Generic surface-scale negotiation remains experimental; the implemented advertised scale and mode-and-scale methods are separate profile choices. |
 | X11 window resize | **Implemented.** Request a smaller drawable and require client-owned fullscreen emulation to retain output coverage. |
 | Display proxy | **Out of scope.** Sommelier's direct-scale mode supplied smaller buffers, native and through a private Xwayland, but every form of it starts the game. Kept as a measured mechanism and as technique worth reading, not an offered method. |
@@ -1580,6 +1580,26 @@ acceptance remains open. Applications must handle resize requests and establish
 Xwayland's per-client mode emulation; this does not universally force internal
 rendering dimensions.
 
+**Deployment rationale and upstream direction.** The immediate goal is useful
+resolution control on existing KDE installations through an ordinary package
+install. Requiring a patched compositor, replacement X server or special game
+launch would prevent that deployment. The targeted geometry approach is an
+intentional compatibility choice under those constraints, limited to explicitly
+profiled applications that cooperate with it. Application rules, bounded
+negotiation, restoration and isolation tests are conditions of offering it.
+
+Isolation means that control does not change unrelated clients' windows or
+resolution choices, nor the shared output modes or desktop scale. It does not
+mean zero presentation or scheduling impact: the current KWin effect API's
+scanout veto is session-wide, and physical multi-display acceptance remains open.
+Measured isolation in covered cases must not be described as a universal proof.
+
+If integration into KDE becomes realistic, the long-term direction is to place
+negotiation and geometry ownership in KWin and expose suitable APIs to effects.
+The application policy and user experience should survive that architectural
+change. Clean internal placement is an upstream design discussion, not a
+prerequisite for delivering the constrained external-plugin implementation.
+
 **Integration and upstream review risk.** This is experimental use of exported
 KWin interfaces, not a stable compositor API for setting client render size.
 The effect takes over selected native X configure operations while KWin keeps
@@ -1665,8 +1685,12 @@ attempt and checks the supplied buffer, logical destination and output-specific
 emulation after three seconds. Clients can discard a resize during a loading
 transition, so one failed attempt restores normal geometry before retrying.
 If the retry fails, normal geometry is restored and that request stays refused
-until settings are reapplied. During negotiation a client can temporarily show
-a smaller unscaled image. Status reports the requested size separately from the
+while a matching window remains, unless settings are reapplied. After window
+closure, a three-second quiet period preserves state for prompt XID replacement,
+then discards keys with no matching window. PID is only a grouping hint: a
+same-key launch within that grace period shares the refusal. Later launches
+must not inherit an indefinitely cached failure. During negotiation a client
+can temporarily show a smaller unscaled image. Status reports the requested size separately from the
 buffer received; it does not treat that intermediate image as successful
 full-output scaling. An observed buffer still does not prove the size of every
 application-owned render target.
@@ -1922,11 +1946,13 @@ remain required. Helper integration is excluded. The experimental commands do no
 ## Rendering and lifecycle requirements
 
 EASU replaces the enlargement step and must receive the original buffer, not
-an image already scaled to the destination. The initial geometry permits one
-eligible fullscreen window on one output, with the full buffer visible and
-no buffer transform. Multiple simultaneous candidates use normal KWin
-rendering. Eligibility uses physical pixel sizes and capabilities rather than
-fixed resolutions or GPU vendor checks.
+an image already scaled to the destination. Selection permits one eligible
+window per output, with the full buffer visible and no buffer transform.
+Fullscreen windows and explicitly profiled, undecorated borderless windows
+covering exactly one output can qualify. Separate outputs select independently;
+multiple eligible candidates on the same output use normal KWin rendering there.
+Eligibility uses physical pixel sizes and capabilities rather than fixed
+resolutions or GPU vendor checks.
 
 RCAS is initially off and must have a real bypass: AMD's numeric zero means
 maximum sharpening. Separately composited overlays and the cursor retain
@@ -1999,6 +2025,51 @@ scanout, rather than timing the shader alone.
 Record actual results and outstanding checks in the corresponding slice
 document. An SDR prototype, a documentation check or a configured VRR setting
 does not establish completion of the required HDR and VRR support.
+
+### Isolation and compatibility acceptance
+
+Every claimed application/runtime combination must pass two gates: the selected
+application receives and benefits from the intended scaling, and unrelated
+applications retain their normal resolution, window geometry and input behaviour.
+The long-term goal includes every game that benefits, including Wine and Proton.
+A finite test matrix establishes only its recorded combinations, not universal
+game compatibility. Expand it when a new toolkit, rendering path or failure is
+found, using an open-source reproducer and source inspection where possible.
+
+For isolation, compare the plugin unloaded, loaded but disabled, a Native opt-out
+profile, and active scaling. Run ordinary desktop applications and unrelated
+fullscreen and borderless X11 and Wayland clients alongside the target, including
+a second display with an explicit Native rule. Reverse launch order and exercise
+multiple instances, focus changes, target changes, fullscreen transitions,
+output moves, mixed scales, hotplug, crashes and plugin unload. Check restoration
+and shared output mode/scale state as well as the actual buffers and input of
+each client. On each output independently, cover pixel counts below, equal to
+and above the configured minimum, and the disabled threshold.
+
+Resolution and window-state isolation do not imply zero presentation cost:
+KWin's current effect scanout veto is session-wide. Measure composition, frame
+times and presentation on the other output during active scaling and disclose
+any regression. A smaller submitted buffer alone also does not prove less GPU
+work when a game retains fixed internal render targets. Use the performance
+protocol below to establish the claimed benefit.
+
+Compatibility coverage includes native X11 and Wayland, standalone Wine and
+Valve Proton, OpenGL and Vulkan, and the required Direct3D translation paths,
+in fullscreen and full-output borderless modes. Record game and runtime versions,
+graphics backend, KWin/plugin revision, GPU/driver, output layout and effective
+rules with the existing per-run evidence. Report each combination as:
+
+| Status | Required evidence |
+| --- | --- |
+| Supported | Scaling, input, lifecycle and isolation gates passed for the stated combination and conditions. |
+| Limited | Those gates passed only under named restrictions; excluded conditions remain explicit. |
+| Unsupported | A reproduced failure prevents the required behaviour with available methods. |
+| Untested | Evidence is missing; no compatibility claim is made. |
+
+These evidence labels distinguish known failures from missing tests; both remain
+outside a release's declared supported scope. Shipping an application profile
+does not by itself establish compatibility. Each known gap needs a reproducible
+case, source-led investigation and a regression test for any resulting fix.
 
 ### Test applications and progression
 

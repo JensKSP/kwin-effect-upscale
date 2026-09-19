@@ -104,6 +104,12 @@ cases use the integrated profiles and normally started applications.
 
 Planned checks, not observed results:
 
+- Apply both [isolation and compatibility gates](../upscaling.md#isolation-and-compatibility-acceptance)
+  to every claimed application/runtime combination. Keep supported, limited,
+  unsupported and untested evidence distinct; Wine and Proton remain required.
+  Include simultaneous unrelated X11/Wayland clients, independently ruled
+  outputs, both launch orders, lifecycle failures and restoration. Measure the
+  session-wide scanout consequence separately from resolution/state isolation.
 - Cooperative, ignored and adjusted live requests, ownership and restoration;
   Automatic without a profile target makes no request; explicit methods do not
   silently fall back.
@@ -1311,3 +1317,22 @@ The earlier real-game traces and package checks remain the observed evidence for
 negotiation and installation; they predate these review corrections. Hosted
 package checks validate the submitted source revision separately. Do not treat
 this local validation as a new physical Tux Racer or television run.
+
+The follow-up handbook update makes the owner's isolation and broad game/Wine
+compatibility goals explicit acceptance gates and corrects a stale single-output
+rendering description. Its matrix is planned acceptance, not additional passing
+game results. The source-led compatibility tasks above own the known reproducers;
+new failures extend those investigations without claiming universal coverage.
+
+The latest review identified stale refusal state when an operating system reuses
+a departed client's PID. The fix retains state across prompt XID replacement,
+then expires orphaned request/refusal/retry state after three seconds without
+another managed window closing. A still-present matching window retains its
+state. Validation tokens remain unique across expiry. The added regression
+checks that immediate replacement retains refusal and a later same-key launch
+can negotiate without reconfiguration. The follow-up passed all 16 Trixie tests
+with GCC and Clang, all 11 neon tests with each compiler, focused clang-tidy,
+and all 15 runtime tests under address/undefined sanitizers and ThreadSanitizer.
+The X11 suite now passes 13 cases. The configured fuzzing hook passed; refreshed
+coverage is 93.7% (2317/2473 plugin C++ lines). Hosted checks and review must
+still validate the published revision; physical acceptance remains open.

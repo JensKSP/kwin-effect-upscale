@@ -25,6 +25,7 @@ private Q_SLOTS:
     void lifecycle_data();
     void lifecycle();
     void refusesMissingEmulation();
+    void expiresDepartedClientRefusal();
     void refusesUnavailableMode();
     void respectsPrimaryOutputRestriction();
     void retriesADroppedResizeOnce();
@@ -152,6 +153,35 @@ void UpscaleX11IntegrationTest::refusesMissingEmulation()
     target.resize(QSize(1600, 900));
     QTest::qWait(500);
     QCOMPARE(target.geometry(), native);
+}
+
+void UpscaleX11IntegrationTest::expiresDepartedClientRefusal()
+{
+    const QRect native(0, 0, 3840, 2160);
+    {
+        X11Client target(false);
+        QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), native));
+        QTRY_VERIFY(target.isFullscreen());
+        configure(true);
+        QTRY_VERIFY_WITH_TIMEOUT(status().contains(QStringLiteral("did not supply the requested fullscreen buffer")), 9000);
+    }
+    // A prompt replacement must retain refusal, otherwise an uncooperative
+    // client could evade the retry bound by recreating its XID.
+    {
+        X11Client replacement;
+        QVERIFY(replacement.show(QByteArrayLiteral("upscale-x11-test"), native));
+        QTRY_VERIFY(replacement.isFullscreen());
+        QTRY_VERIFY(status().contains(QStringLiteral("did not supply the requested fullscreen buffer")));
+        QCOMPARE(replacement.geometry(), native);
+    }
+    QTest::qWait(3500);
+    // All connections belong to this test process: the same PID/profile/output
+    // now represents a later launch, without reconfiguring the plugin.
+    X11Client relaunched;
+    QVERIFY(relaunched.show(QByteArrayLiteral("upscale-x11-test"), native));
+    QTRY_VERIFY(relaunched.isFullscreen());
+    QTRY_COMPARE(relaunched.geometry().size(), QSize(1920, 1080));
+    QVERIFY2(!status().contains(QStringLiteral("did not supply")), qPrintable(status()));
 }
 
 void UpscaleX11IntegrationTest::refusesUnavailableMode()

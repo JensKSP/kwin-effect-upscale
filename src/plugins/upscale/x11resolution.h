@@ -15,6 +15,7 @@
 #include <QPointer>
 #include <QSet>
 #include <QSize>
+#include <QTimer>
 
 #if KWIN_BUILD_X11
 #include "x11eventfilter.h"
@@ -60,6 +61,8 @@ private:
     bool event(xcb_generic_event_t *generic) override;
     bool fullscreenRequest(X11Window *window, xcb_client_message_event_t *message);
     void watch(EffectWindow *window);
+    void forget(X11Window *window);
+    void expireState();
     void schedule(X11Window *window);
     void apply(X11Window *window);
     Request requestFor(X11Window *window) const;
@@ -80,11 +83,13 @@ private:
     QSet<X11Window *> m_watched;
     QSet<X11Window *> m_scheduled;
     QSet<X11Window *> m_waitingForBuffer;
+    QTimer m_expiration;
     bool m_enabled = false;
     bool m_restoring = false;
     ResolutionPreset m_preset = ResolutionPreset::Automatic;
     int m_percentage = 100;
     int m_generation = 0;
+    int m_nextValidation = 0;
     xcb_atom_t m_stateAtom = XCB_ATOM_NONE;
     xcb_atom_t m_fullscreenAtom = XCB_ATOM_NONE;
 #endif

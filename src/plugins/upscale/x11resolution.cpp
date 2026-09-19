@@ -40,6 +40,9 @@ UpscaleX11Resolution::UpscaleX11Resolution()
 #endif
 {
 #if KWIN_BUILD_X11
+    m_expiration.setSingleShot(true);
+    m_expiration.setInterval(3000);
+    connect(&m_expiration, &QTimer::timeout, this, &UpscaleX11Resolution::expireState);
     connect(effects, &EffectsHandler::windowAdded, this, &UpscaleX11Resolution::watch);
     connect(kwinApp(), &Application::x11ConnectionAboutToBeDestroyed, this, [this]() {
         ++m_generation;
@@ -135,8 +138,9 @@ QString UpscaleX11Resolution::keyFor(const Window *window)
     }
     const UpscaleApplication *application = upscaleApplicationForIdentity(window->resourceClass(), window->resourceName());
     // SFML replaces XIDs while retaining its process. Keep negotiation across
-    // those replacements, but do not carry a failed attempt into a new launch
-    // or another instance of the same profile. Use KWin's identity, not /proc.
+    // those replacements. PID is only a grouping hint, not a launch identity:
+    // expire orphaned state after a replacement grace period. Use KWin's
+    // identity, not /proc.
     return application && application->method == UpscaleControlMethod::X11Resize
         ? application->id + QLatin1Char('/') + window->output()->name() + QLatin1Char('/') + QString::number(window->pid())
         : QString();
@@ -150,16 +154,10 @@ void UpscaleX11Resolution::watch(EffectWindow *effectWindow)
     }
     m_watched.insert(window);
     connect(window, &Window::closed, this, [this, window]() {
-        m_requests.remove(window);
-        m_watched.remove(window);
-        m_scheduled.remove(window);
-        m_waitingForBuffer.remove(window);
+        forget(window);
     });
     connect(window, &QObject::destroyed, this, [this, window]() {
-        m_requests.remove(window);
-        m_watched.remove(window);
-        m_scheduled.remove(window);
-        m_waitingForBuffer.remove(window);
+        forget(window);
     });
     connect(window, &Window::windowClassChanged, this, [this, window]() {
         schedule(window);
@@ -246,7 +244,8 @@ bool UpscaleX11Resolution::begin(const Request &request)
         return false;
     }
     // Bound recreation loops across successive XIDs. Refusal lasts until the
-    // next reconfiguration, so restoring a client cannot immediately retry it.
+    // next reconfiguration or the end of its window lifecycle, so restoring a
+    // client cannot immediately retry it.
     // Leaving and re-entering fullscreen on the same XID is not replacement.
     Attempt &attempt = m_attempts[request.key];
     if (attempt.window != request.window) {
@@ -260,7 +259,8 @@ bool UpscaleX11Resolution::begin(const Request &request)
     m_requests.insert(request.window, request);
     m_requested.insert(request.key, request.size);
     const int generation = m_generation;
-    const int revision = ++m_validation[request.key];
+    const int revision = ++m_nextValidation;
+    m_validation.insert(request.key, revision);
     QTimer::singleShot(3000, this, [this, key = request.key, generation, revision]() {
         validate(key, generation, revision);
     });
