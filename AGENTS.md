@@ -272,10 +272,33 @@ places and hides work he was reviewing somewhere he is not looking.
   evidence. Reply in the pull request when authorized to post there; otherwise
   report the assessment to the user. Do not silently discard feedback or mark
   unresolved findings as resolved.
+- **Open the pull request as a draft while it is still being brought to green.**
+  CodeRabbit reviews drafts, which is what `drafts: true` in `.coderabbit.yaml`
+  is for, so a draft collects checks and review feedback without ever looking
+  ready to merge. Mark it ready for review once the checks and the automated
+  review have settled on the current head. Marking ready is not merging; merging
+  stays with Jens either way.
+- **A passing revision is the goal, not a reported one.** Checks green and the
+  automated review approving, both on the exact revision being handed over, is
+  what finishing a pull request means. A `CHANGES_REQUESTED` verdict standing
+  against the current head is unfinished work; report it as that, never as a
+  status line that closes the task.
+- **`CodeRabbit approval` is a commit status, not a comment.**
+  `.github/workflows/review-approval.yml` and `tools/review_approval.py` publish
+  it, and it is decided by the bot's authenticated account, never by text that
+  names the bot. It tracks one revision: the bot's latest decision has to
+  approve the exact head under review, so every push clears the status and it
+  has to be earned again. Waiting for it is part of watching the pull request.
 - Before handing back completed work, report the latest check and review status
   and any remaining findings. If a service, permission or reviewer is blocking
   progress, record the blocker in the slice document and tell the user rather
   than claiming completion.
+
+**Why:** a pull request that was pushed to is not a pull request that passed.
+The approval gate re-verifies every head precisely so that a fix which breaks
+something else cannot inherit the previous revision's approval, and an agent
+that stops at "the status is red and here is why" has handed back a task it was
+asked to finish.
 
 ## Owner overrides require explicit permission
 
