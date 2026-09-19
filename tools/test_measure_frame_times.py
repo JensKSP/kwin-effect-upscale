@@ -16,7 +16,7 @@ Sample = HARNESS["Sample"]
 # The prose is translated and deliberately not read; only the machine line is.
 # It is reproduced here in German to prove that, because a parser that quietly
 # depended on English would pass a test written only in English.
-SCALING = """Gewünscht: 2560 x 1440 von SuperTuxKart als Bildschirmmodus angefordert
+SCALING = """Gewünscht: 2560 x 1440 von SuperTuxKart angefordert, Bildschirmmodus
 Geliefertes Bild: 2560 x 1440
 Ziel: 3840 x 2160
 FSR 1, Schärfung 0%

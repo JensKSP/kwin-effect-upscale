@@ -413,13 +413,13 @@ class Plan:
     game: str = ""
     seconds: int = 60
     interval: float = 2.0
-    warmup: float = 10.0
+    warm_up: float = 10.0
     sharpening: bool = False
 
 
 def measure(plan: Plan, preset: str) -> tuple[Summary, list[Sample]]:
     """Conduct one run: set the preset, start the game, read the instrument, stop."""
-    game, seconds, interval, warmup = plan.game, plan.seconds, plan.interval, plan.warmup
+    game, seconds, interval, warm_up = plan.game, plan.seconds, plan.interval, plan.warm_up
     sharpening = plan.sharpening
     tool = qdbus()
     configure(preset, sharpening=sharpening)
@@ -427,7 +427,7 @@ def measure(plan: Plan, preset: str) -> tuple[Summary, list[Sample]]:
     # The game outlives the sampling window by the time it spends starting and
     # warming up, and then by a margin: a demo that ends one second early takes
     # the last sample with it and leaves the run one reading short.
-    process = launch(game, int(startup + warmup + seconds + 15))
+    process = launch(game, int(startup + warm_up + seconds + 15))
     samples: list[Sample] = []
     try:
         time.sleep(startup)
@@ -436,7 +436,7 @@ def measure(plan: Plan, preset: str) -> tuple[Summary, list[Sample]]:
         # they do it again at a resolution the game has not drawn before. A run
         # that counted them would charge the change of resolution for work that
         # happens once.
-        time.sleep(warmup)
+        time.sleep(warm_up)
         started = time.monotonic()
         while time.monotonic() - started < seconds:
             sample = parse_status(status(tool))
@@ -515,7 +515,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--seconds", type=int, default=60, help="sampled length of each run")
     parser.add_argument("--interval", type=float, default=2.0, help="seconds between readings")
     parser.add_argument(
-        "--warmup", type=float, default=10.0, help="seconds discarded before sampling"
+        "--warm-up", type=float, default=10.0, help="seconds discarded before sampling"
     )
     parser.add_argument("--repeats", type=int, default=1, help="times to run the whole set")
     parser.add_argument("--sharpening", action="store_true", help="run with RCAS on")
@@ -535,7 +535,7 @@ def main(argv: list[str] | None = None) -> int:
         game=options.game,
         seconds=options.seconds,
         interval=options.interval,
-        warmup=options.warmup,
+        warm_up=options.warm_up,
         sharpening=options.sharpening,
     )
     for repeat in range(options.repeats):
