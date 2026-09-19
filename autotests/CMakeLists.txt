@@ -197,6 +197,24 @@ target_link_libraries(
 )
 add_test(NAME upscale-snapshot COMMAND upscale_snapshot_test)
 
+set(headsup_test_sources
+    headsup_test.cpp
+    ../src/plugins/upscale/application.cpp
+    ../src/plugins/upscale/snapshot.cpp
+    ../src/plugins/upscale/snapshot_metrics.cpp
+    ../src/plugins/upscale/eligibility.cpp
+    ../src/plugins/upscale/refusaltext.cpp
+)
+kconfig_add_kcfg_files(headsup_test_sources ../src/plugins/upscale/upscaleconfig.kcfgc)
+add_executable(upscale_headsup_test ${headsup_test_sources})
+target_include_directories(upscale_headsup_test PRIVATE ../src/plugins/upscale)
+target_compile_definitions(upscale_headsup_test PRIVATE -DTRANSLATION_DOMAIN="kwin_effect_upscale")
+target_link_libraries(
+    upscale_headsup_test
+    PRIVATE kwin Qt6::Test KF6::ConfigGui KF6::I18n Libdrm::Libdrm
+)
+add_test(NAME upscale-headsup COMMAND upscale_headsup_test)
+
 set(display_test_sources
     display_test.cpp
     ../src/plugins/upscale/application.cpp

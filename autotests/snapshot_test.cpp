@@ -26,8 +26,6 @@ private Q_SLOTS:
     void unsupportedFormat();
     void refusalNamesTheConditionThatFailed();
     void reportsThePathActuallyTaken();
-    void headsUpDistinguishesBypassFromNative();
-    void headsUpKeepsUnusualDimensions();
     void doesNotInventUnknownValues();
     void pixelSizesAreNotGrouped();
     void developerInformationCoversTheState();
@@ -179,7 +177,7 @@ void UpscaleSnapshotTest::doesNotInventUnknownValues()
     // which is what an overlay shows for a figure it does not have yet.
     QVERIFY2(upscaleHeadsUp(empty).contains(QStringLiteral("— FPS")), qPrintable(upscaleHeadsUp(empty)));
     QVERIFY(upscaleHeadsUp(empty).contains(QStringLiteral("— ms")));
-    QVERIFY(upscaleHeadsUp(empty).contains(QStringLiteral("1% Low — FPS")));
+    QVERIFY(upscaleHeadsUp(empty).contains(QStringLiteral("1% low —")));
     QVERIFY(!upscaleHeadsUp(empty).contains(QStringLiteral("0 FPS")));
     QVERIFY(upscaleAnnouncement(empty).contains(QStringLiteral("unknown")));
     // An unimplemented or unobserved colour state is not filled in either.
@@ -194,43 +192,6 @@ void UpscaleSnapshotTest::doesNotInventUnknownValues()
     disabled.refusal = UpscaleRefusal::Disabled;
     QVERIFY(upscaleDeveloperInformation(disabled).contains(QStringLiteral("Configuration: disabled")));
     QVERIFY(upscaleStatusText(disabled).contains(QStringLiteral("Inactive: disabled")));
-}
-
-void UpscaleSnapshotTest::headsUpDistinguishesBypassFromNative()
-{
-    UpscaleSnapshot snapshot = scaling();
-    snapshot.scaling = false;
-    snapshot.refusal = UpscaleRefusal::TransformedPass;
-    const QString bypass = upscaleHeadsUp(snapshot);
-    QVERIFY2(bypass.contains(QStringLiteral("FSR off")), qPrintable(bypass));
-    QVERIFY(bypass.contains(QStringLiteral("720p → 4K")));
-    QVERIFY(!bypass.contains(QStringLiteral("native")));
-
-    snapshot.supplied = snapshot.destination;
-    QVERIFY(upscaleHeadsUp(snapshot).contains(QStringLiteral("4K native")));
-    snapshot.supplied = QSize();
-    const QString unknown = upscaleHeadsUp(snapshot);
-    QVERIFY(!unknown.contains(QStringLiteral("native")));
-    QVERIFY(unknown.contains(QStringLiteral("unknown → 4K")));
-}
-
-void UpscaleSnapshotTest::headsUpKeepsUnusualDimensions()
-{
-    UpscaleSnapshot snapshot = scaling();
-    snapshot.supplied = QSize(1720, 720);
-    snapshot.destination = QSize(5160, 2160);
-    const QString ultrawide = upscaleHeadsUp(snapshot);
-    QVERIFY2(ultrawide.contains(QStringLiteral("1720 × 720 → 5160 × 2160")), qPrintable(ultrawide));
-    QVERIFY(!ultrawide.contains(QStringLiteral("4K")));
-    QVERIFY(ultrawide.contains(QStringLiteral("33%")));
-
-    snapshot.supplied = QSize(2560, 1440);
-    snapshot.destination = QSize(3840, 2160);
-    const QString quality = upscaleHeadsUp(snapshot);
-    QVERIFY(quality.contains(QStringLiteral("1440p → 4K")));
-    QVERIFY(quality.contains(QStringLiteral("67%")));
-    snapshot.supplied = QSize(1920, 1080);
-    QVERIFY(upscaleHeadsUp(snapshot).contains(QStringLiteral("1080p → 4K")));
 }
 
 void UpscaleSnapshotTest::pixelSizesAreNotGrouped()
@@ -398,7 +359,7 @@ void UpscaleSnapshotTest::reportsPresentedFramesAndTheirSlowTail()
     const QString glance = upscaleHeadsUp(snapshot);
     QVERIFY2(glance.contains(QStringLiteral("60 FPS")), qPrintable(glance));
     QVERIFY2(glance.contains(QStringLiteral("16.7 ms")), qPrintable(glance));
-    QVERIFY2(glance.contains(QStringLiteral("1% Low 41 FPS")), qPrintable(glance));
+    QVERIFY2(glance.contains(QStringLiteral("1% low 41")), qPrintable(glance));
     QVERIFY(upscaleStatusText(snapshot).contains(QStringLiteral("Presented at 59.9/s, adaptive sync.")));
 
     // Each presentation mode has to be named, and named differently: two modes

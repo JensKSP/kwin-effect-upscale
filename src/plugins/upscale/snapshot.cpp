@@ -245,24 +245,33 @@ static QString bufferArrival(const UpscaleSnapshot &snapshot)
 QString upscaleHeadsUp(const UpscaleSnapshot &snapshot)
 {
     QStringList figures;
-    // Frames per second and the milliseconds one frame took are the same
-    // measurement twice, and every overlay shows both, because a player reads
-    // the rate and a developer reads the time.
+    // The rate is the screen's, the frame time is the game's, each taken from
+    // the side where it still means something. A screen cannot present more
+    // often than it refreshes, so above the refresh the presented rate stops
+    // answering what a resolution costs, while the interval between the
+    // buffers the game commits keeps answering it. Measured on 2026-09-19 at
+    // 3840 x 2160 on a 240 Hz screen: SuperTuxKart presented 237/s at native,
+    // quality and performance alike, and drew 493, 833 and 949 frames a second.
     if (snapshot.presentedRate > 0) {
         figures.append(i18n("%1 FPS", QString::number(snapshot.presentedRate, 'f', 0)));
-        figures.append(i18n("%1 ms", QString::number(1000.0 / snapshot.presentedRate, 'f', 1)));
     } else {
         // A dash is what an overlay shows before it has measured anything. It
         // is not a zero, and it is not last minute's rate.
         figures.append(i18n("— FPS"));
-        figures.append(i18n("— ms"));
     }
-    // "1% Low" is the name this figure carries everywhere it is quoted: the
+    // "1% low" is the name this figure carries everywhere it is quoted: the
     // mean of the slowest hundredth of the frames, as a rate.
     if (snapshot.presentedLow > 0) {
-        figures.append(i18n("1% Low %1 FPS", QString::number(snapshot.presentedLow, 'f', 0)));
+        figures.append(i18nc("The mean of the slowest hundredth of the frames, as a rate",
+                             "1% low %1", QString::number(snapshot.presentedLow, 'f', 0)));
     } else {
-        figures.append(i18n("1% Low — FPS"));
+        figures.append(i18nc("The mean of the slowest hundredth of the frames, as a rate", "1% low —"));
+    }
+    if (snapshot.clientUpdates > 0) {
+        figures.append(i18nc("Milliseconds per frame the game drew: its frame time",
+                             "%1 ms/f", QString::number(1000.0 / snapshot.clientUpdates, 'f', 1)));
+    } else {
+        figures.append(i18nc("Milliseconds per frame the game drew: its frame time", "— ms/f"));
     }
     QStringList picture;
     if (snapshot.scaling) {
