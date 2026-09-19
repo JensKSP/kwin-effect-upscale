@@ -83,6 +83,20 @@ public:
     /** Takes a new snapshot, completes its measurements and lays out the text. */
     void update(UpscaleSnapshot snapshot, EffectWindow *window);
 
+    /**
+     * Copies the measurements as they stand into another snapshot.
+     *
+     * The frame times belong to this class because it is what follows one
+     * window and one output long enough to have them. A caller reporting the
+     * state somewhere other than the screen — the status the settings page
+     * and D-Bus read — builds its own snapshot and has no way to measure, so
+     * it asks for these rather than reporting a window without them.
+     *
+     * Nothing is copied while nothing is being measured, which leaves the
+     * caller's snapshot saying so instead of quoting a stale rate.
+     */
+    void applyMeasurements(UpscaleSnapshot &snapshot) const;
+
     /** Draws the text onto this output, whose logical geometry is given. */
     void paint(const RenderTarget &target, const RenderViewport &viewport, const UpscaleRectF &screen);
 

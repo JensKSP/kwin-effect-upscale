@@ -31,6 +31,7 @@ private Q_SLOTS:
     void developerInformationCoversTheState();
     void namesEveryPresetAndTransferFunction();
     void reportsPresentedFramesAndTheirSlowTail();
+    void namesTheClientItIsLookingAt();
     void separatesWhatWasRequestedFromWhatArrived();
 
 private:
@@ -263,6 +264,33 @@ void UpscaleSnapshotTest::namesEveryPresetAndTransferFunction()
 // The frame rate is what a person turns this on for, and an average alone
 // hides the stutter that decides whether something feels smooth. Every measure
 // beside it has to be named by what it actually is.
+void UpscaleSnapshotTest::namesTheClientItIsLookingAt()
+{
+    // The first thing to check when a request had no effect is which window
+    // system the client speaks: a Wayland method cannot reach an Xwayland
+    // game, and no other figure in this block would ever show it.
+    UpscaleSnapshot wayland = scaling();
+    wayland.windowSystem = UpscaleWindowSystem::Wayland;
+    wayland.bufferKind = UpscaleBufferKind::Gpu;
+    const QString shown = upscaleStatistics(wayland);
+    QVERIFY2(shown.contains(QStringLiteral("Wayland")), qPrintable(shown));
+    QVERIFY2(shown.contains(QStringLiteral("GPU")), qPrintable(shown));
+
+    UpscaleSnapshot x11 = scaling();
+    x11.windowSystem = UpscaleWindowSystem::X11;
+    x11.bufferKind = UpscaleBufferKind::SharedMemory;
+    const QString other = upscaleStatistics(x11);
+    QVERIFY2(other.contains(QStringLiteral("X11")), qPrintable(other));
+    QVERIFY2(other.contains(QStringLiteral("memory")), qPrintable(other));
+    QVERIFY2(!other.contains(QStringLiteral("Wayland")), qPrintable(other));
+
+    // Neither is claimed when neither was established. A guess here would be
+    // read as a measurement, which is what this block is for.
+    const QString silent = upscaleStatistics(scaling());
+    QVERIFY2(!silent.contains(QStringLiteral("GPU")), qPrintable(silent));
+    QVERIFY2(!silent.contains(QStringLiteral("Wayland")), qPrintable(silent));
+}
+
 void UpscaleSnapshotTest::reportsPresentedFramesAndTheirSlowTail()
 {
     UpscaleSnapshot snapshot = scaling();

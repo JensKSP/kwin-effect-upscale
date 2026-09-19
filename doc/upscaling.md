@@ -2273,6 +2273,88 @@ separately to help isolate filter cost. A shader-only timing cannot replace
 the end-to-end comparison. Complete the initial measurements in SDR at fixed
 refresh, then repeat the relevant comparisons with HDR and VRR as supported.
 
+#### Reading the effect's own measurements
+
+The instrument is the effect itself. It already counts the frames the screen
+presented, taking their timestamps from `RenderLoop::framePresented` rather
+than from anything it submitted, keeps their slow tail, and counts the buffers
+the client committed and the repaints the compositor made. `UpscaleFrameStatistics`
+holds them, and `upscaleStatusText` reports them in the text that
+`org.kde.kwin.Effects.supportInformation upscale` returns over D-Bus.
+
+Nothing is pushed per frame. The effect accumulates into a ring buffer of 1024
+intervals and answers when it is asked, so a measured run costs one round trip
+every few seconds rather than one per frame. Three consequences follow, and all
+three decide how a run is conducted:
+
+- **The window is recent, not the whole run.** 1024 frames is about seventeen
+  seconds at 60 Hz and four at 240 Hz. A reading taken at the end of a minute
+  describes its last few seconds. Poll through the run and aggregate the
+  readings; do not take one at the end and call it the run.
+- **The instrument only runs while the display is shown.** Measuring is the
+  display's work, and the status says so when nothing is measuring. Turn
+  `OsdStatistics` on and leave it on for *every* run of a comparison. The
+  overlay is composited content and holds the output in composition, so it
+  perturbs what it measures — equally on both sides, which is what keeps the
+  comparison honest. A comparison whose two sides were instrumented
+  differently is not one.
+- **The presented rate is capped by the screen.** At a fixed 240 Hz it cannot
+  report more, and two runs that both reach the cap say nothing about their
+  rendering cost. Report the client buffer update rate beside it, and where the
+  game reports its own throughput, report that too. Never present the
+  compositor's presented rate as the game's rendered FPS.
+
+`tools/measure-frame-times.py` runs the matrix above against a real session. It
+sets the effect's preset, applies it, starts the game, polls the status at an
+interval, and reports the median of the readings with their spread and the
+difference from the native baseline. It writes every reading to a CSV under
+`build/measurements/` so that a summary can be checked rather than believed,
+and it marks a difference smaller than the spread as inconclusive instead of
+reporting it as a result. It changes only the effect's own settings.
+
+```sh
+python3 -B tools/measure-frame-times.py supertuxkart --presets native,quality,performance
+```
+
+A run has to render without a person at the keyboard, or repeating it changes
+the scene as well as the resolution:
+
+| Application | How a run is driven | What it reports itself |
+| --- | --- | --- |
+| SuperTuxKart | `--profile-time=<seconds> --fullscreen` drives itself for a fixed time | Frames and elapsed time when it finishes, which is its render throughput |
+| Extreme Tux Racer | No demo mode; the menu is keyboard driven, so keys are sent to the window and Tux then slides the course unattended | Nothing; it is measured through the effect alone |
+| Left 4 Dead 2 | Launched through Steam by application id; a map is loaded from the console | Source's own counters, where they are enabled |
+
+A game whose resolution is chosen at startup has to be started again for each
+preset, because the request is made before its window exists. The script
+therefore starts and stops the game once per run rather than changing the
+preset underneath it.
+
+#### Which client the request can reach
+
+A resolution request travels a different road for each window system, and the
+road decides whether it arrives at all. The advertised-mode and
+advertised-scale methods work by answering a client's `wl_output` bind, so they
+reach a native Wayland client and nothing else: an application running through
+Xwayland never binds the compositor's `wl_output`, because Xwayland binds it
+once on behalf of every X11 client at the same time. Such an application can
+only be reached by the X11 resize method.
+
+This is not a detail of one game. SDL chooses its video driver per launch from
+the environment, so the same binary is a Wayland client on one run and an X11
+client on the next, and most Linux games are SDL applications. Measured on
+2026-09-19: SuperTuxKart 1.4 on a session with `WAYLAND_DISPLAY` set started as
+an X11 client, held no Wayland socket, and was never advertised anything; with
+`SDL_VIDEODRIVER=wayland` the same build accepted the advertised mode and
+committed 2560 × 1440.
+
+Record the window system of every measured run, and read it from the effect's
+own display rather than assuming it from the application. A profile that names
+a method the client's window system cannot carry is not a misconfiguration to
+be corrected by trying harder; it is a statement about a road that does not
+lead there.
+
+
 ## Automated quality gates
 
 The plugin requires at least **90% executable C++ line coverage** on the

@@ -167,11 +167,44 @@ static QString measurement(const UpscaleSnapshot &snapshot)
                 QString::number(snapshot.interval, 'f', 1), QString::number(snapshot.sampleAge, 'f', 1));
 }
 
+// What the client is, in the fewest words that stay true. This sits in the
+// block a person keeps on screen because it is the first thing to check when a
+// request had no effect: a game running through Xwayland cannot be reached by
+// a Wayland method, and that is invisible in every other figure here.
+//
+// "GPU" and "memory" describe how the buffer arrived, not what drew it. The
+// graphics API is not observable from a compositor, so it is not claimed.
+static QString clientKind(const UpscaleSnapshot &snapshot)
+{
+    QString system;
+    switch (snapshot.windowSystem) {
+    case UpscaleWindowSystem::Wayland:
+        system = i18n("Wayland");
+        break;
+    case UpscaleWindowSystem::X11:
+        system = i18n("X11");
+        break;
+    case UpscaleWindowSystem::Unknown:
+        system = i18n("? window system");
+        break;
+    }
+    switch (snapshot.bufferKind) {
+    case UpscaleBufferKind::Gpu:
+        return i18n("%1 · GPU", system);
+    case UpscaleBufferKind::SharedMemory:
+        return i18n("%1 · memory", system);
+    case UpscaleBufferKind::Unknown:
+        return system;
+    }
+    return system;
+}
+
 QString upscaleStatistics(const UpscaleSnapshot &snapshot)
 {
-    return i18n("Upscale: %1\n%2 → %3 on %4\n%5",
+    return i18n("Upscale: %1\n%2 → %3 on %4 · %5\n%6",
                 processing(snapshot), sizeText(snapshot.supplied), sizeText(snapshot.destination),
-                snapshot.output.isEmpty() ? unknown() : snapshot.output, presented(snapshot));
+                snapshot.output.isEmpty() ? unknown() : snapshot.output, clientKind(snapshot),
+                presented(snapshot));
 }
 
 static QString desiredText(const UpscaleSnapshot &snapshot)
@@ -237,8 +270,24 @@ QString upscaleStatusText(const UpscaleSnapshot &snapshot)
         ? i18n("Nothing has been presented on this screen yet.")
         : i18n("Presented at %1/s, %2.", QString::number(snapshot.presentedRate, 'f', 1),
                presentationName(snapshot.presentation));
-    return i18n("Desired: %1\nSupplied input: %2\nDestination: %3\n%4\n%5\nHDR follows KWin colour management.",
-                wish, sizeText(snapshot.supplied), sizeText(snapshot.destination), state, presentation);
+    QStringList lines;
+    lines.append(i18n("Desired: %1", wish));
+    lines.append(i18n("Supplied input: %1", sizeText(snapshot.supplied)));
+    lines.append(i18n("Destination: %1", sizeText(snapshot.destination)));
+    lines.append(state);
+    lines.append(presentation);
+    // The measurements the developer block draws on the screen, repeated here
+    // in the text a script can read. Comparing two runs is done on frame times
+    // to a decimal place, and photographing the display is not a way to
+    // collect them; this is the same numbers through D-Bus. They appear only
+    // once something has been measured, so the sentence above keeps saying
+    // that nothing has rather than being contradicted by a row of zeroes.
+    if (snapshot.presentedRate >= 0 || snapshot.clientUpdates >= 0) {
+        lines.append(presented(snapshot));
+        lines.append(measurement(snapshot));
+    }
+    lines.append(i18n("HDR follows KWin colour management."));
+    return lines.join(QLatin1Char('\n'));
 }
 
 QString upscaleDeveloperInformation(const UpscaleSnapshot &snapshot)

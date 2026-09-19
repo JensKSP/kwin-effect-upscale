@@ -384,6 +384,31 @@ void UpscaleIntegrationTest::lifecycle()
         client.fullscreen(true);
         QTRY_VERIFY(status().contains(QStringLiteral("FSR 1, sharpening 0%")));
         {
+            // Switching away from a fullscreen game changes nothing about the
+            // window: it stays fullscreen, unminimized, on this desktop and
+            // covering its output. Only the activation moves. An effect that
+            // does not read it goes on scaling a window nobody can see, goes
+            // on holding the output in composition for it, and goes on drawing
+            // the display over whatever was raised in front of it. Giving the
+            // scanout requirement back is what says it stepped out of the way.
+            WaylandClient other;
+            QVERIFY(other.initialize());
+            QSocketNotifier otherNotifier(other.descriptor(), QSocketNotifier::Read);
+            connect(&otherNotifier, &QSocketNotifier::activated, this, [&other]() {
+                other.dispatch();
+            });
+            other.fullscreen(false);
+            QVERIFY(other.show(QSize(64, 64)));
+            QTRY_VERIFY2(status().contains(QStringLiteral("blocksScanout: false")), qPrintable(status()));
+        }
+        client.commit();
+        QTRY_VERIFY2(status().contains(QStringLiteral("FSR 1, sharpening 0%")), qPrintable(status()));
+        QTRY_VERIFY2(status().contains(QStringLiteral("blocksScanout: true")), qPrintable(status()));
+        {
+            // A second fullscreen window on the same output is no longer a
+            // reason to give up on both. Activation names the one on screen,
+            // by the same rule that retires the window switched away from, so
+            // the effect follows it instead of refusing to choose.
             WaylandClient second;
             QVERIFY(second.initialize());
             QSocketNotifier secondNotifier(second.descriptor(), QSocketNotifier::Read);
@@ -391,7 +416,8 @@ void UpscaleIntegrationTest::lifecycle()
                 second.dispatch();
             });
             QVERIFY(second.show(QSize(64, 64)));
-            QTRY_VERIFY2(status().contains(QStringLiteral("more than one fullscreen window is eligible")), qPrintable(status()));
+            QTRY_VERIFY2(status().contains(QStringLiteral("FSR 1, sharpening 0%")), qPrintable(status()));
+            QVERIFY2(!status().contains(QStringLiteral("more than one fullscreen window is eligible")), qPrintable(status()));
         }
         client.commit();
         QTRY_VERIFY(status().contains(QStringLiteral("FSR 1, sharpening 0%")));

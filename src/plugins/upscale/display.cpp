@@ -169,6 +169,27 @@ void UpscaleDisplay::compose()
     m_overlay.setText(blocks.join(QLatin1Char('\n')), m_snapshot.outputScale);
 }
 
+void UpscaleDisplay::applyMeasurements(UpscaleSnapshot &snapshot) const
+{
+    // A rate below zero is the value that says nothing has been measured, and
+    // it is the one field worth testing: the others are only meaningful once
+    // frames have been counted, and copying them without it would turn "not
+    // measured" into a report of zero frames per second.
+    if (m_snapshot.presentedRate < 0 && m_snapshot.clientUpdates < 0) {
+        return;
+    }
+    snapshot.presentedRate = m_snapshot.presentedRate;
+    snapshot.presentedLow = m_snapshot.presentedLow;
+    snapshot.presentedPercentile = m_snapshot.presentedPercentile;
+    snapshot.presentedWorst = m_snapshot.presentedWorst;
+    snapshot.presentedFrames = m_snapshot.presentedFrames;
+    snapshot.presentation = m_snapshot.presentation;
+    snapshot.clientUpdates = m_snapshot.clientUpdates;
+    snapshot.repaints = m_snapshot.repaints;
+    snapshot.interval = m_snapshot.interval;
+    snapshot.sampleAge = m_snapshot.sampleAge;
+}
+
 void UpscaleDisplay::paint(const RenderTarget &target, const RenderViewport &viewport, const UpscaleRectF &screen)
 {
     // The timed part may have expired since the text was composed, and the

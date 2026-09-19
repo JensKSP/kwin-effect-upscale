@@ -30,6 +30,20 @@ class SurfaceItem;
  * supplied, and finally the individual paint pass, which describes one frame
  * rather than the window and may differ for the next frame.
  */
+/**
+ * How the client's buffer reached the compositor.
+ *
+ * This is as close to "what did it render with" as a compositor can honestly
+ * get. Neither protocol carries the client's graphics API, and every client
+ * arrives as a buffer either way, so naming OpenGL or Vulkan here would be a
+ * guess. Whether the buffer came from the GPU or through main memory is not.
+ */
+enum class UpscaleBufferKind {
+    Unknown,
+    Gpu,
+    SharedMemory,
+};
+
 enum class UpscaleRefusal {
     None,
 
@@ -48,6 +62,7 @@ enum class UpscaleRefusal {
     Minimized,
     OtherDesktop,
     OtherActivity,
+    NotActive,
     TranslucentWindow,
     NoOutput,
     NoSurface,
@@ -104,5 +119,8 @@ QString describeRefusal(UpscaleRefusal refusal);
  * says which client behaviour to look at and the refusal alone does not.
  */
 QString describeSuppliedFormat(SurfaceItem *surface);
+
+/** Whether the supplied buffer came from the GPU or through main memory. */
+UpscaleBufferKind suppliedBufferKind(SurfaceItem *surface);
 
 } // namespace KWin

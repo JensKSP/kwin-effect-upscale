@@ -28,6 +28,13 @@ namespace KWin
  * or that belong to features not implemented yet, are left empty or invalid
  * and are reported as unknown rather than guessed.
  */
+/** Which window system a client speaks, or that it could not be told. */
+enum class UpscaleWindowSystem {
+    Unknown,
+    Wayland,
+    X11,
+};
+
 struct UpscaleSnapshot
 {
     // Build and runtime
@@ -69,6 +76,18 @@ struct UpscaleSnapshot
     QSize destination;
     UpscaleSize desired{0, 0};
     double outputScale = 1;
+
+    // What the client is, which is the first thing to know when a request had
+    // no effect. The window system decides which road a request can travel at
+    // all: an Xwayland client never binds the compositor's wl_output, so the
+    // advertised-mode method cannot reach it however well it is configured.
+    //
+    // The graphics API a client renders with is deliberately absent. Nothing
+    // in either protocol carries it and a compositor only ever sees buffers,
+    // so the honest neighbour is how the buffer arrived: on the GPU or through
+    // main memory. Naming OpenGL or Vulkan here would be a guess.
+    UpscaleWindowSystem windowSystem = UpscaleWindowSystem::Unknown;
+    UpscaleBufferKind bufferKind = UpscaleBufferKind::Unknown;
 
     // Processing
     QString format;
