@@ -40,8 +40,8 @@ static bool fillsFrame(X11Window *window, SurfaceItem *surface)
 {
     const QSizeF frame = window->frameGeometry().size();
     const QSizeF destination = surface->destinationSize();
-    return !frame.isEmpty() && std::abs(destination.width() / frame.width() - 1) < 1e-6
-        && std::abs(destination.height() / frame.height() - 1) < 1e-6;
+    return !frame.isEmpty() && std::abs((destination.width() / frame.width()) - 1) < 1e-6
+        && std::abs((destination.height() / frame.height()) - 1) < 1e-6;
 }
 
 // How much larger than the client's window the frame is, in the pixels both
