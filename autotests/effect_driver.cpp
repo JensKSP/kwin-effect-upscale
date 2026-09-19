@@ -146,7 +146,14 @@ public:
         if (group.readEntry("ColorsOnly", false)) {
             // Model an output colour change without reconfiguring the effect;
             // otherwise its unconditional reset would hide stale refusals.
+            // The same signal under the two names KWin has given it. The
+            // plugin already chooses between them; a test driver that named
+            // only one would not build wherever the other is current.
+#if UPSCALE_REGION_API
+            Q_EMIT effects->activeScreen()->blendingColorChanged();
+#else
             Q_EMIT effects->activeScreen()->colorDescriptionChanged();
+#endif
             effects->addRepaintFull();
             return;
         }
