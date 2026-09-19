@@ -179,8 +179,16 @@ changed is how fast the game itself could produce frames, which is what a
 smaller render target buys. At `performance` SuperTuxKart drew 1.93 times as many
 frames as at native while still filling the same 4K screen.
 
-That headroom is the point: it is what a game spends on higher settings, or on
-staying above a refresh rate it would otherwise miss. These figures are one
+The returns fall off, and that is worth reading rather than glossing over.
+`quality` renders 44% of the pixels and gains 69%; `performance` renders 25% of
+them - little more than half as many again - and gains only 93%. Cutting the
+pixels further bought almost nothing, so below about 1440p something other than
+the pixel count is what limits this game on this machine. A game whose frame
+rate is set by its own work on the processor is exactly the case where
+upscaling has least to offer, and no amount of it will help.
+
+That headroom is the point where it exists: it is what a game spends on higher
+settings, or on staying above a refresh rate it would otherwise miss. These figures are one
 machine, one game and one session. They are not a promise about yours, and
 nothing here yet measures how the result looks.
 

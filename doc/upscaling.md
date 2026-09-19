@@ -1070,14 +1070,32 @@ Configured HDR/VRR settings alone do not prove the corresponding active path.
 
 Implemented: the heads-up display is its own block in the corner the user
 chose, top right unless they moved it, drawn at 1.6 times the session's font
-size. It shows the presented frame rate, the frame time that rate implies, the
-1% low once enough frames have been seen, and one line for the picture: either
+size. It shows the rate the screen presented over the last second, the 1% low
+once enough frames have been seen, the frame time the game itself took, and one
+line for the picture: either
 `FSR 1` with the sharpening state, the resolutions it is drawing between and
 the render scale, or the output resolution named as native when the supplied
 buffer matches it. A bypass with a different or unknown input size shows
 `FSR off` and the observed dimensions. Common resolution names describe exact
 sizes; other sizes retain both pixel dimensions, including ultrawide formats.
-Each timing figure not measured yet reads as a dash. The separately counted client buffer updates and
+Each figure occupies a fixed five columns - four digits and at most one point,
+bounded at 9999 and 0.999 - so that a value crossing 10, 100 or 1000 does not
+move the text beside it, and the window system is set flush to the block's
+right edge for the same reason. The block is drawn in the session's
+fixed-width font, which is what makes a column a character. Each timing figure
+not measured yet reads as a dash.
+
+The rate and the frame time come from different sides on purpose. A screen
+cannot present more often than it refreshes, so above the refresh the presented
+rate and anything derived from it stop answering what a resolution costs:
+measured on 2026-09-19 at 3840 x 2160 on a 240 Hz panel, SuperTuxKart presented
+237/s at native, quality and performance alike while drawing 493, 833 and 949
+frames a second. The rate is therefore the screen's, because that is what a
+player sees, and the frame time is the interval between the buffers the game
+committed, because nothing but the game bounds it. The rate slides over one
+second rather than over the frames the statistics hold, which is 4.3 seconds at
+240 Hz and 17 at 60; the tail measures keep the whole window, which is what
+makes a 99th percentile or a 1% low worth quoting. The separately counted client buffer updates and
 compositor repaints, with their one-second sampling interval and the age of the
 sample, are developer information and appear in that block, where a game that
 stopped supplying frames shows an ageing sample rather than a frozen rate
