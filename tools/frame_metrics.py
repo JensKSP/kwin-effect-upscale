@@ -146,6 +146,10 @@ class Summary:
     presented_percentile: float | None = None
     presented_worst: float | None = None
     client_updates: float | None = None
+    # The spread of that rate across the run's samples, for the same reason
+    # the presented rate carries one: two runs closer together than a single
+    # run's own readings have not been shown to differ.
+    client_spread: float | None = None
     game_rate: float | None = None
     renderer_used: str = ""
     scanout: str = ""
@@ -207,6 +211,9 @@ def summarize(game: str, preset: str, samples: list[Sample], window: str = "") -
     summary.presented_percentile = median_of(useful, "presented_percentile")
     summary.presented_worst = median_of(useful, "presented_worst")
     summary.client_updates = median_of(useful, "client_updates")
+    committed = [sample.client_updates for sample in useful if sample.client_updates]
+    if len(committed) > 1:
+        summary.client_spread = max(committed) - min(committed)
     rates = [sample.presented_rate for sample in useful if sample.presented_rate]
     if len(rates) > 1:
         summary.presented_spread = max(rates) - min(rates)
