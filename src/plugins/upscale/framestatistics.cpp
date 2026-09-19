@@ -55,6 +55,27 @@ double UpscaleFrameStatistics::averageRate() const
     return total > 0 ? 1000.0 * double(m_count) / total : -1;
 }
 
+double UpscaleFrameStatistics::recentRate(double milliseconds) const
+{
+    if (m_count == 0 || milliseconds <= 0) {
+        return -1;
+    }
+    double total = 0;
+    size_t frames = 0;
+    // Backwards from the newest interval. The one that crosses the boundary is
+    // taken whole rather than split: a window shorter than a single frame then
+    // still reports that frame, which is the honest answer to "how fast is it
+    // going now" when one frame is all there has been time for.
+    for (size_t step = 0; step < m_count; ++step) {
+        total += m_intervals[(m_next + upscaleFrameWindow - 1 - step) % upscaleFrameWindow];
+        ++frames;
+        if (total >= milliseconds) {
+            break;
+        }
+    }
+    return total > 0 ? 1000.0 * double(frames) / total : -1;
+}
+
 std::array<double, upscaleFrameWindow> UpscaleFrameStatistics::sorted(size_t *count) const
 {
     std::array<double, upscaleFrameWindow> values{};

@@ -252,8 +252,12 @@ QString upscaleHeadsUp(const UpscaleSnapshot &snapshot)
     // buffers the game commits keeps answering it. Measured on 2026-09-19 at
     // 3840 x 2160 on a 240 Hz screen: SuperTuxKart presented 237/s at native,
     // quality and performance alike, and drew 493, 833 and 949 frames a second.
-    if (snapshot.presentedRate > 0) {
-        figures.append(i18n("%1 FPS", QString::number(snapshot.presentedRate, 'f', 0)));
+    // The recent window, not every frame held, so the figure answers for now.
+    // It falls back to the whole window for a caller that fills a snapshot
+    // without the statistics behind it, such as the settings page.
+    const double rate = snapshot.presentedRecent > 0 ? snapshot.presentedRecent : snapshot.presentedRate;
+    if (rate > 0) {
+        figures.append(i18n("%1 FPS", QString::number(rate, 'f', 0)));
     } else {
         // A dash is what an overlay shows before it has measured anything. It
         // is not a zero, and it is not last minute's rate.

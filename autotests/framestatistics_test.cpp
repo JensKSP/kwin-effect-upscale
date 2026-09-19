@@ -20,6 +20,7 @@ private Q_SLOTS:
     void separatesTheTwoKindsOfLow();
     void needsEnoughFramesForATail();
     void keepsOnlyTheRecentWindow();
+    void slidesOverTimeNotOverFrames();
     void ignoresRepeatedAndBackwardTimestamps();
 };
 
@@ -137,6 +138,34 @@ void FrameStatisticsTest::ignoresRepeatedAndBackwardTimestamps()
     statistics.record(20);
     QCOMPARE(statistics.frames(), size_t(2));
     QCOMPARE(statistics.worstFrameTime(), 10.0);
+}
+
+// The window holds frames, but a display read while playing has to answer for
+// a span of time: 1024 frames is 4.3 seconds at 240 Hz and 17 at 60, and an
+// average that long barely moves while the game plainly changes.
+void FrameStatisticsTest::slidesOverTimeNotOverFrames()
+{
+    UpscaleFrameStatistics statistics;
+    double now = 0;
+    statistics.record(now);
+    // A thousand frames at a millisecond each, then half a second of frames
+    // taking fifty milliseconds: a game that has just walked into trouble.
+    for (int frame = 0; frame < 1000; ++frame) {
+        now += 1;
+        statistics.record(now);
+    }
+    for (int frame = 0; frame < 10; ++frame) {
+        now += 50;
+        statistics.record(now);
+    }
+    // The whole window is still dominated by the thousand fast frames.
+    QVERIFY2(statistics.averageRate() > 500, qPrintable(QString::number(statistics.averageRate())));
+    // The last half second is ten frames of fifty milliseconds, and nothing else.
+    const double recent = statistics.recentRate(500);
+    QVERIFY2(std::abs(recent - 20.0) < 0.001, qPrintable(QString::number(recent)));
+    // A span of no time is not a question that can be answered.
+    QVERIFY(statistics.recentRate(0) < 0);
+    QVERIFY(UpscaleFrameStatistics().recentRate(500) < 0);
 }
 
 QTEST_GUILESS_MAIN(FrameStatisticsTest)

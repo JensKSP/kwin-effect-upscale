@@ -24,6 +24,7 @@ private Q_SLOTS:
     void distinguishesBypassFromNative();
     void keepsUnusualDimensions();
     void separatesTheGameFromTheScreen();
+    void showsTheRateItJustMeasured();
 
 private:
     static UpscaleSnapshot scaling();
@@ -104,6 +105,25 @@ void UpscaleHeadsUpTest::separatesTheGameFromTheScreen()
     const QString unmeasured = upscaleHeadsUp(snapshot);
     QVERIFY2(unmeasured.contains(QStringLiteral("— ms/f")), qPrintable(unmeasured));
     QVERIFY2(!unmeasured.contains(QStringLiteral("1.1 ms/f")), qPrintable(unmeasured));
+}
+
+void UpscaleHeadsUpTest::showsTheRateItJustMeasured()
+{
+    // The rate over every frame held reaches back 4.3 seconds at 240 Hz, which
+    // is why the block looked frozen while a game was plainly struggling. The
+    // recent one is what it shows; the long one is what the tail figures need.
+    UpscaleSnapshot snapshot = scaling();
+    snapshot.presentedRate = 237.1;
+    snapshot.presentedRecent = 118.4;
+    const QString block = upscaleHeadsUp(snapshot);
+    QVERIFY2(block.contains(QStringLiteral("118 FPS")), qPrintable(block));
+    QVERIFY2(!block.contains(QStringLiteral("237 FPS")), qPrintable(block));
+
+    // A snapshot nothing measured a recent rate for still shows what it has,
+    // because the settings page builds one without the statistics behind it.
+    snapshot.presentedRecent = -1;
+    QVERIFY2(upscaleHeadsUp(snapshot).contains(QStringLiteral("237 FPS")),
+             qPrintable(upscaleHeadsUp(snapshot)));
 }
 
 QTEST_GUILESS_MAIN(UpscaleHeadsUpTest)

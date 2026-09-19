@@ -123,6 +123,11 @@ struct UpscaleSnapshot
     // committed and what the compositor painted: a painted frame that was
     // dropped or repeated is not a frame anybody saw.
     double presentedRate = -1;
+    // The same rate over the last second alone, for the display a player
+    // watches while playing. presentedRate covers every frame held, which is
+    // 4.3 seconds at 240 Hz and 17 at 60, and a figure that slow to move
+    // reads as though nothing is happening.
+    double presentedRecent = -1;
     // The mean of the slowest hundredth of frames, as a rate: "one per cent
     // low" in the sense a hardware review means it.
     double presentedLow = -1;
