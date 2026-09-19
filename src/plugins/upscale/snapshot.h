@@ -47,6 +47,9 @@ struct UpscaleSnapshot
     // it told it nothing. Never confuse it with the committed buffer: the
     // application is free to ignore it.
     QSize advertised;
+    // A live X11 request is a window size, not a Wayland mode advertisement.
+    QSize requested;
+    QString requestFailure;
     QString output;
     bool selected = false;
     bool activeWindow = false;

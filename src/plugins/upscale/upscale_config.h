@@ -38,6 +38,7 @@ private:
     void showSettings();
     void applySettings();
     void addDisplayControls(QFormLayout *layout);
+    void addThresholdControl(QFormLayout *layout);
     void addApplicationControls(QFormLayout *layout);
     void resetApplications();
     static void reconfigureEffect();
@@ -51,6 +52,7 @@ private:
     QComboBox *m_output;
     QComboBox *m_preset;
     QSlider *m_percentage;
+    QSpinBox *m_minimumPixels;
     QLabel *m_preview;
     QCheckBox *m_sharpening;
     QSlider *m_strength;

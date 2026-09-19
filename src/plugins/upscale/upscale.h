@@ -11,6 +11,7 @@
 #include "display.h"
 #include "eligibility.h"
 
+#include <QHash>
 #include <QPointer>
 #include <QString>
 
@@ -20,9 +21,11 @@ namespace KWin
 {
 
 class UpscaleModeOverride;
+class UpscaleX11Resolution;
 class UpscaleScaler;
+class Window;
 
-/** Scales one eligible fullscreen surface from its supplied buffer size. */
+/** Scales one eligible surface per output from its supplied buffer size. */
 class UpscaleEffect : public Effect
 {
     Q_OBJECT
@@ -64,8 +67,8 @@ public:
 private:
     // The window this effect would scale, or null with the one condition that
     // refused it. Paint passes share this decision with their diagnostics.
-    EffectWindow *candidate(UpscaleRefusal *refusal = nullptr) const;
-    EffectWindow *findCandidate(UpscaleRefusal *refusal) const;
+    EffectWindow *candidate(UpscaleRefusal *refusal = nullptr, UpscaleOutput *output = nullptr) const;
+    EffectWindow *findCandidate(UpscaleRefusal *refusal, UpscaleOutput *output) const;
     // The window the on-screen display describes: the candidate, or the
     // active fullscreen window that was refused, which is the case a
     // developer needs to see explained.
@@ -73,11 +76,15 @@ private:
     // The render target is the frame being painted, and null when the caller
     // is outside a paint pass and colour is therefore not observable.
     UpscaleSnapshot snapshot(EffectWindow *window, const RenderTarget *target) const;
+    void describeApplication(UpscaleSnapshot &state, const Window *window) const;
     void watchWindow(EffectWindow *window);
+    void watchOutput(UpscaleOutput *output);
 
     // Reuse selection only within one synchronous screen paint. Outside it,
     // queries must see current buffer, geometry, focus and lock state.
     bool m_inPaint = false;
+    UpscaleOutput *m_paintOutput = nullptr;
+    mutable UpscaleOutput *m_candidateOutput = nullptr;
     mutable bool m_candidateCached = false;
     mutable QPointer<EffectWindow> m_candidate;
     mutable UpscaleRefusal m_candidateRefusal = UpscaleRefusal::NoWindow;
@@ -86,9 +93,10 @@ private:
     // window of it exists. It therefore outlives individual windows and is
     // created once, not per candidate.
     std::unique_ptr<UpscaleModeOverride> m_modeOverride;
-    // The candidate whose render target this scaler cannot handle. Held as a
-    // window rather than a flag so a different one is always tried again.
-    mutable QPointer<EffectWindow> m_unsupportedColors;
+    std::unique_ptr<UpscaleX11Resolution> m_x11Resolution;
+    // Refused windows are independent. Output colour/configuration changes
+    // and window output changes invalidate their refusal without reconfiguration.
+    QList<QPointer<EffectWindow>> m_unsupportedColors;
     bool m_enabled = true;
     bool m_failed = false;
     // The largest texture this GPU will allocate, read from the driver rather
@@ -96,8 +104,7 @@ private:
     int m_maximumTexture = 0;
     double m_strength = 0;
     ItemRenderer *m_renderer = nullptr;
-    QPointer<EffectWindow> m_renderedWindow;
-    QSize m_renderedInput;
+    QHash<EffectWindow *, QSize> m_renderedInputs;
     // Why the last paint pass over the candidate could not be replaced. It
     // describes one frame rather than the window, so it is diagnostic only and
     // never keeps the next frame from being scaled.

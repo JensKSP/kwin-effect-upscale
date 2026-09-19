@@ -14,6 +14,7 @@
 #include "scaler.h"
 #include "snapshot.h"
 #include "upscaleconfig.h"
+#include "x11resolution.h"
 
 // The build identity lives outside the plugin folder, because that folder has
 // to stay a folder KDE could copy into KWin unchanged, and KWin has nothing
@@ -31,6 +32,7 @@
 #include "scene/surfaceitem.h"
 #include "scene/windowitem.h"
 #include "scene/workspacescene.h"
+#include "wayland/surface.h"
 #include "window.h"
 
 #include <KLocalizedString>
@@ -57,6 +59,7 @@ UpscaleEffect::UpscaleEffect(ItemRenderer *renderer)
     // hands it the settings, and before any window is watched, because a game
     // that is already connected can no longer be told anything.
     m_modeOverride = std::make_unique<UpscaleModeOverride>();
+    m_x11Resolution = std::make_unique<UpscaleX11Resolution>();
 #if !UPSCALE_RENDER_DEVICE_API
     if (!m_renderer) {
         m_renderer = effects->scene()->renderer();
@@ -70,6 +73,10 @@ UpscaleEffect::UpscaleEffect(ItemRenderer *renderer)
 #endif
     UpscaleEffect::reconfigure(ReconfigureAll);
     connect(effects, &EffectsHandler::windowAdded, this, &UpscaleEffect::watchWindow);
+    connect(effects, &EffectsHandler::screenAdded, this, &UpscaleEffect::watchOutput);
+    for (UpscaleOutput *output : effects->screens()) {
+        watchOutput(output);
+    }
     const auto windows = effects->stackingOrder();
     for (EffectWindow *window : windows) {
         watchWindow(window);
@@ -90,41 +97,16 @@ void UpscaleEffect::prePaintScreen(ScreenPrePaintData &data)
 
 UpscaleEffect::~UpscaleEffect()
 {
+    m_x11Resolution.reset();
     effects->makeOpenGLContextCurrent();
     m_scaler.reset();
     m_display.hide();
 }
 
-static bool eligible(EffectWindow *window)
-{
-    return windowRefusal(window) == UpscaleRefusal::None;
-}
-
-void UpscaleEffect::watchWindow(EffectWindow *window)
-{
-    if (Window *internal = window->window()) {
-        // An application ID can arrive after its window does, and an X11
-        // client may replace it later. Repaint so that what is shown on
-        // screen follows the identity rather than the first guess at it.
-        connect(internal, &Window::windowClassChanged, this, [window]() {
-            window->addRepaintFull();
-        });
-    }
-    connect(window, &EffectWindow::windowDamaged, this, [this, window]() {
-        if (eligible(window)) {
-            // EASU and RCAS read neighbouring pixels. Full-window damage is
-            // conservative and follows client commits, never a repaint timer.
-            window->addRepaintFull();
-        }
-        if (m_display.enabled() && !effects->isScreenLocked()) {
-            m_display.countClientUpdate(window);
-        }
-    });
-}
-
 void UpscaleEffect::reconfigure(ReconfigureFlags flags)
 {
     Q_UNUSED(flags)
+    UpscaleConfig::self()->config()->reparseConfiguration();
     UpscaleConfig::self()->read();
     // Configuration is disk work, so it happens here and never in a frame.
     upscaleReloadApplications();
@@ -137,9 +119,11 @@ void UpscaleEffect::reconfigure(ReconfigureFlags flags)
                                     static_cast<ResolutionPreset>(UpscaleConfig::preset()),
                                     UpscaleConfig::percentage());
     }
+    m_x11Resolution->reconfigure(m_enabled && UpscaleConfig::resolutionControl(),
+                                 static_cast<ResolutionPreset>(UpscaleConfig::preset()), UpscaleConfig::percentage());
     m_failed = false;
     m_candidateCached = false;
-    m_renderedWindow.clear();
+    m_renderedInputs.clear();
     m_unsupportedColors.clear();
     m_passRefusal = UpscaleRefusal::None;
     effects->makeOpenGLContextCurrent();
@@ -197,7 +181,7 @@ bool UpscaleEffect::isActive() const
     // display keeps it in the chain for exactly the case its explanation is
     // needed, and drops out again as soon as it has nothing to show.
     EffectWindow *window = effects->activeWindow();
-    return !effects->isScreenLocked() && window && window->isFullScreen()
+    return !effects->isScreenLocked() && window && upscalePresentation(window)
         && !window->isDeleted() && m_display.activeFor(window);
 }
 
@@ -210,81 +194,20 @@ bool UpscaleEffect::blocksDirectScanout() const
     return isActive();
 }
 
-EffectWindow *UpscaleEffect::candidate(UpscaleRefusal *refusal) const
-{
-    if (!m_inPaint) {
-        return findCandidate(refusal);
-    }
-    if (!m_candidateCached) {
-        m_candidate = findCandidate(&m_candidateRefusal);
-        m_candidateCached = true;
-    }
-    if (refusal) {
-        *refusal = m_candidateRefusal;
-    }
-    return m_candidate;
-}
-
-EffectWindow *UpscaleEffect::findCandidate(UpscaleRefusal *refusal) const
-{
-    const auto refuse = [refusal](UpscaleRefusal reason) -> EffectWindow * {
-        if (refusal) {
-            *refusal = reason;
-        }
-        return nullptr;
-    };
-    if (!m_enabled) {
-        return refuse(UpscaleRefusal::Disabled);
-    }
-    if (m_failed) {
-        return refuse(UpscaleRefusal::ResourceFailure);
-    }
-    if (effects->isScreenLocked()) {
-        return refuse(UpscaleRefusal::ScreenLocked);
-    }
-    if (effects->activeFullScreenEffect()) {
-        return refuse(UpscaleRefusal::OtherFullScreenEffect);
-    }
-    EffectWindow *selected = nullptr;
-    const auto windows = effects->stackingOrder();
-    for (EffectWindow *window : windows) {
-        if (eligible(window)) {
-            if (selected) {
-                return refuse(UpscaleRefusal::SeveralCandidates);
-            }
-            selected = window;
-        }
-    }
-    if (!selected) {
-        // Nothing here is eligible, so the interesting answer is why the
-        // window the user is looking at is not. Asking costs one more pass
-        // over the conditions and happens only for a caller that wants it.
-        EffectWindow *active = effects->activeWindow();
-        return refuse(active ? windowRefusal(active) : UpscaleRefusal::NoWindow);
-    }
-    if (selected == m_unsupportedColors) {
-        return refuse(UpscaleRefusal::UnsupportedColors);
-    }
-    m_unsupportedColors.clear();
-    if (refusal) {
-        *refusal = UpscaleRefusal::None;
-    }
-    return selected;
-}
-
 UpscalePaintResult UpscaleEffect::drawWindow(const RenderTarget &target, const RenderViewport &viewport, EffectWindow *window,
                                              int mask, const UpscaleRegion &region, WindowPaintData &data)
 {
     // Selection is shared by the draws in this paint pass. Check the actual
     // window again before using its surface, which may have been replaced.
-    if (m_renderer && eligible(window) && window == candidate()) {
+    if (m_renderer && windowRefusal(window) == UpscaleRefusal::None && window == candidate(nullptr, m_inPaint ? m_paintOutput : window->screen())) {
         if (!supportsUpscaleColors(targetColors(target))) {
             // Unlike the conditions above, this one follows the output's
             // colour setup and will hold for every frame of this window.
             // Remembering it takes the effect out of the active set, so the
             // output is not held in composition for a frame that will be
-            // handed back to KWin anyway. Another candidate clears it.
-            m_unsupportedColors = window;
+            // handed back to KWin anyway. Other windows remain independent.
+            m_unsupportedColors.removeAll(nullptr);
+            m_unsupportedColors.append(window);
             m_candidateCached = false;
             effects->addRepaintFull();
         } else if (m_passRefusal = passRefusal(target, viewport, window, mask, data); m_passRefusal == UpscaleRefusal::None) {
@@ -298,8 +221,7 @@ UpscalePaintResult UpscaleEffect::drawWindow(const RenderTarget &target, const R
             const UpscaleRegion clip = region == infiniteRegion() ? region : viewport.mapToRenderTarget(region);
 #endif
             if (!m_failed && m_scaler->render(target, viewport, window->windowItem()->surfaceItem(), window->frameGeometry(), clip, m_strength)) {
-                m_renderedWindow = window;
-                m_renderedInput = window->windowItem()->surfaceItem()->bufferSize();
+                m_renderedInputs.insert(window, window->windowItem()->surfaceItem()->bufferSize());
 #if UPSCALE_RENDER_DEVICE_API
                 return true;
 #else
@@ -315,9 +237,7 @@ UpscalePaintResult UpscaleEffect::drawWindow(const RenderTarget &target, const R
             effects->addRepaintFull();
         }
     }
-    if (m_renderedWindow == window) {
-        m_renderedWindow.clear();
-    }
+    m_renderedInputs.remove(window);
 #if UPSCALE_RENDER_DEVICE_API
     return effects->drawWindow(target, viewport, window, mask, region, data);
 #else
@@ -333,7 +253,7 @@ EffectWindow *UpscaleEffect::displayed() const
     // A refused fullscreen window is exactly the case that needs explaining,
     // so the display follows it. Ordinary desktop windows are left alone.
     EffectWindow *active = effects->activeWindow();
-    return active && active->isFullScreen() && !active->isDeleted() ? active : nullptr;
+    return active && upscalePresentation(active) && !active->isDeleted() ? active : nullptr;
 }
 
 UpscaleSnapshot UpscaleEffect::snapshot(EffectWindow *window, const RenderTarget *target) const
@@ -344,23 +264,12 @@ UpscaleSnapshot UpscaleEffect::snapshot(EffectWindow *window, const RenderTarget
     state.graphics = usingOpenGLES() ? i18n("OpenGL ES") : i18n("OpenGL");
 
     UpscaleRefusal refusal = UpscaleRefusal::None;
-    const EffectWindow *scaled = candidate(&refusal);
+    const EffectWindow *scaled = candidate(&refusal, window->screen());
     state.selected = scaled == window;
     state.refusal = state.selected ? m_passRefusal : refusal;
     state.window = window->caption();
     state.application = window->windowClass();
-    // Identity comes off the window's own fields rather than the combined
-    // string, which puts the instance and the class together with a space.
-    const Window *internal = window->window();
-    if (const UpscaleApplication *known = internal
-            ? upscaleApplicationForIdentity(internal->resourceClass(), internal->resourceName())
-            : nullptr) {
-        state.recognized = known->name;
-        state.method = known->method;
-        if (m_modeOverride) {
-            state.advertised = m_modeOverride->advertised(known->program);
-        }
-    }
+    describeApplication(state, window->window());
     state.activeWindow = effects->activeWindow() == window;
     state.fullScreen = window->isFullScreen();
     state.blocksScanout = blocksDirectScanout();
@@ -381,7 +290,7 @@ UpscaleSnapshot UpscaleEffect::snapshot(EffectWindow *window, const RenderTarget
     if (SurfaceItem *surface = window->windowItem() ? window->windowItem()->surfaceItem() : nullptr) {
         state.supplied = surface->bufferSize();
         state.format = describeSuppliedFormat(surface);
-        state.scaling = m_renderedWindow == window && m_renderedInput == state.supplied;
+        state.scaling = m_renderedInputs.contains(window) && m_renderedInputs.value(window) == state.supplied;
     }
 
     // The frames the screen presented are measured whether or not the display
@@ -397,6 +306,26 @@ UpscaleSnapshot UpscaleEffect::snapshot(EffectWindow *window, const RenderTarget
         state.referenceLuminance = colors.referenceLuminance();
     }
     return state;
+}
+
+void UpscaleEffect::describeApplication(UpscaleSnapshot &state, const Window *window) const
+{
+    // Read identity fields separately; EffectWindow::windowClass combines them.
+    const UpscaleApplication *known = window
+        ? upscaleApplicationForIdentity(window->resourceClass(), window->resourceName())
+        : nullptr;
+    if (!known) {
+        return;
+    }
+    state.recognized = known->name;
+    state.method = known->method;
+    if (m_modeOverride && window->surface() && window->output()) {
+        state.advertised = m_modeOverride->advertised(window->surface()->client(), window->output()->name());
+    }
+    if (known->method == UpscaleControlMethod::X11Resize) {
+        state.requested = m_x11Resolution->requested(window);
+        state.requestFailure = m_x11Resolution->failure(window);
+    }
 }
 
 void UpscaleEffect::paintDisplay(const RenderTarget &target, const RenderViewport &viewport, UpscaleOutput *screen)
@@ -427,6 +356,7 @@ UpscalePaintResult UpscaleEffect::paintScreen(const RenderTarget &target, const 
                                               const UpscaleRegion &region, UpscaleOutput *screen)
 {
     const QScopedValueRollback painting(m_inPaint, true);
+    const QScopedValueRollback output(m_paintOutput, screen);
     m_candidateCached = false;
     // The display is drawn after the screen pass, which is after the scaler
     // captured the game's surface. That ordering is what keeps this text out

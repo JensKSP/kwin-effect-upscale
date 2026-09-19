@@ -42,6 +42,8 @@
 #include <QSlider>
 #include <QSpinBox>
 
+#include <limits>
+
 K_PLUGIN_FACTORY(UpscaleEffectConfigFactory, registerPlugin<KWin::UpscaleEffectConfig>();)
 
 namespace KWin
@@ -53,6 +55,7 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     , m_output(new QComboBox(widget()))
     , m_preset(new QComboBox(widget()))
     , m_percentage(new QSlider(Qt::Horizontal, widget()))
+    , m_minimumPixels(new QSpinBox(widget()))
     , m_preview(new QLabel(widget()))
     , m_sharpening(new QCheckBox(i18n("Enable RCAS sharpening"), widget()))
     , m_strength(new QSlider(Qt::Horizontal, widget()))
@@ -84,6 +87,7 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     layout->addRow(i18n("Input size:"), m_percentage);
     m_preview->setWordWrap(true);
     layout->addRow(m_preview);
+    addThresholdControl(layout);
     layout->addRow(m_sharpening);
     m_strength->setRange(0, 100);
     layout->addRow(i18n("Sharpening strength:"), m_strength);
@@ -115,6 +119,19 @@ void UpscaleEffectConfig::addStatusControls(QFormLayout *layout)
     refresh->setObjectName(QStringLiteral("refreshStatus"));
     layout->addRow(refresh);
     connect(refresh, &QPushButton::clicked, this, &UpscaleEffectConfig::refreshStatus);
+}
+
+void UpscaleEffectConfig::addThresholdControl(QFormLayout *layout)
+{
+    m_minimumPixels->setObjectName(QStringLiteral("minimumPixels"));
+    m_minimumPixels->setRange(0, std::numeric_limits<int>::max());
+    m_minimumPixels->setSpecialValueText(i18n("No threshold"));
+    m_minimumPixels->setToolTip(i18n("Each output is checked independently. Scale only above this physical pixel count; Full HD is 2073600. Application rules can override it."));
+    layout->addRow(i18n("Minimum output pixels:"), m_minimumPixels);
+    connect(m_minimumPixels, &QSpinBox::valueChanged, this, [this]() {
+        updatePreview();
+        setNeedsSave(true);
+    });
 }
 
 void UpscaleEffectConfig::connectControls()
@@ -264,6 +281,9 @@ void UpscaleEffectConfig::updatePreview()
                                : i18n("%1% — %2 × %3 physical pixels. Select this resolution in the game. Scaling follows the actual supplied buffer, even when it differs.",
                                       QString::number(ratio * 100, 'f', preset == ResolutionPreset::Custom || preset == ResolutionPreset::Native || preset == ResolutionPreset::Performance ? 0 : 1),
                                       desired.width, desired.height));
+        if (!exceedsMinimumPixels({pixels.width(), pixels.height()}, m_minimumPixels->value())) {
+            m_preview->setText(i18n("This output is at or below the pixel threshold: no resolution request or upscaling, unless an application overrides the threshold."));
+        }
     }
     m_strength->setEnabled(m_sharpening->isChecked());
     m_strengthLabel->setText(i18n("%1% (0% bypasses sharpening)", m_strength->value()));
@@ -280,6 +300,7 @@ void UpscaleEffectConfig::showSettings()
     m_enabled->setChecked(UpscaleConfig::enabled());
     m_percentage->setValue(UpscaleConfig::percentage());
     m_preset->setCurrentIndex(UpscaleConfig::preset());
+    m_minimumPixels->setValue(UpscaleConfig::minimumPixels());
     m_sharpening->setChecked(UpscaleConfig::sharpening());
     m_strength->setValue(UpscaleConfig::strength());
     m_osd->setChecked(UpscaleConfig::osd());
@@ -297,6 +318,7 @@ void UpscaleEffectConfig::applySettings()
     UpscaleConfig::setEnabled(m_enabled->isChecked());
     UpscaleConfig::setPreset(m_preset->currentIndex());
     UpscaleConfig::setPercentage(m_percentage->value());
+    UpscaleConfig::setMinimumPixels(m_minimumPixels->value());
     UpscaleConfig::setSharpening(m_sharpening->isChecked());
     UpscaleConfig::setStrength(m_strength->value());
     UpscaleConfig::setOsd(m_osd->isChecked());

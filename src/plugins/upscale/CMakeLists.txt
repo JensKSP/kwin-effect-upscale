@@ -12,6 +12,10 @@ set(upscale_SOURCES
     scaler.cpp
     snapshot.cpp
     upscale.cpp
+    upscale_selection.cpp
+    x11geometry.cpp
+    x11resolution.cpp
+    x11resolution_events.cpp
     upscale.qrc
 )
 
@@ -29,6 +33,8 @@ target_link_libraries(upscale PRIVATE
     KF6::ConfigGui
     KF6::I18n
     Libdrm::Libdrm
+    XCB::XCB
+    XCB::RANDR
 )
 
 #######################################

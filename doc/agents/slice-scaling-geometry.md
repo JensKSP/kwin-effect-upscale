@@ -29,7 +29,8 @@ Extend the existing renderer and global controls. Integrate sparse settings
 through [profiles](slice-application-profiles.md); the [overlay](slice-game-overlay.md)
 can expose the same settings when available but is not required to validate
 them through the configuration module. Use verified resolution-control surface
-handling where a helper supplies the game. Windowed-game fullscreen presentation
+handling for cooperative clients. Already-full-output borderless windows are
+eligible today; arbitrary smaller-window fullscreen presentation
 and display-specific settings remain excluded as stated below.
 
 ## Scope

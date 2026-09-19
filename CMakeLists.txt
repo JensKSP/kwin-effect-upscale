@@ -83,6 +83,7 @@ find_package(
 find_package(KF6 ${KF_MIN_VERSION} REQUIRED COMPONENTS Config CoreAddons I18n)
 find_package(KWin REQUIRED COMPONENTS kwineffects)
 find_package(Libdrm REQUIRED)
+find_package(XCB REQUIRED COMPONENTS XCB RANDR)
 
 # Build the configuration page the way KWin does when its KCMs are enabled.
 option(KWIN_BUILD_KCMS "Build the effect configuration page" ON)

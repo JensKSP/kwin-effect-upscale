@@ -88,6 +88,10 @@ No fixed two-job caps or custom RAM/CPU scheduler.
 
 ## Progress and observed results
 
+The following is a chronological record of named candidates. Early failures,
+pending approvals and pending hosted runs are superseded where a later dated
+entry records their resolution; they are not the current PR’s status.
+
 - Review found the latest hosted CI failed on Git ownership before runtime tests.
 - Review found publication did not depend on all supported-platform checks, and
   nightly downloaded instrumentation artifacts along with packages.

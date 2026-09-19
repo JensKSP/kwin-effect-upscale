@@ -49,12 +49,9 @@ slice documents beside it are temporary.
 
 These links locate the current slice documents. Status, dependencies and
 remaining work belong in those documents, not in this index. Update the links
-when splitting, renaming or completing a slice. The next implementation package
-is identified by the priority statement in the development infrastructure slice.
-Its diagnostics are deliberately front-loaded so that the rendering slice's
-scaler-effective gate can close immediately after it; resolution control is the
-product feasibility gate that follows. Profiles, geometry and interactive
-controls come after that.
+when splitting, renaming or completing a slice. Implementation and remaining
+acceptance are recorded in each owning document; historical sequencing does
+not imply that already implemented diagnostics or resolution control are absent.
 
 | Topic | Working document |
 | --- | --- |
@@ -62,8 +59,8 @@ controls come after that.
 | FSR rendering, HDR/VRR and acceptance | [FSR rendering](slice-fsr1-hdr-vrr.md) |
 | Application matching and setting overrides | [Application profiles](slice-application-profiles.md) |
 | Obtaining original smaller game buffers | [Resolution control](slice-resolution-control.md) |
-| Managed launch, restart and method discovery | [Application launching](slice-application-launching.md) |
-| Interactive in-game controls, comparison and restart | [Game controls](slice-game-overlay.md) |
+| Superseded managed-launch proposal | [Application launching](slice-application-launching.md) |
+| Interactive in-game controls and comparison | [Game controls](slice-game-overlay.md) |
 | Aspect ratio and integer scaling | [Scaling geometry](slice-scaling-geometry.md) |
 | Shipping the effect in the user's language | [Translations](slice-translations.md) |
 | Validated package and release publication | [Build and release pipeline](slice-build-release-pipeline.md) |

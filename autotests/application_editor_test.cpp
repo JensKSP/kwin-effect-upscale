@@ -17,11 +17,13 @@
 #include <QComboBox>
 #include <QDBusConnection>
 #include <QDBusContext>
+#include <QDBusPendingCallWatcher>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QSpinBox>
 #include <QTimer>
 
 #include <initializer_list>
@@ -173,6 +175,10 @@ void UpscaleApplicationEditorTest::editsTheApplicationList()
     QTest::keyClick(preset, Qt::Key_Down);
     QVERIFY(preset->currentIndex() != automatic);
     const QString chosen = preset->currentText();
+    auto *minimum = editor->findChild<QSpinBox *>(QStringLiteral("applicationMinimumPixels"));
+    QVERIFY(minimum);
+    QCOMPARE(minimum->value(), -1);
+    minimum->setValue(2073600);
     // Nothing is written before the page is applied.
     QVERIFY(!userConfig().contains(QStringLiteral("Application-supertuxkart")));
 
@@ -195,6 +201,7 @@ void UpscaleApplicationEditorTest::editsTheApplicationList()
     // typed, and the choice survives the round trip.
     list->setCurrentRow(kart);
     QCOMPARE(preset->currentText(), chosen);
+    QCOMPARE(minimum->value(), 2073600);
 
     // The page says whether the list still follows the package.
     QLabel *summary = module.widget()->findChild<QLabel *>(QStringLiteral("applicationSummary"));
@@ -269,7 +276,7 @@ void UpscaleApplicationEditorTest::addsAnApplicationFromAWindow()
     // KWin reports the identity; the effect records it and asks for nothing
     // until the user says which program is behind it.
     detect->click();
-    QCOMPARE(list->count(), shipped + 1);
+    QTRY_COMPARE(list->count(), shipped + 1);
     QCOMPARE(windowClass->text(), QStringLiteral("hedgewars"));
     QCOMPARE(instance->text(), QStringLiteral("hedgewars"));
 
@@ -279,18 +286,21 @@ void UpscaleApplicationEditorTest::addsAnApplicationFromAWindow()
     picker.outcome = TestWindowPicker::WithoutIdentity;
     answerNextDialog(QMessageBox::Ok);
     detect->click();
-    QCOMPARE(list->count(), shipped + 1);
+    QTRY_VERIFY(editor->findChildren<QDBusPendingCallWatcher *>().isEmpty());
+    QTRY_COMPARE(list->count(), shipped + 1);
 
     // Cancelling the selection is an ordinary outcome and says nothing.
     picker.outcome = TestWindowPicker::Cancelled;
     detect->click();
-    QCOMPARE(list->count(), shipped + 1);
+    QTRY_VERIFY(editor->findChildren<QDBusPendingCallWatcher *>().isEmpty());
+    QTRY_COMPARE(list->count(), shipped + 1);
 
     // Any other failure is worth saying out loud.
     picker.outcome = TestWindowPicker::Refused;
     answerNextDialog(QMessageBox::Ok);
     detect->click();
-    QCOMPARE(list->count(), shipped + 1);
+    QTRY_VERIFY(editor->findChildren<QDBusPendingCallWatcher *>().isEmpty());
+    QTRY_COMPARE(list->count(), shipped + 1);
 
     bus.unregisterObject(QStringLiteral("/KWin"));
     QVERIFY(bus.unregisterService(QStringLiteral("org.kde.KWin")));

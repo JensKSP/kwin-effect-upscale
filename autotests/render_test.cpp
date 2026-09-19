@@ -32,6 +32,7 @@ private Q_SLOTS:
     void sharpeningAndClipping();
     void preservesScissorState();
     void rejectsOversizedIntermediate();
+    void allocationIgnoresEarlierErrors();
     void overlayPlacement_data();
     void overlayPlacement();
 
@@ -47,6 +48,18 @@ void UpscaleRenderTest::initTestCase()
 void UpscaleRenderTest::cleanupTestCase()
 {
     m_fixture.release();
+}
+
+void UpscaleRenderTest::allocationIgnoresEarlierErrors()
+{
+    // Another effect's GL error must not reject valid replacement storage.
+    glEnable(GL_TEXTURE_2D);
+    std::unique_ptr<GLTexture> texture = allocateFloatTexture(QSize(8, 8));
+    QVERIFY(texture);
+    while (glGetError() != GL_NO_ERROR) {
+    }
+    GLFramebuffer framebuffer(texture.get());
+    QVERIFY(framebuffer.valid());
 }
 
 void UpscaleRenderTest::constantColors_data()

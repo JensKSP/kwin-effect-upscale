@@ -6,8 +6,8 @@ SPDX-License-Identifier: GPL-2.0-or-later
 # kwin-effect-upscale
 
 > [!WARNING]
-> **Not working — do not use.** This is an experimental development project.
-> The effect has not yet been observed scaling a frame on real hardware.
+> **Experimental — not ready for daily use.** Smaller real-game buffers have
+> been processed in a nested GPU session; physical-display acceptance is open.
 > Passing CI and available packages do not make it ready for use.
 
 [![CI](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/ci.yml/badge.svg)](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/ci.yml)
@@ -18,10 +18,12 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 - **Goal:** upscale smaller fullscreen game buffers inside KWin using FSR 1,
   with optional RCAS sharpening.
-- **Current state:** the first real-hardware test on wzpc rejected a supplied
-  smaller buffer and produced no scaled frame. The cause is still unknown.
-- **Next:** add diagnostics, fix that refusal and prove scaling on hardware.
-  Game resolution control, performance, HDR and VRR acceptance remain open.
+- **Current state:** FSR 1 processing, editable application profiles and targeted
+  Wayland/X11 resolution requests are implemented. Nested and virtual sessions
+  verify bounded paths, including Tux Racer resolution changes and isolation.
+- **Next:** physical-display image/input, lifecycle, performance, HDR and VRR
+  acceptance; broader client compatibility remains open.
+
 - **For now:** source and build instructions are for development and debugging.
   Do not install this expecting working game upscaling.
 
@@ -29,8 +31,8 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 **Install the package and enjoy your games.** That is the experience we want
 upscaling on KDE to offer: one integrated solution that takes care of the whole
-journey, from launching a game at a suitable rendering resolution to presenting
-it clearly and smoothly on your display.
+journey, from obtaining a suitable rendering resolution for a normally started
+game to presenting it clearly and smoothly on your display.
 
 The goal is a KDE plugin with simple settings, familiar desktop behavior and a
 useful on-screen display. A comprehensive, maintained library of well-known
@@ -45,9 +47,9 @@ hand-edited configuration files, manual dependency hunting or fragile setup
 recipes. Ideally, installing the matching Debian package is the only setup a
 user needs to perform.
 
-**This is our destination, not the current state.** The project is still not
-working; automatic game setup, the game-profile library and real-hardware
-acceptance remain work to be done.
+**This is our destination, not the current state.** A small editable catalogue
+and cooperative resolution-control paths exist. Broad game compatibility and
+full real-hardware acceptance remain work to be done.
 
 ## Why this project?
 
@@ -130,17 +132,23 @@ and licence notices.
 
 ## State
 
-**Not working; not ready for use.** FSR 1 and optional RCAS code exist, and the
-plugin builds and loads, but those results do not establish that it scales a
-frame in a real session. On wzpc, the first hardware test supplied a smaller
-fullscreen buffer that met the documented eligibility rules. The effect refused
-it, stayed inactive and produced no scaled frame. The failing condition has not
-yet been isolated; the passing automated tests did not catch it.
+**Experimental; not ready for daily use.** FSR 1 and optional RCAS are
+implemented. The first wzpc test exposed a render-target orientation refusal;
+that defect was fixed and regression-tested. A subsequent nested session using
+the production plugin and a real GPU processed a smaller SuperTuxKart OpenGL
+buffer. This establishes that path, not accepted image quality, performance,
+HDR or VRR on the physical display.
 
-The controls show the desired resolution and the actual supplied buffer size;
-they do not make a game render at that resolution. Game resolution changes
-currently require the game's own settings. Real-game behaviour, image quality,
+The controls distinguish requested resolution from the actual supplied buffer.
+Profiles support resolution requests for cooperating Wayland and Xwayland
+clients, including Extreme Tux Racer on the primary display. Selected borderless
+windows qualify when their content exactly covers one output. Virtual sessions
+verify resolution changes and isolation; physical input, image quality,
 performance, HDR and VRR remain unverified. The effect is disabled by default.
+Application rules apply independently on each display. By default, outputs at
+or below 2,073,600 physical pixels (Full HD) bypass upscaling; the settings offer
+a global threshold and per-application overrides. A Native application rule
+also bypasses upscaling when a global scaling preset is selected.
 The [developer handbook](doc/upscaling.md#supported-scope-and-full-acceptance)
 defines the acceptance still required.
 
@@ -189,39 +197,19 @@ suffix. Nightly source archives retain their snapshot version without Git.
 The effect is built against the KWin installed on the machine and loaded into
 it, so the development files have to belong to the KWin that is actually run.
 
-| What | Version | Debian Trixie package |
-| --- | --- | --- |
-| C++ compiler with C++23 | GCC 14 or Clang 19 (both are used here) | `build-essential`, or `clang` |
-| CMake | 3.24 | `cmake` |
-| extra-cmake-modules | 6.13 | `extra-cmake-modules` |
-| Qt 6: Core, Gui, Widgets, DBus, OpenGL | 6.8 | `qt6-base-dev` |
-| KDE Frameworks 6: Config, CoreAddons, I18n | 6.13 | `libkf6config-dev`, `libkf6coreaddons-dev`, `libkf6i18n-dev` |
-| KWin development files | the KWin you run | `kwin-dev` |
-| git, to get the source | — | `git` |
-| libepoxy (KWin's OpenGL headers need it) | — | `libepoxy-dev` |
-| libdrm, Wayland and xkbcommon headers | — | `libdrm-dev`, `libwayland-dev`, `libxkbcommon-dev` |
-| pkg-config, used by KWin's CMake config | — | `pkgconf` |
-| gettext, for `msgfmt` | — | `gettext` |
-| Ninja | — | `ninja-build` |
-| clang-format, only to commit changes | 19, the version CI uses | `clang-format` |
-
-On Debian Trixie, on Kubuntu, or on a derivative of either:
+The build requires C++23, CMake 3.24, Qt 6.8, KDE Frameworks/ECM 6.13 and
+the development files for the KWin being targeted. `debian/control` is the
+authoritative build-dependency list, including tools and test dependencies.
+After getting the source, install those dependencies on Debian/Kubuntu using
+`mk-build-deps` (provided by the distribution’s `devscripts` package, with
+`equivs` for building its dependency package):
 
 ```bash
-sudo apt install build-essential cmake extra-cmake-modules qt6-base-dev \
-    libkf6config-dev libkf6coreaddons-dev libkf6i18n-dev kwin-dev \
-    libepoxy-dev libdrm-dev libwayland-dev libxkbcommon-dev pkgconf \
-    gettext git ninja-build
+sudo mk-build-deps --install --remove debian/control
 ```
 
-The DRM, Wayland and xkbcommon headers and pkgconf are easy to miss on Kubuntu.
-`KWinConfig.cmake` looks for Libdrm,
-Wayland and XKB through pkg-config, and Debian's `kwin-dev` happens to pull
-those headers in while Ubuntu's does not. Without them the configure step stops
-at `Could NOT find Libdrm`, which sounds like a missing KWin and is not.
-
-If you intend to commit changes, add `clang-format` to that list: the checks
-run `clang-format` and refuse the commit without it.
+The maintained containers install from the same file. Rebuild a cached image
+after changing dependencies; its installed packages do not update themselves.
 
 Other distributions ship the same pieces under their own names: the CMake
 package names to look for are `ECM`, `Qt6`, `KF6` and `KWin`.
@@ -245,7 +233,7 @@ machine needs a lower job limit.
 
 In-source builds are refused; `-B build` is the way. Without
 `-DCMAKE_BUILD_TYPE` the project configures a debug build, which is not what
-you want for playing games. The dependency installation above includes Ninja.
+you want for playing games. The declared build dependencies include Ninja.
 
 ## Installing
 
@@ -332,7 +320,7 @@ truth. The `AGENTS.md` instruction files remain permanently.
 Pre-commit defines every repository check. Install both hooks and run both stages:
 
 ```bash
-pip install pre-commit    # or: pipx install pre-commit
+pipx install pre-commit==4.6.2
 pre-commit install --hook-type pre-commit --hook-type pre-push
 pre-commit run --all-files
 pre-commit run --all-files --hook-stage pre-push
@@ -343,8 +331,10 @@ stages with one command, exactly as CI does.
 
 Linters run when you commit and look at what changed; the whole-tree checks and
 the regression tests run when you push. CI runs both over everything, adds a
-build with GCC and with Clang, clang-tidy and the plugin metadata schema, and
-leaves the packages and the build against KWin master to the nightly.
+build with GCC and with Clang, clang-tidy, the metadata schema, coverage,
+sanitizers, and package/source smoke checks. Nightly adds the full package
+matrix and the separate KWin-master compatibility builds. Documentation-only
+changes take the checked, reduced path described in the contributor guide.
 
 That covers KDE's coding style via `clang-format` and KWin's own
 `.clang-format`, CMake formatting and static checks, Markdown linting, spelling
@@ -353,8 +343,7 @@ source file may grow. CI runs both stages, because a hook can be skipped.
 The CMake linter also checks the plugin folder, with its formatting rules
 disabled to preserve KWin's style. Gersemi formats only the surrounding project.
 
-The tooling under `tools/` is Python, and it is the only language here besides
-C++ and CMake. `ruff` lints and formats it with every rule switched on, and
+The checking and packaging tools under `tools/` are predominantly Python. `ruff` lints and formats it with every rule switched on, and
 `mypy --strict` type checks it, so an annotation is both required and true.
 
 The file budget allows 400 code lines, with warnings above 300. Comments and
@@ -364,11 +353,11 @@ these checks and the build metadata run through the pre-push stage.
 Install the hook to enforce the checks on ordinary commits; require the CI
 check in branch protection to enforce them when merging.
 
-`clang-tidy` is separate because it needs a configured build:
+`clang-tidy` needs a configured Clang build. In the maintained container, the
+following configures it, runs analysis and validates plugin metadata:
 
 ```bash
-cmake -B build -S . -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-clang-tidy -p build src/plugins/upscale/*.cpp
+python3 -B tools/run-checks.py tidy
 ```
 
 CI builds Debian Trixie, the minimum supported environment (KWin 6.3.6), with

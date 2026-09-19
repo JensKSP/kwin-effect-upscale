@@ -75,7 +75,7 @@ bool UpscaleDisplay::wantsSnapshot(EffectWindow *window) const
 
 void UpscaleDisplay::measure(UpscaleOutput *screen)
 {
-    if (m_measured == screen) {
+    if (screen && m_measured == screen) {
         return;
     }
     // Frame times from two screens are not one distribution, and a screen

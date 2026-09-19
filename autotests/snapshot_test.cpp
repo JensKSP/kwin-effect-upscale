@@ -280,6 +280,9 @@ void UpscaleSnapshotTest::reportsPresentedFramesAndTheirSlowTail()
     QVERIFY(statistics.contains(QStringLiteral("99th percentile 28.4 ms")));
     QVERIFY(statistics.contains(QStringLiteral("worst 51.7 ms")));
     QVERIFY(statistics.contains(QStringLiteral("600 frames")));
+    snapshot.presentedFrames = 1;
+    QVERIFY(upscaleStatistics(snapshot).contains(QStringLiteral("1 frame,")));
+    snapshot.presentedFrames = 600;
     // Adaptive synchronisation is finally an observation rather than a
     // disclaimer, so the mode the screen presented in is reported with them.
     QVERIFY2(statistics.contains(QStringLiteral("adaptive sync")), qPrintable(statistics));
@@ -367,6 +370,16 @@ void UpscaleSnapshotTest::separatesWhatWasRequestedFromWhatArrived()
     QVERIFY2(developer.contains(QStringLiteral("Application: SuperTuxKart")), qPrintable(developer));
     QVERIFY(developer.contains(QStringLiteral("advertised 2560 × 1440")));
     QVERIFY(developer.contains(QStringLiteral("advertised screen mode")));
+
+    snapshot.method = UpscaleControlMethod::X11Resize;
+    snapshot.advertised = {};
+    snapshot.requested = QSize(1920, 1080);
+    snapshot.requestFailure = QStringLiteral("The requested mode was ignored.");
+    const QString refused = upscaleStatusText(snapshot);
+    QVERIFY(refused.contains(QStringLiteral("1920 × 1080 requested from SuperTuxKart as its X11 window size")));
+    QVERIFY(refused.contains(snapshot.requestFailure));
+    QVERIFY(refused.contains(QStringLiteral("Supplied input: 3840 × 2160")));
+    QVERIFY(!refused.contains(QStringLiteral("as its screen mode")));
 
     // A window nothing in the catalogue describes says so, rather than
     // reporting an empty name or implying a match.

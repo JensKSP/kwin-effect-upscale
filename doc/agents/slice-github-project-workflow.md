@@ -16,7 +16,7 @@ security updates, and private vulnerability reporting are enabled and read back.
 CodeQL and dependency review are implemented and locally validated. Dependency
 review has passed a hosted run; CodeQL's hosted execution remains pending.
 Neither check gates a pull request.
-It does not change the implementation priority of the
+Remaining product diagnostics are owned separately by the
 [development infrastructure slice](slice-development-infrastructure.md).
 
 ## Historical start state
@@ -336,12 +336,11 @@ The coverage statement appeared in the hosted log. That is hosted acceptance of
 the dependency-review row's recognition criterion; a hosted policy failure has
 not been provoked, and will not be by introducing a vulnerable dependency.
 
-The CodeQL workflow cannot be dispatched yet. GitHub resolves `workflow_dispatch`
-against the default branch only, and the attempt returned HTTP 404 for a file
-that exists solely on this branch. Its hosted execution, the first scheduled
-scan, the SARIF upload and the Security tab results therefore depend on the
-owner merging this pull request. Local results do not establish hosted
-behaviour.
+The initial dispatch failed with HTTP 404 while the workflow existed only on
+the review branch. PR #12 merged on 2026-09-18, so that prerequisite is resolved.
+The 2026-09-19 readback still found no hosted CodeQL runs. Hosted execution,
+SARIF upload and Security-tab results remain unverified; local results do not
+establish them. No dispatch was performed as part of the documentation audit.
 
 CodeRabbit review `5248718111` on `b7adc8b` raised one valid finding: the
 installer reused whatever bundle was already unpacked, so raising the pin would
@@ -415,3 +414,9 @@ PR #9 merged through owner-enabled auto-merge after its form-privacy correction.
 CodeRabbit review `5247213008` on PR #10 identified the outdated next-step
 summary. Updated it to reflect enabled native security controls and the
 remaining form, CodeQL and dependency-review work.
+
+Documentation audit readback, 2026-09-19: the repository remains public;
+provider secret scanning, push protection, Dependabot security updates and
+private vulnerability reporting report enabled. Non-provider patterns and
+validity checks remain disabled. Auto-merge availability and merged-branch
+deletion report enabled; these settings do not authorize an agent to merge.

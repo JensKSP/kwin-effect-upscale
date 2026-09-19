@@ -5,35 +5,18 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 # Slice: development infrastructure and diagnostics
 
-## Priority
+## Status and remaining work
 
-This is the next implementation slice, as requested on 2026-09-18 and confirmed
-after the first hardware runs. Its single topic is unchanged: making the current
-effect identifiable and observable during development through About and build
-identity, notices, logging, and the shared passive OSD with developer
-information. Existing rendering and pipeline acceptance records remain open
-until their own gates pass; their outstanding work is not absorbed here.
+The shared snapshot, refusal-specific diagnostics and passive OSD are implemented.
+They identified the render-target orientation defect; the rendering slice records
+its fix and a nested real-GPU SuperTuxKart observation. The early diagnostics-first
+sequence is therefore historical, not the next unimplemented capability.
 
-The package now carries a second purpose that fixes its order. The effect has
-never been observed scaling a frame. The
-[rendering slice](slice-fsr1-hdr-vrr.md) recorded a supplied buffer that meets
-every documented eligibility rule and that the effect refuses on the real
-session, without reporting which condition failed. Nothing in the product can
-currently answer that question, and the passing container tests did not predict
-it. This package builds the instrument that answers it.
-
-That makes the ordering deliberate rather than incidental: diagnostics first,
-so that the rendering slice's
-[scaler-effective gate](slice-fsr1-hdr-vrr.md#the-scaler-effective-gate) can be
-closed immediately afterwards. Work inside this package is sequenced to serve
-that. Candidate selection and rejection reporting come before About, notices and
-the overlay presentation, because the next gate depends on them and the rest
-does not.
-
-The obligation runs both ways. This package is not complete because a dialog
-renders and a log line appears. Its diagnostics have to be good enough to
-explain an actual refusal on real hardware, which is the acceptance recorded
-below.
+This package remains open for the full About/build identity and notices inventory,
+transition logging, session-font handling and its remaining native acceptance.
+Current presentation statistics remain observable even with the OSD hidden;
+overlay drawing and its own client/repaint sampling stop when hidden.
+Rendering, resolution-control and pipeline acceptance retain their own owners.
 
 ## Start state
 
@@ -319,8 +302,8 @@ Planned checks, not observed results:
   launch environment or arbitrary arguments appear in routine diagnostics.
 - Passive modes never take focus, consume game input or contaminate capture.
   Verify bounded updates, no synchronous readback or new full-screen animation
-  loop for statistics, and release of diagnostic sampling and composition work
-  when hidden. Check legibility, game input, SDR/HDR and VRR in a native session,
+  loop for statistics, and release of overlay sampling and composition work
+  when hidden. Output presentation sampling remains active for status reports. Check legibility, game input, SDR/HDR and VRR in a native session,
   including visibility changes, output movement and lock/unlock.
 - The notices inventory covers actual incorporated shaders, libraries and
   dependencies with accurate upstream attribution and license expressions.
@@ -471,3 +454,8 @@ correctly remains pending. The eight earlier review threads also remain open
 although their fixes and regression coverage are published. A fresh full review
 has been proposed to the owner; permission to post that request is pending.
 No review override, merge or change to protection has been performed.
+
+PR #14 review follow-up: resetting presentation measurements with a null output
+now clears old samples even after the QPointer was cleared by output destruction.
+Presented-frame text uses plural-aware translation. The targeted tests and
+combined-candidate checks are being rerun before publication.

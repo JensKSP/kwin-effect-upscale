@@ -6,11 +6,14 @@
 
 #include "eligibility.h"
 
+#include "application.h"
 #include "resolution.h"
+#include "upscaleconfig.h"
 
 #include "effect/effectwindow.h"
 #include "scene/surfaceitem.h"
 #include "scene/windowitem.h"
+#include "window.h"
 
 #include <KLocalizedString>
 
@@ -81,9 +84,25 @@ static bool readableFormat(uint32_t format)
 // The window itself: what it is and where it sits, before anything about its
 // contents is examined. These checks are cheap and run for every window of
 // every frame, so they stay in the order that rejects the common case first.
+bool upscalePresentation(EffectWindow *window)
+{
+    if (window->isFullScreen()) {
+        return true;
+    }
+    const Window *internal = window->window();
+    // Borderless applications need not advertise fullscreen. Match both the
+    // origin and extent of one output; equal dimensions on a different output
+    // or a spanning window do not describe the same presentation. Requiring a
+    // profile keeps ordinary desktop windows out of this additional path.
+    return internal && internal->isNormalWindow() && !internal->isDecorated()
+        && internal->clientGeometry() == internal->frameGeometry()
+        && window->screen() && window->frameGeometry() == window->screen()->geometryF()
+        && upscaleApplicationForIdentity(internal->resourceClass(), internal->resourceName());
+}
+
 static UpscaleRefusal placementRefusal(EffectWindow *window)
 {
-    if (!window->isFullScreen()) {
+    if (!upscalePresentation(window)) {
         return UpscaleRefusal::NotFullScreen;
     }
     if (window->isDeleted()) {
@@ -103,6 +122,18 @@ static UpscaleRefusal placementRefusal(EffectWindow *window)
     }
     if (!window->screen()) {
         return UpscaleRefusal::NoOutput;
+    }
+    const Window *internal = window->window();
+    const UpscaleApplication *application = internal ? upscaleApplicationForIdentity(internal->resourceClass(), internal->resourceName()) : nullptr;
+    const ResolutionPreset preset = effectiveResolutionPreset(static_cast<ResolutionPreset>(UpscaleConfig::preset()),
+                                                              application ? application->preset : ResolutionPreset::Automatic);
+    if (preset == ResolutionPreset::Native) {
+        return UpscaleRefusal::NativeRule;
+    }
+    const int minimum = application && application->minimumPixels >= 0 ? application->minimumPixels : UpscaleConfig::minimumPixels();
+    const QSize pixels = window->screen()->pixelSize();
+    if (!exceedsMinimumPixels({pixels.width(), pixels.height()}, minimum)) {
+        return UpscaleRefusal::BelowMinimumPixels;
     }
     if (!window->windowItem() || !window->windowItem()->surfaceItem()) {
         return UpscaleRefusal::NoSurface;
@@ -251,27 +282,46 @@ QString describeSuppliedFormat(SurfaceItem *surface)
     return format ? describeBufferFormat(*format) : i18n("none");
 }
 
-QString describeRefusal(UpscaleRefusal refusal)
+static QString describeEffectRefusal(UpscaleRefusal refusal)
 {
     switch (refusal) {
-    case UpscaleRefusal::None:
-        return QString();
     case UpscaleRefusal::Disabled:
         return i18n("disabled.");
+    case UpscaleRefusal::NativeRule:
+        return i18n("the resolution rule selects Native.");
+    case UpscaleRefusal::BelowMinimumPixels:
+        return i18n("the output pixel count is at or below the configured minimum.");
     case UpscaleRefusal::ResourceFailure:
         return i18n("graphics resource failure; apply settings to retry.");
     case UpscaleRefusal::ScreenLocked:
         return i18n("the screen is locked.");
     case UpscaleRefusal::OtherFullScreenEffect:
         return i18n("another full-screen effect is active.");
+    default:
+        return QString();
+    }
+}
+
+QString describeRefusal(UpscaleRefusal refusal)
+{
+    switch (refusal) {
+    case UpscaleRefusal::None:
+        return QString();
+    case UpscaleRefusal::Disabled:
+    case UpscaleRefusal::NativeRule:
+    case UpscaleRefusal::BelowMinimumPixels:
+    case UpscaleRefusal::ResourceFailure:
+    case UpscaleRefusal::ScreenLocked:
+    case UpscaleRefusal::OtherFullScreenEffect:
+        return describeEffectRefusal(refusal);
     case UpscaleRefusal::SeveralCandidates:
-        return i18n("more than one fullscreen window is eligible.");
+        return i18n("more than one fullscreen window is eligible on this output.");
     case UpscaleRefusal::UnsupportedColors:
         return i18n("this output's colour handling is not supported.");
     case UpscaleRefusal::NoWindow:
         return i18n("there is no window to scale.");
     case UpscaleRefusal::NotFullScreen:
-        return i18n("the window is not fullscreen.");
+        return i18n("the window is not fullscreen or a selected borderless window covering its output.");
     case UpscaleRefusal::Closing:
         return i18n("the window is closing.");
     case UpscaleRefusal::Minimized:

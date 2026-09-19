@@ -33,9 +33,14 @@
 #                          offers such a client nothing.
 #   AdvertisedModeAndScale Both together, for clients that take their size from
 #                          the mode but declare the output's scale themselves.
+#   X11Resize              Resize a selected X11 fullscreen window. Requires
+#                          a client which follows resizing and RandR modes.
 #
 # Preset is what the application gets while the global preset is Automatic,
-# which means the user has not chosen. Any explicit global choice wins over it.
+# which means the user has not chosen. An explicit global choice wins except
+# for a profile selecting Native, which always opts out of scaling.
+# MinimumPixels inherits the global physical-output pixel threshold when absent
+# or -1; zero disables the threshold for that profile.
 
 [General]
 FormatVersion=1
@@ -58,10 +63,11 @@ MeasuredVersion=0.8.4
 # stop matching at the next package. The instance name is the stable field.
 Instance=etr
 Program=etr
-Method=None
-Preset=Automatic
+Method=X11Resize
+X11PrimaryOutputOnly=true
+Preset=Quality
 Order=20
-Note=Runs through Xwayland, which the effect cannot address separately. Choose a resolution in the game.
+Note=Follows X11 resize requests on the primary display. Its SFML mode selection always uses that display, so requests on other displays are refused. Requested sizes must match an available mode.
 
 [Application-glmark2]
 Name=glmark2

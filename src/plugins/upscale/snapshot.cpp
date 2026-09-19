@@ -152,7 +152,7 @@ static QString presented(const UpscaleSnapshot &snapshot)
     if (snapshot.presentedWorst > 0) {
         text += i18n(", worst %1 ms", QString::number(snapshot.presentedWorst, 'f', 1));
     }
-    return text + i18n(" (%1 frames, %2)", QString::number(snapshot.presentedFrames), presentationName(snapshot.presentation));
+    return text + i18np(" (%1 frame, %2)", " (%1 frames, %2)", snapshot.presentedFrames, presentationName(snapshot.presentation));
 }
 
 static QString measurement(const UpscaleSnapshot &snapshot)
@@ -197,7 +197,10 @@ static QString selection(const UpscaleSnapshot &snapshot)
 QString upscaleStatusText(const UpscaleSnapshot &snapshot)
 {
     QString wish;
-    if (snapshot.advertised.isValid()) {
+    if (snapshot.requested.isValid()) {
+        wish = i18n("%1 requested from %2 as its X11 window size", sizeText(snapshot.requested),
+                    snapshot.recognized.isEmpty() ? application(snapshot) : snapshot.recognized);
+    } else if (snapshot.advertised.isValid()) {
         // Advertised, not applied. The committed input below is the only
         // evidence of what the application actually did with it.
         wish = i18n("%1 requested from %2 as its screen mode",
@@ -208,6 +211,9 @@ QString upscaleStatusText(const UpscaleSnapshot &snapshot)
     } else {
         wish = i18n("Select %1 × %2 in the game",
                     QString::number(snapshot.desired.width), QString::number(snapshot.desired.height));
+    }
+    if (!snapshot.requestFailure.isEmpty()) {
+        wish += i18n("; request failed: %1", snapshot.requestFailure);
     }
     QString state;
     if (snapshot.selected) {
@@ -251,6 +257,10 @@ QString upscaleDeveloperInformation(const UpscaleSnapshot &snapshot)
                       snapshot.recognized.isEmpty() ? i18n("not recognized") : snapshot.recognized,
                       describeControlMethod(snapshot.method),
                       snapshot.advertised.isValid() ? sizeText(snapshot.advertised) : i18n("nothing")));
+    if (snapshot.method == UpscaleControlMethod::X11Resize) {
+        lines.append(i18n("X11 resize: requested %1, failure %2", sizeText(snapshot.requested),
+                          snapshot.requestFailure.isEmpty() ? i18n("none reported") : snapshot.requestFailure));
+    }
     lines.append(i18n("Configuration: %1, desired %2, sharpening %3",
                       snapshot.enabled ? i18n("enabled") : i18n("disabled"), desiredText(snapshot),
                       snapshot.sharpening > 0 ? i18n("RCAS %1%", qRound(snapshot.sharpening * 100)) : i18n("off")));

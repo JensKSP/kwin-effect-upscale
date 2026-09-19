@@ -34,6 +34,8 @@ enum class UpscaleRefusal {
     None,
 
     Disabled,
+    NativeRule,
+    BelowMinimumPixels,
     ResourceFailure,
     ScreenLocked,
     OtherFullScreenEffect,
@@ -75,6 +77,9 @@ enum class UpscaleRefusal {
     ScaledPass,
     TransformedRenderTarget,
 };
+
+/** Fullscreen, or a profiled borderless window covering its own output. */
+bool upscalePresentation(EffectWindow *window);
 
 /**
  * Why this window cannot be scaled, or None when only the effect's own state
