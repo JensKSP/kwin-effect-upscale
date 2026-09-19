@@ -308,15 +308,15 @@ void UpscaleSnapshotTest::reportsPresentedFramesAndTheirSlowTail()
     QVERIFY(!sparse.contains(QStringLiteral("1% low")));
     QVERIFY(!sparse.contains(QStringLiteral("percentile")));
     QVERIFY(!sparse.contains(QStringLiteral("worst")));
-    QVERIFY(upscaleStatusText(scaling()).contains(QStringLiteral("Presentation is not being measured")));
+    QVERIFY(upscaleStatusText(scaling()).contains(QStringLiteral("Nothing has been presented")));
 
-    // Changing the displayed window restarts the sampling without clearing the
-    // mode the screen last presented in. The rate is what says whether
-    // anything was measured, and a rate of minus one is not a frame rate.
+    // Replacing the screen clears its statistics without clearing the mode it
+    // last presented in. The rate is what says whether anything was measured,
+    // and a rate of minus one is not a frame rate.
     UpscaleSnapshot stale = scaling();
     stale.presentation = int(PresentationMode::AdaptiveSync);
     const QString restarted = upscaleStatusText(stale);
-    QVERIFY2(restarted.contains(QStringLiteral("Presentation is not being measured")), qPrintable(restarted));
+    QVERIFY2(restarted.contains(QStringLiteral("Nothing has been presented")), qPrintable(restarted));
     QVERIFY2(!restarted.contains(QStringLiteral("-1.0/s")), qPrintable(restarted));
 
     // A rate without a mode is the other way round: the figure is real and the

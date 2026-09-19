@@ -96,6 +96,16 @@ void UpscaleDisplay::measure(UpscaleOutput *screen)
     });
 }
 
+void UpscaleDisplay::reportPresentation(UpscaleSnapshot &snapshot) const
+{
+    snapshot.presentedRate = m_presented.averageRate();
+    snapshot.presentedLow = m_presented.lowRate(0.01);
+    snapshot.presentedPercentile = m_presented.percentileFrameTime(0.99);
+    snapshot.presentedWorst = m_presented.worstFrameTime();
+    snapshot.presentedFrames = int(m_presented.frames());
+    snapshot.presentation = m_presentationMode;
+}
+
 void UpscaleDisplay::update(UpscaleSnapshot snapshot, EffectWindow *window)
 {
     if (window != m_announced) {
@@ -115,12 +125,7 @@ void UpscaleDisplay::update(UpscaleSnapshot snapshot, EffectWindow *window)
         m_clientUpdates = 0;
         m_repaints = 0;
     }
-    snapshot.presentedRate = m_presented.averageRate();
-    snapshot.presentedLow = m_presented.lowRate(0.01);
-    snapshot.presentedPercentile = m_presented.percentileFrameTime(0.99);
-    snapshot.presentedWorst = m_presented.worstFrameTime();
-    snapshot.presentedFrames = int(m_presented.frames());
-    snapshot.presentation = m_presentationMode;
+    reportPresentation(snapshot);
     snapshot.clientUpdates = m_clientUpdateRate;
     snapshot.repaints = m_repaintRate;
     snapshot.interval = m_interval;
@@ -200,11 +205,15 @@ void UpscaleDisplay::hide()
 
 void UpscaleDisplay::resetSampling()
 {
+    // Only what the announcement itself counted. The frames the screen
+    // presented belong to the screen, and measure() ends their life when it
+    // changes. Clearing them here would discard the measurement on every
+    // frame composed with the display switched off, because that path hides
+    // the display, and nothing would ever be left to report.
     m_sampled.invalidate();
     m_clientUpdates = 0;
     m_repaints = 0;
     m_clientUpdateRate = -1;
-    m_presented.reset();
     m_repaintRate = -1;
     m_interval = 0;
 }

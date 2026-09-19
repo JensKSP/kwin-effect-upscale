@@ -226,6 +226,33 @@ at the earliest level that can carry it, and moves up only when it cannot.
 **Why:** a check nobody can run locally is a check that fails in CI, and a second
 list of linters somewhere else is a list that drifts.
 
+## Branches and pull requests belong to Jens
+
+Laid down by Jens, 2026-09-19.
+
+- **Never create a branch without Jens's explicit approval.** Not for a fix,
+  not for a follow-up, not to keep work out of the way, and not because the
+  branch an agent was handed looks finished or turns out to be merged already.
+- The normal way of working here is that several agents and Jens share one
+  branch for one pull request, and keep working on it until the contents and
+  the shape of that pull request are what he wants. Aim for large slices and
+  large pull requests, not a branch per change.
+- **When in doubt, ask** whether to carry on in the current branch and pull
+  request or to start a new one, and wait for the answer. Doubt is the normal
+  state after a merge, after a rebase, and when new work only partly belongs
+  to the open pull request. Asking is never the wrong move; deciding alone is.
+- This covers everything that produces a branch, whether or not that is the
+  point of the command: `git checkout -b`, `git switch -c`, a new worktree,
+  pushing a ref that does not exist on the remote yet, or opening a pull
+  request from a branch nobody asked for.
+- An agent that has already created one says so plainly, leaves it alone, and
+  asks where the work should go. It does not quietly delete it either: what to
+  do with it is Jens's call.
+
+**Why:** the branch is where his review, the automated reviews and the other
+agents' work meet. A branch an agent invents on its own splits that into two
+places and hides work he was reviewing somewhere he is not looking.
+
 ## Follow pull request feedback through to resolution
 
 - **Never merge a pull request or enable auto-merge without Jens's explicit

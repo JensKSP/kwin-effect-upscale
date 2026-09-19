@@ -223,12 +223,12 @@ QString upscaleStatusText(const UpscaleSnapshot &snapshot)
     } else {
         state = i18n("Inactive: %1", refusalText(snapshot));
     }
-    // The rate decides this, not the mode. Changing the displayed window
-    // restarts the frame sampling without clearing the last mode the screen
-    // presented in, so a mode can outlive the measurement it belonged to and
-    // this would otherwise report a rate of minus one per second.
+    // The rate decides this, not the mode. A screen that is replaced clears
+    // its frame statistics without clearing the last mode it presented in, so
+    // a mode can outlive the measurement it belonged to and this would
+    // otherwise report a rate of minus one per second.
     const QString presentation = snapshot.presentedRate < 0
-        ? i18n("Presentation is not being measured; the on-screen display measures it while it is shown.")
+        ? i18n("Nothing has been presented on this screen yet.")
         : i18n("Presented at %1/s, %2.", QString::number(snapshot.presentedRate, 'f', 1),
                presentationName(snapshot.presentation));
     return i18n("Desired: %1\nSupplied input: %2\nDestination: %3\n%4\n%5\nHDR follows KWin colour management.",

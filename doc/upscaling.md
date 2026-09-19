@@ -856,8 +856,10 @@ filter timing belong to features that do not exist yet and are not shown.
 
 Use event-driven samples and bounded text updates, with no synchronous GPU
 readback or continuous full-screen repaint loop just to animate statistics.
-Hiding the view stops its sampling overhead and releases its resources and
-any composition requirement. Draw text at output resolution after the game
+Hiding the view stops its own sampling overhead and releases its resources and
+any composition requirement. Watching the screen's presented frames outlives
+it, because reports are asked for while the view is off; that costs one signal
+per presented frame and no drawing. Draw text at output resolution after the game
 pass, outside the captured image. Keep passive statistics from taking focus
 or input; restore game focus and pointer state after closing interactive
 controls. Suppress all overlay modes while locked and discard stale game data

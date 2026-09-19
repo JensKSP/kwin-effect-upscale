@@ -324,6 +324,12 @@ void UpscaleIntegrationTest::lifecycle()
         QTRY_VERIFY(status().contains(QStringLiteral("blocksScanout: true")));
         configureDisplay(false, false);
         QTRY_VERIFY(status().contains(QStringLiteral("blocksScanout: false")));
+        // The screen's own frames are measured whether or not the display is
+        // drawn, so a report asked for with it switched off carries them. The
+        // display is off here and nothing draws it, and the rate still has to
+        // arrive rather than the sentence about nothing being presented.
+        client.commit();
+        QTRY_VERIFY2(status().contains(QStringLiteral("Presented at")), qPrintable(status()));
         configureDisplay(true, true);
         QVERIFY(client.show(QSize(64, 64), false));
         QTRY_VERIFY2(status().contains(QStringLiteral("not fully opaque")), qPrintable(status()));
