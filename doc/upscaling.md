@@ -403,8 +403,11 @@ unchanged SDR input encoding or evidence of accepted HDR support.
 Supported destination transfers are sRGB, gamma 2.2, linear and PQ. New or
 unknown destination transfer functions use normal rendering. There is no frame
 timer: client damage expands to a full-window repaint because both filters
-sample neighbouring pixels. Scanout is blocked only while there is one eligible
-candidate; KWin retains ownership of refresh and presentation timing.
+sample neighbouring pixels. The effect blocks scanout while it has an eligible
+candidate or a visible diagnostic overlay; this effect API exposes a
+session-wide scanout veto. Window selection and resolution policy still apply
+independently per output. KWin retains ownership of refresh and presentation
+timing.
 
 ## Versions
 
@@ -425,8 +428,14 @@ both stable versions and the tracked development version.
 
 ### About, build identity and third-party notices
 
-Implemented so far: the settings page names the installed build with its
-version, branch or tag and build time, and names the build the running
+Implemented so far: the settings footer names the installed build as
+`X.X.X short_hash build_date branch/tag`, with the base project version, an
+independent abbreviated revision (also for releases), a UTC timestamp and the
+source branch or exact tag. Local changes append `-dirty` to the revision;
+missing revision or ref data is stated explicitly. The timestamp is refreshed
+on each build invocation; `SOURCE_DATE_EPOCH` controls reproducible builds.
+The package version retains its snapshot suffix independently of this compact
+display. The settings page also names the build the running
 compositor answers with when that differs, because KWin keeps a plugin it has
 already loaded until the session restarts. The effect writes the same identity
 to the log once, when it initializes, rather than when its library is loaded,
@@ -734,9 +743,14 @@ choosing where the session already states one.
 
 Implemented so far: the surface exists and is drawn after the screen pass, at
 destination resolution, outside the captured image, taking no focus and no
-input. It scales its text with the output's scale factor; taking the family
-and size from the session's font settings, and re-laying out when either
-changes, is specified above and not yet implemented. While it is visible the effect reports itself active, because KWin skips
+input. It takes the family and the size from the session's fixed-width font
+setting and multiplies that size by the scale factor of the output the text is
+drawn on, so the text is the same physical size as the rest of that desktop. A
+size the session states in points is converted at the ninety-six-pixel-per-inch
+reference every KDE scale factor is stated against. Nothing watches the font
+settings: a changed family or size applies to the next layout, which happens
+whenever the text or the scale changes, and a static message keeps the size it
+was drawn with until then. While it is visible the effect reports itself active, because KWin skips
 the paint methods of an inactive effect, and a refused window is exactly when
 the explanation is needed; the composition requirement that comes with it ends
 when the display is hidden. It announces the application and shows the basic summary for the configured
@@ -787,10 +801,44 @@ release builds and disable them in Debug builds. Detection timeout never hides
 a deliberately enabled persistent view. With no active window, or while locked,
 do not retain an overlay showing a previous game's state.
 
+### Four displays, four places
+
+The overlay is not one thing. Four separate displays share the same drawing
+surface, and mixing them into a single growing block makes each one harder to
+read than it was alone:
+
+| Display | What it is for | Where it goes |
+| --- | --- | --- |
+| Timed announcement | The selected or recognized application and its short summary. It goes away on its own and reappears whenever there is something new to say. | Top left. |
+| [Heads-up display](#the-heads-up-display) | The few figures a player watches while playing: frames per second, frame time, 1% low, and what the picture is being drawn at. Large text. | The corner the user chooses, top right by default. |
+| Developer information | The diagnostic dump: build, selection, configuration, geometry, processing, colour. | Bottom right. |
+| Interactive panel | Settings changed during play, opened and closed by a configurable key combination. Not implemented; specified in [in-game controls](#in-game-controls-and-applying-settings). | Its own placement, decided with that feature. |
+
+Each display is switched on and off on its own, and switching one on never
+moves, extends or replaces another. Only the persistent view's corner is a
+setting: it is the one a player keeps on screen next to a game, so it is the
+one that has to be movable away from a heads-up display, a score or a
+killfeed. The other corners are fixed, which is what keeps the three
+recognisable at a glance.
+
+Two displays sent to the same corner stack away from it, in the order above,
+with the same margin between them as to the screen edge; they never overdraw
+each other. A display wider or taller than the output it is drawn on keeps its
+beginning on the screen rather than starting outside it, because the part that
+would be lost is the part that names what is being read.
+
+Implemented: the three passive displays are separate blocks in separate
+corners, with the persistent view's corner stored as **Frame rate position**
+and offered in the settings page. Enabling developer information no longer
+extends or enables the persistent view; the two are independent. The
+interactive panel does not exist yet.
+
 ### In-game controls and applying settings
 
-Required extension, not yet implemented: extend the same overlay with an
-on-demand settings panel and configurable shortcuts. Let users enable or
+Required extension, not yet implemented: add an on-demand settings panel as a
+fourth display of its own, shown and hidden by a configurable key combination
+and placed apart from the three passive ones in
+[four displays, four places](#four-displays-four-places). Let users enable or
 disable scaling, adjust sharpening, select available filters and geometry, and
 change the desired resolution without leaving the game. Show the selected
 game/profile and whether a value is inherited or explicitly overridden. An
@@ -821,21 +869,35 @@ For an optional split view, both sides must use the same source frame. Keep
 comparison separate from performance measurement because showing two paths
 adds work.
 
-### Optional statistics overlay
+### The heads-up display
 
-Add an optional persistent statistics
-view to the same OSD, independently switchable from the brief game-detection
-announcement and the interactive settings panel. Use the build defaults above,
-provide a shortcut to show or hide it, and allow global defaults with sparse
-profile overrides for visibility and displayed fields. Detection timeout must not hide
-a statistics view the user has enabled.
+Add an optional persistent heads-up display to the same OSD, independently
+switchable from the brief game-detection announcement and the interactive
+settings panel. Use the build defaults above, provide a shortcut to show or
+hide it, and allow global defaults with sparse profile overrides for
+visibility and displayed fields. Detection timeout must not hide a heads-up
+display the user has enabled.
 
-Useful fields are the game/profile, actual supplied-buffer and destination
-dimensions, desired resolution when different, active filter and sharpening,
-effective resolution method, pending restart, frame rate and frame time. Show
-the drawn image dimensions as well as the output size when black bars are used.
-Give a specific reason when scaling is inactive. Colour/HDR information and
-presentation state may be included only to the extent actually observed.
+**Few figures, large, in the words the industry already uses.** Decided by
+Jens, 2026-09-19, after the first version put everything on screen at once:
+this display is read at a glance, mid-game, from as far away as the player is
+sitting, and every figure it carries costs the legibility of the others. It
+shows the frames per second, the frame time in milliseconds, the 1% low, what
+the picture is being drawn at, and nothing else. The terms are the ones every
+frame-rate overlay uses for them, so that nobody has to learn ours: *FPS*,
+*ms*, *1% Low*, and a resolution by its common name — 4K, 1440p, 1080p — with
+the render scale as a per-axis percentage, the way upscaler presets state it.
+It is drawn larger than the blocks beside it.
+
+A figure that has not been measured shows a dash rather than a zero or a stale
+value. A game drawing at the size of the screen is named as native rather than
+left to look like a gain from upscaling, and sharpening is named because it
+changes the image. Everything that has to be explained before it means
+anything — the counters, the percentiles, the slowest frame, the buffer
+formats, the colour and presentation state — is
+[developer information](#developer-information) and appears in that display
+instead. The drawn image dimensions with black bars, the resolution method and
+any pending restart join it there when those features exist.
 
 Label every timing measure by what is counted: client buffer updates,
 presentation events or output refresh rate. A compositor repaint counter or
@@ -846,13 +908,22 @@ game stops supplying frames. GPU filter timing is an optional field only where
 supported and measured; it is not total game GPU time or end-to-end latency.
 Configured HDR/VRR settings alone do not prove the corresponding active path.
 
-Implemented: the persistent view shows what the effect is doing with the
-buffer, the supplied and destination sizes, the output, and separately counted
-client buffer updates and compositor repaints with their one-second sampling
-interval and the age of the sample. A game that stops supplying frames
-therefore shows an ageing sample rather than a frozen rate presented as
-current. Desired resolution, black bars, resolution method, pending restart and
-filter timing belong to features that do not exist yet and are not shown.
+Implemented: the heads-up display is its own block in the corner the user
+chose, top right unless they moved it, drawn at 1.6 times the session's font
+size. It shows the presented frame rate, the frame time that rate implies, the
+1% low once enough frames have been seen, and one line for the picture: either
+`FSR 1` with the sharpening state, the resolutions it is drawing between and
+the render scale, or the output resolution named as native when the supplied
+buffer matches it. A bypass with a different or unknown input size shows
+`FSR off` and the observed dimensions. Common resolution names describe exact
+sizes; other sizes retain both pixel dimensions, including ultrawide formats.
+Each timing figure not measured yet reads as a dash. The separately counted client buffer updates and
+compositor repaints, with their one-second sampling interval and the age of the
+sample, are developer information and appear in that block, where a game that
+stopped supplying frames shows an ageing sample rather than a frozen rate
+presented as current. Desired resolution, black bars, resolution method,
+pending restart and filter timing belong to features that do not exist yet and
+are shown nowhere.
 
 Use event-driven samples and bounded text updates, with no synchronous GPU
 readback or continuous full-screen repaint loop just to animate statistics.
@@ -865,9 +936,12 @@ when the selected game closes or changes outputs.
 
 #### Developer information
 
-Add **Developer information** to the OSD settings. It extends the ordinary
-FPS/resolution view with the complete effective configuration and diagnostic
-state, grouped and labelled so developers can explain what the effect is doing.
+Add **Developer information** to the OSD settings. It carries the complete
+effective configuration and diagnostic state, grouped and labelled so
+developers can explain what the effect is doing. It is its own display in its
+own corner, switched independently of the persistent view: a developer reading
+a dump and a player watching a frame rate are two different readers, and
+turning one on must not rearrange the other.
 Keep the passive view readable at the session's scale, by the same rule as the
 timed messages above; detailed inspection and copying are also available
 through the settings diagnostic snapshot. This is
@@ -875,7 +949,7 @@ required development infrastructure, not the optional full About overlay.
 
 Implemented: build and runtime, selection, configuration, geometry, processing
 and colour are populated from the same snapshot, alongside the measurements
-above. Profile and match origin, pending values, drawn image and bars, capture
+above, in a block of its own at the bottom right. Profile and match origin, pending values, drawn image and bars, capture
 and intermediate formats, observed VRR state and measured filter timing name
 features that are not implemented; they are absent rather than filled with
 plausible values, and the colour line says that VRR is not observed.
@@ -935,14 +1009,35 @@ The example dimensions are calculated targets, not guaranteed game modes.
 Automatic is the default and makes no resolution request of its own; a
 recognized application then follows the size recorded for it in the
 [catalogue](#the-recognized-applications-shipped-with-this-effect), so that
-installing the effect is enough for a known game. Selecting Native requests or
-recommends native input; processing still follows the actual buffer until the
-client changes it. At actual native resolution the initial
+installing the effect is enough for a known game on an eligible output.
+Selecting Native bypasses both resolution requests and processing, even if the
+application supplies a smaller buffer. An application's Native rule also wins
+over an explicit global scaling preset. At actual native resolution the initial
 effect bypasses both EASU and RCAS; the proposed sharpen-only mode would be
 the explicit exception, and it does not change this default. Turning the
 effect off is a separate action.
 On an output change, recompute the desired pixels from the stored percentage
 or preset; never change the monitor mode or desktop scale to satisfy the wish.
+
+**Minimum output pixels.** The global `MinimumPixels` setting defaults to
+2,073,600 (1920 × 1080). Each application rule can override it; `-1` in a rule
+inherits the global setting and zero disables the threshold. Compare the
+output's current physical width multiplied by its physical height, before
+applying the preset or percentage. At or below the threshold the effect makes
+no reduced-resolution request and bypasses FSR. This is an output eligibility
+threshold, not a lower bound on the requested buffer size. Full HD and
+1080 × 1920 therefore bypass at the default; 2560 × 1080 and 3840 × 2160 exceed
+it. Desktop scale and logical window dimensions do not change the comparison.
+The pixel count approximates resolution-related rendering cost; it does not
+measure refresh rate or application complexity.
+
+Selection and policy are independent for each output, including secondary
+outputs. One eligible fullscreen or profiled full-output borderless surface
+can be scaled on each output simultaneously. Multiple eligible surfaces on
+the same output remain refused. A Native rule or a threshold bypass on one
+display cannot veto another display's candidate. Threshold bypass leaves normal
+KWin rendering in place if a client retains an independently chosen smaller
+buffer; it cannot force an application's internal rendering to native size.
 
 ### What a resolution wish can control
 
@@ -1078,19 +1173,20 @@ separately rather than presenting the request as a result.
 
 ### Telling one application that its screen is smaller
 
-This is the effect's implemented resolution control, and the only one that
-works on a game the user started themselves. It is deliberately narrow, and
-what it cannot do is as important as what it can.
+This is the effect's implemented mode-advertising path for a game the user
+starts themselves. It is deliberately narrow, and what it cannot do is as
+important as what it can.
 
 **When it acts.** A program decides how large an image to render from the
 display information it was given when it connected, long before it has a
-window. Measured on KWin 6.3.6 against a running game: a fractional scale
+window. Measured on KWin 6.3.6 against native Wayland SuperTuxKart: a fractional scale
 hint, a rewritten output mode and a smaller window all fail to reduce what it
 renders, and the smaller window is actively harmful because the game keeps
 rendering at full size and scales its own finished image down. The effect
-therefore acts at the one moment that still decides the outcome, when the
-client binds the output, and does nothing to a game that was already running
-when the effect was loaded.
+therefore advertises the mode when the client binds the output, and does
+nothing through this method to a game that was already running when the effect
+was loaded. Other clients can follow live resize requests; those are a
+separate mechanism.
 
 **What it changes.** The current and preferred mode sent to that one client's
 output resources. The output keeps its mode, the desktop keeps its scale,
@@ -1104,7 +1200,9 @@ size of each output, exactly as the desired resolution is calculated
 everywhere else. Arbitrary calculated sizes are honoured, so a preset is not
 restricted to standard modes. When the global preset is Automatic, which means
 the user has not chosen, a recognized application uses the size recorded for
-it in the catalogue; any explicit global choice wins over that. Advertising
+it in the catalogue; an explicit global choice wins except for an application's
+Native opt-out. The output pixel threshold is checked before either request.
+Advertising
 the size the output already has is not a request and is not sent.
 
 **Which application.** Only one whose program matches the shipped catalogue.
@@ -1119,9 +1217,9 @@ information, or that asks the compositor for its fullscreen size instead of
 selecting a mode, keeps its own resolution; SuperTuxKart's Vulkan renderer is
 a measured example of the latter. The advertised size, the desired size and
 the committed buffer are therefore three separate values, and status reports
-them separately. An Xwayland game cannot be addressed at all: Xwayland binds
-the output while KWin starts, before any effect is loaded, and serves every
-X11 application from one connection.
+them separately. This Wayland output method cannot address one Xwayland game:
+Xwayland binds the output while KWin starts, before any effect is loaded, and
+serves every X11 application from one connection.
 
 **Its visible cost.** The game's own settings screen will offer resolutions
 only up to the advertised size, because that is what the game believes the
@@ -1196,7 +1294,7 @@ that a later mismatch can be traced rather than guessed at.
 | Application | Measured version | Window class | Instance | Program | Method | Resolution when the global preset is Automatic |
 | --- | --- | --- | --- | --- | --- | --- |
 | SuperTuxKart | 1.4 | `supertuxkart` | `supertuxkart` | `supertuxkart` | Advertised screen mode | Quality, 1 / 1.5 |
-| Extreme Tux Racer | 0.8.4 | not constrained | `etr` | `etr` | None | Automatic, no request |
+| Extreme Tux Racer | 0.8.4 | not constrained | `etr` | `etr` | X11 window resize, primary output | Quality |
 | glmark2 | 2023.01 | `com.github.glmark2.glmark2` | `glmark2-wayland` | `glmark2-wayland` | Advertised screen scale | Automatic, no request |
 | vkmark | 2025.01 | `com.github.vkmark.vkmark` | `vkmark` | `vkmark` | Advertised screen mode and scale | Automatic, no request |
 
@@ -1207,13 +1305,13 @@ the version in it, so an entry matching the class would stop matching at the
 next package update. Its instance name is the stable field, and the entry
 constrains that alone.
 
-Extreme Tux Racer also has no method. It reaches the session through Xwayland,
-which the effect cannot address separately, and its own settings offer no
-resolution at or above half of a 3840 × 2160 output: the list ends at
-1680 × 1050. For this game the honest answer is that the effect cannot obtain
-a smaller buffer and the resolution has to be chosen in the game. An entry
-without a working method still earns its place, because it lets the effect say
-that instead of leaving the user to guess.
+Extreme Tux Racer uses [X11 window resizing](#per-window-x11-resize-and-fullscreen-emulation).
+Its profile requests Quality by default, giving 2560 × 1440 on a 3840 × 2160
+output without editing game settings. SFML 2.6.2 always selects the primary
+RandR output when recreating a fullscreen window. The profile therefore sets
+`X11PrimaryOutputOnly=true`: requests on another output are refused before
+resizing, so the game does not unexpectedly jump between displays. This is a
+client limitation, not an Xwayland server per display.
 
 SuperTuxKart carries a preset of its own so that a fresh installation already
 does something. The user's explicit choice always wins over it; Automatic means
@@ -1463,6 +1561,190 @@ is present in the reviewed master source and absent from the reviewed 6.3.6
 source. Do not assume identical fullscreen behaviour across supported versions
 or treat the emulation property as a generic game-resolution setter.
 
+#### Per-window X11 resize and fullscreen emulation
+
+**Status:** implemented as the profile method `X11Resize`, with a shipped Tux
+Racer profile and virtual-backend regression coverage on KWin 6.3.6. Real-device
+acceptance remains open. Applications must handle resize requests and establish
+Xwayland's per-client mode emulation; this does not universally force internal
+rendering dimensions.
+
+An X11 window resize is a separate mechanism from Wayland output advertising.
+The effect can address one managed X window through KWin's exported window
+and X11 event-filter APIs. The application must then update its rendering for
+the new dimensions. A smaller drawable alone is insufficient: an application
+can retain its old viewport or offscreen render targets and produce a cropped
+image instead of a complete lower-resolution frame.
+
+[Extreme Tux Racer 0.8.4](https://deb.debian.org/debian/pool/main/e/extremetuxracer/extremetuxracer_0.8.4.orig.tar.xz)
+provides a useful compatibility case. Its `states.cpp` resize handler recreates
+the window through `CWinsys::SetupVideoMode()`. [SFML's X11 implementation](https://github.com/SFML/SFML/blob/2.6.2/src/SFML/Window/Unix/WindowImplX11.cpp)
+then requests the fullscreen mode on the application's own X connection.
+This can trigger Xwayland's existing per-client emulation without changing
+another client's mode or editing game settings. The mechanism is a standard
+window resize; calling game-specific functions or automating the game's menus
+is not part of the implementation.
+
+Two independent conditions govern fullscreen presentation. The application's
+connection must have an emulated mode, and its native X geometry must match
+that mode at the output origin. [Xwayland's window implementation](https://gitlab.freedesktop.org/xorg/xserver/-/blob/xwayland-24.1.6/hw/xwayland/xwayland-window.c)
+then establishes a viewport from the smaller buffer to the output and adjusts
+its input coordinates. Writing `_XWAYLAND_RANDR_EMU_MONITOR_RECTS` does not
+establish that internal per-client mode: the property reports server state.
+
+KWin 6.3.6 normally configures a fullscreen X window to the full output size,
+which can make a resizing application recreate its window repeatedly. An
+effect can intercept the selected window's fullscreen request,
+retain KWin's fullscreen state and logical geometry, and configure the native
+X frame, wrapper and client to the requested smaller size. Recent KWin manages
+the application window directly; the geometry helper handles both layouts.
+The controller restores KWin's normal native geometry when releasing a window,
+preserves unrelated EWMH states and stacking requests, and watches replacement
+windows, output geometry and Xwayland scale changes.
+
+The demonstrated fullscreen sequence uses only exported KWin APIs and X11
+window operations:
+
+1. Resolve the selected managed `X11Window` and the requested native pixel
+   dimensions from effect configuration. Match replacement windows belonging
+   to that selected application as well; a client may recreate its window
+   while handling a resize.
+2. Resize that window's native frame, wrapper and client through KWin's X
+   connection. Keep the frame at the output origin and account for Xwayland's
+   coordinate scale. The request must not change the shared output or another
+   client's geometry.
+3. Use `X11EventFilter` to handle the selected window's
+   `_NET_WM_STATE_FULLSCREEN` request and later `ConfigureRequest` events.
+   On KWin 6.3.6, `blockGeometryUpdates()`, `setFullScreen(true)` and
+   the no-argument `unblockGeometryUpdates()` retain KWin's fullscreen state
+   without flushing its full-size native configure. The effect then sends
+   the smaller native geometry itself. The boolean `blockGeometryUpdates(false)`
+   overload flushes geometry and is not equivalent to that sequence.
+4. Let the client's resize handler update its rendering and request its own
+   RandR mode. Observe both the supplied buffer and full-output destination
+   before reporting success. Neither a successful X configure request nor
+   the emulation property alone proves that rendering changed.
+5. Track affected windows with guarded references. Stop intercepting events
+   and restore their normal geometry when control is disabled or the effect
+   unloads. The demonstrated fullscreen restoration causes the client to
+   recreate its normal-resolution window.
+
+Initial negotiation waits for the application's first buffer: a resize during
+window construction can be consumed before the renderer starts. A replacement
+window already carrying the requested emulated mode can be intercepted earlier.
+Negotiation allows at most six window replacements per process/profile/output
+attempt and checks the supplied buffer, logical destination and output-specific
+emulation after three seconds. Clients can discard a resize during a loading
+transition, so one failed attempt restores normal geometry before retrying.
+If the retry fails, normal geometry is restored and that request stays refused
+until settings are reapplied. During negotiation a client can temporarily show
+a smaller unscaled image. Status reports the requested size separately from the
+buffer received; it does not treat that intermediate image as successful
+full-output scaling. An observed buffer still does not prove the size of every
+application-owned render target.
+
+Xwayland normally serves several physical outputs in the same session. Its
+RandR emulation belongs to a client connection and a server output. All requests
+derive their size and position from the target window's output; they do not
+change the shared desktop mode. The `X11PrimaryOutputOnly` profile constraint
+guards clients whose own mode selection ignores the window's output. A profile
+without that constraint can use either output if the client selects its mode
+correctly. Rotated outputs and unavailable modes are not negotiated. Mixed
+desktop scales, output hotplug and physical pointer confinement still require
+device acceptance.
+
+| Required constraint | Mechanism and demonstrated scope |
+| --- | --- |
+| Controlled from the plugin | Target selection, requested size and X11 operations reside in the effect; no application-specific function calls are needed. |
+| Only the selected application changes | Native geometry requests address its windows. The application makes its own per-client RandR request; the unrelated fullscreen test application remains at normal resolution. |
+| No patches to KWin or Xwayland | The method uses exported APIs and existing Xwayland mode emulation on the distribution's unmodified packages. |
+| No user game reconfiguration | Games start normally. Only the effect's configuration changes; the method does not edit game settings or require a resolution launch argument. |
+| Enabled through Debian installation | The controller is compiled into the ordinary effect, and the package installs the Tux Racer profile with its defaults. No injected library, launcher wrapper or replacement server is needed. |
+
+The delivery mechanism needs no replacement compositor or X server. A
+research Debian package containing an ordinary installed KWin effect and its
+configuration defaults demonstrated 1080p and 1440p Tux Racer buffers on
+unmodified KWin 6.3.6, with full-output presentation and an unrelated
+fullscreen X11 application remaining at 4K. Disabling and unloading the
+research effect restored the target to 4K. These establish feasibility of
+plugin delivery and a basic lifecycle, not acceptance of the production
+effect or its package. Production support must retain the distinction
+between a requested size and the dimensions actually supplied by the client.
+
+Compatibility depends on client behaviour. SFML validates fullscreen sizes
+against its mode list; arbitrary percentages are not automatically available.
+SDL delivers X11 resize events to the application, but that alone does not
+prove that a game rebuilds its renderer or requests an emulated mode. Clients
+which ignore resize events need a different method or an unsupported result.
+Neither an X11 resize nor a private display can enforce the dimensions of
+arbitrary application-owned render targets.
+
+Acceptance for an effect implementation must configure the desired size in
+the effect, start unmodified Tux Racer through Xwayland, and verify its actual
+render dimensions and KWin's received buffer. While it remains open, start a
+different unmodified fullscreen X11 application and verify that it renders
+and supplies buffers at the normal output resolution. Repeat for more than
+one requested size and a second targeted application using a different
+toolkit; include a client which ignores requests. A test-only effect does not
+replace acceptance of the production effect, its package or physical input
+and presentation.
+
+For lifecycle acceptance, keep both applications running while changing the
+effect's request from 1080p to 1440p, disabling control, re-enabling it, and
+unloading the effect. Verify restoration to the normal resolution after
+disable and unload, and verify that the unrelated application stays at its
+normal resolution throughout. Use actual buffers and render traces as
+evidence; exclude reconstructed trace state from rendering observations.
+
+#### Borderless windows and Gamescope's approach
+
+Borderless eligibility is implemented for both X11 and native Wayland. The
+window must match an enabled profile, be a normal undecorated window, and have
+its content and frame exactly cover one output at that output's origin. Equal
+dimensions alone are insufficient. Ordinary smaller windows and windows
+spanning outputs do not qualify. The existing opacity, surface, aspect-ratio
+and buffer-size checks still apply.
+
+A Wayland client must retain that logical area while supplying a smaller
+buffer, for example through a viewport or a supported scale policy. The X11
+resize controller additionally requires the client's mode emulation to preserve
+full-output presentation and input mapping. A borderless client which only
+shrinks its drawable is restored and reported as unsupported. Extending support
+to such clients still requires a complete placement and input design; a paint
+transform alone does not provide it. The effect does not change a game's own
+fullscreen/windowed preference.
+
+[SuperTux's SDL event handling](https://github.com/SuperTux/supertux/blob/v0.6.3/src/supertux/screen_manager.cpp)
+and [video configuration](https://github.com/SuperTux/supertux/blob/v0.6.3/src/video/sdlbase_video_system.cpp)
+provide an independent compatibility example: resize events update its window
+dimensions and reapply video configuration. A prototype effect obtained both
+4K and 1080p borderless buffers and matching presentation viewports without
+game-setting edits. The observed internal framebuffer remained 1368 × 769,
+illustrating why changing a window buffer does not necessarily reduce every
+render target or imply a proportional performance improvement.
+
+[Gamescope's X window manager](https://github.com/ValveSoftware/gamescope/blob/c50ddfa9b71a75ec8df94bda8cf31d425dbdda24/src/steamcompmgr.cpp)
+uses ordinary `XResizeWindow()` calls to enforce the dimensions of its focused
+fullscreen game window. Its broader compatibility also relies on controlling
+the display that the game sees: [its Wayland server](https://github.com/ValveSoftware/gamescope/blob/c50ddfa9b71a75ec8df94bda8cf31d425dbdda24/src/wlserver.cpp)
+creates private Xwayland servers and headless outputs at the nested render
+size, and [its launcher](https://github.com/ValveSoftware/gamescope/blob/c50ddfa9b71a75ec8df94bda8cf31d425dbdda24/src/main.cpp)
+sets `DISPLAY` to that server before launching clients. Rewriting the shared
+desktop Xwayland output from this effect would not reproduce that isolation.
+A running X connection cannot simply be reassigned to the private server.
+
+The reusable design is to keep the requested render size, actual committed
+buffer and displayed geometry separate, and derive composition and input
+transforms consistently. Gamescope's renderer explicitly handles games which
+retain a larger swapchain in a smaller borderless window, so its resize policy
+must not be read as proof of reduced rendering. Its optional
+[Vulkan WSI layer](https://github.com/ValveSoftware/gamescope/blob/c50ddfa9b71a75ec8df94bda8cf31d425dbdda24/layer/VkLayer_FROG_gamescope_wsi.cpp)
+can expose the X window extent and request swapchain recreation, but operates
+inside the application and is not an effect-only API for arbitrary OpenGL,
+Vulkan or internal render targets.
+
+#### Other negotiation boundaries
+
 If a virtual output is needed, creation alone is not acceptance. Establish
 game placement and display selection, mapping to the physical output, input
 coordinates and pointer confinement, focus and overlays, colour descriptions,
@@ -1548,8 +1830,16 @@ universal resolution override remains unproven.
 
 ### Resolution-control direction after the experiments
 
-A launch helper plus the effect is a viable direction without modifying KWin.
-Two mechanisms have supplied smaller original buffers to unmodified KWin 6.3.6:
+For cooperating X11 applications, the
+[targeted resize mechanism](#per-window-x11-resize-and-fullscreen-emulation)
+provides a verified path from an effect on unmodified KWin 6.3.6. It can act
+after the application starts and has been demonstrated through Debian plugin
+installation. Borderless resizing extends the candidate client classes, with
+full-output presentation and input still requiring integration.
+
+A launch helper remains a separate direction for clients which need a private
+display before startup. Two helper mechanisms have supplied smaller original
+buffers to unmodified KWin 6.3.6:
 
 - **Protocol proxy:** Sommelier's direct-scale mode forwarded 1080p and 1440p
   native OpenGL buffers, a 1080p native Vulkan buffer, and smaller Xwayland
@@ -1745,13 +2035,12 @@ effect's game identification and resolution reduction. Image quality, input
 and lifecycle checks accompany these tests. The benchmarks above provide the
 controlled performance comparisons.
 
-The current implementation recognizes the applications in its shipped
-catalogue, tells a recognized one that its screen has a smaller current mode
-when it connects, and scales the buffer that arrives. User-selected games,
-remembered profiles and any other control method are still to implement, and
-an Xwayland game cannot be addressed at all. These tests therefore remain
-acceptance requirements: a headless session showing the path running is not
-identification, image quality, input or lifecycle acceptance on real hardware.
+The implementation recognizes editable application profiles, negotiates selected
+Wayland output information or X11 window sizes, and scales eligible supplied
+buffers. The X11 method includes Tux Racer on the primary output; unsupported
+client behavior remains a reported limitation. These tests remain acceptance
+requirements: virtual-backend results do not establish image quality, input,
+GPU import or lifecycle acceptance on real hardware.
 
 | Test | Required observation |
 | --- | --- |
@@ -1877,6 +2166,64 @@ controlled comparison with composition in both cases is available, report it
 separately to help isolate filter cost. A shader-only timing cannot replace
 the end-to-end comparison. Complete the initial measurements in SDR at fixed
 refresh, then repeat the relevant comparisons with HDR and VRR as supported.
+
+#### Reading the effect's own measurements
+
+The instrument is the effect itself. It already counts the frames the screen
+presented, taking their timestamps from `RenderLoop::framePresented` rather
+than from anything it submitted, keeps their slow tail, and counts the buffers
+the client committed and the repaints the compositor made. `UpscaleFrameStatistics`
+holds them, and `upscaleStatusText` reports them in the text that
+`org.kde.kwin.Effects.supportInformation upscale` returns over D-Bus.
+
+Nothing is pushed per frame. The effect accumulates into a ring buffer of 1024
+intervals and answers when it is asked, so a measured run costs one round trip
+every few seconds rather than one per frame. Three consequences follow, and all
+three decide how a run is conducted:
+
+- **The window is recent, not the whole run.** 1024 frames is about seventeen
+  seconds at 60 Hz and four at 240 Hz. A reading taken at the end of a minute
+  describes its last few seconds. Poll through the run and aggregate the
+  readings; do not take one at the end and call it the run.
+- **The instrument only runs while the display is shown.** Measuring is the
+  display's work, and the status says so when nothing is measuring. Turn
+  `OsdStatistics` on and leave it on for *every* run of a comparison. The
+  overlay is composited content and holds the output in composition, so it
+  perturbs what it measures — equally on both sides, which is what keeps the
+  comparison honest. A comparison whose two sides were instrumented
+  differently is not one.
+- **The presented rate is capped by the screen.** At a fixed 240 Hz it cannot
+  report more, and two runs that both reach the cap say nothing about their
+  rendering cost. Report the client buffer update rate beside it, and where the
+  game reports its own throughput, report that too. Never present the
+  compositor's presented rate as the game's rendered FPS.
+
+`tools/measure-frame-times.py` runs the matrix above against a real session. It
+sets the effect's preset, applies it, starts the game, polls the status at an
+interval, and reports the median of the readings with their spread and the
+difference from the native baseline. It writes every reading to a CSV under
+`build/measurements/` so that a summary can be checked rather than believed,
+and it marks a difference smaller than the spread as inconclusive instead of
+reporting it as a result. It changes only the effect's own settings.
+
+```sh
+python3 -B tools/measure-frame-times.py supertuxkart --presets native,quality,performance
+```
+
+A run has to render without a person at the keyboard, or repeating it changes
+the scene as well as the resolution:
+
+| Application | How a run is driven | What it reports itself |
+| --- | --- | --- |
+| SuperTuxKart | `--profile-time=<seconds> --fullscreen` drives itself for a fixed time | Frames and elapsed time when it finishes, which is its render throughput |
+| Extreme Tux Racer | No demo mode; the menu is keyboard driven, so keys are sent to the window and Tux then slides the course unattended | Nothing; it is measured through the effect alone |
+| Left 4 Dead 2 | Launched through Steam by application id; a map is loaded from the console | Source's own counters, where they are enabled |
+
+A game whose resolution is chosen at startup has to be started again for each
+preset, because the request is made before its window exists. The script
+therefore starts and stops the game once per run rather than changing the
+preset underneath it.
+
 
 ## Automated quality gates
 
@@ -2212,6 +2559,32 @@ wzpc with AMD Strix Halo and the workstation with NVIDIA RTX 5090. Record the
 exact package checksum, Debian, KWin and driver versions, display and connection,
 and each observed SDR, HDR, VRR and performance result in the active slice.
 Untrusted PR jobs run on hosted runners, not on these desktop machines.
+
+The NVIDIA host is `pcjensd`. What it is made of is recorded here rather than
+in a slice, because the driver, the display mode and the KWin version together
+decide what the effect is allowed to attempt; a result from this host cannot be
+read without them, and they outlive the slice that first observed them.
+
+| Part | pcjensd |
+| --- | --- |
+| Distribution | Debian 13 (trixie), kernel 7.2.6-zabbly+ |
+| CPU | AMD Ryzen 9 9950X3D, 16 cores / 32 threads |
+| Memory | 62 GiB |
+| GPU | NVIDIA GeForce RTX 5090 (GB202, `10de:2b85`), 32 GiB VRAM |
+| Driver | `nvidia-driver` 615.71.09-2, proprietary; `nvidia_drm` with `modeset=1` and `fbdev=1` |
+| Display | LG ULTRAGEAR+ on DisplayPort (`DP-3`), 3840 × 2160 at 240 Hz, scale 1.45 |
+| Display state | SDR; HDR disabled, wide colour gamut disabled, VRR set to never |
+| Session | Plasma 6.3.6 on Wayland, KWin 6.3.6, Qt 6.8.2 |
+| Compositing | OpenGL through EGL; KWin reports the context as OpenGL 3.1, GLSL 1.40 |
+
+Two of those entries matter more than their neighbours. KWin 6.3.6 reports this
+card's **GPU class as `Unknown`**, so any behaviour that depends on KWin
+recognising the hardware is untested here by definition. And the display is
+**driven at 240 Hz**, which leaves well under five milliseconds per frame: a
+performance result from this host is a statement about that budget, not about a
+60 Hz one. HDR and VRR are both off at the time of writing, so neither has been
+exercised; turning either on is a change of test conditions and is recorded as
+one.
 
 The [pipeline slice](agents/slice-build-release-pipeline.md) records validation and
 remaining hosted, BSD and hardware acceptance work.

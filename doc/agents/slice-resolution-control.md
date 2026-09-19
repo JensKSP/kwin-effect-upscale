@@ -27,19 +27,21 @@ Nothing here is deferred by that ordering. The experiments below already stand,
 and the recorded decision cannot wait indefinitely: every dependent package is
 specified against capabilities this one may never deliver.
 
-Two recorded results make this the gate rather than one feature among several.
+Two earlier results made this the gate rather than one feature among several.
 The [rendering slice](slice-fsr1-hdr-vrr.md) could not measure runs B, C and D
-on real hardware because no verified route to a smaller fullscreen game buffer
-exists on KWin 6.3.6, so the cost of the scaler and of losing direct scanout is
-still unknown. The same slice recorded that Xwayland mode emulation produces a
-smaller buffer on the development version and not on the minimum supported one.
+on real hardware because it had no verified route to a smaller fullscreen game
+buffer on KWin 6.3.6, so the cost of the scaler and of losing direct scanout is
+still unknown. The later [X11 investigation](#per-application-x11-buffer-control-investigation-2026-09-19)
+established such a route in a research effect on the minimum supported version,
+including [Debian installation and basic restoration](#installed-package-and-lifecycle-results).
+Production integration and hardware acceptance remain open.
 
 This package must therefore reach one of three stated outcomes rather than
 remaining open indefinitely:
 
 | Outcome | What it commits the project to |
 | --- | --- |
-| Cooperative clients only | Ship the verified native Wayland scale request, report every other client honestly as unsupported, and drop the launch helper from the required scope. |
+| Cooperative clients only | Integrate verified native Wayland requests and targeted X11 resizing for their stated client classes, report other clients honestly as unsupported, and drop the launch helper from the required scope. |
 | Ship a launch helper | Adopt the protocol proxy or the Gamescope Wayland backend as a second delivered component, with its own surface-tree, input, lifetime and packaging work. |
 | Guidance only | Send no request at all, keep the desired size as in-game guidance, and accept that the effect serves buffers the user reduced by hand. |
 
@@ -688,7 +690,450 @@ developer view also claimed variable refresh was unobserved, which stopped
 being true when the presentation mode became a measurement; it now reports the
 frames and the mode the screen presented them in.
 
+### Per-application X11 buffer control investigation, 2026-09-19
+
+Start state: the effect can advertise a mode to selected native Wayland
+clients, but its Xwayland application profile makes no resolution request.
+Earlier probes did not establish smaller fullscreen X11 buffers on KWin
+6.3.6. The current investigation traces the exact Xwayland, KWin, Extreme Tux
+Racer and toolkit code before selecting another mechanism.
+
+End state: a source-backed assessment identifies which mechanisms can obtain
+the requested original buffer size from the effect, affect only the selected
+application, require no patches to other software or user game configuration,
+and be enabled by installing a Debian package. A request, a smaller X drawable,
+the game's rendering dimensions and the buffer received by KWin are separate
+observations. Unsupported enforcement must be stated explicitly.
+
+Scope: inspect the supported versions and current upstream where relevant;
+use isolated container probes for promising paths. Exclusions: changes to the
+real desktop, user game settings, installed applications, and production
+implementation before feasibility is established. Source copies and probes
+belong under `build/x11-resolution-research/`.
+
+Dependencies: Xwayland's client isolation and presentation implementation,
+KWin's exported window/geometry APIs, the application's resize handling and
+the effect's existing input and eligibility contracts. This is further
+investigation within the resolution slice; it does not close the supported
+scope or full-acceptance gates above.
+
+Planned acceptance: trace the actual game render-size decisions, distinguish
+live control from launch-time helpers, evaluate all five constraints, and
+record any observed probe results separately from source-derived predictions.
+Run the maintained documentation checks for resulting documentation changes.
+
+#### Source findings
+
+Inspected Xwayland 24.1.6 (also compared its current master output code), KWin
+6.3.6 and current master, Extreme Tux Racer 0.8.4, SFML 2.6.2, SDL2's X11
+event handler, glmark2 2023.01 and Gamescope at
+`c50ddfa9b71a75ec8df94bda8cf31d425dbdda24`. Source copies are in the ignored
+research directory. Lasting explanations and source links are in the
+[X11 resize section](../upscaling.md#per-window-x11-resize-and-fullscreen-emulation)
+and [borderless/Gamescope section](../upscaling.md#borderless-windows-and-gamescopes-approach).
+
+- `xwl_randr_crtc_set()` uses `GetCurrentClient()`. Neither the effect's X
+  connection nor a separate `xrandr` process can select a mode for the game's
+  connection. `_XWAYLAND_RANDR_EMU_MONITOR_RECTS` is server-produced state,
+  not an instruction to set the game's internal emulated mode.
+- `xwl_window_should_enable_viewport()` tests the actual application window's
+  size and output origin against the owning connection's emulated mode.
+  Matching sizes enable the smaller-buffer/full-output viewport.
+- Tux Racer's `sf::Event::Resized` handler updates `Winsys.resolution` and
+  recreates the window. SFML then selects the fullscreen mode on that game's
+  own connection. The effect can trigger this with a standard X window
+  resize; there is no game-specific function call or game-config edit.
+- SFML rejects sizes absent from its fullscreen mode list. SDL delivers
+  configure notifications as resize events, but the application decides how
+  to update rendering. glmark2's X11 event loop does not handle resize events.
+  Consequently the mechanism is reusable but not universal enforcement.
+- KWin 6.3.6's `X11Window::configure()` sizes the native X hierarchy to the
+  full output. Current KWin reads Xwayland's emulation property and configures
+  the client at the emulated size while keeping fullscreen geometry.
+- Gamescope creates private Xwayland servers and headless outputs at its
+  nested render dimensions, sets the game's `DISPLAY`, and uses ordinary
+  `XResizeWindow()` for fullscreen sizing. Its compositor keeps committed
+  texture dimensions separate from window geometry and explicitly handles
+  borderless games retaining larger swapchains. Its Vulkan WSI layer can
+  expose X extents and report out-of-date swapchains, but is application-side
+  integration, not a plugin API for existing arbitrary renderers.
+
+#### Observed prototype results
+
+Environment: disposable container based on the maintained Trixie image,
+unmodified KWin `4:6.3.6-1`, Xwayland `2:24.1.6-1`, Tux Racer `0.8.4-1`,
+SFML `2.6.2+dfsg-2+b1`, glmark2 `2023.01+dfsg-2`, and Mesa llvmpipe
+`25.0.7-2+deb13u1`. Each run used a private D-Bus session, home/config/runtime
+directories and a 3840 × 2160 KWin virtual output at scale 1. KWin used
+QPainter and Xwayland's software path; these are real X11/OpenGL application
+and Wayland buffer observations, not GPU, FSR, performance or TV acceptance.
+
+The temporary `x11probe` effect reads the target identity and Width/Height
+from its own configuration. It observes the X geometry, KWin fullscreen and
+frame geometry, surface buffer/destination sizes and emulated-mode property.
+The selected application starts normally; after six seconds the effect acts
+on that window. glmark2 starts later while Tux Racer remains open. No changes
+were made to game settings, KWin, Xwayland or the production effect.
+
+| Probe operation | Target result | Unrelated fullscreen X11 app |
+| --- | --- | --- |
+| Observe default Tux Racer | 3840 × 2160 buffer and destination | glmark2: 3840 × 2160 |
+| `Window::moveResize()` to 1080p | Game recreates its window; KWin returns it to 4K. Repeating causes window recreation, not stable reduction. | glmark2: 3840 × 2160 |
+| Raw XCB resize of target frame/wrapper/client to 1080p | Same recreation/reset failure. | glmark2: 3840 × 2160 |
+| Targeted fullscreen event filter plus XCB geometry, 1080p | Stable 1920 × 1080 buffer; fullscreen frame and viewport destination remain 3840 × 2160. | glmark2: 3840 × 2160 while target stays at 1080p |
+| Same filter, 1440p | Stable 2560 × 1440 buffer; fullscreen frame and destination remain 3840 × 2160. | glmark2: 3840 × 2160 while target stays at 1440p |
+| Select glmark2 itself for the same 1080p operation | X drawable and received buffer become 1920 × 1080, but destination is also 1920 × 1080 and no emulated mode exists. Its own renderer still reports 4K; this is not accepted rendering reduction. | Tux Racer stays at 3840 × 2160 |
+| Borderless `setNoBorder()` and `moveResize()` on glxgears | Stable 1920 × 1080 original buffer and render viewport in a borderless 1920 × 1080 window. No fullscreen enlargement or RandR emulation was claimed. | Later fullscreen glmark2: 3840 × 2160 buffer and viewport |
+
+The filter handles the selected window's EWMH fullscreen request through
+`X11EventFilter`. It calls `X11Window::setFullScreen()` while native geometry
+updates are blocked, unblocks without flushing the full-size configure, and
+configures the X frame, wrapper and client itself. It also intercepts that
+window's later configure requests. Tux Racer's ordinary resize handling then
+produces its own RandR request, and Xwayland's existing viewport takes over.
+The generic implementation contains only configurable identity matching and
+window-system operations. The prototype is deliberately incomplete: it does
+not yet reconcile all cached geometry, EWMH state combinations or restoration.
+
+Successful run directories include `run-filter-1920x1080-1789810444`,
+`run-filter-2560x1440-1789810515` and
+`run-filter-1920x1080-1789810649` under the research directory. In the last,
+apitrace independently observed real Tux Racer `glViewport` calls changing
+from 3840 × 2160 to 1920 × 1080, followed by 1,267 swaps after the last smaller
+viewport call. The same run recorded glmark2's real viewport calls at
+3840 × 2160 and 2,413 swaps. Reconstructed initial-state calls marked `fake`
+were excluded from the viewport evidence. The inspected Tux Racer trace had
+no framebuffer binds, framebuffer blits or renderbuffer-storage calls, and no
+4K render-size texture allocations among its `glTexImage2D` calls. This
+supports original smaller rendering in the observed menu sequence, not every
+scene or internal target in every application.
+
+The borderless run `run-borderless-1920x1080-1789810864` selected glxgears by
+its observed caption. It recorded a real 1920 × 1080 viewport call followed
+by 14,424 swaps; later fullscreen glmark2 retained real 3840 × 2160 viewport
+calls and buffers. Before removing its decoration the initially output-sized
+glxgears window had a 3840 × 2135 content area. This proves cooperative
+ordinary-window resizing with a second X11 implementation, but is not a
+second game, a completed output-filling presentation path or an input test.
+
+The negative glmark2 case was repeated with caption matching and apitrace in
+`run-filter-1920x1080-1789810955`. Its actual viewport remained 3840 × 2160
+while the X drawable and KWin buffer were 1920 × 1080. This is a concrete
+counterexample to treating the received buffer size alone as proof of correct
+lower-resolution rendering. The test scene was a clear, so it establishes the
+viewport mismatch rather than a visual judgment of cropped game content.
+
+Instrumentation/setup limits: initial runs with incomplete X11 socket/plugin
+setup are excluded. A simple GL symbol observer produced no measurements;
+SFML resolves GL through `dlopen`, and apitrace's library redirection was used
+instead. Both traced applications presented throughout the observation but
+apitrace's signal handler faulted during the harness's forced termination.
+Untraced runs ended on the harness's SIGTERM. These are not clean-exit or
+effect-unload acceptance results. An initial borderless probe did not match
+glxgears because that application did not set WM_CLASS; the successful run
+used the actual caption instead. These identity choices are probe configuration,
+not special cases in the resize mechanism.
+
+#### Assessment against the requested constraints
+
+The per-window resize/filter path is feasible inside an effect, and the
+observed positive runs isolate it to the selected application without any
+patches or user game configuration. It uses APIs already shipped with KWin
+6.3.6. The follow-up below demonstrates installation and automatic loading of
+a research Debian package; the production package is unchanged. Its confirmed
+fullscreen compatibility class is a client which responds
+to resize and selects its own emulated fullscreen mode. Broader toolkit/game
+coverage includes the SDL borderless case below; the glmark2 counterexample
+prevents a universal claim.
+
+Borderless window resizing is an additional candidate requested by Jens. It
+can avoid fullscreen mode selection for clients which follow ordinary window
+resizes. Enlarged presentation and input mapping belong with the
+[geometry slice](slice-scaling-geometry.md); obtaining and validating the
+original smaller buffer remains owned here. The production effect currently
+requires fullscreen coverage and cannot accept that path without integration.
+
+Documentation validation: `python3 -B tools/run-checks.py docs --base HEAD`
+passed both configured pre-commit stages in the maintained Trixie container.
+The first attempt failed because Ruff tried to use an unwritable cache outside
+`build/`; setting `RUFF_CACHE_DIR` to the research directory's cache fixed the
+check environment. These were documentation-only checks. Production builds,
+the full regression suite, production-package checks, neon and hardware tests
+were not run for this investigation. The separate research-package check is
+recorded below.
+
+Remaining: integrate a selected method with production settings and truthful
+result reporting; test
+event/cache ownership and restoration, output/scale changes, input and
+confinement, focus and replacement windows, unsupported modes and clients,
+both supported KWin versions, package installation, and hardware acceptance.
+
+Follow-up feasibility checks: package the temporary effect as a local research
+Debian package and load it through KWin's normal installed-plugin path. Repeat
+the target/other-client test, then exercise configuration changes and disabling
+the method. Broaden the ordinary-window resize probe to another game/toolkit
+where available. These checks establish delivery and lifecycle feasibility;
+they do not substitute for production integration or close this slice's wider
+release and hardware acceptance criteria.
+
+#### Installed-package and lifecycle results
+
+The follow-up used another disposable container from the same maintained
+Trixie image. The temporary effect was packaged as
+`kwin-effect-upscale-x11-probe_0.0.1+research_amd64.deb`, with its library in
+the distribution's Qt 6 KWin plugin directory and target/size defaults in
+`/etc/xdg/x11probe.ini`. `dpkg --install` succeeded. A new isolated KWin
+session loaded the effect from that installed path, without `QT_PLUGIN_PATH`
+and without a per-user effect-enable entry or initial probe configuration.
+The metadata's enabled-by-default setting and packaged defaults sufficed.
+This is a local research package, not a release or the production package.
+
+`run-installed-1789811381` under the research directory contains the completed
+run and traces. `run-installed.py` writes only the effect's configuration when
+changing requests; neither game receives resolution arguments or game-setting
+edits. Tux Racer starts normally; fullscreen glmark2 starts twelve seconds
+later and remains open throughout subsequent transitions.
+
+| Phase | Tux Racer buffer and real GL viewport | Completed swaps in viewport phase | glmark2 |
+| --- | --- | --- | --- |
+| Initial default | 3840 × 2160 | 279 | Not started yet |
+| Installed effect's default request | 1920 × 1080 | 834 | Starts at 3840 × 2160 |
+| Change effect request | 2560 × 1440 | 474 | 3840 × 2160 |
+| Disable method | 3840 × 2160 | 454 | 3840 × 2160 |
+| Re-enable at 1080p | 1920 × 1080 | 415 | 3840 × 2160 |
+| Unload effect, then reload in observe mode | 3840 × 2160 | 592 | 3840 × 2160 |
+
+Tux Racer's logical fullscreen frame and surface destination remained
+3840 × 2160. glmark2's viewport stayed at 3840 × 2160 across 7,231 completed
+swaps, and every recorded glmark2 buffer/destination had that size. An
+independent RandR query still reported a 3840 × 2160 current screen.
+The harness closed both windows through their normal window-manager close
+requests; both processes exited with status zero and the traces contain no
+termination-handler faults. This supersedes the earlier forced-termination
+limitation for this particular fullscreen lifecycle sequence.
+
+The prototype records affected windows with guarded pointers. Disabling or
+unloading stops its interception and restores native fullscreen dimensions;
+the game then recreates its normal-resolution window. This establishes one
+working restoration sequence, not complete ownership across monitor changes,
+all EWMH state combinations or other clients. The protocol still depends on
+application cooperation and the production integration remains open.
+
+`verify-installed.py` checks the expected six viewport phases, continuing
+swaps in each phase, repeated target buffer observations, all unrelated-client
+samples, restoration after unload/reload and clean exits. It passed against
+these completed logs. `dpkg --verify kwin-wayland kwin-common xwayland
+extremetuxracer` produced no discrepancies; `cmp` confirmed that the installed
+probe library matched the tested build. As in the earlier container setup,
+the container's KWin file capability was removed to permit running the
+isolated session; this is a container-execution accommodation, not part of the
+resolution-control method or Debian package.
+
+#### Independent SDL game and research conclusion
+
+The additional game is SuperTux `0.6.3-3` using SDL `2.32.4+dfsg-1`, explicitly
+running through SDL's X11 backend. It starts with its default window and no
+resolution arguments. The same generic borderless operations first request
+3840 × 2160, then 1920 × 1080 through effect configuration. No application
+code or settings are edited. `run-borderless-3840x2160-1789811448` records
+both corresponding received buffer sizes. The real default-framebuffer
+viewport follows the two sizes, with 286 completed swaps at 4K and 754 at
+1080p. Later fullscreen glmark2 retains a 4K buffer and viewport across 1,827
+completed swaps. This run used the original forced-stop harness, so its
+tracer termination faults are not clean-exit evidence.
+
+The trace also shows SuperTux rendering an intermediate framebuffer at
+1368 × 769 in both phases. Consequently this verifies the requested window
+buffer and presentation viewport; it does not establish a proportional
+reduction in the game's internal rendering work. Source inspection confirms
+that its SDL resize handler updates `window_size` and reapplies video
+configuration. Borderless fullscreen enlargement and input remain separate
+integration work, as described above.
+
+The requested research outcome is established: at least one mechanism can be
+implemented in a KWin effect, selectively obtains the configured Tux Racer
+buffer, preserves the unrelated fullscreen application's normal resolution,
+requires neither external patches nor user game reconfiguration, and loads
+from a Debian-installed plugin. Standard targeted resizing is also reusable
+with a different toolkit and game in borderless mode. This conclusion closes
+the feasibility question for cooperating clients; it neither claims universal
+forcing nor closes this slice's production, compatibility and hardware gates.
+
+The handbook now preserves the exported API sequence, the assessment against
+all five constraints, borderless and Gamescope boundaries, and the required
+lifecycle test sequence. Earlier statements that Xwayland cannot be addressed
+separately have been narrowed to the production Wayland mode-advertising path.
+The prototype's observed results remain here; they do not change the production
+catalogue's `None` method for Tux Racer.
+
 ## Remaining work
+
+### A game that never exits
+
+Asked for by Jens on 2026-09-19. A game can disappear without warning —
+`kill -9`, a driver fault, a crash inside the engine — and everything this
+slice arranges for it has to survive that: the advertised mode a client was
+told, the X11 window size that was requested, the per-window bookkeeping, and
+the resources KWin holds on the effect's behalf. Nothing may be kept for a
+client that cannot receive it, and nothing may grow across repeated launches.
+
+Announcements whose client is gone are dropped now, so restoring the real mode
+walks only clients that still exist. What remains to be tested: a client killed
+between the request and its first commit, a client killed while its window is
+being resized on X11, and repeated kill-and-relaunch cycles with process and
+video memory watched across them. The display's own side of this is in the
+[development infrastructure slice](slice-development-infrastructure.md).
+
+### Production X11 integration
+
+Jens requested integration of the demonstrated mechanism into the actual effect
+so that Tux Racer works without game configuration. Start state: the production
+catalogue still gives Tux Racer no method; the proven controller exists only
+in the ignored research build. End state for this implementation: a generic
+profile-selectable X11 resize method, a shipped Tux Racer profile, truthful
+requested/observed status, bounded negotiation and restoration on disable or
+unload, with an automated X11 regression and the real-game isolation sequence.
+Include selected borderless X11 and Wayland windows whose content exactly
+covers one output. Preserve logical presentation and input mapping; a smaller
+native window alone is insufficient. Arbitrary internal render targets and
+universal game compatibility remain outside this implementation. No external
+software patches or user game-setting changes are permitted.
+
+Approach: separate X11 negotiation and native geometry ownership from rendering;
+reuse existing profile matching and size calculation, restrict interception to
+selected clients, preserve unrelated EWMH operations, and handle replacement
+windows and output changes. Add the method to configuration and diagnostics,
+exercise refusal and restoration as well as success, and verify the actual
+production controller with Tux Racer plus an unrelated fullscreen X11 client.
+The supported-scope gate requires both maintained compiler/container builds,
+configured checks, and virtual-backend runtime coverage. Physical input,
+GPU import, HDR/VRR and real-TV acceptance remain the full-acceptance gate.
+
+Multi-output steering: use the selected window's output geometry and scale,
+never the global active output. Test target and unrelated fullscreen clients
+on separate outputs as well as on the same output. Xwayland's emulation is
+per client connection and per server output, not a server per display. SFML
+2.6.2 selects the primary RandR output when recreating a fullscreen window;
+secondary-output and move cases must be measured and refused/restored when
+the client's own mode selection does not match the target output.
+
+Implementation progress:
+
+- Added profile method `X11Resize`, separate requested/observed diagnostics,
+  event interception and restoration, and the shipped Tux Racer profile. The
+  controller uses exported KWin interfaces and XCB geometry operations.
+- Added profiled full-output borderless eligibility for native Wayland and
+  X11. The supplied surface must retain the whole logical destination. X11
+  clients without matching emulation are restored after bounded negotiation.
+- The maintained Trixie GCC build passed all 16 CTest entries. The X11 fixture
+  uses separate connections and two 4K virtual outputs; fullscreen and
+  borderless lifecycle cases passed on both outputs, alongside an unrelated
+  fullscreen client. The native Wayland borderless case passed as well.
+- Initial production-controller Tux Racer runs observed 1080p and 1440p
+  supplied buffers with a 4K destination, normal restoration and an unrelated
+  fullscreen glmark2 at 4K. These use the actual effect through the maintained
+  test driver, which substitutes capture rendering for KWin's QPainter virtual
+  backend. They do not validate physical GPU import or input.
+- A traced startup found Tux Racer can discard a resize while changing game
+  states, even after submitting a buffer. Initial requests wait for a supplied
+  buffer; one failed negotiation restores normal geometry before retrying.
+  Replacement windows already carrying the requested emulation remain eligible
+  for early interception. A separate regression drops the first resize and
+  confirms recovery; the non-cooperative fixture confirms bounded refusal.
+- A two-output real-game run confirmed SFML moved Tux Racer from the secondary
+  output to primary when recreating its window. Added the generic profile
+  constraint `X11PrimaryOutputOnly`, enabled for Tux Racer, to refuse that
+  request before touching geometry. Real-game rerun
+  `run-production-secondary-1789814123` retained Tux Racer's original XID,
+  secondary-output position and normal 4K buffer throughout. The additional
+  regression passed; the generic fixture supports either output.
+- Final traced production run `run-production-1789814425` passed the independent
+  verifier. Actual Tux Racer viewport/swap phases were 4K/1, 1080p/171, 4K/14,
+  1080p/868, 4K/2, 1440p/465, 4K/462, 1080p/475 and 4K/585. Short restoration
+  and recreation phases remain in the observation, including the startup
+  retry. Settled reduced buffers had a 4K destination and matching emulation.
+  The unrelated fullscreen glmark2 kept a 4K viewport for all 7274 swaps and
+  a 4K supplied buffer throughout. Both applications closed normally with
+  status 0; no reconstructed trace state was counted as a rendering call.
+- GCC and Clang builds succeeded on both maintained environments, warnings as
+  errors. Trixie passed all 16 CTest entries and neon passed all 11 available
+  entries. The latest X11 regression passed its fullscreen/borderless cases,
+  both output positions, unavailable-mode refusal, primary-only restriction,
+  bounded retry and disable/unload/reload restoration. Neon does not currently
+  build the repository's QPainter integration driver, so these X11 runtime
+  results remain minimum-version results, not a modern-KWin runtime claim.
+- Both pre-commit stages passed; explicit new-file and final documentation
+  checks supplement the tracked-file run. Plugin metadata passed its schema
+  check. Static analysis passed all production translation units: the first
+  pass crashed in LLVM's include sorter for `upscale.cpp`, whose stable-file
+  rerun passed without changing the enabled checks.
+- A Trixie amd64 snapshot package built through `debian/rules`, passed all 16
+  package-build tests and Lintian, and passed installation, reinstallation,
+  installed effect/settings factory loading, removal and purge in a fresh
+  disposable container. Artifacts are under `build/x11-implementation-package/`.
+  This is a local test package; no release or host installation was performed.
+
+### Independent output policy and pixel threshold
+
+Starting state: X11 requests belong to a window and output, but render
+selection still rejects simultaneous candidates across different outputs.
+There is no minimum output resolution, and a global preset can override a
+profile's Native choice. The owner requires secondary outputs to participate
+independently and clarified that the threshold compares total physical pixels,
+not separate dimensions.
+
+End state: each output independently selects its eligible fullscreen or
+profiled borderless window. A global minimum pixel count defaults to Full HD
+(2,073,600), with a per-application override. Equality and smaller outputs
+bypass both requests and FSR; zero disables the threshold. Native application
+rules explicitly bypass requests and rendering even with a global preset.
+Existing restrictions on unsupported client behavior remain separate.
+
+Scope: shared policy, settings, negotiation, per-output selection and regression
+coverage. Exclusions: arbitrary internal game render targets, new launch
+mechanisms, rotated-output support and closing physical acceptance by inference.
+Dependencies: the controllers and borderless eligibility above. Supported-scope
+gate: pixel boundary/ultrawide tests, settings persistence, Wayland policy tests,
+two-output X11 isolation and simultaneous scaling, both maintained builds and
+required checks. Full acceptance still includes real multi-output GPU rendering,
+input and output movement on wzpc. Planned checks are not yet results.
+
+Observed during implementation:
+
+- Added shared pixel-count comparison with widened multiplication, global and
+  per-profile settings, Native opt-out precedence and output-scoped selection.
+  Requested Wayland sizes and rendered-buffer records also retain output/window
+  identity instead of letting another display replace their diagnostics.
+- Initial Trixie GCC passed all 16 tests, including threshold inheritance,
+  equality, per-profile override and Native behavior for native Wayland. The
+  X11 case exercises Native and threshold bypass on the second output while
+  the first stays scaled, then observes scaler captures for both outputs.
+- The first Clang run caught an existing fixture assumption that RandR monitor
+  indices followed horizontal position. KWin 6.3.6 resolves EWMH fullscreen
+  indices through `xcb_randr_get_monitors`; the fixture now resolves its intended
+  origin through that list too. The corrected GCC suite passed all 16 tests.
+- Both updated neon builds passed their 11 available tests. The corrected
+  Trixie Clang suite also passed all 16 tests. Both pre-commit stages passed,
+  including explicit checks of the new files. Static analysis found the added
+  refusal messages pushed their switch beyond the function-size limit; those
+  messages were split into a separate helper for the final focused rerun.
+  That rerun passed static analysis; all four compiler/environment builds and
+  their focused resolution/snapshot tests passed after the split as well.
+- Real-game trace `run-production-1789815621` passed the independent verifier.
+  Tux Racer's actual viewport/swap phases were 4K/1, 1080p/177, 4K/13,
+  1080p/858, 4K/2, 1440p/464, 4K/452, 1080p/475 and 4K/588. Settled reduced
+  buffers covered the 4K destination. The unrelated fullscreen glmark2 kept
+  a 4K viewport for all 6694 swaps and a 4K supplied buffer throughout; both
+  applications exited normally. This run used the new default Full HD
+  threshold and retains the startup retry in the observation.
+- The updated test package under `build/pixel-policy-package/` passed all 16
+  package-build tests, installation/reinstallation, installed factory loading,
+  removal and purge. Metadata validation passed. Lintian returned success with
+  two long-snapshot-filename warnings for the `.changes` and `.buildinfo` files.
+  The package contains the complete policy; it precedes the behavior-preserving
+  split of the refusal-message helper. No host install or release was performed.
+- Physical acceptance remains open: mixed-resolution/scale outputs, output
+  movement, actual GPU import and input must still be exercised on wzpc.
 
 - [x] Establish what a loaded effect can do to a game the user started, and
       implement the one mechanism that was observed to work.

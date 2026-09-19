@@ -55,9 +55,14 @@ if(KWin_VERSION VERSION_LESS 6.7)
         ../src/plugins/upscale/display.h
         ../src/plugins/upscale/eligibility.cpp
         ../src/plugins/upscale/modeoverride.cpp
+        ../src/plugins/upscale/observation.cpp
         ../src/plugins/upscale/overlay.cpp
+        ../src/plugins/upscale/placement.cpp
         ../src/plugins/upscale/snapshot.cpp
         ../src/plugins/upscale/upscale.cpp
+        ../src/plugins/upscale/x11geometry.cpp
+        ../src/plugins/upscale/x11resolution.cpp
+        ../src/plugins/upscale/x11resolution_events.cpp
         ../src/plugins/upscale/upscale.h
         ../src/plugins/upscale/scaler.cpp
         ../src/plugins/upscale/upscale.qrc
@@ -65,7 +70,10 @@ if(KWin_VERSION VERSION_LESS 6.7)
     kconfig_add_kcfg_files(driver_sources ../src/plugins/upscale/upscaleconfig.kcfgc)
     add_library(upscale_test_driver MODULE ${driver_sources})
     target_include_directories(upscale_test_driver PRIVATE ../src/plugins/upscale)
-    target_link_libraries(upscale_test_driver PRIVATE kwin KF6::ConfigGui KF6::I18n Libdrm::Libdrm)
+    target_link_libraries(
+        upscale_test_driver
+        PRIVATE kwin KF6::ConfigGui KF6::I18n Libdrm::Libdrm XCB::XCB XCB::RANDR
+    )
     set_target_properties(
         upscale_test_driver
         PROPERTIES PREFIX "" LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/kwin/effects/plugins"
@@ -77,9 +85,22 @@ if(KWin_VERSION VERSION_LESS 6.7)
             $<TARGET_FILE:upscale_integration_test>
     )
     set_tests_properties(upscale-integration PROPERTIES TIMEOUT 100)
+    add_executable(upscale_x11_integration_test x11_integration_test.cpp x11_client.cpp)
+    target_link_libraries(
+        upscale_x11_integration_test
+        PRIVATE Qt6::Test Qt6::DBus KF6::ConfigCore XCB::XCB XCB::RANDR
+    )
+    add_test(
+        NAME upscale-x11-integration
+        COMMAND
+            ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-integration-test.py
+            $<TARGET_FILE:upscale_x11_integration_test> --x11
+    )
+    set_tests_properties(upscale-x11-integration PROPERTIES TIMEOUT 100)
     if(UPSCALE_SANITIZER)
         set_tests_properties(
             upscale-integration
+            upscale-x11-integration
             PROPERTIES
                 ENVIRONMENT
                     "UPSCALE_SANITIZER_RUNTIME=${UPSCALE_SANITIZER_RUNTIME};LSAN_OPTIONS=suppressions=${CMAKE_CURRENT_SOURCE_DIR}/lsan.supp:print_suppressions=1"
@@ -152,16 +173,20 @@ target_compile_definitions(
 )
 add_test(NAME upscale-application COMMAND upscale_application_test)
 
-add_executable(
-    upscale_snapshot_test
+set(snapshot_test_sources
     snapshot_test.cpp
     ../src/plugins/upscale/application.cpp
     ../src/plugins/upscale/snapshot.cpp
     ../src/plugins/upscale/eligibility.cpp
 )
+kconfig_add_kcfg_files(snapshot_test_sources ../src/plugins/upscale/upscaleconfig.kcfgc)
+add_executable(upscale_snapshot_test ${snapshot_test_sources})
 target_include_directories(upscale_snapshot_test PRIVATE ../src/plugins/upscale)
 target_compile_definitions(upscale_snapshot_test PRIVATE -DTRANSLATION_DOMAIN="kwin_effect_upscale")
-target_link_libraries(upscale_snapshot_test PRIVATE kwin Qt6::Test KF6::I18n Libdrm::Libdrm)
+target_link_libraries(
+    upscale_snapshot_test
+    PRIVATE kwin Qt6::Test KF6::ConfigGui KF6::I18n Libdrm::Libdrm
+)
 add_test(NAME upscale-snapshot COMMAND upscale_snapshot_test)
 
 set(display_test_sources
@@ -170,6 +195,7 @@ set(display_test_sources
     ../src/plugins/upscale/display.cpp
     ../src/plugins/upscale/framestatistics.cpp
     ../src/plugins/upscale/overlay.cpp
+    ../src/plugins/upscale/placement.cpp
     ../src/plugins/upscale/snapshot.cpp
     ../src/plugins/upscale/eligibility.cpp
 )
@@ -199,6 +225,7 @@ if(KWIN_BUILD_KCMS)
     set(settings_module_SOURCES
         ../src/plugins/upscale/application.cpp
         ../src/plugins/upscale/applicationeditor.cpp
+        ../src/plugins/upscale/placement.cpp
         ../src/plugins/upscale/supportinformation.cpp
         ../src/plugins/upscale/upscale_config.cpp
     )

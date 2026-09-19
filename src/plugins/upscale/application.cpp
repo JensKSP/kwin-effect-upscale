@@ -33,6 +33,9 @@ KSharedConfig::Ptr upscaleApplicationConfig()
 
 static UpscaleControlMethod readMethod(const QString &name)
 {
+    if (name == QLatin1String("X11Resize")) {
+        return UpscaleControlMethod::X11Resize;
+    }
     if (name == QLatin1String("AdvertisedMode")) {
         return UpscaleControlMethod::AdvertisedMode;
     }
@@ -51,6 +54,8 @@ static UpscaleControlMethod readMethod(const QString &name)
 QString upscaleMethodKey(UpscaleControlMethod method)
 {
     switch (method) {
+    case UpscaleControlMethod::X11Resize:
+        return QStringLiteral("X11Resize");
     case UpscaleControlMethod::AdvertisedMode:
         return QStringLiteral("AdvertisedMode");
     case UpscaleControlMethod::AdvertisedScale:
@@ -105,9 +110,11 @@ static std::vector<UpscaleApplication> readApplications(const KSharedConfig::Ptr
         application.program = group.readEntry("Program", QString());
         application.method = readMethod(group.readEntry("Method", QString()));
         application.preset = readPreset(group.readEntry("Preset", QString()));
+        application.minimumPixels = std::max(-1, group.readEntry("MinimumPixels", -1));
         application.note = group.readEntry("Note", QString());
         application.order = group.readEntry("Order", 0);
         application.enabled = group.readEntry("Enabled", true);
+        application.x11PrimaryOutputOnly = group.readEntry("X11PrimaryOutputOnly", false);
         // An entry the effect's own defaults still describe. A user's addition
         // has no default behind it, which is how restoring tells the two apart.
         application.shipped = group.hasDefault("Name") || group.hasDefault("Method");
@@ -259,8 +266,14 @@ void upscaleSaveApplication(const UpscaleApplication &application, const Upscale
     writeField(group, "Program", application.program, original.program);
     writeField(group, "Method", upscaleMethodKey(application.method), upscaleMethodKey(original.method));
     writeField(group, "Preset", upscalePresetKey(application.preset), upscalePresetKey(original.preset));
+    if (application.minimumPixels != original.minimumPixels) {
+        group.writeEntry("MinimumPixels", application.minimumPixels);
+    }
     if (application.enabled != original.enabled) {
         group.writeEntry("Enabled", application.enabled);
+    }
+    if (application.x11PrimaryOutputOnly != original.x11PrimaryOutputOnly) {
+        group.writeEntry("X11PrimaryOutputOnly", application.x11PrimaryOutputOnly);
     }
     if (application.order != original.order) {
         group.writeEntry("Order", application.order);
@@ -344,6 +357,8 @@ const UpscaleApplication *upscaleApplicationForProgram(const QString &executable
 QString describeControlMethod(UpscaleControlMethod method)
 {
     switch (method) {
+    case UpscaleControlMethod::X11Resize:
+        return i18n("X11 window resize");
     case UpscaleControlMethod::None:
         return i18n("no resolution request");
     case UpscaleControlMethod::AdvertisedMode:

@@ -59,6 +59,8 @@ enum class UpscaleControlMethod {
      * edges, and the scale alone stretches it past them.
      */
     AdvertisedModeAndScale,
+    /** Resize a selected X11 client which follows resize events and RandR modes. */
+    X11Resize,
 };
 
 /**
@@ -82,16 +84,18 @@ struct UpscaleApplication
     QString instance;
     /**
      * Exact match against the file name of ClientConnection::executablePath().
-     * A separate identity because every method has to act before the
-     * application has a window, when no window class exists yet.
+     * Used by Wayland advertisement methods before the application has a
+     * window. X11 resizing uses the window identity instead.
      */
     QString program;
     UpscaleControlMethod method = UpscaleControlMethod::None;
     /**
      * The resolution this application gets while the global preset is
-     * Automatic, which means the user has not chosen one.
+     * Automatic. Native is an explicit opt-out even with a global preset.
      */
     ResolutionPreset preset = ResolutionPreset::Automatic;
+    /** Physical output pixel threshold; -1 inherits the global setting. */
+    int minimumPixels = -1;
     /** Why this entry looks the way it does, for the settings page. */
     QString note;
     /** Matching order; the first enabled match wins as a whole. */
@@ -100,6 +104,8 @@ struct UpscaleApplication
     bool enabled = true;
     /** Whether the effect's own defaults still describe this entry. */
     bool shipped = false;
+    /** Refuse secondary outputs for clients whose own mode API selects primary. */
+    bool x11PrimaryOutputOnly = false;
 };
 
 /** The applications this session recognizes, in matching order. */

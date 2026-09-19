@@ -6,11 +6,15 @@
 
 #include "eligibility.h"
 
+#include "application.h"
 #include "resolution.h"
+#include "upscaleconfig.h"
 
+#include "effect/effecthandler.h"
 #include "effect/effectwindow.h"
 #include "scene/surfaceitem.h"
 #include "scene/windowitem.h"
+#include "window.h"
 
 #include <KLocalizedString>
 
@@ -78,12 +82,90 @@ static bool readableFormat(uint32_t format)
     }
 }
 
+// Logical geometry is fractional whenever the output's scale is. A 3840 x 2160
+// output at scale 1.45 is 2648.28 x 1489.66 logical, and a client can only ever
+// commit whole pixels, so no window can equal that rectangle exactly. Comparing
+// the two as they stand therefore refuses a window that covers the screen
+// completely: measured on 2026-09-19, a fullscreen SuperTuxKart whose image
+// reached all four edges of the screen was refused for coverage, at the one
+// desktop scale the earlier evidence had never been gathered at.
+//
+// The question is settled where the answer is defined, in the device pixels the
+// scaler reads and writes. Two edges that round to the same pixel cover the same
+// pixel, and nothing finer than a pixel can be drawn differently.
+static bool samePixel(double first, double second, double scale)
+{
+    return qRound(first * scale) == qRound(second * scale);
+}
+
+// Whether the window occupies its whole output. This is a gate, not a
+// measurement of where to draw: the scaler is given the window's own geometry
+// as its destination, so a window that passes here is one whose enlargement
+// this effect may replace.
+static bool coversOutput(EffectWindow *window)
+{
+    UpscaleOutput *screen = window->screen();
+    if (!screen) {
+        return false;
+    }
+    const double scale = screen->scale();
+    const auto frame = window->frameGeometry();
+    const auto output = screen->geometryF();
+    return samePixel(frame.x(), output.x(), scale) && samePixel(frame.y(), output.y(), scale)
+        && samePixel(frame.width(), output.width(), scale) && samePixel(frame.height(), output.height(), scale);
+}
+
 // The window itself: what it is and where it sits, before anything about its
 // contents is examined. These checks are cheap and run for every window of
 // every frame, so they stay in the order that rejects the common case first.
+bool upscalePresentation(EffectWindow *window)
+{
+    if (window->isFullScreen()) {
+        return true;
+    }
+    const Window *internal = window->window();
+    // Borderless applications need not advertise fullscreen. Match both the
+    // origin and extent of one output; equal dimensions on a different output
+    // or a spanning window do not describe the same presentation. Requiring a
+    // profile keeps ordinary desktop windows out of this additional path.
+    return internal && internal->isNormalWindow() && !internal->isDecorated()
+        && internal->clientGeometry() == internal->frameGeometry()
+        && coversOutput(window)
+        && upscaleApplicationForIdentity(internal->resourceClass(), internal->resourceName());
+}
+
+// A window that was switched away from is still fullscreen: KWin leaves its
+// state and its geometry exactly as they were and simply stops showing it.
+// Nothing else below can tell that apart from the game being played, so
+// without this the effect goes on scaling a window nobody can see, goes on
+// holding the output in composition for it, and goes on drawing the display
+// over whatever was raised in front of it.
+//
+// The rule is KWin's own for fullscreen windows, Window::isActiveFullScreen().
+// That one is protected, so it is repeated here rather than called: the window
+// counts while it holds the activation, while what holds it is one of its own
+// dialogs, and while what holds it is on another screen and therefore in front
+// of nothing here.
+//
+// One difference from KWin's is deliberate. KWin reads no active window at all
+// as not active, because what it decides there is which layer to put the
+// window in; that is not a statement that the user stopped looking at it.
+// Reading the moment during a switch when nothing yet holds the activation as
+// the game being gone would take the display off the screen and put it back.
+static bool showingOnItsOutput(EffectWindow *window)
+{
+    EffectWindow *active = effects->activeWindow();
+    if (!active || active == window || active->screen() != window->screen()) {
+        return true;
+    }
+    Window *focused = active->window();
+    Window *internal = window->window();
+    return focused && internal && focused->allMainWindows().contains(internal);
+}
+
 static UpscaleRefusal placementRefusal(EffectWindow *window)
 {
-    if (!window->isFullScreen()) {
+    if (!upscalePresentation(window)) {
         return UpscaleRefusal::NotFullScreen;
     }
     if (window->isDeleted()) {
@@ -98,11 +180,26 @@ static UpscaleRefusal placementRefusal(EffectWindow *window)
     if (!window->isOnCurrentActivity()) {
         return UpscaleRefusal::OtherActivity;
     }
+    if (!showingOnItsOutput(window)) {
+        return UpscaleRefusal::NotActive;
+    }
     if (window->opacity() != 1.0) {
         return UpscaleRefusal::TranslucentWindow;
     }
     if (!window->screen()) {
         return UpscaleRefusal::NoOutput;
+    }
+    const Window *internal = window->window();
+    const UpscaleApplication *application = internal ? upscaleApplicationForIdentity(internal->resourceClass(), internal->resourceName()) : nullptr;
+    const ResolutionPreset preset = effectiveResolutionPreset(static_cast<ResolutionPreset>(UpscaleConfig::preset()),
+                                                              application ? application->preset : ResolutionPreset::Automatic);
+    if (preset == ResolutionPreset::Native) {
+        return UpscaleRefusal::NativeRule;
+    }
+    const int minimum = application && application->minimumPixels >= 0 ? application->minimumPixels : UpscaleConfig::minimumPixels();
+    const QSize pixels = window->screen()->pixelSize();
+    if (!exceedsMinimumPixels({pixels.width(), pixels.height()}, minimum)) {
+        return UpscaleRefusal::BelowMinimumPixels;
     }
     if (!window->windowItem() || !window->windowItem()->surfaceItem()) {
         return UpscaleRefusal::NoSurface;
@@ -110,7 +207,7 @@ static UpscaleRefusal placementRefusal(EffectWindow *window)
     if (window->screen()->transform() != OutputTransform::Normal) {
         return UpscaleRefusal::TransformedOutput;
     }
-    if (window->frameGeometry() != window->screen()->geometryF()) {
+    if (!coversOutput(window)) {
         return UpscaleRefusal::NotCoveringOutput;
     }
     if (!window->windowItem()->transform().isIdentity()) {
@@ -136,7 +233,13 @@ static UpscaleRefusal surfaceRefusal(EffectWindow *window, SurfaceItem *surface)
     if (surface->opacity() != 1.0) {
         return UpscaleRefusal::TranslucentSurface;
     }
-    if (surface->destinationSize() != window->frameGeometry().size()) {
+    // Compared in device pixels for the same reason as the coverage above: on a
+    // fractionally scaled output the two can never agree exactly.
+    const double scale = window->screen() ? window->screen()->scale() : 1;
+    const QSizeF destination = surface->destinationSize();
+    const auto frame = window->frameGeometry().size();
+    if (!samePixel(destination.width(), frame.width(), scale)
+        || !samePixel(destination.height(), frame.height(), scale)) {
         return UpscaleRefusal::ResizedSurface;
     }
     return UpscaleRefusal::None;
@@ -245,10 +348,49 @@ static QString describeBufferFormat(uint32_t format)
     return i18n("%1 (0x%2)", code, QString::number(format, 16));
 }
 
+UpscaleBufferKind suppliedBufferKind(SurfaceItem *surface)
+{
+#if UPSCALE_REGION_API
+    GraphicsBuffer *buffer = surface->buffer();
+#else
+    SurfacePixmap *pixmap = surface->pixmap();
+    GraphicsBuffer *buffer = pixmap ? pixmap->buffer() : nullptr;
+#endif
+    if (!buffer) {
+        return UpscaleBufferKind::Unknown;
+    }
+    if (buffer->dmabufAttributes()) {
+        return UpscaleBufferKind::Gpu;
+    }
+    // A buffer of neither kind is one this KWin exposes through neither
+    // accessor, which is not the same as one that came through main memory.
+    return buffer->shmAttributes() ? UpscaleBufferKind::SharedMemory : UpscaleBufferKind::Unknown;
+}
+
 QString describeSuppliedFormat(SurfaceItem *surface)
 {
     const std::optional<uint32_t> format = bufferFormat(surface);
     return format ? describeBufferFormat(*format) : i18n("none");
+}
+
+static QString describeEffectRefusal(UpscaleRefusal refusal)
+{
+    switch (refusal) {
+    case UpscaleRefusal::Disabled:
+        return i18n("disabled.");
+    case UpscaleRefusal::NativeRule:
+        return i18n("the resolution rule selects Native.");
+    case UpscaleRefusal::BelowMinimumPixels:
+        return i18n("the output pixel count is at or below the configured minimum.");
+    case UpscaleRefusal::ResourceFailure:
+        return i18n("graphics resource failure; apply settings to retry.");
+    case UpscaleRefusal::ScreenLocked:
+        return i18n("the screen is locked.");
+    case UpscaleRefusal::OtherFullScreenEffect:
+        return i18n("another full-screen effect is active.");
+    default:
+        return QString();
+    }
 }
 
 QString describeRefusal(UpscaleRefusal refusal)
@@ -257,21 +399,20 @@ QString describeRefusal(UpscaleRefusal refusal)
     case UpscaleRefusal::None:
         return QString();
     case UpscaleRefusal::Disabled:
-        return i18n("disabled.");
+    case UpscaleRefusal::NativeRule:
+    case UpscaleRefusal::BelowMinimumPixels:
     case UpscaleRefusal::ResourceFailure:
-        return i18n("graphics resource failure; apply settings to retry.");
     case UpscaleRefusal::ScreenLocked:
-        return i18n("the screen is locked.");
     case UpscaleRefusal::OtherFullScreenEffect:
-        return i18n("another full-screen effect is active.");
+        return describeEffectRefusal(refusal);
     case UpscaleRefusal::SeveralCandidates:
-        return i18n("more than one fullscreen window is eligible.");
+        return i18n("more than one fullscreen window is eligible on this output.");
     case UpscaleRefusal::UnsupportedColors:
         return i18n("this output's colour handling is not supported.");
     case UpscaleRefusal::NoWindow:
         return i18n("there is no window to scale.");
     case UpscaleRefusal::NotFullScreen:
-        return i18n("the window is not fullscreen.");
+        return i18n("the window is not fullscreen or a selected borderless window covering its output.");
     case UpscaleRefusal::Closing:
         return i18n("the window is closing.");
     case UpscaleRefusal::Minimized:
@@ -280,6 +421,8 @@ QString describeRefusal(UpscaleRefusal refusal)
         return i18n("the window is on another virtual desktop.");
     case UpscaleRefusal::OtherActivity:
         return i18n("the window is on another activity.");
+    case UpscaleRefusal::NotActive:
+        return i18n("another window on its output is active.");
     case UpscaleRefusal::TranslucentWindow:
         return i18n("the window is translucent.");
     case UpscaleRefusal::NoOutput:

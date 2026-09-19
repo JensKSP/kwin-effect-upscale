@@ -7,6 +7,7 @@
 #include "modeoverride.h"
 
 #include "compatibility.h"
+#include "upscaleconfig.h"
 
 #include "effect/effecthandler.h"
 #include "wayland/clientconnection.h"
@@ -67,9 +68,9 @@ void UpscaleModeOverride::reconfigure(bool enabled, ResolutionPreset preset, int
     m_percentage = percentage;
 }
 
-QSize UpscaleModeOverride::advertised(const QString &program) const
+QSize UpscaleModeOverride::advertised(const QString &program, const QString &output) const
 {
-    return m_advertised.value(program);
+    return m_advertised.value(program).value(output);
 }
 
 void UpscaleModeOverride::watchOutputs()
@@ -110,13 +111,13 @@ UpscaleModeOverride::Advertisement UpscaleModeOverride::advertisementFor(OutputI
         return {};
     }
     const QSize pixels = handle->pixelSize();
-    if (pixels.isEmpty()) {
+    const int minimum = application.minimumPixels < 0 ? UpscaleConfig::minimumPixels() : application.minimumPixels;
+    if (!exceedsMinimumPixels({pixels.width(), pixels.height()}, minimum)) {
         return {};
     }
-    // The user's own choice always wins. Automatic means the user has not
-    // chosen, which is when a recognized application falls back to the size
-    // recorded for it, so that a fresh installation already does something.
-    const ResolutionPreset preset = m_preset == ResolutionPreset::Automatic ? application.preset : m_preset;
+    // Automatic follows the profile. Native in either place is an opt-out,
+    // so a global percentage cannot undo a rule to leave this client alone.
+    const ResolutionPreset preset = effectiveResolutionPreset(m_preset, application.preset);
     const UpscaleSize destination{pixels.width(), pixels.height()};
     if (application.method == UpscaleControlMethod::AdvertisedMode) {
         // This kind of client presents whatever size it picked through a
@@ -140,11 +141,13 @@ UpscaleModeOverride::Advertisement UpscaleModeOverride::advertisementFor(OutputI
 
 void UpscaleModeOverride::announce(OutputInterface *output, ClientConnection *client, wl_resource *resource)
 {
+    forgetDeadClients();
     if (!m_enabled || !client || !resource) {
         return;
     }
     const UpscaleApplication *application = upscaleApplicationForProgram(client->executablePath());
-    if (!application || application->method == UpscaleControlMethod::None) {
+    if (!application || application->method == UpscaleControlMethod::None
+        || application->method == UpscaleControlMethod::X11Resize) {
         return;
     }
     const Advertisement advertisement = advertisementFor(output, *application);
@@ -175,13 +178,24 @@ void UpscaleModeOverride::announce(OutputInterface *output, ClientConnection *cl
         wl_output_send_done(resource);
     }
     m_announced.append({output, client, application->program});
-    m_advertised[application->program] = advertisement.size;
+    m_advertised[application->program][handle->name()] = advertisement.size;
     qCDebug(KWIN_UPSCALE, "advertised %dx%d scale %d to %s", advertisement.size.width(),
             advertisement.size.height(), advertisement.scale, qPrintable(application->name));
 }
 
+// An entry whose client is gone is an entry nothing can ever be sent to. A
+// game that was killed outright leaves one behind, and a session that starts
+// games all day would carry every one of them.
+void UpscaleModeOverride::forgetDeadClients()
+{
+    m_announced.removeIf([](const Announcement &entry) {
+        return !entry.client;
+    });
+}
+
 void UpscaleModeOverride::restore(Record record)
 {
+    forgetDeadClients();
     for (const Announcement &announcement : std::as_const(m_announced)) {
         // A game that exited and an output that was unplugged both leave one
         // of these null. There is nothing to restore for either.

@@ -19,6 +19,7 @@ class QLabel;
 class QLineEdit;
 class QListWidget;
 class QPushButton;
+class QSpinBox;
 
 namespace KWin
 {
@@ -83,6 +84,7 @@ private:
     QLineEdit *m_program;
     QComboBox *m_method;
     QComboBox *m_preset;
+    QSpinBox *m_minimumPixels;
     QCheckBox *m_enabled;
     QLabel *m_note;
     QPushButton *m_delete;

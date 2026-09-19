@@ -22,6 +22,7 @@
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QSpinBox>
 #include <QTimer>
 
 #include <initializer_list>
@@ -173,6 +174,10 @@ void UpscaleApplicationEditorTest::editsTheApplicationList()
     QTest::keyClick(preset, Qt::Key_Down);
     QVERIFY(preset->currentIndex() != automatic);
     const QString chosen = preset->currentText();
+    auto *minimum = editor->findChild<QSpinBox *>(QStringLiteral("applicationMinimumPixels"));
+    QVERIFY(minimum);
+    QCOMPARE(minimum->value(), -1);
+    minimum->setValue(2073600);
     // Nothing is written before the page is applied.
     QVERIFY(!userConfig().contains(QStringLiteral("Application-supertuxkart")));
 
@@ -195,6 +200,7 @@ void UpscaleApplicationEditorTest::editsTheApplicationList()
     // typed, and the choice survives the round trip.
     list->setCurrentRow(kart);
     QCOMPARE(preset->currentText(), chosen);
+    QCOMPARE(minimum->value(), 2073600);
 
     // The page says whether the list still follows the package.
     QLabel *summary = module.widget()->findChild<QLabel *>(QStringLiteral("applicationSummary"));

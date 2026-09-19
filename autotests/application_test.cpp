@@ -118,8 +118,9 @@ void ApplicationTest::matchesObservedIdentities()
     QVERIFY(racer);
     QCOMPARE(racer->name, QStringLiteral("Extreme Tux Racer"));
     QCOMPARE(racer, upscaleApplicationForIdentity(QStringLiteral("Extreme Tux Racer 0.9.0"), QStringLiteral("etr")));
-    // Nothing was found that works for it, and an entry must not imply one.
-    QCOMPARE(racer->method, UpscaleControlMethod::None);
+    QCOMPARE(racer->method, UpscaleControlMethod::X11Resize);
+    QCOMPARE(racer->preset, ResolutionPreset::Quality);
+    QVERIFY(racer->x11PrimaryOutputOnly);
 }
 
 // The two benchmarks are driven through the screen scale rather than the
@@ -260,7 +261,7 @@ void ApplicationTest::spellsEveryMethodAndPreset()
 {
     for (const UpscaleControlMethod method : {UpscaleControlMethod::None, UpscaleControlMethod::AdvertisedMode,
                                               UpscaleControlMethod::AdvertisedScale,
-                                              UpscaleControlMethod::AdvertisedModeAndScale}) {
+                                              UpscaleControlMethod::AdvertisedModeAndScale, UpscaleControlMethod::X11Resize}) {
         const QString key = upscaleMethodKey(method);
         QVERIFY(!key.isEmpty());
         writeUserConfig(QStringLiteral("[Application-roundtrip]\nInstance=roundtrip\nMethod=%1\n").arg(key));
@@ -318,6 +319,7 @@ void ApplicationTest::storesOnlyTheFieldsTheUserChanged()
     const UpscaleApplication original = *shipped;
     UpscaleApplication edited = original;
     edited.preset = ResolutionPreset::Performance;
+    edited.minimumPixels = 2073600;
     edited.enabled = false;
     edited.order = original.order + 1;
     upscaleSaveApplication(edited, original);
@@ -326,6 +328,7 @@ void ApplicationTest::storesOnlyTheFieldsTheUserChanged()
     QVERIFY(upscaleApplicationsCustomized());
     const QString stored = QString::fromUtf8(readUserConfig());
     QVERIFY2(stored.contains(QStringLiteral("Preset=Performance")), qPrintable(stored));
+    QVERIFY(stored.contains(QStringLiteral("MinimumPixels=2073600")));
     QVERIFY(stored.contains(QStringLiteral("Enabled=false")));
     QVERIFY(stored.contains(QStringLiteral("Order=%1").arg(original.order + 1)));
     // Untouched fields keep following the installed package rather than being
@@ -441,7 +444,7 @@ void ApplicationTest::describesEveryMethod()
 {
     for (const UpscaleControlMethod method : {UpscaleControlMethod::None, UpscaleControlMethod::AdvertisedMode,
                                               UpscaleControlMethod::AdvertisedScale,
-                                              UpscaleControlMethod::AdvertisedModeAndScale}) {
+                                              UpscaleControlMethod::AdvertisedModeAndScale, UpscaleControlMethod::X11Resize}) {
         QVERIFY(!describeControlMethod(method).isEmpty());
     }
 }

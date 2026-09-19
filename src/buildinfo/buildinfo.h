@@ -33,9 +33,18 @@ namespace UpscaleBuildInfo
  */
 QString version();
 
+/** The three-part version declared by the top-level CMake project. */
+QString baseVersion();
+
 /**
- * The branch the build came from, empty when git could not say. A release
- * tarball has no git and therefore no branch.
+ * The abbreviated commit, also on release tags, with a dirty suffix for local
+ * changes. Empty when the source carries no revision information.
+ */
+QString revision();
+
+/**
+ * The branch or exact tag the build came from, empty when git could not say.
+ * A release tarball has no git and therefore no branch.
  */
 QString branch();
 

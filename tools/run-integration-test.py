@@ -15,13 +15,14 @@ def main() -> int:
     """Keep the bus, configuration, socket and compositor private to this test."""
     binary = Path(sys.argv[1]).resolve()
     build = binary.parent.parent
+    x11 = "--x11" in sys.argv[2:]
     with tempfile.TemporaryDirectory(prefix="integration-", dir=build) as directory:
         runtime = Path(directory)
         config = runtime / "config"
         config.mkdir()
         (config / "kwinrc").write_text(
             "[Plugins]\nupscaleEnabled=false\n"
-            "[Effect-upscale]\nEnabled=true\nSharpening=false\n"
+            "[Effect-upscale]\nEnabled=true\nSharpening=false\nMinimumPixels=0\n"
             "[Compositing]\nGLCore=true\n"
         )
         # Distribution KWin may carry file capabilities, which make the loader
@@ -51,15 +52,17 @@ def main() -> int:
             str(compositor),
             "--virtual",
             "--width",
-            "128",
+            "3840" if x11 else "128",
             "--height",
-            "128",
+            "2160" if x11 else "128",
             "--no-lockscreen",
             "--no-global-shortcuts",
             "--no-kactivities",
             "--exit-with-session",
             shlex.join([str(binary)]),
         ]
+        if x11:
+            command[1:1] = ["--xwayland", "--output-count", "2"]
         preload = environment.pop("UPSCALE_SANITIZER_RUNTIME", "")
         if preload:
             command = ["env", f"LD_PRELOAD={preload}", *command]

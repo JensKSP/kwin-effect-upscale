@@ -21,20 +21,23 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QScopedValueRollback>
+#include <QSpinBox>
 #include <QVBoxLayout>
 
 #include <algorithm>
 #include <array>
+#include <limits>
 #include <ranges>
 
 namespace KWin
 {
 
-static const std::array<UpscaleControlMethod, 4> controlMethods = {
+static const std::array<UpscaleControlMethod, 5> controlMethods = {
     UpscaleControlMethod::None,
     UpscaleControlMethod::AdvertisedMode,
     UpscaleControlMethod::AdvertisedScale,
     UpscaleControlMethod::AdvertisedModeAndScale,
+    UpscaleControlMethod::X11Resize,
 };
 
 static const std::array<ResolutionPreset, 7> resolutionPresets = {
@@ -87,6 +90,12 @@ void UpscaleApplicationEditor::buildDetails(QFormLayout *form)
     form->addRow(i18n("Program:"), m_program);
     form->addRow(i18n("Resolution request:"), m_method);
     form->addRow(i18n("Resolution:"), m_preset);
+    m_preset->setToolTip(i18n("Native disables resolution requests and upscaling for this application, including when a global preset is selected."));
+    m_minimumPixels->setObjectName(QStringLiteral("applicationMinimumPixels"));
+    m_minimumPixels->setRange(-1, std::numeric_limits<int>::max());
+    m_minimumPixels->setSpecialValueText(i18n("Use global threshold"));
+    m_minimumPixels->setToolTip(i18n("Scale only on outputs with more physical pixels. Full HD is 2073600. Zero disables the threshold."));
+    form->addRow(i18n("Minimum output pixels:"), m_minimumPixels);
     form->addRow(QString(), m_enabled);
     form->addRow(QString(), m_note);
 }
@@ -120,6 +129,9 @@ void UpscaleApplicationEditor::connectControls()
     connect(m_enabled, &QCheckBox::clicked, this, [this]() {
         applyToSelected();
     });
+    connect(m_minimumPixels, &QSpinBox::valueChanged, this, [this]() {
+        applyToSelected();
+    });
 }
 
 UpscaleApplicationEditor::UpscaleApplicationEditor(QWidget *parent)
@@ -131,6 +143,7 @@ UpscaleApplicationEditor::UpscaleApplicationEditor(QWidget *parent)
     , m_program(new QLineEdit(this))
     , m_method(new QComboBox(this))
     , m_preset(new QComboBox(this))
+    , m_minimumPixels(new QSpinBox(this))
     , m_enabled(new QCheckBox(i18n("Recognize this application"), this))
     , m_note(new QLabel(this))
 {
@@ -212,7 +225,7 @@ void UpscaleApplicationEditor::showSelected()
     const QScopedValueRollback updating(m_updating, true);
     const UpscaleApplication *application = selected();
     const bool valid = application != nullptr;
-    const std::array<QWidget *, 7> fields = {m_name, m_windowClass, m_instance, m_program, m_method, m_preset, m_enabled};
+    const std::array<QWidget *, 8> fields = {m_name, m_windowClass, m_instance, m_program, m_method, m_preset, m_minimumPixels, m_enabled};
     for (QWidget *widget : fields) {
         widget->setEnabled(valid);
     }
@@ -230,6 +243,7 @@ void UpscaleApplicationEditor::showSelected()
     m_method->setCurrentIndex(int(std::ranges::distance(controlMethods.begin(), std::ranges::find(controlMethods, application->method))));
     m_preset->setCurrentIndex(int(std::ranges::distance(resolutionPresets.begin(), std::ranges::find(resolutionPresets, application->preset))));
     m_enabled->setChecked(application->enabled);
+    m_minimumPixels->setValue(application->minimumPixels);
     m_note->setText(application->shipped
                         ? application->note
                         : i18n("Added by you. A request this application does not follow will not make it "
@@ -252,6 +266,7 @@ void UpscaleApplicationEditor::applyToSelected()
     application->method = controlMethods.at(size_t(std::max(0, m_method->currentIndex())));
     application->preset = resolutionPresets.at(size_t(std::max(0, m_preset->currentIndex())));
     application->enabled = m_enabled->isChecked();
+    application->minimumPixels = m_minimumPixels->value();
     const QScopedValueRollback updating(m_updating, true);
     if (QListWidgetItem *item = m_list->currentItem()) {
         item->setText(application->shipped ? application->name

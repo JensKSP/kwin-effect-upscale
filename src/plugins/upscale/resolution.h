@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 
 namespace KWin
 {
@@ -28,6 +29,22 @@ enum class ResolutionPreset {
     Performance,
     Custom,
 };
+
+// Compare physical pixel counts, not dimensions: ultrawide and portrait
+// outputs with the same workload must receive the same policy. Promote before
+// multiplying so large modes cannot overflow on either supported word size.
+inline bool exceedsMinimumPixels(UpscaleSize output, int minimumPixels)
+{
+    return output.width > 0 && output.height > 0
+        && int64_t(output.width) * output.height > std::max(0, minimumPixels);
+}
+
+inline ResolutionPreset effectiveResolutionPreset(ResolutionPreset global, ResolutionPreset application)
+{
+    // Native is an explicit application opt-out, including when a global
+    // percentage was chosen. Automatic leaves the decision to the profile.
+    return application == ResolutionPreset::Native || global == ResolutionPreset::Automatic ? application : global;
+}
 
 inline double resolutionRatio(ResolutionPreset preset, int percentage)
 {

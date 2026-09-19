@@ -137,10 +137,16 @@ fullscreen buffer that met the documented eligibility rules. The effect refused
 it, stayed inactive and produced no scaled frame. The failing condition has not
 yet been isolated; the passing automated tests did not catch it.
 
-The controls show the desired resolution and the actual supplied buffer size;
-they do not make a game render at that resolution. Game resolution changes
-currently require the game's own settings. Real-game behaviour, image quality,
+The controls distinguish requested resolution from the actual supplied buffer.
+Profiles support resolution requests for cooperating Wayland and Xwayland
+clients, including Extreme Tux Racer on the primary display. Selected borderless
+windows qualify when their content exactly covers one output. Virtual sessions
+verify resolution changes and isolation; physical input, image quality,
 performance, HDR and VRR remain unverified. The effect is disabled by default.
+Application rules apply independently on each display. By default, outputs at
+or below 2,073,600 physical pixels (Full HD) bypass upscaling; the settings offer
+a global threshold and per-application overrides. A Native application rule
+also bypasses upscaling when a global scaling preset is selected.
 The [developer handbook](doc/upscaling.md#supported-scope-and-full-acceptance)
 defines the acceptance still required.
 
