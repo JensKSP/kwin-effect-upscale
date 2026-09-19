@@ -99,7 +99,7 @@ public:
      * Nothing is copied while nothing is being measured, which leaves the
      * caller's snapshot saying so instead of quoting a stale rate.
      */
-    void applyMeasurements(UpscaleSnapshot &snapshot) const;
+    void applyMeasurements(UpscaleSnapshot &snapshot, EffectWindow *window, UpscaleOutput *screen) const;
 
     /** Draws the text onto this output, whose logical geometry is given. */
     void paint(const RenderTarget &target, const RenderViewport &viewport, const UpscaleRectF &screen);

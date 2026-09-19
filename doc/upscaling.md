@@ -2563,13 +2563,18 @@ three decide how a run is conducted:
   seconds at 60 Hz and four at 240 Hz. A reading taken at the end of a minute
   describes its last few seconds. Poll through the run and aggregate the
   readings; do not take one at the end and call it the run.
-- **The instrument only runs while the display is shown.** Measuring is the
-  display's work, and the status says so when nothing is measuring. Turn
-  `OsdStatistics` on and leave it on for *every* run of a comparison. The
-  overlay is composited content and holds the output in composition, so it
-  perturbs what it measures — equally on both sides, which is what keeps the
-  comparison honest. A comparison whose two sides were instrumented
-  differently is not one.
+- **Measuring does not depend on the display being shown.** The effect follows
+  the screen's frames from the moment it is configured, so a comparison is run
+  with the on-screen display left as the user had it. Showing it would charge
+  every run for the instrument: an overlay is composited content and holds the
+  output in composition, which is part of what reducing the resolution is
+  meant to save.
+- **Read the machine line, never the prose.** `supportInformation` ends with a
+  `metrics:` line whose keys and values are never translated. Everything above
+  it is built with `i18n` and says the same things in the session's language,
+  so a harness that parsed it would report nothing measured on any machine not
+  running in English. A key the effect did not write is a measurement it did
+  not have, and is absent rather than zero.
 - **The presented rate is capped by the screen.** At a fixed 240 Hz it cannot
   report more, and two runs that both reach the cap say nothing about their
   rendering cost. Report the client buffer update rate beside it, and where the

@@ -10,12 +10,11 @@ slow tail of both, and reports them in the text that
 frame: the effect accumulates into a ring buffer and answers when asked, so a
 run costs one D-Bus round trip every few seconds rather than one per frame.
 
-That instrument only runs while the effect's on-screen display is measuring,
-which is why this script turns the display on and leaves it on for every run of
-a comparison. It perturbs what it measures -- an overlay is composited content
-and holds the output in composition -- but it perturbs the baseline and the
-scaled run by the same amount, which is what keeps the comparison honest. A
-measurement whose two sides were instrumented differently is not a comparison.
+The effect follows the screen's frames whether or not anything is drawn on it,
+so nothing here switches the on-screen display on. That matters: an overlay is
+composited content and holds the output in composition, so measuring with it
+shown would charge every run for the instrument. The settings this script does
+change are the effect's own, and only for the run.
 
 The script never decides whether a number is good. It reports what it read,
 says how many samples it rests on and how far they spread, and leaves runs that
@@ -100,20 +99,30 @@ GAMES = {
     },
 }
 
-STATUS_PATTERNS = {
-    "presented_rate": r"Presented: ([0-9.]+)/s average",
-    "presented_low": r"1% low ([0-9.]+)/s",
-    "presented_percentile": r"99th percentile ([0-9.]+) ms",
-    "presented_worst": r"worst ([0-9.]+) ms",
-    "presented_frames": r"\(([0-9]+) frames",
-    "client_updates": r"Client buffer updates: ([0-9.]+)/s",
-    "repaints": r"compositor repaints: ([0-9.]+)/s",
-    "sample_age": r"([0-9.]+) s ago",
-}
+# The effect answers with a line written for programs: untranslated keys and
+# values, one space apart. The prose above it is built with i18n and says the
+# same things in the session's language, which is exactly why it is not read
+# here -- a harness that parsed it would report "nothing was measured" on any
+# machine not running in English.
+METRICS_PREFIX = "metrics:"
 
-SIZE_PATTERNS = {
-    "supplied": r"Supplied input: ([0-9]+) . ([0-9]+)",
-    "destination": r"Destination: ([0-9]+) . ([0-9]+)",
+# What each key means here, and how to read it. A key the effect did not write
+# is a measurement it did not have, and stays None rather than becoming zero.
+METRIC_FIELDS = {
+    "presented": ("presented_rate", float),
+    "low": ("presented_low", float),
+    "p99": ("presented_percentile", float),
+    "worst": ("presented_worst", float),
+    "frames": ("presented_frames", int),
+    "client": ("client_updates", float),
+    "repaints": ("repaints", float),
+    "interval": ("interval", float),
+    "supplied": ("supplied", str),
+    "destination": ("destination", str),
+    "scaling": ("scaling", bool),
+    "selected": ("selected", bool),
+    "windowsystem": ("window_system", str),
+    "buffer": ("buffer_kind", str),
 }
 
 
@@ -129,36 +138,37 @@ class Sample:
     presented_frames: int | None = None
     client_updates: float | None = None
     repaints: float | None = None
-    sample_age: float | None = None
+    interval: float | None = None
     supplied: str = ""
     destination: str = ""
     scaling: bool = False
-    refusal: str = ""
+    selected: bool = False
+    window_system: str = ""
+    buffer_kind: str = ""
 
 
 def parse_status(text: str) -> Sample:
     """Read one support-information answer into a sample.
 
-    Every field is optional on purpose. The effect reports what it has, and a
-    run that has not measured yet, or a window it refused, answers with fewer
-    lines rather than with zeroes. A missing field stays ``None`` so that the
-    summary can leave it out instead of averaging a number nobody measured.
+    Only the machine line is read. Everything above it is translated, and a
+    comparison that depended on the session's language would report nothing
+    measured on most of the machines this effect runs on.
     """
     sample = Sample()
-    for name, pattern in STATUS_PATTERNS.items():
-        found = re.search(pattern, text)
-        if not found:
+    line = next((one for one in text.splitlines() if one.startswith(METRICS_PREFIX)), None)
+    if line is None:
+        return sample
+    for field in line[len(METRICS_PREFIX):].split():
+        key, separator, value = field.partition("=")
+        if not separator or key not in METRIC_FIELDS:
             continue
-        raw = found.group(1)
-        setattr(sample, name, int(raw) if name.endswith("frames") else float(raw))
-    for name, pattern in SIZE_PATTERNS.items():
-        found = re.search(pattern, text)
-        if found:
-            setattr(sample, name, f"{found.group(1)}x{found.group(2)}")
-    sample.scaling = "FSR 1, sharpening" in text
-    refused = re.search(r"Inactive: (.+)", text)
-    if refused:
-        sample.refusal = refused.group(1).strip()
+        name, kind = METRIC_FIELDS[key]
+        try:
+            setattr(sample, name, value if kind is str else kind(int(value) if kind is bool else value))
+        except ValueError:
+            # A value this build writes differently is skipped rather than
+            # guessed at; the summary then reports it as not measured.
+            continue
     return sample
 
 
@@ -182,7 +192,8 @@ class Summary:
     supplied: str = ""
     destination: str = ""
     scaling: bool = False
-    refusal: str = ""
+    window_system: str = ""
+    buffer_kind: str = ""
     presented_rate: float | None = None
     presented_spread: float | None = None
     frame_time: float | None = None
@@ -218,7 +229,16 @@ def summarize(game: str, preset: str, samples: list[Sample]) -> Summary:
     summary.supplied = last.supplied
     summary.destination = last.destination
     summary.scaling = any(sample.scaling for sample in useful)
-    summary.refusal = last.refusal
+    summary.window_system = last.window_system
+    summary.buffer_kind = last.buffer_kind
+    # A run that reduced the buffer but was never scaled is the failure worth
+    # naming: the game did what was asked and the effect still handed the frame
+    # back. The reason is in the effect's own display, which is translated.
+    if summary.supplied and summary.destination and summary.supplied != summary.destination \
+            and not summary.scaling:
+        summary.notes.append(
+            f"supplied {summary.supplied} for {summary.destination} but nothing was scaled; "
+            "the effect's display gives the reason")
     summary.presented_rate = median_of(useful, "presented_rate")
     summary.presented_low = median_of(useful, "presented_low")
     summary.presented_percentile = median_of(useful, "presented_percentile")
@@ -269,14 +289,14 @@ def status(tool: str) -> str:
 def configure(preset: str, sharpening: bool) -> None:
     """Set the effect's own settings for the next run and apply them.
 
-    These are the effect's settings, not the session's: the preset under test,
-    resolution control, and the display that does the measuring. Everything
-    else is left exactly as the user had it.
+    These are the effect's own settings, not the session's: the preset under
+    test, resolution control and the sharpening state. The on-screen display is
+    left exactly as the user had it, because measuring does not depend on it
+    and showing it would cost every run the same composition it saves.
     """
     settings = {
         "Preset": str(PRESETS[preset]),
         "ResolutionControl": "true",
-        "OsdStatistics": "true",
         "Sharpening": "true" if sharpening else "false",
     }
     for key, value in settings.items():

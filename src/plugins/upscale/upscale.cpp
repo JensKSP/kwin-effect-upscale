@@ -486,7 +486,7 @@ QString UpscaleEffect::status() const
     // fresh for the question and has none, so it borrows them rather than
     // reporting a running game with its frame times missing.
     UpscaleSnapshot state = snapshot(window, nullptr);
-    m_display.applyMeasurements(state);
+    m_display.applyMeasurements(state, window, window->screen());
     return upscaleStatusText(state);
 }
 

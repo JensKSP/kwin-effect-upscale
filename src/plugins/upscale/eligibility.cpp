@@ -140,8 +140,13 @@ static bool coversOutput(EffectWindow *window)
     const double scale = screen->scale();
     const auto frame = window->frameGeometry();
     const auto output = screen->geometryF();
+    // The far edges, not the dimensions. Rounding each of an origin and a
+    // width to the output's values still permits their sum to land a pixel
+    // short or a pixel over, which is a strip left uncovered or drawn past the
+    // screen. Where the edges agree, every pixel between them is covered.
     return samePixel(frame.x(), output.x(), scale) && samePixel(frame.y(), output.y(), scale)
-        && samePixel(frame.width(), output.width(), scale) && samePixel(frame.height(), output.height(), scale);
+        && samePixel(frame.x() + frame.width(), output.x() + output.width(), scale)
+        && samePixel(frame.y() + frame.height(), output.y() + output.height(), scale);
 }
 
 // The window itself: what it is and where it sits, before anything about its

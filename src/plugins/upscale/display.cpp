@@ -173,8 +173,14 @@ void UpscaleDisplay::releaseBlocks()
     m_developerOverlay.release();
 }
 
-void UpscaleDisplay::applyMeasurements(UpscaleSnapshot &snapshot) const
+void UpscaleDisplay::applyMeasurements(UpscaleSnapshot &snapshot, EffectWindow *window, UpscaleOutput *screen) const
 {
+    // Measurements belong to the window and the screen they were taken from.
+    // A status question can name a different one — the settings page asks
+    // about whatever is active — and answering it with these would report one
+    // window's frame rate as another's. Frames belong to the screen, because
+    // that is what presents them; the counted rates belong to the window,
+    // because that is what committed and was painted.
     // The frames come from the running statistics rather than from the last
     // snapshot this display composed. The screen is followed whether or not
     // anything is drawn on it, so a report asked for while the display is
@@ -182,7 +188,7 @@ void UpscaleDisplay::applyMeasurements(UpscaleSnapshot &snapshot) const
     // would answer "nothing has been presented" for a screen that is plainly
     // presenting. No frames at all is the one case worth testing, because the
     // rest are only meaningful once intervals have been counted.
-    if (m_presented.frames() > 0) {
+    if (m_presented.frames() > 0 && screen && screen == m_measured) {
         snapshot.presentedRate = m_presented.averageRate();
         snapshot.presentedLow = m_presented.lowRate(0.01);
         snapshot.presentedPercentile = m_presented.percentileFrameTime(0.99);
@@ -192,7 +198,7 @@ void UpscaleDisplay::applyMeasurements(UpscaleSnapshot &snapshot) const
     }
     // The counted rates are the display's own sampling, which only runs while
     // it is following a window, so they stay as the last completed sample.
-    if (m_clientUpdateRate >= 0) {
+    if (m_clientUpdateRate >= 0 && window && window == m_announced) {
         snapshot.clientUpdates = m_clientUpdateRate;
         snapshot.repaints = m_repaintRate;
         snapshot.interval = m_interval;
