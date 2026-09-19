@@ -25,6 +25,7 @@ private Q_SLOTS:
     void keepsUnusualDimensions();
     void separatesTheGameFromTheScreen();
     void showsTheRateItJustMeasured();
+    void keepsItsColumnsStill();
 
 private:
     static UpscaleSnapshot scaling();
@@ -94,8 +95,8 @@ void UpscaleHeadsUpTest::separatesTheGameFromTheScreen()
     snapshot.presentedRate = 237.1;
     snapshot.clientUpdates = 949.4;
     const QString block = upscaleHeadsUp(snapshot);
-    QVERIFY2(block.contains(QStringLiteral("237 FPS")), qPrintable(block));
-    QVERIFY2(block.contains(QStringLiteral("1.1 ms/f")), qPrintable(block));
+    QVERIFY2(block.contains(QStringLiteral("237.1 FPS")), qPrintable(block));
+    QVERIFY2(block.contains(QStringLiteral("1.053 ms/f")), qPrintable(block));
     // The screen's own frame time is the reciprocal of a rate that has reached
     // the refresh, so it would read the same at every resolution. It is gone.
     QVERIFY2(!block.contains(QStringLiteral("4.2 ms")), qPrintable(block));
@@ -104,7 +105,7 @@ void UpscaleHeadsUpTest::separatesTheGameFromTheScreen()
     snapshot.clientUpdates = -1;
     const QString unmeasured = upscaleHeadsUp(snapshot);
     QVERIFY2(unmeasured.contains(QStringLiteral("— ms/f")), qPrintable(unmeasured));
-    QVERIFY2(!unmeasured.contains(QStringLiteral("1.1 ms/f")), qPrintable(unmeasured));
+    QVERIFY2(!unmeasured.contains(QStringLiteral("1.053 ms/f")), qPrintable(unmeasured));
 }
 
 void UpscaleHeadsUpTest::showsTheRateItJustMeasured()
@@ -116,13 +117,40 @@ void UpscaleHeadsUpTest::showsTheRateItJustMeasured()
     snapshot.presentedRate = 237.1;
     snapshot.presentedRecent = 118.4;
     const QString block = upscaleHeadsUp(snapshot);
-    QVERIFY2(block.contains(QStringLiteral("118 FPS")), qPrintable(block));
-    QVERIFY2(!block.contains(QStringLiteral("237 FPS")), qPrintable(block));
+    QVERIFY2(block.contains(QStringLiteral("118.4 FPS")), qPrintable(block));
+    QVERIFY2(!block.contains(QStringLiteral("237.1 FPS")), qPrintable(block));
 
     // A snapshot nothing measured a recent rate for still shows what it has,
     // because the settings page builds one without the statistics behind it.
     snapshot.presentedRecent = -1;
-    QVERIFY2(upscaleHeadsUp(snapshot).contains(QStringLiteral("237 FPS")),
+    QVERIFY2(upscaleHeadsUp(snapshot).contains(QStringLiteral("237.1 FPS")),
+             qPrintable(upscaleHeadsUp(snapshot)));
+}
+
+void UpscaleHeadsUpTest::keepsItsColumnsStill()
+{
+    // A block whose text shifts as its numbers change is unreadable at the
+    // distance this is read from, and the numbers change every second.
+    UpscaleSnapshot snapshot = scaling();
+    snapshot.presentedRate = 9.5;
+    const QStringList narrow = upscaleHeadsUp(snapshot).split(QLatin1Char('\n'));
+    snapshot.presentedRate = 237.1;
+    const QStringList wide = upscaleHeadsUp(snapshot).split(QLatin1Char('\n'));
+    QCOMPARE(narrow.at(0).size(), wide.at(0).size());
+    QVERIFY2(narrow.at(0).contains(QStringLiteral("9.500 FPS")), qPrintable(narrow.at(0)));
+
+    // The window system ends the second line, so it stays at the right edge
+    // whatever the picture beside it says.
+    QVERIFY2(wide.at(1).endsWith(QStringLiteral("Wayland")), qPrintable(wide.at(1)));
+    QVERIFY2(wide.at(1).size() >= wide.at(0).size(), qPrintable(wide.join(QLatin1Char('|'))));
+
+    // Nothing presents ten thousand frames a second, and a frame slower than
+    // a second is reported as a second rather than widening the block.
+    snapshot.presentedRate = 99999;
+    QVERIFY2(upscaleHeadsUp(snapshot).contains(QStringLiteral(" 9999 FPS")),
+             qPrintable(upscaleHeadsUp(snapshot)));
+    snapshot.presentedRate = 0.0001;
+    QVERIFY2(upscaleHeadsUp(snapshot).contains(QStringLiteral("0.999 FPS")),
              qPrintable(upscaleHeadsUp(snapshot)));
 }
 

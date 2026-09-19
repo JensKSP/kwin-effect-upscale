@@ -177,7 +177,7 @@ void UpscaleSnapshotTest::doesNotInventUnknownValues()
     // which is what an overlay shows for a figure it does not have yet.
     QVERIFY2(upscaleHeadsUp(empty).contains(QStringLiteral("— FPS")), qPrintable(upscaleHeadsUp(empty)));
     QVERIFY(upscaleHeadsUp(empty).contains(QStringLiteral("— ms")));
-    QVERIFY(upscaleHeadsUp(empty).contains(QStringLiteral("1% low —")));
+    QVERIFY(upscaleHeadsUp(empty).contains(QStringLiteral("1% low")));
     QVERIFY(!upscaleHeadsUp(empty).contains(QStringLiteral("0 FPS")));
     QVERIFY(upscaleAnnouncement(empty).contains(QStringLiteral("unknown")));
     // An unimplemented or unobserved colour state is not filled in either.
@@ -357,9 +357,9 @@ void UpscaleSnapshotTest::reportsPresentedFramesAndTheirSlowTail()
     // second, the milliseconds one of them took, and the slow tail by the
     // name every overlay gives it.
     const QString glance = upscaleHeadsUp(snapshot);
-    QVERIFY2(glance.contains(QStringLiteral("60 FPS")), qPrintable(glance));
-    QVERIFY2(glance.contains(QStringLiteral("16.7 ms")), qPrintable(glance));
-    QVERIFY2(glance.contains(QStringLiteral("1% low 41")), qPrintable(glance));
+    QVERIFY2(glance.contains(QStringLiteral("59.94 FPS")), qPrintable(glance));
+    QVERIFY2(glance.contains(QStringLiteral("16.72 ms/f")), qPrintable(glance));
+    QVERIFY2(glance.contains(QStringLiteral("1% low 41.20")), qPrintable(glance));
     QVERIFY(upscaleStatusText(snapshot).contains(QStringLiteral("Presented at 59.9/s, adaptive sync.")));
 
     // Each presentation mode has to be named, and named differently: two modes

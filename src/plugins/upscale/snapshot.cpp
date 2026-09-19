@@ -10,6 +10,8 @@
 
 #include <KLocalizedString>
 
+#include <algorithm>
+
 namespace KWin
 {
 
@@ -242,6 +244,30 @@ static QString bufferArrival(const UpscaleSnapshot &snapshot)
     return unknown();
 }
 
+// One figure, in a field that never changes width.
+//
+// Four digits and at most one point, always five characters: a value moving
+// between 9.999 and 10.00 must not move the text beside it, and on a screen
+// the block is read at a glance this matters more than the digits nobody can
+// take in anyway. The bounds are the useful ones rather than what a double
+// can hold: nothing presents ten thousand frames a second, and a frame slower
+// than a second is reported as a second rather than pushing the block wider.
+static QString stableNumber(double value)
+{
+    constexpr double most = 9999;
+    constexpr double least = 0.999;
+    const double bounded = std::clamp(value, least, most);
+    int decimals = 3;
+    if (bounded >= 1000) {
+        decimals = 0;
+    } else if (bounded >= 100) {
+        decimals = 1;
+    } else if (bounded >= 10) {
+        decimals = 2;
+    }
+    return QString::number(bounded, 'f', decimals).rightJustified(5);
+}
+
 QString upscaleHeadsUp(const UpscaleSnapshot &snapshot)
 {
     QStringList figures;
@@ -257,25 +283,27 @@ QString upscaleHeadsUp(const UpscaleSnapshot &snapshot)
     // without the statistics behind it, such as the settings page.
     const double rate = snapshot.presentedRecent > 0 ? snapshot.presentedRecent : snapshot.presentedRate;
     if (rate > 0) {
-        figures.append(i18n("%1 FPS", QString::number(rate, 'f', 0)));
+        figures.append(i18n("%1 FPS", stableNumber(rate)));
     } else {
         // A dash is what an overlay shows before it has measured anything. It
         // is not a zero, and it is not last minute's rate.
-        figures.append(i18n("— FPS"));
+        figures.append(i18n("%1 FPS", QStringLiteral("    —")));
     }
     // "1% low" is the name this figure carries everywhere it is quoted: the
     // mean of the slowest hundredth of the frames, as a rate.
     if (snapshot.presentedLow > 0) {
         figures.append(i18nc("The mean of the slowest hundredth of the frames, as a rate",
-                             "1% low %1", QString::number(snapshot.presentedLow, 'f', 0)));
+                             "1% low %1", stableNumber(snapshot.presentedLow)));
     } else {
-        figures.append(i18nc("The mean of the slowest hundredth of the frames, as a rate", "1% low —"));
+        figures.append(i18nc("The mean of the slowest hundredth of the frames, as a rate",
+                             "1% low %1", QStringLiteral("    —")));
     }
     if (snapshot.clientUpdates > 0) {
         figures.append(i18nc("Milliseconds per frame the game drew: its frame time",
-                             "%1 ms/f", QString::number(1000.0 / snapshot.clientUpdates, 'f', 1)));
+                             "%1 ms/f", stableNumber(1000.0 / snapshot.clientUpdates)));
     } else {
-        figures.append(i18nc("Milliseconds per frame the game drew: its frame time", "— ms/f"));
+        figures.append(i18nc("Milliseconds per frame the game drew: its frame time",
+                             "%1 ms/f", QStringLiteral("    —")));
     }
     QStringList picture;
     if (snapshot.scaling) {
@@ -293,16 +321,19 @@ QString upscaleHeadsUp(const UpscaleSnapshot &snapshot)
         picture.append(i18n("FSR off"));
         picture.append(i18n("%1 → %2", resolutionName(snapshot.supplied), resolutionName(snapshot.destination)));
     }
-    // On the picture line rather than a line of its own: it belongs with what
-    // is being drawn, and a block read at a glance mid-game earns no third row
-    // for it.
-    picture.append(clientKind(snapshot));
     const QString separator = QStringLiteral("   ");
-    QString text = figures.join(separator);
-    if (!picture.isEmpty()) {
-        text += QLatin1Char('\n') + picture.join(separator);
-    }
-    return text;
+    const QString first = figures.join(separator);
+    QString second = picture.join(separator);
+    // What the client is, on the picture line rather than a line of its own:
+    // it belongs with what is being drawn, and a block read at a glance
+    // mid-game earns no third row for it. It sits at the right edge, where a
+    // fact that changes only between games does not push the figures about as
+    // the picture line's own text changes length. The block is drawn in a
+    // fixed-width font, so a column is a character.
+    const QString kind = clientKind(snapshot);
+    const qsizetype width = std::max(first.size(), second.size() + separator.size() + kind.size());
+    second = second.leftJustified(width - kind.size()) + kind;
+    return first + QLatin1Char('\n') + second;
 }
 
 static QString desiredText(const UpscaleSnapshot &snapshot)
