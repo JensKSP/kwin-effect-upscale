@@ -369,6 +369,53 @@ is installed from the shared `debian/control` dependencies. Rebuild images
 after changing these dependencies; an existing local image does not update
 when a Containerfile changes.
 
+### Applications for testing
+
+An application is useful here when it goes fullscreen, when the resolution it
+renders at can be put below the output's, and when we can choose which display
+path it takes. Debian's SDL2 carries the Wayland backend, so a game linked
+against the system library can be sent down either path with
+`SDL_VIDEODRIVER`; a game that bundles its own SDL2, as most Steam titles do,
+stays on whatever that copy was built with.
+
+Extreme Tux Racer is already used for resolution requests. The rest are
+candidates to evaluate, not results.
+
+| Application | Where it comes from | Display path | Graphics API |
+| --- | --- | --- | --- |
+| Extreme Tux Racer | `extremetuxracer` | either, via `SDL_VIDEODRIVER` | OpenGL |
+| SuperTuxKart | `supertuxkart` | either | OpenGL |
+| Taisei | `taisei` | either | OpenGL |
+| 0 A.D. | `0ad` | either | Vulkan or OpenGL |
+| OpenArena on ioquake3 | `openarena`, `ioquake3` | either | OpenGL |
+| Warzone 2100 | `warzone2100` | either | OpenGL |
+| Unvanquished | own launcher, or Flathub | Wayland without a switch (SDL 3) | OpenGL |
+| Veloren | Airshipper, or Flathub | Wayland without a switch (winit) | Vulkan, through wgpu |
+
+SuperTuxKart takes both the mode and the resolution on the command line, which
+states the case this effect exists for in one line:
+
+```bash
+SDL_VIDEODRIVER=wayland supertuxkart --fullscreen --screensize=1280x720
+```
+
+0 A.D. is the most interesting of them. Since Alpha 27 it renders through
+Vulkan and upscales with its own FSR implementation, so the same scene can be
+held against ours. Veloren is the only candidate that is a native Wayland
+client and a Vulkan client at once, and it carries a render scale of its own.
+
+Project Zomboid is not open source, and it is the one case measured so far. Its
+LWJGL 2 compatibility layer pins GLFW to X11 unless the system property
+`zomboid.wayland=1` is set, although the GLFW it ships carries both backends.
+Without the property, a session had `libX11` and `libGLX` mapped and no
+`libwayland-client`, and its log shows the XRandR mode request that Xwayland
+then emulates.
+
+What stays unchecked for every candidate is whether it reaches the compositor
+on the path we intended. Two observations settle it: whether the process has
+`libwayland-client` mapped, and whether a window for it appears in Xwayland's
+window tree.
+
 ## Releasing
 
 A release is a tag, and nothing else is done by hand:
