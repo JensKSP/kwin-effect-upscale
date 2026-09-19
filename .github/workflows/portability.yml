@@ -2,9 +2,8 @@
 # SPDX-License-Identifier: CC0-1.0
 name: BSD portability
 
+# The nightly calls this every night, so it carries no schedule of its own.
 on:
-  schedule:
-    - cron: '43 4 * * 1'
   workflow_dispatch:
   workflow_call:
 
