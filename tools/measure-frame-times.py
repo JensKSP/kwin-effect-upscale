@@ -30,13 +30,16 @@ import os
 import re
 import shutil
 import signal
-import statistics
 import subprocess
 import sys
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from frame_metrics import Sample, Summary, parse_status, summarize
+from game_settings import prepare
+from measurement_report import announce, read_environment, report, write_json, write_markdown
 
 if TYPE_CHECKING:
     # Only ever named in an annotation, and this module postpones those.
@@ -123,191 +126,6 @@ GAMES = {
 # same things in the session's language, which is exactly why it is not read
 # here -- a harness that parsed it would report "nothing was measured" on any
 # machine not running in English.
-METRICS_PREFIX = "metrics:"
-
-# What each key means here, and how to read it. A key the effect did not write
-# is a measurement it did not have, and stays None rather than becoming zero.
-METRIC_FIELDS = {
-    "presented": ("presented_rate", float),
-    "low": ("presented_low", float),
-    "p99": ("presented_percentile", float),
-    "worst": ("presented_worst", float),
-    "frames": ("presented_frames", int),
-    "client": ("client_updates", float),
-    "repaints": ("repaints", float),
-    "interval": ("interval", float),
-    "supplied": ("supplied", str),
-    "destination": ("destination", str),
-    "scaling": ("scaling", bool),
-    "selected": ("selected", bool),
-    "window": ("window", str),
-    "windowsystem": ("window_system", str),
-    "buffer": ("buffer_kind", str),
-}
-
-
-@dataclass
-class Sample:
-    """One reading of the accumulated statistics, with the time it was taken."""
-
-    elapsed: float = 0.0
-    presented_rate: float | None = None
-    presented_low: float | None = None
-    presented_percentile: float | None = None
-    presented_worst: float | None = None
-    presented_frames: int | None = None
-    client_updates: float | None = None
-    repaints: float | None = None
-    interval: float | None = None
-    supplied: str = ""
-    destination: str = ""
-    scaling: bool = False
-    selected: bool = False
-    window: str = ""
-    window_system: str = ""
-    buffer_kind: str = ""
-
-
-def parse_status(text: str) -> Sample:
-    """Read one support-information answer into a sample.
-
-    Only the machine line is read. Everything above it is translated, and a
-    comparison that depended on the session's language would report nothing
-    measured on most of the machines this effect runs on.
-    """
-    sample = Sample()
-    line = next((one for one in text.splitlines() if one.startswith(METRICS_PREFIX)), None)
-    if line is None:
-        return sample
-    for entry in line[len(METRICS_PREFIX) :].split():
-        key, separator, value = entry.partition("=")
-        if not separator or key not in METRIC_FIELDS:
-            continue
-        name, kind = METRIC_FIELDS[key]
-        try:
-            setattr(
-                sample, name, value if kind is str else kind(int(value) if kind is bool else value)
-            )
-        except ValueError:
-            # A value this build writes differently is skipped rather than
-            # guessed at; the summary then reports it as not measured.
-            continue
-    return sample
-
-
-def describes(sample: Sample, game: str) -> bool:
-    """Whether this reading is about the game rather than some other window."""
-    expected = GAMES[game].window.lower()
-    return bool(sample.window) and expected in sample.window.lower()
-
-
-def measuring(sample: Sample) -> bool:
-    """Whether a sample carries a presented rate worth keeping.
-
-    A reading taken before the first sampling interval completed has no rate at
-    all, and one taken from a stopped game repeats the last one it had. Both
-    would drag an average towards a number the run never ran at.
-    """
-    return sample.presented_rate is not None and sample.presented_rate > 0
-
-
-@dataclass
-class Summary:
-    """What a run came to, across the samples that were actually measuring."""
-
-    game: str = ""
-    preset: str = ""
-    samples: int = 0
-    supplied: str = ""
-    destination: str = ""
-    scaling: bool = False
-    window_system: str = ""
-    buffer_kind: str = ""
-    presented_rate: float | None = None
-    presented_spread: float | None = None
-    frame_time: float | None = None
-    presented_low: float | None = None
-    presented_percentile: float | None = None
-    presented_worst: float | None = None
-    client_updates: float | None = None
-    game_rate: float | None = None
-    renderer_used: str = ""
-    notes: list[str] = field(default_factory=list)
-
-
-def median_of(samples: list[Sample], name: str) -> float | None:
-    """Take the median of one field, ignoring samples that did not carry it."""
-    values = [getattr(sample, name) for sample in samples]
-    present = [value for value in values if value is not None]
-    return statistics.median(present) if present else None
-
-
-def summarize(game: str, preset: str, samples: list[Sample]) -> Summary:
-    """Reduce a run's samples to the figures a comparison is made of.
-
-    The median rather than the mean, because a run interrupted by something
-    else on the machine produces one wild sample and no amount of averaging
-    hides it. The spread is reported beside it so that two runs closer together
-    than their own samples are not read as a difference.
-    """
-    useful = [sample for sample in samples if measuring(sample) and describes(sample, game)]
-    summary = Summary(game=game, preset=preset, samples=len(useful))
-    if not useful:
-        summary.notes.append(
-            "nothing was measured for this game's window; it never rendered, or the "
-            "effect was following another window for the whole run"
-        )
-        return summary
-    last = useful[-1]
-    summary.supplied = last.supplied
-    summary.destination = last.destination
-    summary.scaling = any(sample.scaling for sample in useful)
-    summary.window_system = last.window_system
-    summary.buffer_kind = last.buffer_kind
-    # A run that reduced the buffer but was never scaled is the failure worth
-    # naming: the game did what was asked and the effect still handed the frame
-    # back. The reason is in the effect's own display, which is translated.
-    if (
-        summary.supplied
-        and summary.destination
-        and summary.supplied != summary.destination
-        and not summary.scaling
-    ):
-        summary.notes.append(
-            f"supplied {summary.supplied} for {summary.destination} but nothing was scaled; "
-            "the effect's display gives the reason"
-        )
-    summary.presented_rate = median_of(useful, "presented_rate")
-    summary.presented_low = median_of(useful, "presented_low")
-    summary.presented_percentile = median_of(useful, "presented_percentile")
-    summary.presented_worst = median_of(useful, "presented_worst")
-    summary.client_updates = median_of(useful, "client_updates")
-    rates = [sample.presented_rate for sample in useful if sample.presented_rate]
-    if len(rates) > 1:
-        summary.presented_spread = max(rates) - min(rates)
-    if summary.presented_rate:
-        # The frame time the presented rate implies, which is what it is: the
-        # reciprocal of an average, not a measured mean frame time. The
-        # percentile beside it is measured, and is the one to quote for a tail.
-        summary.frame_time = 1000.0 / summary.presented_rate
-    # A game drawing far more frames than the screen showed is not being
-    # measured by the presented rate: that rate is the screen's refresh, and
-    # two runs that both reach it say nothing about their rendering cost. Say
-    # so on the run rather than leaving a reader to compare two refresh rates
-    # and conclude the resolution made no difference.
-    if (
-        summary.client_updates
-        and summary.presented_rate
-        and summary.client_updates > summary.presented_rate * 1.2
-    ):
-        summary.notes.append(
-            f"presented rate is limited by the screen ({summary.presented_rate:.0f}/s) "
-            f"while the game drew {summary.client_updates:.0f}/s; "
-            "compare client buffer updates, not presented"
-        )
-    return summary
-
-
 def run_command(arguments: list[str]) -> subprocess.CompletedProcess[str]:
     """Run a helper and return it, without raising on a non-zero exit."""
     return subprocess.run(arguments, capture_output=True, text=True, check=False)
@@ -349,6 +167,46 @@ def configure(preset: str, *, sharpening: bool) -> None:
     run_command(
         [qdbus(), "org.kde.KWin", "/Effects", "org.kde.kwin.Effects.reconfigureEffect", "upscale"]
     )
+
+
+def reset_game_resolution(game: str) -> str:
+    """Put the game back to the screen's own size before a run.
+
+    A game that stores the resolution it last ran at starts the next run from
+    there, so one run decides what the next one renders: measured 2026-09-19,
+    a run at Performance left 1920 x 1080 in SuperTuxKart's configuration and
+    every later run began at 1080p whatever the effect advertised. Starting
+    each run at the screen's size makes the effect's request the only thing
+    that can change it.
+
+    Returns what was changed, for the record, or why nothing was.
+    """
+    if game != "supertuxkart":
+        return "not configurable here"
+    path = Path.home() / ".config/supertuxkart/config-0.10/config.xml"
+    if not path.exists():
+        return "no configuration yet"
+    native = screen_pixels()
+    if not native:
+        return "screen size unknown"
+    width, height = native
+    text = path.read_text()
+    for key, value in (
+        ("real_width", width),
+        ("real_height", height),
+        ("width", width),
+        ("height", height),
+    ):
+        text = re.sub(rf'(\n\s*{key}=")[^"]*(")', rf"\g<1>{value}\g<2>", text)
+    path.write_text(text)
+    return f"{width}x{height}"
+
+
+def screen_pixels() -> tuple[int, int] | None:
+    """Read the output's own size in pixels, where a game should start."""
+    result = run_command(["kscreen-doctor", "-o"])
+    found = re.search(r"([0-9]{3,5})x([0-9]{3,5})@[0-9]+\*", result.stdout)
+    return (int(found.group(1)), int(found.group(2))) if found else None
 
 
 def launch(plan: Plan, seconds: int) -> subprocess.Popen[str]:
@@ -472,6 +330,10 @@ def measure(plan: Plan, preset: str) -> tuple[Summary, list[Sample]]:
     sharpening = plan.sharpening
     tool = qdbus()
     configure(preset, sharpening=sharpening)
+    # Before anything starts, so the run is not inheriting the last one's size.
+    settings = prepare(game)
+    print(f"      settings           {settings.describe()}", flush=True)
+    reset = reset_game_resolution(game)
     startup = GAMES[game].startup
     # The game outlives the sampling window by the time it spends starting and
     # warming up, and then by a margin: a demo that ends one second early takes
@@ -496,12 +358,14 @@ def measure(plan: Plan, preset: str) -> tuple[Summary, list[Sample]]:
             time.sleep(interval)
     finally:
         output = stop(process)
-    summary = summarize(game, preset, samples)
+    summary = summarize(game, preset, samples, GAMES[game].window)
     # What the game says it did, against what it was asked to do. A request is
     # not proof: SDL falls back to another video driver without complaint, and
     # a renderer a build does not carry is simply not the one that ran. A run
     # that measured something other than what it was set up to measure has to
     # say so rather than be read as the case it was named after.
+    summary.started_at = reset
+    summary.settings = settings.describe()
     spoken = output + game_log(plan.game)
     summary.game_rate = game_reported_rate(spoken)
     summary.renderer_used = game_reported_renderer(spoken, plan.game)
@@ -541,7 +405,23 @@ def figure(value: float | None, digits: int = 1) -> str:
     return "-" if value is None else f"{value:.{digits}f}"
 
 
-def report(summaries: list[Summary]) -> None:
+def preset_size(preset: str, output_pixels: str) -> str:
+    """Name in pixels what a preset asks the game to render.
+
+    Announced before a run so that the size under test is stated rather than
+    left to be worked out from the preset's name and the screen's size.
+    """
+    ratio = RATIOS.get(preset)
+    if not ratio or "x" not in output_pixels:
+        return preset
+    width, _, height = output_pixels.partition("x")
+    try:
+        return f"{round(int(width) * ratio)}x{round(int(height) * ratio)}"
+    except ValueError:
+        return preset
+
+
+def compare(summaries: list[Summary]) -> None:
     """Print the runs beside each other, with the baseline as the reference."""
     print()
     header = f"{'preset':<14}{'supplied':<12}{'presented/s':>12}{'frame ms':>10}"
@@ -626,20 +506,49 @@ def main(argv: list[str] | None = None) -> int:
         window_system=options.window_system,
         renderer=options.renderer,
     )
+    conditions = read_environment()
+    print("Measuring with:")
+    for key, value in asdict(conditions).items():
+        print(f"  {key:<20} {value}")
+
+    total = options.repeats * len(presets)
+    number = 0
+    records: list[dict[str, object]] = []
     for repeat in range(options.repeats):
         # Alternate nothing: run the presets in the order given, repeatedly, so
         # that drift over the session shows up as a difference between repeats
         # rather than hiding inside one of them.
         for preset in presets:
-            print(f"run {repeat + 1}/{options.repeats}: {options.game} at {preset}", flush=True)
+            number += 1
+            announce(
+                number,
+                total,
+                {
+                    "name": f"{options.game} at {preset}",
+                    "repeat": f"{repeat + 1} of {options.repeats}",
+                    "window API": plan.window_system or "the game chooses",
+                    "graphics API": plan.renderer or "the game chooses",
+                    "asks the game for": preset_size(preset, conditions.output_pixels),
+                    "destination": conditions.output_pixels or "unknown",
+                    "sharpening": "on" if plan.sharpening else "off",
+                    "sampled for": f"{options.seconds} s after {options.warm_up} s warm-up",
+                },
+            )
             summary, samples = measure(plan, preset)
             summaries.append(summary)
             rows.extend((preset, sample) for sample in samples)
+            report(summary)
+            records.append(asdict(summary))
+
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    path = options.output / f"{options.game}-{stamp}.csv"
-    write_samples(path, rows)
-    report(summaries)
-    print(f"\nsamples written to {path}")
+    stem = options.output / f"{options.game}-{stamp}"
+    write_samples(stem.with_suffix(".csv"), rows)
+    write_json(stem.with_suffix(".json"), conditions, records)
+    write_markdown(stem.with_suffix(".md"), conditions, records)
+    compare(summaries)
+    print(f"\nreadings  {stem.with_suffix('.csv')}")
+    print(f"record    {stem.with_suffix('.json')}")
+    print(f"report    {stem.with_suffix('.md')}")
     return 0
 
 
