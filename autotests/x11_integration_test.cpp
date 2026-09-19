@@ -249,7 +249,7 @@ void UpscaleX11IntegrationTest::repeatedFullscreenTransitions()
         QTRY_VERIFY_WITH_TIMEOUT(target.isFullscreen(), 10000);
         QTRY_VERIFY2(status().contains(QStringLiteral("as its X11 window size")), qPrintable(status()));
         QTRY_VERIFY2(status().contains(QStringLiteral("QSize(1920, 1080) QSizeF(3840, 2160)")), qPrintable(status()));
-        QTRY_VERIFY2(status().contains(QStringLiteral("true true QRectF(0,0 3840x2160)")), qPrintable(status()));
+        QTRY_VERIFY2(status().contains(QStringLiteral("frame QRectF(0,0 3840x2160)")), qPrintable(status()));
         QTRY_COMPARE(target.geometry().size(), reduced);
         target.fullscreen(false);
         QTRY_VERIFY(!target.isFullscreen());
@@ -318,6 +318,12 @@ void UpscaleX11IntegrationTest::independentOutputRules()
     second.writeEntry("MinimumPixels", 3840 * 2160); // Equality bypasses.
     second.sync();
     configure(true);
+    // Reconfiguring restores every managed window before applying the rules
+    // again, so the window this rule does not concern leaves its reduced mode
+    // and returns to it. Wait for that round trip instead of assuming it fits
+    // in a fixed delay, then give the rule its own delay to resize the other
+    // window wrongly, which is what this is watching for.
+    QTRY_COMPARE(first.geometry().size(), QSize(1920, 1080));
     QTest::qWait(500);
     QCOMPARE(other.geometry(), QRect(3840, 0, 3840, 2160));
     QCOMPARE(first.geometry().size(), QSize(1920, 1080));

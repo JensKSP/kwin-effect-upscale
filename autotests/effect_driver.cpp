@@ -204,9 +204,14 @@ public:
         for (EffectWindow *window : effects->stackingOrder()) {
             const Window *internal = window->window();
             SurfaceItem *surface = window->windowItem()->surfaceItem();
+            // Label the geometries. Which type each accessor returns differs
+            // between supported KWin versions, and so does whether a
+            // fullscreen X11 window reports no border, so a test that anchored
+            // on the fields around them would pin KWin's business, not ours.
             output << internal->resourceClass() << internal->resourceName()
                    << internal->isNormalWindow() << internal->noBorder()
-                   << window->frameGeometry() << window->screen()->geometryF();
+                   << "frame" << window->frameGeometry()
+                   << "screen" << window->screen()->geometryF();
             if (surface) {
                 output << surface->bufferSize() << surface->destinationSize();
             }
