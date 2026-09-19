@@ -1580,6 +1580,23 @@ acceptance remains open. Applications must handle resize requests and establish
 Xwayland's per-client mode emulation; this does not universally force internal
 rendering dimensions.
 
+**Integration and upstream review risk.** This is experimental use of exported
+KWin interfaces, not a stable compositor API for setting client render size.
+The effect takes over selected native X configure operations while KWin keeps
+logical window geometry. That division must remain consistent with KWin's
+placement, decorations, stacking, input and window lifecycle. Version-specific
+hierarchies and fullscreen behaviour make it more fragile than a compositor-owned
+negotiation interface. Successful tests establish their covered cases, not every
+interaction with other window-management policies or future KWin versions.
+
+Per-client isolation, bounded negotiation and restoration constrain the risk;
+they do not establish upstream acceptance. Keeping the plugin folder compatible
+with KWin's build and style is a packaging/design property, not evidence that
+maintainers endorse the interception mechanism. A dedicated compositor API would
+be a cleaner integration direction for upstream discussion. It is not an
+available fallback under this project's current no-external-patches requirement,
+and upstream acceptance remains unestablished.
+
 An X11 window resize is a separate mechanism from Wayland output advertising.
 The effect can address one managed X window through KWin's exported window
 and X11 event-filter APIs. The application must then update its rendering for
