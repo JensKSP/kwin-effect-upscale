@@ -657,10 +657,36 @@ while an override is in force and a client that exits before restoration, both
 of which need hardware or a second compositor process, and both of which are
 already in the acceptance list above.
 
+Two defects in the request itself came out of reviewing it beside those tests:
+
+- The resources were given KWin's own answer back only when the effect was
+  switched off. A changed preset, a changed percentage or an edited application
+  list all move what would be asked for, and the resources kept carrying the
+  old mode; anything reading them again would have seen a request this effect
+  no longer makes. Every reconfiguration now restores them. What a program was
+  told is kept separately and outlives that, because it stays true and is what
+  explains the size that program is still rendering.
+- A request naming a scale was recorded, and its mode half-sent, to a client
+  that bound `wl_output` before version 2, which has no scale event. That
+  leaves exactly the disagreement between size and scale these methods exist to
+  avoid, and reported a request that was never made. Such a client is now left
+  alone. This is not covered by a test: the virtual output in the nested
+  session has no scale above one, so no advertisement reaches the scale path
+  there at all. It belongs with the output and scale acceptance already listed
+  above.
+
 Measuring the frames also had a defect the statistics view would have shown:
 the slow-tail figure was written `1%% low`, which is printf's escape and not
 KLocalizedString's, so the doubled sign would have reached the screen. Found by
-asserting on the text rather than on its presence, and corrected.
+asserting on the text rather than on its presence, and corrected. Two more came
+from the same reading: a rejected timestamp, repeated or backward, became the
+baseline for the next real presentation and inflated its interval; and the
+settings page decided whether anything had been measured from the presentation
+mode rather than from the rate, so a window change, which restarts the sampling
+without clearing the mode, made it report a rate of minus one per second. The
+developer view also claimed variable refresh was unobserved, which stopped
+being true when the presentation mode became a measurement; it now reports the
+frames and the mode the screen presented them in.
 
 ## Remaining work
 

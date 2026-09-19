@@ -265,7 +265,10 @@ void UpscaleApplicationEditor::addApplication()
 {
     UpscaleApplication application;
     application.name = i18n("New application");
-    application.id = upscaleNewApplicationId(QStringLiteral("application"));
+    // Against this editor's own entries as well as the stored ones: two
+    // Add operations before Apply would otherwise share a configuration
+    // group, and one of them would be written over the other.
+    application.id = upscaleNewApplicationId(QStringLiteral("application"), m_applications);
     // After everything shipped, so that a measured entry keeps deciding first.
     application.order = m_applications.empty() ? 100 : m_applications.back().order + 10;
     m_applications.push_back(application);
@@ -301,7 +304,8 @@ void UpscaleApplicationEditor::addFromWindow()
                              i18n("That window reports no application identity, so it cannot be recognized."));
         return;
     }
-    application.id = upscaleNewApplicationId(application.name.isEmpty() ? application.instance : application.name);
+    application.id = upscaleNewApplicationId(application.name.isEmpty() ? application.instance : application.name,
+                                             m_applications);
     application.order = m_applications.empty() ? 100 : m_applications.back().order + 10;
     m_applications.push_back(application);
     m_original.push_back(UpscaleApplication{});
@@ -326,8 +330,24 @@ void UpscaleApplicationEditor::deleteSelected()
     Q_EMIT changed();
 }
 
-void UpscaleApplicationEditor::save()
+bool UpscaleApplicationEditor::save()
 {
+    // An entry stating neither a window class nor an instance would match
+    // every window on the screen, so the reader drops it. Writing it anyway
+    // would make it disappear from this list on the next read without saying
+    // why, and leave a group behind in the file that nothing describes.
+    const auto nameless = std::ranges::find_if(m_applications, [](const UpscaleApplication &application) {
+        return application.windowClass.isEmpty() && application.instance.isEmpty();
+    });
+    if (nameless != m_applications.end()) {
+        m_list->setCurrentRow(int(std::ranges::distance(m_applications.begin(), nameless)));
+        m_windowClass->setFocus();
+        QMessageBox::warning(this, i18n("Applications"),
+                             i18n("“%1” states neither a window class nor a window instance, so nothing could ever "
+                                  "match it. Give it one of them, or remove it.",
+                                  nameless->name));
+        return false;
+    }
     for (const QString &id : m_removed) {
         upscaleDeleteApplication(id);
     }
@@ -337,6 +357,7 @@ void UpscaleApplicationEditor::save()
     }
     upscaleSyncApplications();
     load();
+    return true;
 }
 
 bool UpscaleApplicationEditor::customized()

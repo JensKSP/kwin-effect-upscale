@@ -419,6 +419,16 @@ void ApplicationTest::asksUnlistedApplicationsOnlyWhenTurnedOn()
     }));
     // A measured entry still decides first.
     QCOMPARE(upscaleApplicationForProgram(QStringLiteral("/usr/games/supertuxkart"))->name, QStringLiteral("SuperTuxKart"));
+    // And an entry the user switched off is not an unlisted application: it is
+    // one they said to leave alone. Asking it for a resolution through this
+    // setting would undo the only thing switching it off does.
+    writeUserConfig(QStringLiteral("[Application-supertuxkart]\nEnabled=false\n"));
+    upscaleSetUnknownApplications(true, ResolutionPreset::Balanced);
+    QVERIFY(!upscaleApplicationForProgram(QStringLiteral("/usr/games/supertuxkart")));
+    // A program nothing in the list describes is still asked.
+    QVERIFY(upscaleApplicationForProgram(QStringLiteral("/usr/bin/something-nobody-measured")));
+    QFile::remove(userDirectory() + QLatin1String("/kwinupscalerc"));
+    upscaleReloadApplications();
     // It has no window identity, so it never matches a window either.
     QVERIFY(!upscaleApplicationForIdentity(QStringLiteral("konsole"), QStringLiteral("konsole")));
 

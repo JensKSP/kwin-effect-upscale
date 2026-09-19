@@ -185,8 +185,15 @@ void upscaleDeleteApplication(const QString &id);
 /** Write the pending changes to disk. */
 void upscaleSyncApplications();
 
-/** The identifier to give a new application, derived from @p name. */
-QString upscaleNewApplicationId(const QString &name);
+/**
+ * The identifier to give a new application, derived from @p name.
+ *
+ * @p pending are entries that are not stored yet, which an editor holding
+ * unapplied changes has. Both layers are consulted, because two entries
+ * sharing an identifier would share a configuration group and one of them
+ * would be written over the other the moment they were applied.
+ */
+QString upscaleNewApplicationId(const QString &name, const std::vector<UpscaleApplication> &pending = {});
 
 /** The configuration name of a method, as the stored file spells it. */
 QString upscaleMethodKey(UpscaleControlMethod method);

@@ -131,6 +131,12 @@ void FrameStatisticsTest::ignoresRepeatedAndBackwardTimestamps()
     statistics.record(5); // a clock that went backwards
     QCOMPARE(statistics.frames(), size_t(1));
     QCOMPARE(statistics.worstFrameTime(), 10.0);
+    // A rejected timestamp must not become the baseline. Measuring the next
+    // real presentation from it would report an interval nothing took: from
+    // the backward 5 this frame would read as 15 ms rather than the 10 it was.
+    statistics.record(20);
+    QCOMPARE(statistics.frames(), size_t(2));
+    QCOMPARE(statistics.worstFrameTime(), 10.0);
 }
 
 QTEST_GUILESS_MAIN(FrameStatisticsTest)

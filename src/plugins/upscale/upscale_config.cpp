@@ -315,6 +315,11 @@ void UpscaleEffectConfig::load()
 {
     UpscaleConfig::self()->read();
     showSettings();
+    // The application list is part of what this page would apply, so Reset
+    // discards its pending edits with everything else. Leaving them on screen
+    // would let a later Apply write changes the user had just discarded.
+    m_editor->load();
+    updateApplicationSummary();
     setNeedsSave(false);
     refreshStatus();
 }
@@ -339,10 +344,14 @@ void UpscaleEffectConfig::reconfigureEffect()
 
 void UpscaleEffectConfig::save()
 {
-    m_editor->save();
+    // The list can refuse: an entry that could never match a window is kept
+    // here rather than written and then silently dropped on the next read.
+    // The settings above are applied either way, and the page stays
+    // applicable so that the user can correct the entry and press Apply again.
+    const bool stored = m_editor->save();
     updateApplicationSummary();
     applySettings();
-    setNeedsSave(false);
+    setNeedsSave(!stored);
     reconfigureEffect();
     refreshStatus();
 }

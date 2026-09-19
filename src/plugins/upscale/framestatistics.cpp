@@ -23,13 +23,19 @@ void UpscaleFrameStatistics::reset()
 void UpscaleFrameStatistics::record(double milliseconds)
 {
     const double previous = m_previous;
-    m_previous = milliseconds;
     // The first presentation only starts the clock: an interval needs two.
-    // A timestamp that did not advance is the same presentation reported
-    // again, and one that went backwards is not a measurement at all.
-    if (previous < 0 || milliseconds <= previous) {
+    if (previous < 0) {
+        m_previous = milliseconds;
         return;
     }
+    // A timestamp that did not advance is the same presentation reported
+    // again, and one that went backwards is not a measurement at all. Neither
+    // may become the baseline either: the next real presentation would then be
+    // measured from a time this rejected, and report an interval nothing took.
+    if (milliseconds <= previous) {
+        return;
+    }
+    m_previous = milliseconds;
     m_intervals[m_next] = milliseconds - previous;
     m_next = (m_next + 1) % upscaleFrameWindow;
     m_count = std::min(m_count + 1, upscaleFrameWindow);

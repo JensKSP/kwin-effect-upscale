@@ -275,8 +275,7 @@ void UpscaleConfigTest::readsWhatTheCompositorReported()
 
 int main(int argc, char **argv)
 {
-    UpscaleConfigTest test;
-    return runSettingsTest(&test, argc, argv);
+    return runSettingsTest<UpscaleConfigTest>(argc, argv);
 }
 
 #include "config_test.moc"

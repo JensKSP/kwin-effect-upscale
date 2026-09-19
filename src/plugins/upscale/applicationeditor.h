@@ -43,8 +43,13 @@ public:
 
     /** Read the stored list again, discarding anything not applied. */
     void load();
-    /** Write what the user changed. */
-    void save();
+    /**
+     * Write what the user changed.
+     *
+     * Returns false without writing anything when an entry could never match
+     * a window, so that the settings page keeps it and stays applicable.
+     */
+    bool save();
     /** Put the list back to the one this build ships, after asking. */
     void restoreDefaults();
     /** Whether the stored list differs from the one this build ships. */

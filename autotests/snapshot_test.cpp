@@ -160,7 +160,11 @@ void UpscaleSnapshotTest::doesNotInventUnknownValues()
              qPrintable(upscaleStatistics(empty)));
     QVERIFY(upscaleAnnouncement(empty).contains(QStringLiteral("unknown")));
     // An unimplemented or unobserved colour state is not filled in either.
-    QVERIFY(developer.contains(QStringLiteral("VRR not observed")));
+    QVERIFY2(developer.contains(QStringLiteral("destination transfer unknown")), qPrintable(developer));
+    // Nothing presented yet is said here as well, and the view no longer
+    // claims variable refresh is unobservable now that the mode is measured.
+    QVERIFY2(developer.contains(QStringLiteral("Presented: unknown")), qPrintable(developer));
+    QVERIFY(!developer.contains(QStringLiteral("VRR not observed")));
 
     UpscaleSnapshot disabled;
     disabled.enabled = false;
@@ -305,6 +309,33 @@ void UpscaleSnapshotTest::reportsPresentedFramesAndTheirSlowTail()
     QVERIFY(!sparse.contains(QStringLiteral("percentile")));
     QVERIFY(!sparse.contains(QStringLiteral("worst")));
     QVERIFY(upscaleStatusText(scaling()).contains(QStringLiteral("Presentation is not being measured")));
+
+    // Changing the displayed window restarts the sampling without clearing the
+    // mode the screen last presented in. The rate is what says whether
+    // anything was measured, and a rate of minus one is not a frame rate.
+    UpscaleSnapshot stale = scaling();
+    stale.presentation = int(PresentationMode::AdaptiveSync);
+    const QString restarted = upscaleStatusText(stale);
+    QVERIFY2(restarted.contains(QStringLiteral("Presentation is not being measured")), qPrintable(restarted));
+    QVERIFY2(!restarted.contains(QStringLiteral("-1.0/s")), qPrintable(restarted));
+
+    // A rate without a mode is the other way round: the figure is real and the
+    // mode it was presented in is what is unknown.
+    UpscaleSnapshot modeless = scaling();
+    modeless.presentedRate = 60;
+    QVERIFY2(upscaleStatusText(modeless).contains(QStringLiteral("Presented at 60.0/s, unknown.")),
+             qPrintable(upscaleStatusText(modeless)));
+
+    // The developer view reports the same frames rather than saying that
+    // variable refresh cannot be observed at all.
+    UpscaleSnapshot measured = scaling();
+    measured.presentedRate = 59.94;
+    measured.presentedFrames = 600;
+    measured.presentation = int(PresentationMode::AdaptiveSync);
+    const QString developer = upscaleDeveloperInformation(measured);
+    QVERIFY2(developer.contains(QStringLiteral("Presented: 59.9/s average")), qPrintable(developer));
+    QVERIFY(developer.contains(QStringLiteral("adaptive sync")));
+    QVERIFY(!developer.contains(QStringLiteral("VRR not observed")));
 }
 
 // What the effect asked an application for and what that application actually

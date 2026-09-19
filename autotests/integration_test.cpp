@@ -198,6 +198,19 @@ void UpscaleIntegrationTest::asksApplicationsForASmallerImage()
         QTRY_VERIFY2(status().contains(QStringLiteral("85 × 85 requested from Upscale integration test")),
                      qPrintable(status()));
         QVERIFY2(status().contains(QStringLiteral("Supplied input: 64 × 64")), qPrintable(status()));
+
+        // Changing a setting while the effect stays enabled moves what it
+        // would ask for, so the resources of a client that was told otherwise
+        // get KWin's own answer back. The client will not read them again, but
+        // one that binds the output again, and anything that inspects them,
+        // would otherwise see a mode this effect no longer asks for.
+        configureResolution(true, false, 5);
+        QVERIFY(chosen.roundtrip());
+        QCOMPARE(chosen.advertisedMode(), QSize(128, 128));
+        // What that program was told is still what explains the size it is
+        // rendering, so the report of it outlives the resources.
+        QVERIFY2(status().contains(QStringLiteral("85 × 85 requested from Upscale integration test")),
+                 qPrintable(status()));
     }
 
     // A method that says nothing recognizes the application and asks it for

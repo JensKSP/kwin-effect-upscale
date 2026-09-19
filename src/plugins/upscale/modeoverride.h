@@ -71,10 +71,19 @@ public:
     QSize advertised(const QString &program) const;
 
 private:
+    // Whether the record of what each program was told goes back with the
+    // resources. What a program was told stays true when the setting behind it
+    // changes, and it is what explains the size that program is still
+    // rendering, so it outlives the resources unless the effect stops asking.
+    enum class Record {
+        Keep,
+        Discard,
+    };
+
     void watchOutputs();
     void watchOutput(OutputInterface *output);
     void announce(OutputInterface *output, ClientConnection *client, wl_resource *resource);
-    void restore();
+    void restore(Record record = Record::Discard);
 
     // What one client is told: the buffer it should commit, and the integer
     // output scale that belongs with it, or zero where the size stands alone.

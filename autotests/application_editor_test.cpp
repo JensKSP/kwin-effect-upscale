@@ -4,6 +4,7 @@
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
+#include "application.h"
 #include "applicationeditor.h"
 #include "upscale_config.h"
 
@@ -98,6 +99,9 @@ private Q_SLOTS:
     void addsApplicationsAndRemovesOnlyItsOwn();
     void addsAnApplicationFromAWindow();
     void restoresTheShippedApplicationList();
+    void givesEveryPendingApplicationItsOwnIdentifier();
+    void refusesAnEntryNothingCouldEverMatch();
+    void resetDiscardsThePendingApplicationEdits();
 
 private:
     static QString userConfig();
@@ -339,10 +343,114 @@ void UpscaleApplicationEditorTest::restoresTheShippedApplicationList()
     QVERIFY(list->count() > 1);
 }
 
+// Two entries sharing an identifier would share a configuration group, and
+// applying them would write one over the other.
+void UpscaleApplicationEditorTest::givesEveryPendingApplicationItsOwnIdentifier()
+{
+    QWidget host;
+    KWin::UpscaleEffectConfig module(&host, KPluginMetaData());
+    auto *editor = module.widget()->findChild<KWin::UpscaleApplicationEditor *>();
+    QVERIFY(editor);
+    auto *list = editor->findChild<QListWidget *>(QStringLiteral("applicationList"));
+    auto *name = editor->findChild<QLineEdit *>(QStringLiteral("applicationName"));
+    auto *instance = editor->findChild<QLineEdit *>(QStringLiteral("applicationInstance"));
+    auto *add = editor->findChild<QPushButton *>(QStringLiteral("applicationAdd"));
+    QVERIFY(list && name && instance && add);
+    const int shipped = list->count();
+
+    // Both added before anything is applied, so neither is stored yet and the
+    // stored list alone cannot tell them apart.
+    add->click();
+    name->clear();
+    QTest::keyClicks(name, QStringLiteral("First"));
+    QTest::keyClicks(instance, QStringLiteral("first"));
+    add->click();
+    name->clear();
+    QTest::keyClicks(name, QStringLiteral("Second"));
+    QTest::keyClicks(instance, QStringLiteral("second"));
+    QCOMPARE(list->count(), shipped + 2);
+
+    module.save();
+    QCOMPARE(list->count(), shipped + 2);
+    const QString stored = userConfig();
+    QVERIFY2(stored.contains(QStringLiteral("Instance=first")), qPrintable(stored));
+    QVERIFY2(stored.contains(QStringLiteral("Instance=second")), qPrintable(stored));
+    QVERIFY(KWin::upscaleApplicationForIdentity(QString(), QStringLiteral("first")));
+    QVERIFY(KWin::upscaleApplicationForIdentity(QString(), QStringLiteral("second")));
+}
+
+// An entry stating no identity would match every window on the screen, so the
+// reader drops it. Writing it would make it vanish without saying why.
+void UpscaleApplicationEditorTest::refusesAnEntryNothingCouldEverMatch()
+{
+    QWidget host;
+    KWin::UpscaleEffectConfig module(&host, KPluginMetaData());
+    auto *editor = module.widget()->findChild<KWin::UpscaleApplicationEditor *>();
+    QVERIFY(editor);
+    auto *list = editor->findChild<QListWidget *>(QStringLiteral("applicationList"));
+    auto *name = editor->findChild<QLineEdit *>(QStringLiteral("applicationName"));
+    auto *program = editor->findChild<QLineEdit *>(QStringLiteral("applicationProgram"));
+    auto *instance = editor->findChild<QLineEdit *>(QStringLiteral("applicationInstance"));
+    auto *add = editor->findChild<QPushButton *>(QStringLiteral("applicationAdd"));
+    QVERIFY(list && name && program && instance && add);
+    const int shipped = list->count();
+
+    add->click();
+    name->clear();
+    QTest::keyClicks(name, QStringLiteral("Nameless"));
+    // A program alone recognizes a connection but never a window, so this
+    // entry could not match anything the list is matched against.
+    QTest::keyClicks(program, QStringLiteral("nameless"));
+
+    answerNextDialog(QMessageBox::Ok);
+    module.save();
+    // Kept here rather than written and then silently dropped, and the page
+    // stays applicable so the user can correct it.
+    QCOMPARE(list->count(), shipped + 1);
+    QCOMPARE(list->currentRow(), shipped);
+    QVERIFY2(!userConfig().contains(QStringLiteral("nameless")), qPrintable(userConfig()));
+    QVERIFY(module.needsSave());
+
+    // Given an identity, the same entry applies.
+    QTest::keyClicks(instance, QStringLiteral("nameless"));
+    module.save();
+    QVERIFY2(userConfig().contains(QStringLiteral("Instance=nameless")), qPrintable(userConfig()));
+    QVERIFY(!module.needsSave());
+}
+
+// Reset discards the pending application edits with everything else on the
+// page: leaving them would let a later Apply write what was just discarded.
+void UpscaleApplicationEditorTest::resetDiscardsThePendingApplicationEdits()
+{
+    QWidget host;
+    KWin::UpscaleEffectConfig module(&host, KPluginMetaData());
+    auto *editor = module.widget()->findChild<KWin::UpscaleApplicationEditor *>();
+    QVERIFY(editor);
+    auto *list = editor->findChild<QListWidget *>(QStringLiteral("applicationList"));
+    auto *name = editor->findChild<QLineEdit *>(QStringLiteral("applicationName"));
+    auto *instance = editor->findChild<QLineEdit *>(QStringLiteral("applicationInstance"));
+    auto *add = editor->findChild<QPushButton *>(QStringLiteral("applicationAdd"));
+    QVERIFY(list && name && instance && add);
+    const int shipped = list->count();
+
+    add->click();
+    name->clear();
+    QTest::keyClicks(name, QStringLiteral("Discarded"));
+    QTest::keyClicks(instance, QStringLiteral("discarded"));
+    QCOMPARE(list->count(), shipped + 1);
+
+    module.load();
+    QCOMPARE(list->count(), shipped);
+
+    // And a later Apply must not bring it back.
+    module.save();
+    QVERIFY2(!userConfig().contains(QStringLiteral("discarded")), qPrintable(userConfig()));
+    QVERIFY(!KWin::upscaleApplicationForIdentity(QString(), QStringLiteral("discarded")));
+}
+
 int main(int argc, char **argv)
 {
-    UpscaleApplicationEditorTest test;
-    return runSettingsTest(&test, argc, argv);
+    return runSettingsTest<UpscaleApplicationEditorTest>(argc, argv);
 }
 
 #include "application_editor_test.moc"

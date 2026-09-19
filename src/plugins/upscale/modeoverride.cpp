@@ -53,12 +53,14 @@ bool UpscaleModeOverride::available()
 
 void UpscaleModeOverride::reconfigure(bool enabled, ResolutionPreset preset, int percentage)
 {
-    if (!enabled && m_enabled) {
-        // Give back what was taken before forgetting that it was taken. The
-        // games already running will not read it, but a client that binds the
-        // output again, and the next thing that inspects these resources,
-        // both see KWin's own answer.
-        restore();
+    // Every reconfiguration can change what would be asked for: the preset,
+    // the percentage, or an edit to the application list, which this class
+    // never sees. Rather than work out which of them moved, give back what was
+    // taken. The games already running will not read it, but a client that
+    // binds the output again, and the next thing that inspects these
+    // resources, would otherwise see a mode this effect no longer asks for.
+    if (!m_announced.isEmpty()) {
+        restore(enabled ? Record::Keep : Record::Discard);
     }
     m_enabled = enabled;
     m_preset = preset;
@@ -150,6 +152,14 @@ void UpscaleModeOverride::announce(OutputInterface *output, ClientConnection *cl
         return;
     }
     UpscaleOutput *handle = output->handle();
+    const int version = wl_resource_get_version(resource);
+    // A request that names a scale needs the event that carries one. Telling
+    // such a client the smaller mode alone would leave its size and its scale
+    // disagreeing, which is the state each of these methods exists to avoid,
+    // and recording it below would report a request that was never made.
+    if (advertisement.scale > 0 && version < WL_OUTPUT_SCALE_SINCE_VERSION) {
+        return;
+    }
     if (application->method != UpscaleControlMethod::AdvertisedScale) {
         // The refresh rate stays the output's own. Only the size is in
         // question here, and a program that takes its frame pacing from this
@@ -158,10 +168,10 @@ void UpscaleModeOverride::announce(OutputInterface *output, ClientConnection *cl
                             advertisement.size.width(), advertisement.size.height(),
                             int(handle->refreshRate()));
     }
-    if (advertisement.scale > 0 && wl_resource_get_version(resource) >= WL_OUTPUT_SCALE_SINCE_VERSION) {
+    if (advertisement.scale > 0) {
         wl_output_send_scale(resource, advertisement.scale);
     }
-    if (wl_resource_get_version(resource) >= WL_OUTPUT_DONE_SINCE_VERSION) {
+    if (version >= WL_OUTPUT_DONE_SINCE_VERSION) {
         wl_output_send_done(resource);
     }
     m_announced.append({output, client, application->program});
@@ -170,7 +180,7 @@ void UpscaleModeOverride::announce(OutputInterface *output, ClientConnection *cl
             advertisement.size.height(), advertisement.scale, qPrintable(application->name));
 }
 
-void UpscaleModeOverride::restore()
+void UpscaleModeOverride::restore(Record record)
 {
     for (const Announcement &announcement : std::as_const(m_announced)) {
         // A game that exited and an output that was unplugged both leave one
@@ -198,7 +208,9 @@ void UpscaleModeOverride::restore()
         }
     }
     m_announced.clear();
-    m_advertised.clear();
+    if (record == Record::Discard) {
+        m_advertised.clear();
+    }
 }
 
 } // namespace KWin

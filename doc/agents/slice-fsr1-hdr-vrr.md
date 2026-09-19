@@ -56,8 +56,8 @@ on real hardware, and not before:
 
 | Required observation | Why it is not implied by the current evidence |
 | --- | --- |
-| A named eligibility condition explains every refusal | The real session refuses a conforming buffer and reports only the generic rule text. The refusing condition is unknown. |
-| The refusal recorded on 2026-09-18 is understood and fixed | Desktop scale and buffer size are ruled out; the cause is not isolated and no fix is claimed. |
+| A named eligibility condition explains every refusal | Each condition now reports itself, and the nested session on the real GPU named one. The real session on the television has not been re-run against it. |
+| The refusal recorded on 2026-09-18 is understood and fixed | Isolated to `TransformedRenderTarget` and removed, as recorded below. What remains is observing a scaled frame with that fix in the real session. |
 | `activeEffects` lists `upscale` for an eligible window | The effect never entered KWin's active set, so it never took its scanout restriction. |
 | The destination pixels differ from ordinary KWin scaling | A covered output proves composition happened, not that EASU ran. |
 | An ineligible window still restores ordinary rendering | Fallback has only been exercised where the effect was already inactive. |

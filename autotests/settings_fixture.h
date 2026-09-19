@@ -18,7 +18,8 @@
 // build installs underneath it, and a private bus. No test may reach a
 // developer's session bus or their real configuration, and no real KWin may
 // receive configuration or refresh calls from one.
-inline int runSettingsTest(QObject *test, int argc, char **argv)
+template<typename Test>
+int runSettingsTest(int argc, char **argv)
 {
     QTemporaryDir configuration(QDir::currentPath() + QStringLiteral("/settings-test-XXXXXX"));
     if (!configuration.isValid()) {
@@ -50,7 +51,11 @@ inline int runSettingsTest(QObject *test, int argc, char **argv)
     }
     qputenv("DBUS_SESSION_BUS_ADDRESS", address);
     QApplication application(argc, argv);
-    const int result = QTest::qExec(test, argc, argv);
+    // After the application object, which Qt requires to be the first QObject
+    // created and the last destroyed. Both are scoped here so that the test is
+    // destroyed first, which is the order Qt supports.
+    Test test;
+    const int result = QTest::qExec(&test, argc, argv);
     bus.terminate();
     if (!bus.waitForFinished()) {
         bus.kill();

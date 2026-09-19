@@ -366,6 +366,28 @@ the user added against disabling one this build ships, and the unlisted-
 application setting. Coverage of `applicationeditor.cpp` is 98.3% of lines and
 of `application.cpp` 98.9%.
 
+### What the tests and the review found, 2026-09-19
+
+Three defects in the editor and its page, each of which loses or hides an edit:
+
+- Two applications added before Apply both took the identifier `application`,
+  because it was checked only against the stored list. Applying them wrote both
+  into one configuration group and one was written over the other. The
+  identifier is now generated against the editor's pending entries as well.
+- An entry stating neither a window class nor an instance was written and then
+  dropped by the next read, so it disappeared from the list without saying why
+  and left a group behind that nothing described. The editor now refuses to
+  write one, names it, selects it, and leaves the page applicable.
+- Reset restored the settings above the list but left the pending application
+  edits on screen, where a later Apply would write what had just been
+  discarded. It reloads the list with everything else now.
+
+And one in the matching itself. A program whose entry the user had switched off
+fell through to the unlisted-application setting, so with that setting on it was
+asked for a resolution anyway, which is the only thing switching it off was
+supposed to prevent. Being listed and switched off is now distinguished from
+not being listed: the first asks for nothing, the second follows the setting.
+
 ### Still open
 
 Sparse per-setting overrides, profile ordering in the interface and the notes'

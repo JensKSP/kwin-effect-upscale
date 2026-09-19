@@ -596,11 +596,14 @@ the GPU synchronously.
 
 Configuration follows KWin's own pattern:
 `upscaleconfig.kcfg` and a page registered as `X-KDE-ConfigModule` in System
-Settings. The page implements the controls below. Resolution wishes currently
-remain guidance; no client resolution request or mode override is sent.
-The status can be refreshed explicitly and reports supplied buffer dimensions,
-not internal game rendering resolution. A saved preference is never presented
-as a successfully applied client request.
+Settings. The page implements the controls below. A recognized application is
+asked for a resolution by the method recorded for it, when it binds the output;
+for anything the list does not describe the wish remains guidance, because
+nothing is known about what that program reads. The status can be refreshed
+explicitly and reports supplied buffer dimensions, not internal game rendering
+resolution. What was requested is reported apart from what the application
+committed, and neither a saved preference nor a made request is ever presented
+as a successfully applied client resolution.
 
 | Control | Behaviour |
 | --- | --- |

@@ -223,7 +223,11 @@ QString upscaleStatusText(const UpscaleSnapshot &snapshot)
     } else {
         state = i18n("Inactive: %1", refusalText(snapshot));
     }
-    const QString presentation = snapshot.presentation < 0
+    // The rate decides this, not the mode. Changing the displayed window
+    // restarts the frame sampling without clearing the last mode the screen
+    // presented in, so a mode can outlive the measurement it belonged to and
+    // this would otherwise report a rate of minus one per second.
+    const QString presentation = snapshot.presentedRate < 0
         ? i18n("Presentation is not being measured; the on-screen display measures it while it is shown.")
         : i18n("Presented at %1/s, %2.", QString::number(snapshot.presentedRate, 'f', 1),
                presentationName(snapshot.presentation));
@@ -254,6 +258,10 @@ QString upscaleDeveloperInformation(const UpscaleSnapshot &snapshot)
                       sizeText(snapshot.supplied), sizeText(snapshot.destination),
                       QString::number(snapshot.outputScale, 'f', 2)));
     lines.append(measurement(snapshot));
+    // The frames the screen actually showed, and the mode it showed them in.
+    // Whether variable refresh was in use is read from that mode, so this view
+    // no longer has to say the question is unanswered.
+    lines.append(presented(snapshot));
     lines.append(i18n("Frame: render target orientation %1, largest texture this GPU allows %2",
                       snapshot.targetTransform < 0 ? unknown() : QString::number(snapshot.targetTransform),
                       snapshot.maximumTexture > 0 ? QString::number(snapshot.maximumTexture) : unknown()));
@@ -261,9 +269,8 @@ QString upscaleDeveloperInformation(const UpscaleSnapshot &snapshot)
                       snapshot.format.isEmpty() ? unknown() : snapshot.format,
                       snapshot.failed ? i18n("failed") : i18n("ready"),
                       snapshot.blocksScanout ? i18n("yes") : i18n("no")));
-    // Only the destination colour description is observed here. Nothing in
-    // this view establishes that variable refresh is actually in use.
-    lines.append(i18n("Colour: destination transfer %1, reference luminance %2 cd/m², VRR not observed",
+    // Only the destination colour description is observed here.
+    lines.append(i18n("Colour: destination transfer %1, reference luminance %2 cd/m²",
                       transferName(snapshot.transferFunction),
                       snapshot.referenceLuminance > 0 ? QString::number(snapshot.referenceLuminance, 'f', 0) : unknown()));
     return lines.join(QLatin1Char('\n'));

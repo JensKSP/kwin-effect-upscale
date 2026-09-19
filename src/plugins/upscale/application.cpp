@@ -213,7 +213,7 @@ const UpscaleApplication *upscaleUnknownApplication()
     return unknownApplication ? &*unknownApplication : nullptr;
 }
 
-QString upscaleNewApplicationId(const QString &name)
+QString upscaleNewApplicationId(const QString &name, const std::vector<UpscaleApplication> &pending)
 {
     // Readable, stable, and free of anything a configuration group cannot
     // hold. A name that reduces to nothing still needs an identifier.
@@ -227,11 +227,14 @@ QString upscaleNewApplicationId(const QString &name)
         id = QStringLiteral("application");
     }
     const std::vector<UpscaleApplication> &existing = upscaleApplications();
+    const auto taken = [&existing, &pending](const QString &candidate) {
+        const auto same = [&candidate](const UpscaleApplication &other) {
+            return other.id == candidate;
+        };
+        return std::ranges::any_of(existing, same) || std::ranges::any_of(pending, same);
+    };
     QString candidate = id;
-    for (int suffix = 2; std::ranges::any_of(existing, [&candidate](const UpscaleApplication &other) {
-        return other.id == candidate;
-    });
-         ++suffix) {
+    for (int suffix = 2; taken(candidate); ++suffix) {
         candidate = id + QString::number(suffix);
     }
     return candidate;
@@ -325,12 +328,16 @@ const UpscaleApplication *upscaleApplicationForProgram(const QString &executable
         return nullptr;
     }
     for (const UpscaleApplication &application : upscaleApplications()) {
-        if (application.enabled && !application.program.isEmpty() && application.program == program) {
-            return &application;
+        if (application.program.isEmpty() || application.program != program) {
+            continue;
         }
+        // A listed application the user switched off is not an unlisted one.
+        // Falling through to the entry below would ask it for a resolution
+        // anyway, which is the opposite of what switching it off means.
+        return application.enabled ? &application : nullptr;
     }
-    // Only once nothing in the list describes this program, so that a measured
-    // entry is never replaced by a guess.
+    // Only once nothing in the list describes this program, so that neither a
+    // measured entry nor a deliberate refusal is replaced by a guess.
     return upscaleUnknownApplication();
 }
 
