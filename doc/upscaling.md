@@ -118,6 +118,40 @@ candidates for recommended application profiles. They are a reason to keep the
 rendering path free of game-specific assumptions, not a separate feature and
 not a claim of support before one of them has been measured.
 
+### Borderless fullscreen windows
+
+Required investigation, not yet specified. A window that covers its output
+without being fullscreen is refused today, and refused early: whether the
+window is fullscreen is the first question the placement rules ask, so such a
+window never reaches any check on what it committed. The reason reported is
+that the window is not fullscreen, which is accurate and unhelpful, because
+borderless is the only mode many games offer and the default mode in several
+engines. A rule that excludes it excludes those games whatever their buffer
+contains.
+
+Two different situations share the one name, and only one of them is an
+opportunity:
+
+- The window covers the output and commits a buffer the size of the output.
+  The game lowered its own internal render resolution and enlarged the result
+  itself, so the image arrives already scaled once. There is nothing here for
+  this effect to do, and doing it anyway would enlarge an enlarged image.
+- The window covers the output and commits a smaller buffer for KWin to
+  stretch. That is the same opportunity as exclusive fullscreen, reached
+  through a different window state.
+
+What has to be decided is whether covering the output exactly can stand in for
+the fullscreen flag. The existing size rule already separates those two cases
+without the flag's help: the first is refused as not smaller. The open question
+is what else the flag keeps out — a maximized window, a panel, a wallpaper, a
+shared-screen overlay — and whether the geometry and buffer rules exclude those
+on their own. That is measured on a real session, not reasoned about here.
+
+Until it is answered, borderless content stays out of scope, and the guidance
+for a game offering both modes is to select exclusive fullscreen. Acceptance
+already requires borderless fullscreen to be exercised, so the answer belongs
+in this specification rather than only in the slice that finds it.
+
 ## What it does not do
 
 - **No frame generation.** Frames are scaled, never invented.
