@@ -70,6 +70,16 @@ public:
      */
     bool wantsSnapshot(EffectWindow *window) const;
 
+    /**
+     * Fill in the frames this screen presented.
+     *
+     * Separate from update(), because these measurements belong to the screen
+     * rather than to the announcement: they are taken whether or not anything
+     * is drawn, so a report asked for with the display switched off carries
+     * them as well.
+     */
+    void reportPresentation(UpscaleSnapshot &snapshot) const;
+
     /** Takes a new snapshot, completes its measurements and lays out the text. */
     void update(UpscaleSnapshot snapshot, EffectWindow *window);
 

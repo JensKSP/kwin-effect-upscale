@@ -384,6 +384,10 @@ UpscaleSnapshot UpscaleEffect::snapshot(EffectWindow *window, const RenderTarget
         state.scaling = m_renderedWindow == window && m_renderedInput == state.supplied;
     }
 
+    // The frames the screen presented are measured whether or not the display
+    // is drawn, so every report carries them, not only the one on screen.
+    m_display.reportPresentation(state);
+
     // Colour is a property of the frame being painted. Outside a paint pass,
     // as when the settings page asks, it stays unknown rather than guessed.
     if (target) {
