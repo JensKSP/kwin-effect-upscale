@@ -89,7 +89,10 @@ compatibility is required within the Wayland session; it does not imply a
 requirement for a separate X11 desktop session. Resolution-control mechanisms
 may differ between the two client types and require separate validation.
 
-The effect acts on a window when all of this holds:
+The effect acts on a window when all of this holds. This is the implemented
+path, not the whole of the intended scope: borderless windows at the size of
+the screen are a required extension, specified below, and the first condition
+is what currently keeps them out.
 
 - the window is fullscreen on its output, and
 - its buffer is smaller than the output area it covers, and
@@ -241,39 +244,52 @@ candidates for recommended application profiles. They are a reason to keep the
 rendering path free of game-specific assumptions, not a separate feature and
 not a claim of support before one of them has been measured.
 
-### Borderless fullscreen windows
+### Borderless windows at the size of the screen
 
-Required investigation, not yet specified. A window that covers its output
-without being fullscreen is refused today, and refused early: whether the
-window is fullscreen is the first question the placement rules ask, so such a
-window never reaches any check on what it committed. The reason reported is
-that the window is not fullscreen, which is accurate and unhelpful, because
-borderless is the only mode many games offer and the default mode in several
-engines. A rule that excludes it excludes those games whatever their buffer
-contains.
+**Required, not implemented.** Many games offer borderless windowed operation
+instead of, or in preference to, exclusive fullscreen, and some default to it.
+Such a window is the size of the screen and its buffer is the size of the
+screen, so there is nothing smaller to enlarge. This effect must serve those
+games too, for native Wayland clients and for X11 clients through Xwayland.
+Telling the user to pick exclusive fullscreen is not a solution; a game that
+does not offer it has no answer at all.
 
-Two different situations share the one name, and only one of them is an
-opportunity:
+It is a different job from the fullscreen path rather than a relaxation of it.
+Where a fullscreen game is asked for a smaller image and keeps covering the
+screen, a borderless window that is asked for a smaller image becomes a smaller
+window, and something then has to put it back over the whole output. Three
+things follow.
 
-- The window covers the output and commits a buffer the size of the output.
-  The game lowered its own internal render resolution and enlarged the result
-  itself, so the image arrives already scaled once. There is nothing here for
-  this effect to do, and doing it anyway would enlarge an enlarged image.
-- The window covers the output and commits a smaller buffer for KWin to
-  stretch. That is the same opportunity as exclusive fullscreen, reached
-  through a different window state.
+- **Eligibility has to change.** Whether a window is fullscreen is the first
+  question the placement rules ask, so a borderless window is refused before
+  anything looks at what it committed, and after a reduction it would also fail
+  the rule that its destination must match the output. Both are written for a
+  window that already covers the screen. What may replace them has to be
+  decided deliberately: covering the output exactly is a weaker test than the
+  fullscreen state, and what it lets in — a maximized window, a panel, a
+  wallpaper, a shared-screen overlay — has to be excluded on other grounds or
+  measured to be harmless.
+- **The effect takes on geometry, input and stacking.** Presenting a smaller
+  window across the whole output is not a paint transform. Absolute pointer
+  positions have to be transformed into the window's own coordinates, pointer
+  confinement has to follow the presented area rather than the real one, the
+  window has to sit above what it visually covers, and every one of those has
+  to be given back when the effect stops, the output changes or the window
+  leaves the state.
+- **Reduction is a request, not a guarantee.** The game is asked for a smaller
+  image by being given a smaller window, and an application that ignores resize
+  keeps its size while one that honours it may still keep larger internal
+  render targets. A measured borderless run reduced the committed buffer to
+  1920 × 1080 while the application's internal framebuffer stayed as it was.
+  Report the requested size, the window that resulted and what the application
+  committed as three separate observations.
 
-What has to be decided is whether covering the output exactly can stand in for
-the fullscreen flag. The existing size rule already separates those two cases
-without the flag's help: the first is refused as not smaller. The open question
-is what else the flag keeps out — a maximized window, a panel, a wallpaper, a
-shared-screen overlay — and whether the geometry and buffer rules exclude those
-on their own. That is measured on a real session, not reasoned about here.
-
-Until it is answered, borderless content stays out of scope, and the guidance
-for a game offering both modes is to select exclusive fullscreen. Acceptance
-already requires borderless fullscreen to be exercised, so the answer belongs
-in this specification rather than only in the slice that finds it.
+Both client types are in scope and neither is a special case of the other. An
+X11 client is resized through KWin's window and X11 interfaces, a native
+Wayland client through the configure it is sent; in both the application
+decides what it renders into what it is given. Nothing here changes the fourth
+requirement: only the selected application is resized, and every other window
+keeps its size and its decorations.
 
 ## What it does not do
 
