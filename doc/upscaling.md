@@ -100,6 +100,68 @@ buffer is not scaled. The initial path creates no virtual screen and does not
 alter advertised screen sizes; the resolution-control investigation below
 revisits that restriction without claiming an implemented feature.
 
+### Three requirements that bound every route
+
+Laid down by Jens, 2026-09-19. These govern this whole document. Where an
+investigation, a proposed method or a recorded experiment conflicts with them,
+they win and it is out of scope, however well it worked. Together they are one
+product statement: the user installs the package, ticks the effect once, starts
+a game the way they always have, and it works.
+
+1. **The plugin is self-sufficient.** It works with an unmodified supported
+   KWin and an unmodified game: no KWin patch, no game patch, no modified
+   runtime, and nothing the user has to install beside it to make a game
+   render smaller.
+2. **The user starts the game normally.** From Steam, from a desktop file,
+   from a shell, however they already do it. The effect acts only as a KWin
+   plugin, from inside the session the game happens to start in. It does not
+   wrap, relaunch, interpose itself in, or require anything of the command
+   that starts the game.
+3. **Installing the package is the whole of the setup.** The user installs the
+   Debian package and, while the effect ships disabled, ticks it once in System
+   Settings. Nothing else: no configuration file to write, no environment
+   variable to set, no external tool to install, no per-game preparation. The
+   application profiles ship inside the package and are updated by it; a user's
+   own entries are an option they may take, never a step they must take.
+
+**What they cost.** They rule out every launch-time route, including the two
+that were measured to work: the Sommelier protocol proxy and the Gamescope
+Wayland backend both supplied smaller original buffers to an unmodified KWin,
+and both require the game to be started through them. The launcher adapters,
+the private virtual desktop and the per-profile launch helper go with them.
+Those results stay recorded as mechanisms that exist; they are not routes this
+effect may take.
+
+**Sommelier is still worth reading, as a source of technique rather than a
+route.** It solves, in a proxy, several of the problems this effect has from
+inside KWin: how to present one client with a smaller output than the real one,
+how to map absolute pointer positions between the advertised size and the
+physical one, and what a client does when it is told a size. One result is
+directly relevant. Unmodified Sommelier failed on Qt because its direct-scale
+mode advertised a smaller screen while fractional-scale hints asked for double
+density, and Qt went on supplying 4K; the prototype fixed it by hiding the
+fractional-scale global so the client rendered at scale one and covered the
+output. That is the same collision seen on a fractionally scaled desktop here,
+where a client sizes its window from the mode it was told while the output's
+logical size is divided by the desktop scale, and the window then does not
+cover its output. Read it for that, and for what it had to do about input
+mapping and buffer forwarding. Do not read it as a shape to adopt: every
+version of it starts the game.
+
+**What is left.** Telling one recognized client that its screen has a smaller
+current mode, which needs no helper and no restart and is implemented. The
+game's own settings, with the desired size offered as guidance. Anything the
+compositor itself already offers to a plugin.
+
+**What it means for Xwayland.** On KWin 6.3.6 nothing is left at all. Xwayland
+binds the output before any effect loads and serves every X11 client from one
+connection, so there is no per-game request to make, and mode emulation needs
+the `_XWAYLAND_RANDR_EMU_MONITOR_RECTS` handling that later KWin has and 6.3.6
+does not. Under these requirements that handling is KWin's to provide, not
+ours to supply or work around. Until a supported KWin carries it, an Xwayland
+game is scaled only when it commits a smaller buffer by itself, and is
+otherwise left alone. State that plainly rather than implying a setting exists.
+
 ### Clients that are not games
 
 The eligibility rules describe buffers, not applications, so any fullscreen
@@ -1044,11 +1106,11 @@ does not by itself establish that resolution control succeeded.
 
 | Method | Intended behaviour |
 | --- | --- |
-| Auto | Choose a verified compatible method for the selected application, runtime and available helpers. Prefer an applicable in-session negotiation before requiring a launch helper. |
+| Auto | Choose a verified compatible method for the selected application and runtime. In-session negotiation only: the [three requirements](#three-requirements-that-bound-every-route) leave no launch-time method to fall back to. |
 | Advertised screen mode | **Implemented.** Tell one recognized application, and only it, that its screen has a smaller current mode, at the moment it binds the output. Needs no launch helper and no restart, and changes nothing outside that one connection. |
 | Wayland negotiation | Request a smaller buffer from a cooperative native Wayland client. |
 | Display proxy | Launch the application through a private Wayland display, with private Xwayland where needed. |
-| Gamescope | Launch through the verified Wayland buffer-forwarding backend; requires effect support for its surface tree. |
+| Gamescope | **Out of scope.** It forwarded smaller original buffers in testing, but the game has to be started through it, and its image arrives as a child surface this effect rejects. Kept here as a measured mechanism, not an offered method. |
 | Game settings only | Make no automatic resolution changes; show the desired pixels as guidance and scale eligible supplied buffers. |
 
 Only implemented and verified methods may be enabled for the current case.
@@ -1583,6 +1645,15 @@ unpatched. A launch helper would be an additional component; an effect-only
 universal resolution override remains unproven.
 
 ### Resolution-control direction after the experiments
+
+> **Superseded as a direction, kept as measurements.** Everything below needs
+> the game to be started through a helper, which the
+> [three requirements](#three-requirements-that-bound-every-route) rule out. The
+> buffer sizes recorded here were observed and stay as evidence of what those
+> mechanisms do; none of them is a route this effect may take. Sommelier in
+> particular is worth reading for how it advertises a smaller output, maps
+> pointer coordinates and deals with fractional-scale hints — technique to
+> learn from, not a shape to adopt.
 
 A launch helper plus the effect is a viable direction without modifying KWin.
 Two mechanisms have supplied smaller original buffers to unmodified KWin 6.3.6:
