@@ -6,9 +6,13 @@ SPDX-License-Identifier: GPL-2.0-or-later
 # kwin-effect-upscale
 
 > [!WARNING]
-> **Experimental — not ready for daily use.** Smaller real-game buffers have
-> been processed in a nested GPU session; physical-display acceptance is open.
-> Passing CI and available packages do not make it ready for use.
+> **Working alpha — it works, it is not finished.** The effect upscales real
+> games on a physical display, and a game given a smaller render target draws
+> up to 93% more frames a second ([Measured](#measured)). Image quality has
+> not been judged, HDR and VRR are unverified, television acceptance is open,
+> and on KWin 6.6 a settings change can leave a game at the wrong resolution
+> for about eight seconds. Passing CI and available packages do not make it
+> finished.
 
 [![CI](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/ci.yml/badge.svg)](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/ci.yml)
 [![Nightly](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/nightly.yml/badge.svg)](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/nightly.yml)
@@ -18,14 +22,16 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 - **Goal:** upscale smaller fullscreen game buffers inside KWin using FSR 1,
   with optional RCAS sharpening.
-- **Current state:** FSR 1 processing, editable application profiles and targeted
-  Wayland/X11 resolution requests are implemented. Nested and virtual sessions
-  verify bounded paths, including Tux Racer resolution changes and isolation.
-- **Next:** physical-display image/input, lifecycle, performance, HDR and VRR
-  acceptance; broader client compatibility remains open.
+- **Current state: working alpha.** FSR 1 processing, editable application
+  profiles and targeted Wayland/X11 resolution requests are implemented, and
+  the whole path has now been measured end to end on a physical display: a
+  game asked for a smaller buffer, rendered into it, and had it upscaled to
+  the screen. See [Measured](#measured).
+- **Next:** image-quality judgement, HDR and VRR acceptance, and broader client
+  compatibility.
 
-- **For now:** source and build instructions are for development and debugging.
-  Do not install this expecting working game upscaling.
+- **For now:** alpha means it works and is worth trying, not that it is
+  finished. It is disabled by default and the settings are still moving.
 
 ## Our vision
 
@@ -132,12 +138,13 @@ and licence notices.
 
 ## State
 
-**Experimental; not ready for daily use.** FSR 1 and optional RCAS are
-implemented. The first wzpc test exposed a render-target orientation refusal;
-that defect was fixed and regression-tested. A subsequent nested session using
-the production plugin and a real GPU processed a smaller SuperTuxKart OpenGL
-buffer. This establishes that path, not accepted image quality, performance,
-HDR or VRR on the physical display.
+**Working alpha.** FSR 1 and optional RCAS are implemented, and the effect has
+been measured doing its job on a physical display: SuperTuxKart was asked for a
+smaller buffer, supplied it, and the effect upscaled it to a 3840 x 2160 screen
+while the game's own frame rate nearly doubled. The numbers are under
+[Measured](#measured). What alpha still means here: image quality has not been
+judged, HDR and VRR are unverified, and only a handful of applications have
+been tried.
 
 The controls distinguish requested resolution from the actual supplied buffer.
 Profiles support resolution requests for cooperating Wayland and Xwayland
@@ -151,6 +158,45 @@ a global threshold and per-application overrides. A Native application rule
 also bypasses upscaling when a global scaling preset is selected.
 The [developer handbook](doc/upscaling.md#supported-scope-and-full-acceptance)
 defines the acceptance still required.
+
+## Measured
+
+SuperTuxKart on an NVIDIA workstation, 3840 x 2160 at 240 Hz, Wayland, KWin
+6.3.6, effect build `0.1.0+git20260919.fc6d1e2ca8`, machine otherwise idle.
+Each row is 30 samples taken over 60 seconds.
+
+| Preset | Game renders at | Upscaled | Game's own frames | Presented |
+| --- | --- | --- | --- | --- |
+| native | 3840 x 2160 | no | 492.6/s | 237.1/s |
+| quality | 2560 x 1440 | yes | 833.3/s | 237.1/s |
+| performance | 1920 x 1080 | yes | 949.4/s | 237.3/s |
+
+Read the third column, not the fourth. The presented rate is pinned at the
+screen in all three runs, so it says nothing about the resolution; what changed
+is how fast the game itself could produce frames, which is what a smaller
+render target buys. At `performance` SuperTuxKart drew 1.93 times as many
+frames as at native while still filling the same 4K screen.
+
+That headroom is the point: it is what a game spends on higher settings, or on
+staying above a refresh rate it would otherwise miss. These figures are one
+machine, one game and one session. They are not a promise about yours, and
+nothing here yet measures how the result looks.
+
+Extreme Tux Racer is not in the table, and will not be: it is frame-limited to
+60 frames a second and commits exactly that at every resolution, in its menu
+and on the course alike. What it does establish is the X11 path end to end —
+through Xwayland the effect resizes its window, presents the result itself, and
+the game supplies a 1920 x 1080 buffer for the 3840 x 2160 output. Making it
+report a cost would mean lifting its own frame cap, which it writes only from
+its Configuration screen.
+
+A second SuperTuxKart run, taken later on build `0.1.0+git20260920.f82e49eb3a`,
+gave 489.6, 835.2 and 917.6 frames a second for the same three presets. Two
+runs agreeing to within a few per cent is what makes the table above worth
+printing; neither is a promise about another machine.
+
+One cost is not in the table: the effect blocks direct scanout whenever it is
+active, so a game that would otherwise bypass composition no longer does.
 
 ## Packages
 
