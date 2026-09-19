@@ -178,10 +178,30 @@ ships:
   connection, and every X11 client shares that connection. Using it to reach a
   game reaches the whole X session with it, the fourth requirement forbids that,
   and confining it to the minutes a game runs does not make it narrower.
-- A newer KWin does not change this. Handling
-  `_XWAYLAND_RANDR_EMU_MONITOR_RECTS`, which 6.3.6 lacks, corrects the window
-  geometry *after* a game has already requested a mode. It never causes the
-  request.
+- A newer KWin changes what can be *scaled*, but not what can be *asked*. KWin
+  gained `_XWAYLAND_RANDR_EMU_MONITOR_RECTS` handling in `bc5a2002e9`,
+  "x11window: support xrandr emulation", first tagged `v6.5.90` and so shipping
+  in Plasma 6.6; `X11Window::configure()` reads the property and sizes a
+  fullscreen X window to the emulated size instead of the output size, which is
+  the one condition Xwayland's viewport path was missing. On such a KWin the
+  whole chain closes, and it is worth stating end to end because every link is
+  now read from source rather than assumed:
+
+  1. The game asks for a mode. SFML calls `XRRSetCrtcConfig`, SDL and OGRE do
+     the equivalent; Xwayland's own comment names those three as the libraries
+     this path is for.
+  2. Xwayland records an emulated mode against that X client and sets
+     `_XWAYLAND_RANDR_EMU_MONITOR_RECTS` on its windows.
+  3. KWin 6.6 or later sizes the fullscreen window to the emulated size.
+  4. Xwayland's viewport condition matches, so it sets the viewport source to
+     the emulated size and its destination to the output size.
+  5. The effect sees a smaller buffer with a full-output destination, which is
+     exactly what its eligibility rules require, and scales it.
+
+  What that does not do is make step 1 happen. The game asks because the user
+  chose a resolution in it, so this is the game-settings route working on
+  Xwayland, not effect-driven reduction. On KWin 6.3.6 the chain breaks at
+  step 3 and an Xwayland game cannot be scaled at all.
 
 So an Xwayland game is scaled when it commits a smaller buffer by itself, and
 is otherwise left alone. Say that plainly rather than implying a setting
