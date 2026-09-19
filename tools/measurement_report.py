@@ -204,9 +204,10 @@ def write_markdown(path: Path, environment: Environment, runs: list[dict[str, An
         # REUSE-IgnoreEnd
         (
             "| Application | Window API | Graphics API | Preset | Supplied | Destination"
-            " | Upscaled | Presented /s | Frame ms | 99th ms | Game /s | Samples |"
+            " | Upscaled | Direct scanout | Presented /s | Frame ms | 99th ms"
+            " | Game /s | Samples |"
         ),
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     lines.extend(
         [

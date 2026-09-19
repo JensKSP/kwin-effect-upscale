@@ -5,6 +5,7 @@
 import runpy
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -19,7 +20,8 @@ game_reported_rate = HARNESS["game_reported_rate"]
 game_reported_renderer = HARNESS["game_reported_renderer"]
 
 from effect_control import screen_pixels  # noqa: E402
-from frame_metrics import Sample, parse_status, summarize  # noqa: E402
+from frame_metrics import Sample, Summary, parse_status, summarize  # noqa: E402
+from measurement_report import Environment, write_markdown  # noqa: E402
 
 # A status as the effect answers it while it is scaling and measuring.
 #
@@ -211,6 +213,40 @@ Output: 2 DP-1
         with mock.patch("effect_control.run_command") as running:
             running.return_value = subprocess.CompletedProcess([], 0, self.LISTING, "")
             self.assertIsNone(screen_pixels("HDMI-A-1"))
+
+
+class WrittenReportTest(unittest.TestCase):
+    """The document a session leaves behind."""
+
+    def test_every_table_row_has_as_many_cells_as_the_header(self) -> None:
+        """A column added to the rows has to reach the header too.
+
+        A row with one more cell than its header does not fail: the table
+        renders, and every figure after the extra cell is read under the wrong
+        heading. That is a worse outcome than a broken document.
+        """
+        runs = [
+            Summary(
+                game="supertuxkart",
+                preset="quality",
+                supplied="2560x1440",
+                destination="3840x2160",
+                scaling=True,
+                scanout="blocked",
+                presented_rate=237.5,
+            ).__dict__
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            written = Path(directory) / "report.md"
+            write_markdown(written, Environment(), runs)
+            lines = written.read_text().splitlines()
+        # The document holds more than one table, and only the runs table is
+        # under test; the conditions above it is two columns by design.
+        start = lines.index("## Runs")
+        table = [line for line in lines[start:] if line.startswith("|")]
+        widths = {line.count("|") for line in table}
+        self.assertEqual(len(widths), 1, f"runs table rows disagree on width: {table}")
+        self.assertGreaterEqual(len(table), 3, "expected a header, a rule and a row")
 
 
 class GameReportedRateTest(unittest.TestCase):
