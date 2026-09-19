@@ -213,27 +213,33 @@ static QString renderScale(const UpscaleSnapshot &snapshot)
 // graphics API is not observable from a compositor, so it is not claimed.
 static QString clientKind(const UpscaleSnapshot &snapshot)
 {
-    QString system;
     switch (snapshot.windowSystem) {
     case UpscaleWindowSystem::Wayland:
-        system = i18n("Wayland");
-        break;
+        return i18n("Wayland");
     case UpscaleWindowSystem::X11:
-        system = i18n("X11");
-        break;
+        return i18n("X11");
     case UpscaleWindowSystem::Unknown:
-        system = unknown();
         break;
     }
+    return unknown();
+}
+
+// How the buffer reached the compositor, for the display that carries the
+// formats. It is as close to "what did it render with" as a compositor gets:
+// neither protocol carries the client's graphics API, and an OpenGL and a
+// Vulkan client hand over the same kind of buffer, so naming one would be a
+// guess rather than an observation.
+static QString bufferArrival(const UpscaleSnapshot &snapshot)
+{
     switch (snapshot.bufferKind) {
     case UpscaleBufferKind::Gpu:
-        return i18n("%1 · GPU", system);
+        return i18n("on the GPU");
     case UpscaleBufferKind::SharedMemory:
-        return i18n("%1 · memory", system);
+        return i18n("through main memory");
     case UpscaleBufferKind::Unknown:
-        return system;
+        break;
     }
-    return system;
+    return unknown();
 }
 
 QString upscaleHeadsUp(const UpscaleSnapshot &snapshot)
@@ -344,6 +350,13 @@ static QString metrics(const UpscaleSnapshot &snapshot)
     }
     size(QLatin1String("supplied"), snapshot.supplied);
     size(QLatin1String("destination"), snapshot.destination);
+    // Which window this describes, so that a harness can tell the game it
+    // launched from whatever else the effect happened to be following. The
+    // fields are separated by spaces, and a window class is not always one
+    // word, so its spaces become hyphens rather than new fields.
+    if (!snapshot.application.isEmpty()) {
+        append(QLatin1String("window"), QString(snapshot.application).replace(QLatin1Char(' '), QLatin1Char('-')));
+    }
     append(QLatin1String("scaling"), QString::number(snapshot.scaling ? 1 : 0));
     append(QLatin1String("selected"), QString::number(snapshot.selected ? 1 : 0));
     switch (snapshot.windowSystem) {
@@ -476,8 +489,8 @@ QString upscaleDeveloperInformation(const UpscaleSnapshot &snapshot)
     lines.append(i18n("Frame: render target orientation %1, largest texture this GPU allows %2",
                       snapshot.targetTransform < 0 ? unknown() : QString::number(snapshot.targetTransform),
                       snapshot.maximumTexture > 0 ? QString::number(snapshot.maximumTexture) : unknown()));
-    lines.append(i18n("Processing: buffer format %1, resources %2, scanout blocked by this effect: %3",
-                      snapshot.format.isEmpty() ? unknown() : snapshot.format,
+    lines.append(i18n("Processing: buffer format %1 arrived %2, resources %3, scanout blocked by this effect: %4",
+                      snapshot.format.isEmpty() ? unknown() : snapshot.format, bufferArrival(snapshot),
                       snapshot.failed ? i18n("failed") : i18n("ready"),
                       snapshot.blocksScanout ? i18n("yes") : i18n("no")));
     // Only the destination colour description is observed here.

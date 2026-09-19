@@ -28,7 +28,8 @@ Presented at 1.0/s, fixed refresh.
 Presented: 1.0/s average, 1% low 1.0/s, 99th percentile 1.0 ms (99 frames)
 metrics: presented=118.40 low=61.20 p99=20.400 worst=31.700 frames=1024 \
 client=117.90 repaints=118.20 interval=1.000 supplied=2560x1440 \
-destination=3840x2160 scaling=1 selected=1 windowsystem=wayland buffer=gpu""".replace("\\\n", "")
+destination=3840x2160 window=supertuxkart scaling=1 selected=1 \
+windowsystem=wayland buffer=gpu""".replace("\\\n", "")
 
 # The same window before the first sampling interval has completed. The line is
 # present but carries only what was known, so every measured field is absent
@@ -36,7 +37,7 @@ destination=3840x2160 scaling=1 selected=1 windowsystem=wayland buffer=gpu""".re
 UNMEASURED = """Desired: Select 2560 x 1440 in the game
 Supplied input: 3840 x 2160
 Inactive: the window is not fullscreen or a selected borderless window covering its output.
-metrics: supplied=3840x2160 destination=3840x2160 scaling=0 selected=0"""
+metrics: supplied=3840x2160 destination=3840x2160 window=supertuxkart scaling=0 selected=0"""
 
 # A build that predates the machine line, or any answer without one.
 NO_CONTRACT = """Desired: Automatic (no request)
@@ -91,6 +92,13 @@ class ParseStatusTest(unittest.TestCase):
         self.assertFalse(sample.scaling)
 
 
+# A reading about some other window: the desktop, a launcher, anything the
+# effect was following when the game was not there. It carries a perfectly good
+# frame rate, which is exactly why it has to be thrown away.
+OTHER_WINDOW = """metrics: presented=60.00 frames=1024 supplied=3840x2097 \
+destination=3840x2160 window=plasmashell scaling=0 selected=0""".replace("\\\n", "")
+
+
 class SummarizeTest(unittest.TestCase):
     """The reduction of a run's samples to the figures a comparison uses."""
 
@@ -121,6 +129,18 @@ class SummarizeTest(unittest.TestCase):
         summary = summarize("supertuxkart", "native", self.samples([None, None, 80.0]))
         self.assertEqual(summary.samples, 1)
         self.assertAlmostEqual(summary.presented_rate, 80.0)
+
+    def test_another_window_is_not_measured_as_the_game(self) -> None:
+        """A rate from a window that is not the game is discarded, not reported.
+
+        This is the failure the check exists for: the effect follows whatever
+        window it can describe, so a game that never appeared leaves the
+        desktop's frame rate where the game's should have been.
+        """
+        summary = summarize("supertuxkart", "quality", [parse_status(OTHER_WINDOW)])
+        self.assertEqual(summary.samples, 0)
+        self.assertIsNone(summary.presented_rate)
+        self.assertTrue(any("another window" in note for note in summary.notes))
 
     def test_a_run_that_measured_nothing_says_so(self) -> None:
         """An empty run reports a note rather than an invented figure."""

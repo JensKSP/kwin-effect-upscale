@@ -344,15 +344,20 @@ void UpscaleSnapshotTest::namesTheClientItIsLookingAt()
     wayland.bufferKind = UpscaleBufferKind::Gpu;
     const QString shown = upscaleHeadsUp(wayland);
     QVERIFY2(shown.contains(QStringLiteral("Wayland")), qPrintable(shown));
-    QVERIFY2(shown.contains(QStringLiteral("GPU")), qPrintable(shown));
+    // How the buffer arrived is buffer information, which the handbook keeps
+    // out of the block read at a glance and puts with the formats instead.
+    QVERIFY2(!shown.contains(QStringLiteral("GPU")), qPrintable(shown));
+    const QString detail = upscaleDeveloperInformation(wayland);
+    QVERIFY2(detail.contains(QStringLiteral("arrived on the GPU")), qPrintable(detail));
 
     UpscaleSnapshot x11 = scaling();
     x11.windowSystem = UpscaleWindowSystem::X11;
     x11.bufferKind = UpscaleBufferKind::SharedMemory;
     const QString other = upscaleHeadsUp(x11);
     QVERIFY2(other.contains(QStringLiteral("X11")), qPrintable(other));
-    QVERIFY2(other.contains(QStringLiteral("memory")), qPrintable(other));
     QVERIFY2(!other.contains(QStringLiteral("Wayland")), qPrintable(other));
+    QVERIFY2(upscaleDeveloperInformation(x11).contains(QStringLiteral("through main memory")),
+             qPrintable(upscaleDeveloperInformation(x11)));
 
     // Neither is claimed when neither was established. A guess here would be
     // read as a measurement, which is what this block is for.

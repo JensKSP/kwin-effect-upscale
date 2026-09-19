@@ -140,6 +140,7 @@ METRIC_FIELDS = {
     "destination": ("destination", str),
     "scaling": ("scaling", bool),
     "selected": ("selected", bool),
+    "window": ("window", str),
     "windowsystem": ("window_system", str),
     "buffer": ("buffer_kind", str),
 }
@@ -162,6 +163,7 @@ class Sample:
     destination: str = ""
     scaling: bool = False
     selected: bool = False
+    window: str = ""
     window_system: str = ""
     buffer_kind: str = ""
 
@@ -191,6 +193,12 @@ def parse_status(text: str) -> Sample:
             # guessed at; the summary then reports it as not measured.
             continue
     return sample
+
+
+def describes(sample: Sample, game: str) -> bool:
+    """Whether this reading is about the game rather than some other window."""
+    expected = GAMES[game].window.lower()
+    return bool(sample.window) and expected in sample.window.lower()
 
 
 def measuring(sample: Sample) -> bool:
@@ -223,6 +231,7 @@ class Summary:
     presented_worst: float | None = None
     client_updates: float | None = None
     game_rate: float | None = None
+    renderer_used: str = ""
     notes: list[str] = field(default_factory=list)
 
 
@@ -241,12 +250,12 @@ def summarize(game: str, preset: str, samples: list[Sample]) -> Summary:
     hides it. The spread is reported beside it so that two runs closer together
     than their own samples are not read as a difference.
     """
-    useful = [sample for sample in samples if measuring(sample)]
+    useful = [sample for sample in samples if measuring(sample) and describes(sample, game)]
     summary = Summary(game=game, preset=preset, samples=len(useful))
     if not useful:
         summary.notes.append(
-            "nothing was measured; the effect reported no presented frames, so either the "
-            "game never rendered or the effect was not loaded"
+            "nothing was measured for this game's window; it never rendered, or the "
+            "effect was following another window for the whole run"
         )
         return summary
     last = useful[-1]
@@ -412,6 +421,37 @@ def game_reported_rate(output: str) -> float | None:
     return float(found.group(1)) if found else None
 
 
+def game_reported_renderer(output: str, game: str) -> str:
+    """Read the graphics API the game says it used, not the one it was asked for.
+
+    A compositor cannot observe this: neither protocol carries a client's
+    graphics API and an OpenGL and a Vulkan client hand over the same kind of
+    buffer. The game knows, and says so in its own output, so that is where a
+    run finds out what it actually measured.
+    """
+    lines = output.splitlines()
+    if game == "supertuxkart":
+        # "Using renderer: OpenGL 4.3.0", or Vulkan where that renderer ran.
+        found = next((line for line in lines if "Using renderer:" in line), "")
+        _, _, named = found.partition("Using renderer:")
+        return named.strip()
+    found = next((line for line in lines if "renderer" in line.lower()), "")
+    return found.strip()
+
+
+def game_log(game: str) -> str:
+    """Whatever the game wrote about itself, where it writes to its own file.
+
+    SuperTuxKart reopens its output onto a log of its own within a second of
+    starting, so almost nothing reaches the pipe this script holds.
+    """
+    if game == "supertuxkart":
+        path = Path.home() / ".config/supertuxkart/config-0.10/stdout.log"
+        if path.exists():
+            return path.read_text(errors="replace")
+    return ""
+
+
 @dataclass
 class Plan:
     """How one run is conducted, so that a run is described rather than listed."""
@@ -457,7 +497,32 @@ def measure(plan: Plan, preset: str) -> tuple[Summary, list[Sample]]:
     finally:
         output = stop(process)
     summary = summarize(game, preset, samples)
-    summary.game_rate = game_reported_rate(output)
+    # What the game says it did, against what it was asked to do. A request is
+    # not proof: SDL falls back to another video driver without complaint, and
+    # a renderer a build does not carry is simply not the one that ran. A run
+    # that measured something other than what it was set up to measure has to
+    # say so rather than be read as the case it was named after.
+    spoken = output + game_log(plan.game)
+    summary.game_rate = game_reported_rate(spoken)
+    summary.renderer_used = game_reported_renderer(spoken, plan.game)
+    if plan.renderer and summary.renderer_used:
+        wanted = plan.renderer.replace("gl", "opengl")
+        if wanted not in summary.renderer_used.lower().replace(" ", ""):
+            summary.notes.append(
+                f"asked for the {plan.renderer} renderer but the game reports "
+                f"{summary.renderer_used!r}; this run did not measure {plan.renderer}"
+            )
+    if plan.window_system and summary.window_system and summary.window_system != plan.window_system:
+        summary.notes.append(
+            f"asked for the {plan.window_system} window system but the effect saw "
+            f"{summary.window_system}; this run did not measure {plan.window_system}"
+        )
+    # Samples taken while the effect was describing some other window are not
+    # this game's frames. Without this a run reports the desktop.
+    if not any(sample.selected for sample in samples):
+        summary.notes.append(
+            "the effect never selected this game's window, so nothing here describes the game"
+        )
     return summary, samples
 
 
