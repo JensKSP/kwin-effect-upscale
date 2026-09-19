@@ -315,6 +315,7 @@ def record_conditions(summary: Summary, plan: Plan, done: Conducted) -> None:
     summary.sharpening = plan.sharpening
     summary.seconds = plan.seconds
     summary.warm_up = plan.warm_up
+    summary.sampled_every = plan.interval
     if done.driven:
         summary.notes.append(done.driven)
     spoken = done.spoken_output + game_log(plan.game)

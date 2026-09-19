@@ -19,10 +19,11 @@ the whole configuration was under control.
 from __future__ import annotations
 
 import re
-import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from effect_control import screen_pixels
 
 if TYPE_CHECKING:
     # Only named in an annotation, and this module postpones those.
@@ -74,27 +75,6 @@ class Outcome:
             return f"{len(self.applied)} settings verified"
         missing = ", ".join(f"{key}={value}" for key, value in sorted(self.refused.items()))
         return f"{len(self.applied)} verified, not kept: {missing}"
-
-
-def screen_pixels(output: str = "") -> tuple[int, int] | None:
-    """Read one output's size in pixels, where a game should start.
-
-    Names the output rather than taking the first match. A session with more
-    than one screen has more than one current mode, and a benchmark that took
-    whichever came first would size the game for a screen it is not on.
-    """
-    result = subprocess.run(["kscreen-doctor", "-o"], capture_output=True, text=True, check=False)
-    text = result.stdout
-    if output:
-        blocks = re.split(r"(?=Output:)", text)
-        named = [
-            block for block in blocks if re.search(rf"Output:\s*\d+\s+{re.escape(output)}\b", block)
-        ]
-        if not named:
-            return None
-        text = named[0]
-    found = re.search(r"([0-9]{3,5})x([0-9]{3,5})@[0-9]+\*", text)
-    return (int(found.group(1)), int(found.group(2))) if found else None
 
 
 def supertuxkart_config() -> Path:

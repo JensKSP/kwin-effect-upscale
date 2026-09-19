@@ -123,6 +123,7 @@ class Summary:
     sharpening: bool = False
     seconds: float = 0.0
     warm_up: float = 0.0
+    sampled_every: float = 0.0
     samples: int = 0
     supplied: str = ""
     destination: str = ""
