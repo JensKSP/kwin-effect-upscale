@@ -56,8 +56,8 @@ on real hardware, and not before:
 
 | Required observation | Why it is not implied by the current evidence |
 | --- | --- |
-| A named eligibility condition explains every refusal | The real session refuses a conforming buffer and reports only the generic rule text. The refusing condition is unknown. |
-| The refusal recorded on 2026-09-18 is understood and fixed | Desktop scale and buffer size are ruled out; the cause is not isolated and no fix is claimed. |
+| A named eligibility condition explains every refusal | Each condition now reports itself, and the nested session on the real GPU named one. The real session on the television has not been re-run against it. |
+| The refusal recorded on 2026-09-18 is understood and fixed | Isolated to `TransformedRenderTarget` and removed, as recorded below. What remains is observing a scaled frame with that fix in the real session. |
 | `activeEffects` lists `upscale` for an eligible window | The effect never entered KWin's active set, so it never took its scanout restriction. |
 | The destination pixels differ from ordinary KWin scaling | A covered output proves composition happened, not that EASU ran. |
 | An ineligible window still restores ordinary rendering | Fallback has only been exercised where the effect was already inactive. |
@@ -75,6 +75,145 @@ buffer on request. Nothing here waits for the joint acceptance session.
 Depends on the candidate selection and rejection reporting from the development
 infrastructure package. Diagnosing this refusal is the reason that package is
 sequenced first.
+
+### The refusing condition, found on 2026-09-18
+
+The condition is `TransformedRenderTarget`: the effect refused every frame
+because the render target was not upright. It was found by running the
+production plugin against SuperTuxKart in a nested KWin 6.3.6, where the
+buffer was eligible and the status named this condition for the frame.
+
+It is not specific to that session. KWin's DRM backend begins every frame with
+`m_pipeline->output()->transform().combine(OutputTransform::FlipY)`
+(`src/backends/drm/drm_egl_layer.cpp`), so on an upright screen the target
+transform is `FlipY` on **every** composed frame of a real session. The check
+therefore refused everything on real hardware, which is what "the effect has
+never been observed scaling a frame" was recording.
+
+The check was also unnecessary. `RenderViewport`'s projection matrix already
+contains `renderTarget.transform().toMatrix()`
+(`src/core/renderviewport.cpp`), and the scaler draws through that matrix, as
+KWin's own effects do. Nothing had to be compensated for.
+
+Fixed by accepting an upright or flipped target and refusing only orientations
+nothing has drawn through; a rotated output is still refused earlier by its own
+condition. A render test draws the same image into an upright and a flipped
+target and requires the results to be mirror images, and it fails when the
+expectation is inverted, so it is not vacuous.
+
+Observed afterwards, with the production plugin, factory defaults, a
+3840 × 2160 output at desktop scale 3 and SuperTuxKart configured for
+fullscreen at 3840 × 2160: supplied input 2560 × 1440, destination
+3840 × 2160, processing **FSR 1, sharpening 0%**. This is the first observation
+of the scaler processing a real game's buffer. It is a headless nested session
+with a real GPU: it establishes that the path runs and is not image-quality,
+performance, HDR, VRR or television acceptance, and the gate's remaining
+requirements stand.
+
+### Driving the benchmarks, and why the first numbers are not results
+
+Jens asked for glmark2 and vkmark fullscreen at half resolution with the effect
+enlarging, measured against the same run at 3840 × 2160. Both were read in
+source and then run; both now work through the plugin, and the measurement
+environment does not.
+
+#### What each benchmark actually reads
+
+Neither benchmark behaves like SuperTuxKart, and neither could have been driven
+by guessing.
+
+- glmark2 2023.01, `src/native-state-wayland.cpp`: on a granted fullscreen
+  configure it sets its size to the configure size multiplied by the output
+  scale and calls `wl_surface_set_buffer_scale` with that scale. It reads the
+  advertised mode only in the branch where fullscreen was refused, which is why
+  an advertised mode alone changed nothing: measured, 3840 × 2160 unchanged.
+- vkmark 2025.01, its Wayland window-system source `wayland_native_system.cpp`: its fullscreen extent is
+  the advertised mode in pixels, and it separately calls
+  `wl_surface_set_buffer_scale` with the advertised scale. An advertised mode
+  alone therefore shrank its window to 1920 × 1080 on a 3840 × 2160 screen, and
+  an advertised scale alone stretched its surface to twice the screen.
+- SuperTuxKart 1.4, `lib/graphics_engine/src/ge_vulkan_driver.cpp`: its Vulkan
+  swapchain is `SDL_Vulkan_GetDrawableSize`, which is why the Vulkan renderer
+  follows the window rather than a mode and the advertised mode does not reach
+  it. Its OpenGL renderer goes through SDL's mode emulation and does.
+
+#### Observed with the production plugin
+
+A 3840 × 2160 virtual output at desktop scale 2, the effect at its Performance
+preset, each benchmark started by the session rather than by the effect:
+
+| Client | Committed buffer | Destination | Effect |
+| --- | --- | --- | --- |
+| glmark2, `--fullscreen -b terrain` | 1920 × 1080 | 3840 × 2160 | FSR 1, sharpening 0% |
+| vkmark, `--fullscreen -b cube` | 1920 × 1080 | 3840 × 2160 | eligible |
+
+Exactly half, fullscreen, covering the output, through the effect's own
+catalogue and method selection.
+
+#### The numbers from this environment are unusable
+
+glmark2's terrain scene scored 40 at 3840 × 2160 and 42 at 1920 × 1080 **with
+the effect disabled in both runs**: a quarter of the pixels bought five per
+cent. The client is therefore not what limits this environment, so no
+comparison made in it can measure what the effect costs or saves. The run with
+the effect enabled scored 40 against the 4K baseline's 39, which says nothing
+for the same reason.
+
+Two causes are known and neither is the effect: a nested compositor composites
+every frame at the full output size, and a Wayland client is paced by frame
+callbacks. Do not record any of these figures as a performance result.
+
+The performance matrix therefore stays where the handbook already puts it: the
+real session on the acceptance host, with the physical output, its own
+presentation timing and direct scanout in the picture. The one thing these runs
+establish is that the matrix can now be driven at all, which it could not be
+before: A0 and C differ only in what the client was told.
+
+#### What the benchmarks turned out to be good for, 2026-09-18
+
+The benchmarks were adopted as the instrument for measuring what reducing the
+rendering resolution is worth. Read in their own source, glmark2 cannot do
+that: its `terrain` scene runs its height, normal, specular and both bloom
+passes at fixed 256 × 256 and 512 × 512 resolutions and draws a hundred and
+thirty thousand triangle grid, so almost nothing it does follows the window.
+Measured windowed, with this effect uninvolved, a quarter of the pixels made it
+*slower*: 21 frames per second at 1920 × 1080 against 26 at 3840 × 2160. Every
+comparison run through it, including the ones recorded earlier in this
+document, was therefore measuring an instrument that cannot move.
+
+vkmark's `effect2d` does follow the window: its render area is the swapchain
+extent and its kernel steps are one over that extent. It went from 20.8 ms a
+frame at 1920 × 1080 to 27.0 ms at 3840 × 2160, so roughly six milliseconds a
+frame is what rendering 4K instead of 1080p costs that workload here. That is
+the size of the prize this effect is competing for.
+
+Jens's conclusion, and the one recorded here: the benchmarks stay, for
+compatibility and for catching a regression, rather than as the measure of a
+gain. They cover ground the two games do not. glmark2 is scale-driven and
+vkmark is mode-and-scale-driven, so between them both remaining control methods
+are exercised. vkmark commits `DRM_FORMAT_XBGR16161616`, which is how the
+scaler's missing 16-bit formats were found: every frame of it was refused, and
+nothing else in the test set had shown that. With presentation now measured
+from `RenderLoop::framePresented`, "the effect did not make this worse" is
+checkable for a client it cannot help.
+
+Anything used to measure a gain has to be shown to respond to resolution first,
+windowed and with the effect uninvolved. That check costs two runs and would
+have saved every measurement made on 2026-09-18.
+
+#### What a real run needs
+
+- The 4K output at **desktop scale 2** for an exactly half-resolution
+  comparison. At scale 3 the reachable step is two thirds, and at scale 1 these
+  two clients cannot be reduced at all.
+- A scene heavy enough to sit below the refresh rate at 3840 × 2160, or the cap
+  hides the difference. vkmark's `-p immediate` for the throughput series.
+- Both series from the handbook, and composition versus direct scanout recorded
+  for each case: enabling the effect gives up scanout, and that cost belongs in
+  the end-to-end number rather than being left out of it.
+- SuperTuxKart's own `--profile-time` as the sanity check before the matrix. It
+  works at any desktop scale, because its method does not go through the
+  integer scale.
 
 ## Scope and boundaries
 

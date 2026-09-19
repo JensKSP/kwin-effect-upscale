@@ -41,23 +41,24 @@ void UpscaleScaler::Buffer::release()
     texture.reset();
 }
 
-bool UpscaleScaler::Buffer::resize(const QSize &size)
+bool UpscaleScaler::Buffer::resize(const QSize &size, GLenum internalFormat)
 {
     GLint maximumSize = 0;
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maximumSize);
     if (size.isEmpty() || size.width() > maximumSize || size.height() > maximumSize) {
         return false;
     }
-    if (texture && texture->size() == size && framebuffer && framebuffer->valid()) {
+    if (texture && texture->size() == size && format == internalFormat && framebuffer && framebuffer->valid()) {
         return true;
     }
     // A texture whose framebuffer could not be completed is of no use, and
     // keeping it would make every later attempt at this size fail as well.
     release();
-    texture = allocateFloatTexture(size);
+    texture = allocateTexture(size, internalFormat);
     if (!texture) {
         return false;
     }
+    format = internalFormat;
     texture->setFilter(GL_NEAREST);
     texture->setWrapMode(GL_CLAMP_TO_EDGE);
     framebuffer = std::make_unique<GLFramebuffer>(texture.get());
@@ -70,7 +71,7 @@ bool UpscaleScaler::Buffer::resize(const QSize &size)
 // or samplers and only a medium one for integers. Medium precision would
 // discard HDR detail while sampling and cannot address a 4K pixel grid.
 // KWin versions that supply their own preamble ignore this one's directive.
-static std::unique_ptr<GLShader> loadShader(const QString &path)
+static std::unique_ptr<GLShader> loadShader(const QString &path, bool direct = false)
 {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) {
@@ -79,7 +80,9 @@ static std::unique_ptr<GLShader> loadShader(const QString &path)
     const QByteArray preamble = usingOpenGLES()
         ? QByteArrayLiteral("#version 300 es\nprecision highp float;\nprecision highp sampler2D;\nprecision highp int;\n")
         : QByteArrayLiteral("#version 140\n");
-    return ShaderManager::instance()->generateCustomShader(ShaderTrait::MapTexture, QByteArray(), preamble + file.readAll());
+    const QByteArray space = direct ? QByteArrayLiteral("#define UPSCALE_DIRECT 1\n") : QByteArray();
+    return ShaderManager::instance()->generateCustomShader(ShaderTrait::MapTexture, QByteArray(),
+                                                           preamble + space + file.readAll());
 }
 
 bool UpscaleScaler::initialize()
@@ -87,7 +90,10 @@ bool UpscaleScaler::initialize()
     ensureResources();
     m_easu = loadShader(QStringLiteral(":/effects/upscale/shaders/upscale.frag"));
     m_rcas = loadShader(QStringLiteral(":/effects/upscale/shaders/sharpen.frag"));
-    return validShader(m_easu.get()) && validShader(m_rcas.get());
+    m_easuDirect = loadShader(QStringLiteral(":/effects/upscale/shaders/upscale.frag"), true);
+    m_rcasDirect = loadShader(QStringLiteral(":/effects/upscale/shaders/sharpen.frag"), true);
+    return validShader(m_easu.get()) && validShader(m_rcas.get())
+        && validShader(m_easuDirect.get()) && validShader(m_rcasDirect.get());
 }
 
 void UpscaleScaler::setColorUniforms(GLShader *shader, const RenderTarget &target)
@@ -122,7 +128,10 @@ bool UpscaleScaler::render(const RenderTarget &target, const RenderViewport &vie
                            const UpscaleRectF &destination, const UpscaleRegion &region, double strength)
 {
     const QSize inputSize = surface->bufferSize();
-    if (!m_input.resize(inputSize)) {
+    // The capture holds the destination encoding as the client committed it.
+    // Only a linear destination needs more than ten bits a channel to do that
+    // without loss, and only that one can carry values outside zero to one.
+    if (!m_input.resize(inputSize, upscaleFilterFormat(targetColors(target)))) {
         return false;
     }
 
@@ -155,6 +164,56 @@ bool UpscaleScaler::render(const RenderTarget &target, const RenderViewport &vie
     return renderTexture(target, viewport, m_input.texture.get(), destination, region, strength);
 }
 
+// The two filter passes themselves. EASU enlarges, and where sharpening is
+// wanted it writes an intermediate for RCAS to sharpen in place afterwards,
+// which is the order AMD specifies and the only one RCAS supports.
+// EASU, the enlargement. With sharpening wanted it writes the intermediate
+// that RCAS then sharpens; otherwise it draws straight to the destination.
+void UpscaleScaler::scale(const RenderTarget &target, const RenderViewport &viewport, GLTexture *input,
+                          const UpscaleRectF &destination, const UpscaleRegion &region, double strength)
+{
+    const QSize inputSize = input->size();
+    const QSize outputSize = (destination.size() * viewport.scale()).toSize();
+    const bool direct = upscaleFiltersDirectly(targetColors(target));
+    GLShader *easu = direct ? m_easuDirect.get() : m_easu.get();
+    const ShaderBinder binder(easu);
+    easu->setUniform("inputSize", QVector2D(float(inputSize.width()), float(inputSize.height())));
+    easu->setUniform("outputSize", QVector2D(float(outputSize.width()), float(outputSize.height())));
+    easu->setUniform("intermediate", int(strength > 0));
+    // The direct shaders carry no transfer-function arithmetic, so they
+    // declare none of these and asking for them would only log misses.
+    if (!direct) {
+        setColorUniforms(easu, target);
+    }
+    if (strength <= 0) {
+        draw(easu, input, viewport, destination, region);
+        return;
+    }
+    const RenderTarget scaledTarget(m_scaled.framebuffer.get());
+    const UpscaleRectF rectangle(QPointF(), outputSize);
+    const RenderViewport scaledViewport = captureViewport(rectangle, 1, scaledTarget);
+    GLFramebuffer::pushFramebuffer(m_scaled.framebuffer.get());
+    draw(easu, input, scaledViewport, rectangle, unlimitedRegion());
+    GLFramebuffer::popFramebuffer();
+}
+
+// RCAS, which sharpens without scaling and only ever runs on what EASU
+// produced. That order is the one AMD specifies and the only one it supports.
+void UpscaleScaler::sharpen(const RenderTarget &target, const RenderViewport &viewport,
+                            const UpscaleRectF &destination, const UpscaleRegion &region, double strength)
+{
+    const QSize outputSize = (destination.size() * viewport.scale()).toSize();
+    const bool direct = upscaleFiltersDirectly(targetColors(target));
+    GLShader *rcas = direct ? m_rcasDirect.get() : m_rcas.get();
+    const ShaderBinder binder(rcas);
+    rcas->setUniform("outputSize", QVector2D(float(outputSize.width()), float(outputSize.height())));
+    rcas->setUniform("strength", strength);
+    if (!direct) {
+        setColorUniforms(rcas, target);
+    }
+    draw(rcas, m_scaled.texture.get(), viewport, destination, region);
+}
+
 bool UpscaleScaler::renderTexture(const RenderTarget &target, const RenderViewport &viewport, GLTexture *input,
                                   const UpscaleRectF &destination, const UpscaleRegion &region, double strength)
 {
@@ -171,10 +230,9 @@ bool UpscaleScaler::renderTexture(const RenderTarget &target, const RenderViewpo
             glEnable(GL_SCISSOR_TEST);
         }
     });
-    const QSize inputSize = input->size();
     const QSize outputSize = (destination.size() * viewport.scale()).toSize();
     if (strength > 0) {
-        if (!m_scaled.resize(outputSize)) {
+        if (!m_scaled.resize(outputSize, upscaleFilterFormat(targetColors(target)))) {
             return false;
         }
     } else {
@@ -187,29 +245,9 @@ bool UpscaleScaler::renderTexture(const RenderTarget &target, const RenderViewpo
     // enabled blending for a buffer with an unused alpha channel.
     const bool blending = glIsEnabled(GL_BLEND);
     glDisable(GL_BLEND);
-    {
-        const ShaderBinder binder(m_easu.get());
-        m_easu->setUniform("inputSize", QVector2D(float(inputSize.width()), float(inputSize.height())));
-        m_easu->setUniform("outputSize", QVector2D(float(outputSize.width()), float(outputSize.height())));
-        m_easu->setUniform("intermediate", int(strength > 0));
-        setColorUniforms(m_easu.get(), target);
-        if (strength > 0) {
-            const RenderTarget scaledTarget(m_scaled.framebuffer.get());
-            const UpscaleRectF rectangle(QPointF(), outputSize);
-            const RenderViewport scaledViewport = captureViewport(rectangle, 1, scaledTarget);
-            GLFramebuffer::pushFramebuffer(m_scaled.framebuffer.get());
-            draw(m_easu.get(), input, scaledViewport, rectangle, unlimitedRegion());
-            GLFramebuffer::popFramebuffer();
-        } else {
-            draw(m_easu.get(), input, viewport, destination, region);
-        }
-    }
+    scale(target, viewport, input, destination, region, strength);
     if (strength > 0) {
-        const ShaderBinder binder(m_rcas.get());
-        m_rcas->setUniform("outputSize", QVector2D(float(outputSize.width()), float(outputSize.height())));
-        m_rcas->setUniform("strength", strength);
-        setColorUniforms(m_rcas.get(), target);
-        draw(m_rcas.get(), m_scaled.texture.get(), viewport, destination, region);
+        sharpen(target, viewport, destination, region, strength);
     }
     if (blending) {
         glEnable(GL_BLEND);

@@ -6,8 +6,10 @@
 
 #include "upscale.h"
 
+#include "application.h"
 #include "buildtype.h"
 #include "eligibility.h"
+#include "modeoverride.h"
 #include "resolution.h"
 #include "scaler.h"
 #include "snapshot.h"
@@ -29,11 +31,14 @@
 #include "scene/surfaceitem.h"
 #include "scene/windowitem.h"
 #include "scene/workspacescene.h"
+#include "window.h"
 
 #include <KLocalizedString>
 
 #include <QLoggingCategory>
 #include <QScopedValueRollback>
+
+#include <array>
 
 Q_LOGGING_CATEGORY(KWIN_UPSCALE, "kwin_effect_upscale", QtWarningMsg)
 
@@ -48,6 +53,10 @@ UpscaleEffect::UpscaleEffect()
 UpscaleEffect::UpscaleEffect(ItemRenderer *renderer)
     : m_renderer(renderer)
 {
+    // Built before the first reconfiguration, because reconfiguration is what
+    // hands it the settings, and before any window is watched, because a game
+    // that is already connected can no longer be told anything.
+    m_modeOverride = std::make_unique<UpscaleModeOverride>();
 #if !UPSCALE_RENDER_DEVICE_API
     if (!m_renderer) {
         m_renderer = effects->scene()->renderer();
@@ -93,6 +102,14 @@ static bool eligible(EffectWindow *window)
 
 void UpscaleEffect::watchWindow(EffectWindow *window)
 {
+    if (Window *internal = window->window()) {
+        // An application ID can arrive after its window does, and an X11
+        // client may replace it later. Repaint so that what is shown on
+        // screen follows the identity rather than the first guess at it.
+        connect(internal, &Window::windowClassChanged, this, [window]() {
+            window->addRepaintFull();
+        });
+    }
     connect(window, &EffectWindow::windowDamaged, this, [this, window]() {
         if (eligible(window)) {
             // EASU and RCAS read neighbouring pixels. Full-window damage is
@@ -109,16 +126,35 @@ void UpscaleEffect::reconfigure(ReconfigureFlags flags)
 {
     Q_UNUSED(flags)
     UpscaleConfig::self()->read();
+    // Configuration is disk work, so it happens here and never in a frame.
+    upscaleReloadApplications();
+    upscaleSetUnknownApplications(UpscaleConfig::unknownApplications(),
+                                  static_cast<ResolutionPreset>(UpscaleConfig::preset()));
     m_enabled = UpscaleConfig::enabled();
     m_strength = sharpeningAmount(UpscaleConfig::sharpening(), UpscaleConfig::strength());
+    if (m_modeOverride) {
+        m_modeOverride->reconfigure(m_enabled && UpscaleConfig::resolutionControl(),
+                                    static_cast<ResolutionPreset>(UpscaleConfig::preset()),
+                                    UpscaleConfig::percentage());
+    }
     m_failed = false;
     m_candidateCached = false;
     m_renderedWindow.clear();
     m_unsupportedColors.clear();
     m_passRefusal = UpscaleRefusal::None;
     effects->makeOpenGLContextCurrent();
+    // Read once, where a context is guaranteed current: the settings page asks
+    // for status outside every paint pass, and an unknown machine's limit is
+    // exactly what a report from it has to carry.
+    GLint maximumTexture = 0;
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maximumTexture);
+    m_maximumTexture = int(maximumTexture);
     m_scaler.reset();
     m_display.reconfigure();
+    // Follow the screen's frames whether or not anything is drawn on it.
+    // Watching costs one signal per presented frame; the display's own cost is
+    // the drawing and the composition it holds open, which this does not.
+    m_display.measure(effects->activeScreen());
     effects->addRepaintFull();
 }
 
@@ -126,6 +162,19 @@ bool UpscaleEffect::supported()
 {
     if (!effects->isOpenGLCompositing()) {
         return false;
+    }
+    // The shaders ask for high precision and cannot do without it: medium
+    // precision cannot address a 4K pixel grid and would lose HDR detail while
+    // sampling. GLSL ES guarantees high precision in a fragment shader only
+    // where the implementation offers it, so ask this one instead of assuming
+    // that every device KDE runs on can do what this one can.
+    if (usingOpenGLES()) {
+        std::array<GLint, 2> range = {0, 0};
+        GLint precision = 0;
+        glGetShaderPrecisionFormat(GL_FRAGMENT_SHADER, GL_HIGH_FLOAT, range.data(), &precision);
+        if (precision == 0) {
+            return false;
+        }
     }
     const auto context = effects->openglContext();
 #if UPSCALE_RENDER_DEVICE_API
@@ -300,12 +349,25 @@ UpscaleSnapshot UpscaleEffect::snapshot(EffectWindow *window, const RenderTarget
     state.refusal = state.selected ? m_passRefusal : refusal;
     state.window = window->caption();
     state.application = window->windowClass();
+    // Identity comes off the window's own fields rather than the combined
+    // string, which puts the instance and the class together with a space.
+    const Window *internal = window->window();
+    if (const UpscaleApplication *known = internal
+            ? upscaleApplicationForIdentity(internal->resourceClass(), internal->resourceName())
+            : nullptr) {
+        state.recognized = known->name;
+        state.method = known->method;
+        if (m_modeOverride) {
+            state.advertised = m_modeOverride->advertised(known->program);
+        }
+    }
     state.activeWindow = effects->activeWindow() == window;
     state.fullScreen = window->isFullScreen();
     state.blocksScanout = blocksDirectScanout();
 
     state.enabled = m_enabled;
     state.failed = m_failed;
+    state.maximumTexture = m_maximumTexture;
     state.preset = static_cast<ResolutionPreset>(UpscaleConfig::preset());
     state.percentage = UpscaleConfig::percentage();
     state.sharpening = m_strength;
@@ -325,6 +387,7 @@ UpscaleSnapshot UpscaleEffect::snapshot(EffectWindow *window, const RenderTarget
     // Colour is a property of the frame being painted. Outside a paint pass,
     // as when the settings page asks, it stays unknown rather than guessed.
     if (target) {
+        state.targetTransform = int(target->transform().kind());
         const ColorDescription &colors = targetColors(*target);
         state.transferFunction = int(colors.transferFunction().type);
         state.referenceLuminance = colors.referenceLuminance();
@@ -348,6 +411,7 @@ void UpscaleEffect::paintDisplay(const RenderTarget &target, const RenderViewpor
     if (window->screen() != screen) {
         return;
     }
+    m_display.measure(screen);
     m_display.countRepaint();
     if (m_display.wantsSnapshot(window)) {
         m_display.update(snapshot(window, &target), window);

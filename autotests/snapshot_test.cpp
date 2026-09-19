@@ -6,6 +6,8 @@
 
 #include "snapshot.h"
 
+#include "effect/globals.h"
+
 #include <QLocale>
 #include <QSet>
 #include <QTest>
@@ -28,6 +30,8 @@ private Q_SLOTS:
     void pixelSizesAreNotGrouped();
     void developerInformationCoversTheState();
     void namesEveryPresetAndTransferFunction();
+    void reportsPresentedFramesAndTheirSlowTail();
+    void separatesWhatWasRequestedFromWhatArrived();
 
 private:
     static UpscaleSnapshot scaling();
@@ -111,11 +115,19 @@ void UpscaleSnapshotTest::reportsThePathActuallyTaken()
     QVERIFY(statistics.contains(QStringLiteral("1280 × 720")));
     QVERIFY(statistics.contains(QStringLiteral("3840 × 2160")));
     QVERIFY(statistics.contains(QStringLiteral("HDMI-A-1")));
+    // What a person turns this on for is the frame rate, so the view they see
+    // carries that and not the two counters below, which need explaining
+    // before they mean anything.
+    QVERIFY2(statistics.contains(QStringLiteral("Presented:")), qPrintable(statistics));
+    QVERIFY(!statistics.contains(QStringLiteral("Client buffer updates")));
+    QVERIFY(!statistics.contains(QStringLiteral("compositor repaints")));
+
     // The two counters are named by what they count. A compositor repaint is
     // not the game's frame rate and must never be presented as one.
-    QVERIFY(statistics.contains(QStringLiteral("Client buffer updates: 59.8/s")));
-    QVERIFY(statistics.contains(QStringLiteral("compositor repaints: 60.1/s")));
-    QVERIFY(statistics.contains(QStringLiteral("1.0 s sample")));
+    const QString developer = upscaleDeveloperInformation(snapshot);
+    QVERIFY2(developer.contains(QStringLiteral("Client buffer updates: 59.8/s")), qPrintable(developer));
+    QVERIFY(developer.contains(QStringLiteral("compositor repaints: 60.1/s")));
+    QVERIFY(developer.contains(QStringLiteral("1.0 s sample")));
 
     // The announcement names the application without claiming it was matched
     // against anything, because nothing identifies games yet.
@@ -142,10 +154,17 @@ void UpscaleSnapshotTest::doesNotInventUnknownValues()
     const QString developer = upscaleDeveloperInformation(empty);
     QVERIFY2(developer.contains(QStringLiteral("Build: unknown")), qPrintable(developer));
     QVERIFY(developer.contains(QStringLiteral("supplied unknown")));
-    QVERIFY(upscaleStatistics(empty).contains(QStringLiteral("Client buffer updates: unknown")));
+    QVERIFY(upscaleDeveloperInformation(empty).contains(QStringLiteral("Client buffer updates: unknown")));
+    // Nothing presented yet is said, not shown as a zero frame rate.
+    QVERIFY2(upscaleStatistics(empty).contains(QStringLiteral("Presented: unknown")),
+             qPrintable(upscaleStatistics(empty)));
     QVERIFY(upscaleAnnouncement(empty).contains(QStringLiteral("unknown")));
     // An unimplemented or unobserved colour state is not filled in either.
-    QVERIFY(developer.contains(QStringLiteral("VRR not observed")));
+    QVERIFY2(developer.contains(QStringLiteral("destination transfer unknown")), qPrintable(developer));
+    // Nothing presented yet is said here as well, and the view no longer
+    // claims variable refresh is unobservable now that the mode is measured.
+    QVERIFY2(developer.contains(QStringLiteral("Presented: unknown")), qPrintable(developer));
+    QVERIFY(!developer.contains(QStringLiteral("VRR not observed")));
 
     UpscaleSnapshot disabled;
     disabled.enabled = false;
@@ -239,6 +258,132 @@ void UpscaleSnapshotTest::namesEveryPresetAndTransferFunction()
     // rather than decoded with the wrong curve's name.
     snapshot.transferFunction = 99;
     QVERIFY(upscaleDeveloperInformation(snapshot).contains(QStringLiteral("transfer unknown")));
+}
+
+// The frame rate is what a person turns this on for, and an average alone
+// hides the stutter that decides whether something feels smooth. Every measure
+// beside it has to be named by what it actually is.
+void UpscaleSnapshotTest::reportsPresentedFramesAndTheirSlowTail()
+{
+    UpscaleSnapshot snapshot = scaling();
+    snapshot.presentedRate = 59.94;
+    snapshot.presentedLow = 41.2;
+    snapshot.presentedPercentile = 28.35;
+    snapshot.presentedWorst = 51.7;
+    snapshot.presentedFrames = 600;
+    snapshot.presentation = int(PresentationMode::AdaptiveSync);
+    const QString statistics = upscaleStatistics(snapshot);
+    QVERIFY2(statistics.contains(QStringLiteral("Presented: 59.9/s average")), qPrintable(statistics));
+    // The two figures both called a "one per cent low" do not mean the same
+    // thing, so each is named by what it measures rather than by that phrase.
+    QVERIFY2(statistics.contains(QStringLiteral("1% low 41.2/s")), qPrintable(statistics));
+    QVERIFY(statistics.contains(QStringLiteral("99th percentile 28.4 ms")));
+    QVERIFY(statistics.contains(QStringLiteral("worst 51.7 ms")));
+    QVERIFY(statistics.contains(QStringLiteral("600 frames")));
+    // Adaptive synchronisation is finally an observation rather than a
+    // disclaimer, so the mode the screen presented in is reported with them.
+    QVERIFY2(statistics.contains(QStringLiteral("adaptive sync")), qPrintable(statistics));
+    QVERIFY(upscaleStatusText(snapshot).contains(QStringLiteral("Presented at 59.9/s, adaptive sync.")));
+
+    // Each presentation mode has to be named, and named differently: two modes
+    // sharing a word would be two modes nobody can tell apart.
+    QSet<QString> modes;
+    for (const PresentationMode mode : {PresentationMode::VSync, PresentationMode::AdaptiveSync,
+                                        PresentationMode::Async, PresentationMode::AdaptiveAsync}) {
+        snapshot.presentation = int(mode);
+        const QString text = upscaleStatistics(snapshot);
+        QVERIFY(!text.contains(QStringLiteral("unknown")));
+        modes.insert(text.section(QLatin1String("frames, "), 1));
+    }
+    QCOMPARE(modes.size(), 4);
+
+    // A measure nothing produced is left out rather than shown as a zero, and
+    // nothing presented at all is said rather than reported as no frames.
+    UpscaleSnapshot partial = scaling();
+    partial.presentedRate = 30;
+    partial.presentedFrames = 12;
+    partial.presentation = int(PresentationMode::VSync);
+    const QString sparse = upscaleStatistics(partial);
+    QVERIFY2(sparse.contains(QStringLiteral("Presented: 30.0/s average")), qPrintable(sparse));
+    QVERIFY(!sparse.contains(QStringLiteral("1% low")));
+    QVERIFY(!sparse.contains(QStringLiteral("percentile")));
+    QVERIFY(!sparse.contains(QStringLiteral("worst")));
+    QVERIFY(upscaleStatusText(scaling()).contains(QStringLiteral("Presentation is not being measured")));
+
+    // Changing the displayed window restarts the sampling without clearing the
+    // mode the screen last presented in. The rate is what says whether
+    // anything was measured, and a rate of minus one is not a frame rate.
+    UpscaleSnapshot stale = scaling();
+    stale.presentation = int(PresentationMode::AdaptiveSync);
+    const QString restarted = upscaleStatusText(stale);
+    QVERIFY2(restarted.contains(QStringLiteral("Presentation is not being measured")), qPrintable(restarted));
+    QVERIFY2(!restarted.contains(QStringLiteral("-1.0/s")), qPrintable(restarted));
+
+    // A rate without a mode is the other way round: the figure is real and the
+    // mode it was presented in is what is unknown.
+    UpscaleSnapshot modeless = scaling();
+    modeless.presentedRate = 60;
+    QVERIFY2(upscaleStatusText(modeless).contains(QStringLiteral("Presented at 60.0/s, unknown.")),
+             qPrintable(upscaleStatusText(modeless)));
+
+    // The developer view reports the same frames rather than saying that
+    // variable refresh cannot be observed at all.
+    UpscaleSnapshot measured = scaling();
+    measured.presentedRate = 59.94;
+    measured.presentedFrames = 600;
+    measured.presentation = int(PresentationMode::AdaptiveSync);
+    const QString developer = upscaleDeveloperInformation(measured);
+    QVERIFY2(developer.contains(QStringLiteral("Presented: 59.9/s average")), qPrintable(developer));
+    QVERIFY(developer.contains(QStringLiteral("adaptive sync")));
+    QVERIFY(!developer.contains(QStringLiteral("VRR not observed")));
+}
+
+// What the effect asked an application for and what that application actually
+// committed are two different observations. Presenting the request as the
+// result is exactly the mistake this reporting exists to prevent.
+void UpscaleSnapshotTest::separatesWhatWasRequestedFromWhatArrived()
+{
+    UpscaleSnapshot snapshot = scaling();
+    snapshot.recognized = QStringLiteral("SuperTuxKart");
+    snapshot.method = UpscaleControlMethod::AdvertisedMode;
+    snapshot.advertised = QSize(2560, 1440);
+    snapshot.supplied = QSize(3840, 2160);
+    snapshot.destination = QSize(3840, 2160);
+
+    // "recognized" is said only for a catalogue match, never for a window that
+    // merely fills the screen.
+    const QString announcement = upscaleAnnouncement(snapshot);
+    QVERIFY2(announcement.contains(QStringLiteral("recognized SuperTuxKart")), qPrintable(announcement));
+    QVERIFY(!announcement.contains(QStringLiteral("selected")));
+
+    const QString status = upscaleStatusText(snapshot);
+    QVERIFY2(status.contains(QStringLiteral("2560 × 1440 requested from SuperTuxKart as its screen mode")),
+             qPrintable(status));
+    // The committed buffer is reported beside it, and it is the only evidence
+    // of what the application did with the request. Here it ignored it.
+    QVERIFY(status.contains(QStringLiteral("Supplied input: 3840 × 2160")));
+
+    const QString developer = upscaleDeveloperInformation(snapshot);
+    QVERIFY2(developer.contains(QStringLiteral("Application: SuperTuxKart")), qPrintable(developer));
+    QVERIFY(developer.contains(QStringLiteral("advertised 2560 × 1440")));
+    QVERIFY(developer.contains(QStringLiteral("advertised screen mode")));
+
+    // A window nothing in the catalogue describes says so, rather than
+    // reporting an empty name or implying a match.
+    UpscaleSnapshot unlisted = scaling();
+    QVERIFY(upscaleDeveloperInformation(unlisted).contains(QStringLiteral("not recognized")));
+    QVERIFY(upscaleDeveloperInformation(unlisted).contains(QStringLiteral("advertised nothing")));
+    // Nothing was requested, so the desired size is a wish for the user to act
+    // on and must not be phrased as something that was asked for.
+    QVERIFY(!upscaleStatusText(unlisted).contains(QStringLiteral("requested from")));
+
+    // An application the effect recognized only by its program has no window
+    // name to fall back on, and the request still has to name something.
+    UpscaleSnapshot nameless;
+    nameless.application = QStringLiteral("vkmark");
+    nameless.advertised = QSize(1920, 1080);
+    QVERIFY2(upscaleStatusText(nameless).contains(QStringLiteral("1920 × 1080 requested from vkmark")),
+             qPrintable(upscaleStatusText(nameless)));
 }
 
 void UpscaleSnapshotTest::unsupportedFormat()

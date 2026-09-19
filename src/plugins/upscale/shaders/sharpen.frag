@@ -24,13 +24,23 @@ out vec4 fragColor;
 // zero lobe and leave the filtered pixel unsharpened rather than clamped.
 vec3 loadPixel(ivec2 pixel)
 {
-    return 2.0 * texelFetch(sampler, clamp(pixel, ivec2(0), ivec2(outputSize) - 1), 0).rgb - 1.0;
+    vec3 texel = texelFetch(sampler, clamp(pixel, ivec2(0), ivec2(outputSize) - 1), 0).rgb;
+#ifdef UPSCALE_DIRECT
+    // Already the zero to one signal RCAS was written for.
+    return texel;
+#else
+    return 2.0 * texel - 1.0;
+#endif
 }
 
 #include "upscale/rcas.glsl"
 
 void main()
 {
+#ifdef UPSCALE_DIRECT
+    fragColor = vec4(rcas(ivec2(texcoord0 * outputSize)), 1.0);
+#else
     vec3 sharpened = 0.5 * (rcas(ivec2(texcoord0 * outputSize)) + 1.0);
     fragColor = vec4(toDestination(fromWorking(sharpened)), 1.0);
+#endif
 }

@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "application.h"
 #include "eligibility.h"
 #include "resolution.h"
 
@@ -37,6 +38,15 @@ struct UpscaleSnapshot
     // Selection
     QString window;
     QString application;
+    // The catalogue entry this window's identity matched, empty when the
+    // effect does not recognize it. A recognized application is not a claim
+    // that anything was done for it: the method says that.
+    QString recognized;
+    UpscaleControlMethod method = UpscaleControlMethod::None;
+    // The size this effect told the application its screen has, invalid when
+    // it told it nothing. Never confuse it with the committed buffer: the
+    // application is free to ignore it.
+    QSize advertised;
     QString output;
     bool selected = false;
     bool activeWindow = false;
@@ -61,11 +71,39 @@ struct UpscaleSnapshot
     QString format;
     bool failed = false;
 
+    // The orientation of the frame being painted, as an OutputTransform kind,
+    // and negative outside a paint pass. Reported because it decides whether a
+    // frame can be replaced at all, and its value differs between backends.
+    int targetTransform = -1;
+    // What the driver said it can allocate, and zero when it has not been
+    // asked. The scaler needs a texture at the destination size, so a
+    // destination beyond this is the machine's limit rather than a defect.
+    int maximumTexture = 0;
+
     // Colour
     int transferFunction = -1;
     double referenceLuminance = 0;
 
     // Measurements. A negative rate means nothing has been sampled yet.
+    //
+    // The presented figures describe frames the screen actually showed, which
+    // is what a person sees and what hardware is compared on. They are kept
+    // apart from the two counters below, which describe what the client
+    // committed and what the compositor painted: a painted frame that was
+    // dropped or repeated is not a frame anybody saw.
+    double presentedRate = -1;
+    // The mean of the slowest hundredth of frames, as a rate: "one per cent
+    // low" in the sense a hardware review means it.
+    double presentedLow = -1;
+    // The frame time nine hundred and ninety-nine frames in a thousand beat.
+    double presentedPercentile = -1;
+    double presentedWorst = -1;
+    int presentedFrames = 0;
+    // How the screen presented them, as a PresentationMode, or negative when
+    // nothing has been presented yet. This is the observation that tells
+    // whether adaptive synchronisation was actually in use.
+    int presentation = -1;
+
     double clientUpdates = -1;
     double repaints = -1;
     double interval = 0;
@@ -73,8 +111,9 @@ struct UpscaleSnapshot
 };
 
 /**
- * The timed announcement naming the selected application. It never claims a
- * recognized game, because nothing in the effect identifies games yet.
+ * The timed announcement naming the application. It says "recognized" only
+ * for a catalogue match, and being recognized is never presented as proof
+ * that the resolution request reached anything.
  */
 QString upscaleAnnouncement(const UpscaleSnapshot &snapshot);
 

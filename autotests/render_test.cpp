@@ -5,10 +5,8 @@
 */
 
 #include "overlay.h"
-#include "scaler.h"
+#include "render_fixture.h"
 
-#include "opengl/eglcontext.h"
-#include "opengl/egldisplay.h"
 #include "opengl/glframebuffer.h"
 #include "opengl/gltexture.h"
 #include "opengl/glvertexbuffer.h"
@@ -38,79 +36,17 @@ private Q_SLOTS:
     void overlayPlacement();
 
 private:
-    std::vector<float> render(const std::vector<float> &pixels, const QSize &inputSize, const QSize &outputSize,
-                              TransferFunction transfer, double strength, const UpscaleRegion &region = unlimitedRegion());
-
-    std::unique_ptr<EglDisplay> m_display;
-    std::shared_ptr<EglContext> m_context;
-    std::unique_ptr<UpscaleScaler> m_scaler;
+    UpscaleRenderFixture m_fixture;
 };
 
 void UpscaleRenderTest::initTestCase()
 {
-    // A headless EGL display exercises KWin's real shader manager and textures
-    // under Mesa. It does not establish compositor lifecycle or hardware VRR.
-    const EGLDisplay display = eglGetPlatformDisplayEXT(EGL_PLATFORM_SURFACELESS_MESA, EGL_DEFAULT_DISPLAY, nullptr);
-#if UPSCALE_RENDER_DEVICE_API
-    m_display = EglDisplay::create(display, nullptr);
-#else
-    m_display = EglDisplay::create(display);
-#endif
-    QVERIFY(m_display);
-#if UPSCALE_RENDER_DEVICE_API
-    m_context = EglContext::create(m_display.get(), EGL_NO_CONFIG_KHR, {});
-#else
-    m_context = EglContext::create(m_display.get(), EGL_NO_CONFIG_KHR, EGL_NO_CONTEXT);
-#endif
-    QVERIFY(m_context);
-    qInfo() << "OpenGL:" << reinterpret_cast<const char *>(glGetString(GL_VERSION));
-    m_scaler = std::make_unique<UpscaleScaler>(nullptr);
-    QVERIFY(m_scaler->initialize());
+    QVERIFY(m_fixture.initialize());
 }
 
 void UpscaleRenderTest::cleanupTestCase()
 {
-    m_scaler.reset();
-    m_context.reset();
-    m_display.reset();
-}
-
-std::vector<float> UpscaleRenderTest::render(const std::vector<float> &pixels, const QSize &inputSize, const QSize &outputSize,
-                                             TransferFunction transfer, double strength, const UpscaleRegion &region)
-{
-    std::unique_ptr<GLTexture> input = allocateFloatTexture(inputSize);
-    std::unique_ptr<GLTexture> output = allocateFloatTexture(outputSize);
-    if (!input || !output) {
-        return {};
-    }
-    input->bind();
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, inputSize.width(), inputSize.height(), GL_RGBA, GL_FLOAT, pixels.data());
-    input->unbind();
-    GLFramebuffer framebuffer(output.get());
-    if (!framebuffer.valid()) {
-        return {};
-    }
-#if UPSCALE_REGION_API
-    const auto colors = ColorDescription::sRGB->withTransferFunction(transfer);
-#else
-    const auto colors = ColorDescription::sRGB.withTransferFunction(transfer);
-#endif
-    const RenderTarget target(&framebuffer, colors);
-    const UpscaleRectF rectangle(QPointF(), outputSize);
-    const RenderViewport viewport = captureViewport(rectangle, 1, target);
-    GLFramebuffer::pushFramebuffer(&framebuffer);
-    GLVertexBuffer::streamingBuffer()->beginFrame();
-    glClearColor(-7, -7, -7, -7);
-    glClear(GL_COLOR_BUFFER_BIT);
-    const bool success = m_scaler->renderTexture(target, viewport, input.get(), rectangle, region, strength);
-    std::vector<float> result(size_t(outputSize.width()) * size_t(outputSize.height()) * 4);
-    glReadPixels(0, 0, outputSize.width(), outputSize.height(), GL_RGBA, GL_FLOAT, result.data());
-    GLVertexBuffer::streamingBuffer()->endOfFrame();
-    GLFramebuffer::popFramebuffer();
-    if (!success || glGetError() != GL_NO_ERROR) {
-        return {};
-    }
-    return result;
+    m_fixture.release();
 }
 
 void UpscaleRenderTest::constantColors_data()
@@ -152,7 +88,7 @@ void UpscaleRenderTest::constantColors()
     for (size_t index = 3; index < input.size(); index += 4) {
         input[index] = 1;
     }
-    const std::vector<float> result = render(input, inputSize, outputSize, transfer, strength);
+    const std::vector<float> result = m_fixture.render(input, inputSize, outputSize, transfer, strength);
     QCOMPARE(result.size(), size_t(16 * 16 * 4));
     for (size_t index = 0; index < result.size(); ++index) {
         QVERIFY(std::isfinite(result[index]));
@@ -188,7 +124,7 @@ void UpscaleRenderTest::orientationAndResize()
     const TransferFunction transfer(TransferFunction::linear, 0, reference);
     for (const int dimension : {16, 12, 16}) {
         for (const double strength : {0.0, 1.0}) {
-            const std::vector<float> result = render(input, inputSize, QSize(dimension, dimension), transfer, strength);
+            const std::vector<float> result = m_fixture.render(input, inputSize, QSize(dimension, dimension), transfer, strength);
             QCOMPARE(result.size(), size_t(dimension * dimension * 4));
             for (const int y : {0, dimension - 1}) {
                 for (const int x : {0, dimension - 1}) {
@@ -214,8 +150,8 @@ void UpscaleRenderTest::sharpeningAndClipping()
         }
     }
     const TransferFunction transfer(TransferFunction::gamma22);
-    const std::vector<float> plain = render(input, QSize(8, 8), QSize(16, 16), transfer, 0);
-    const std::vector<float> sharpened = render(input, QSize(8, 8), QSize(16, 16), transfer, 1);
+    const std::vector<float> plain = m_fixture.render(input, QSize(8, 8), QSize(16, 16), transfer, 0);
+    const std::vector<float> sharpened = m_fixture.render(input, QSize(8, 8), QSize(16, 16), transfer, 1);
     QCOMPARE(plain.size(), size_t(16 * 16 * 4));
     QCOMPARE(sharpened.size(), plain.size());
     double difference = 0;
@@ -224,7 +160,7 @@ void UpscaleRenderTest::sharpeningAndClipping()
         difference += std::abs(sharpened[index] - plain[index]);
     }
     QVERIFY(difference > 1.0);
-    const std::vector<float> clipped = render(input, QSize(8, 8), QSize(16, 16), transfer, 1, UpscaleRegion(UpscaleRect(4, 4, 8, 8)));
+    const std::vector<float> clipped = m_fixture.render(input, QSize(8, 8), QSize(16, 16), transfer, 1, UpscaleRegion(UpscaleRect(4, 4, 8, 8)));
     QCOMPARE(clipped.size(), plain.size());
     for (int y = 0; y < 16; ++y) {
         for (int x = 0; x < 16; ++x) {
@@ -239,13 +175,13 @@ void UpscaleRenderTest::preservesScissorState()
 {
     const std::vector<float> input(8 * 8 * 4, 1);
     const TransferFunction transfer(TransferFunction::gamma22);
-    const std::vector<float> expected = render(input, QSize(8, 8), QSize(16, 16), transfer, 1);
+    const std::vector<float> expected = m_fixture.render(input, QSize(8, 8), QSize(16, 16), transfer, 1);
     QCOMPARE(expected.size(), size_t(16 * 16 * 4));
     // A preceding effect can leave a scissor active. It must not clip the
     // intermediate EASU pass, and the caller's rectangle must be restored.
     glScissor(1, 2, 3, 4);
     glEnable(GL_SCISSOR_TEST);
-    const std::vector<float> actual = render(input, QSize(8, 8), QSize(16, 16), transfer, 1);
+    const std::vector<float> actual = m_fixture.render(input, QSize(8, 8), QSize(16, 16), transfer, 1);
     const bool enabled = glIsEnabled(GL_SCISSOR_TEST);
     std::array<GLint, 4> rectangle;
     glGetIntegerv(GL_SCISSOR_BOX, rectangle.data());
@@ -268,13 +204,13 @@ void UpscaleRenderTest::rejectsOversizedIntermediate()
     GLint maximumSize = 0;
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maximumSize);
     GLFramebuffer::pushFramebuffer(&framebuffer);
-    const bool rendered = m_scaler->renderTexture(target, viewport, input.get(), UpscaleRectF(0, 0, maximumSize + 1, 16), unlimitedRegion(), 1);
+    const bool rendered = m_fixture.m_scaler->renderTexture(target, viewport, input.get(), UpscaleRectF(0, 0, maximumSize + 1, 16), unlimitedRegion(), 1);
     GLFramebuffer::popFramebuffer();
     QVERIFY(!rendered);
     QCOMPARE(glGetError(), GLenum(GL_NO_ERROR));
     // The rejected allocation must not poison a subsequent supported render.
     const std::vector<float> pixels(8 * 8 * 4, 1);
-    QCOMPARE(render(pixels, QSize(8, 8), QSize(16, 16), TransferFunction(TransferFunction::gamma22), 1).size(), size_t(16 * 16 * 4));
+    QCOMPARE(m_fixture.render(pixels, QSize(8, 8), QSize(16, 16), TransferFunction(TransferFunction::gamma22), 1).size(), size_t(16 * 16 * 4));
 }
 
 // The overlay measures and draws text, which needs a font database, so this

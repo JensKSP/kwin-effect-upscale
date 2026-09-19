@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "framestatistics.h"
 #include "overlay.h"
 #include "snapshot.h"
 
@@ -55,6 +56,14 @@ public:
     void countRepaint();
 
     /**
+     * Follow the frames this output actually presents.
+     *
+     * The measurements start again when the output changes, because frame
+     * times from two screens are not one distribution.
+     */
+    void measure(UpscaleOutput *screen);
+
+    /**
      * Whether the effect should build a fresh snapshot now. Building one costs
      * string formatting, so it happens at the sampling interval rather than
      * for every frame of a game running at full speed.
@@ -102,6 +111,12 @@ private:
     double m_clientUpdateRate = -1;
     double m_repaintRate = -1;
     double m_interval = 0;
+    // Frames as the screen presented them, which is neither what the client
+    // committed nor what the compositor painted.
+    UpscaleFrameStatistics m_presented;
+    QPointer<UpscaleOutput> m_measured;
+    QMetaObject::Connection m_presentation;
+    int m_presentationMode = -1;
     QElapsedTimer m_composed;
     // Where the text was last drawn, so that its own expiry can repaint it.
     UpscaleRectF m_area;

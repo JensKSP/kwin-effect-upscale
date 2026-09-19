@@ -34,6 +34,9 @@ WaylandClient::~WaylandClient()
     if (m_sharedMemory) {
         wl_shm_destroy(m_sharedMemory);
     }
+    if (m_output) {
+        wl_output_destroy(m_output);
+    }
     if (m_compositor) {
         wl_compositor_destroy(m_compositor);
     }
@@ -54,6 +57,20 @@ void WaylandClient::global(void *data, wl_registry *registry, uint32_t name, con
         client->m_compositor = static_cast<wl_compositor *>(wl_registry_bind(registry, name, &wl_compositor_interface, 4));
     } else if (std::strcmp(interface, "wl_shm") == 0) {
         client->m_sharedMemory = static_cast<wl_shm *>(wl_registry_bind(registry, name, &wl_shm_interface, 1));
+    } else if (std::strcmp(interface, "wl_output") == 0) {
+        // A game enumerates displays to decide what to render, and that is the
+        // moment the effect makes its request. Binding the output here is what
+        // lets this client observe what it was told.
+        client->m_output = static_cast<wl_output *>(wl_registry_bind(registry, name, &wl_output_interface, 2));
+        static const wl_output_listener listener{
+            [](void *, wl_output *, int32_t, int32_t, int32_t, int32_t, int32_t, const char *, const char *, int32_t) { },
+            outputMode,
+            [](void *, wl_output *) { },
+            outputScale,
+            nullptr,
+            nullptr,
+        };
+        wl_output_add_listener(client->m_output, &listener, client);
     } else if (std::strcmp(interface, "wp_viewporter") == 0) {
         client->m_viewporter = static_cast<wp_viewporter *>(wl_registry_bind(registry, name, &wp_viewporter_interface, 1));
     } else if (std::strcmp(interface, "xdg_wm_base") == 0) {
@@ -77,6 +94,11 @@ bool WaylandClient::initialize()
     if (wl_display_roundtrip(m_display) < 0 || !m_compositor || !m_sharedMemory || !m_shell || !m_viewporter) {
         return false;
     }
+    // A second round trip: the output's own events follow the bind, and the
+    // request the effect makes is one of them.
+    if (wl_display_roundtrip(m_display) < 0) {
+        return false;
+    }
     m_surface = wl_compositor_create_surface(m_compositor);
     m_viewport = wp_viewporter_get_viewport(m_viewporter, m_surface);
     m_shellSurface = xdg_wm_base_get_xdg_surface(m_shell, m_surface);
@@ -90,6 +112,30 @@ bool WaylandClient::initialize()
     xdg_toplevel_set_fullscreen(m_toplevel, nullptr);
     wl_surface_commit(m_surface);
     return wl_display_roundtrip(m_display) >= 0;
+}
+
+void WaylandClient::outputMode(void *data, wl_output *, uint32_t flags, int32_t width, int32_t height, int32_t)
+{
+    // Only the mode the screen is said to be in now. A client picking a size
+    // reads that one, and the effect replaces exactly it.
+    if (flags & WL_OUTPUT_MODE_CURRENT) {
+        static_cast<WaylandClient *>(data)->m_advertisedMode = QSize(width, height);
+    }
+}
+
+void WaylandClient::outputScale(void *data, wl_output *, int32_t factor)
+{
+    static_cast<WaylandClient *>(data)->m_advertisedScale = factor;
+}
+
+QSize WaylandClient::advertisedMode() const
+{
+    return m_advertisedMode;
+}
+
+int WaylandClient::advertisedScale() const
+{
+    return m_advertisedScale;
 }
 
 void WaylandClient::configure(void *data, xdg_surface *surface, uint32_t serial)
@@ -170,6 +216,11 @@ void WaylandClient::fullscreen(bool enabled)
 int WaylandClient::descriptor() const
 {
     return wl_display_get_fd(m_display);
+}
+
+bool WaylandClient::roundtrip()
+{
+    return wl_display_roundtrip(m_display) >= 0;
 }
 
 void WaylandClient::dispatch()

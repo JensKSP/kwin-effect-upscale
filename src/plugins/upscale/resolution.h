@@ -90,6 +90,62 @@ inline bool canUpscale(UpscaleSize input, UpscaleSize output)
     return upscaleSizing(input, output) == UpscaleSizing::Supported;
 }
 
+/**
+ * The buffer a client of the scale-driven kind would commit at integer scale
+ * @p scale on this output.
+ *
+ * Such a client renders the logical screen size multiplied by the scale it was
+ * told, so telling it a smaller scale is what makes it render less.
+ */
+inline UpscaleSize scaledRequest(UpscaleSize outputPixels, double outputScale, int scale)
+{
+    if (outputScale <= 0 || scale <= 0) {
+        return {0, 0};
+    }
+    const double ratio = scale / outputScale;
+    return {int(std::round(outputPixels.width * ratio)), int(std::round(outputPixels.height * ratio))};
+}
+
+/**
+ * The integer scale to tell a scale-driven client, or zero to tell it nothing.
+ *
+ * A wish is a ratio, but this kind of client can only be moved in whole steps
+ * of the output's own scale: the Wayland output scale is an integer, so on a
+ * screen at scale 2 the only reduction available is a half, and on one at
+ * scale 3 it is two thirds or a third. The wish is therefore answered with the
+ * reachable size closest to it rather than refused for not being reachable
+ * exactly, and callers report which one was actually asked for.
+ *
+ * Steps that the scaler would then refuse are not offered at all, which is
+ * what removes the third on a scale-3 screen: a third of the destination is
+ * below the half that FSR 1 enlarges from.
+ */
+inline int reachableScale(UpscaleSize outputPixels, double outputScale, ResolutionPreset preset, int percentage)
+{
+    const double wanted = resolutionRatio(preset, percentage);
+    if (preset == ResolutionPreset::Automatic || wanted >= 1.0) {
+        return 0;
+    }
+    int best = 0;
+    double bestDistance = 0;
+    // A scale of one leaves no whole step below it, so such an output offers
+    // this kind of client nothing at all. That is a property of the client,
+    // not a failure, and the caller says so rather than asking for a size the
+    // client would ignore.
+    for (int candidate = 1; double(candidate) < outputScale; ++candidate) {
+        const UpscaleSize size = scaledRequest(outputPixels, outputScale, candidate);
+        if (upscaleSizing(size, outputPixels) != UpscaleSizing::Supported) {
+            continue;
+        }
+        const double distance = std::abs((candidate / outputScale) - wanted);
+        if (best == 0 || distance < bestDistance) {
+            best = candidate;
+            bestDistance = distance;
+        }
+    }
+    return best;
+}
+
 inline double sharpeningAmount(bool enabled, int percentage)
 {
     // AMD's zero stop parameter means maximum sharpening. A zero UI value

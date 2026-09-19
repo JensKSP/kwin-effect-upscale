@@ -488,8 +488,212 @@ and launch/profile integration remain unimplemented. Acceptance must cover
 inheritance changes, explicit Auto, unavailable methods, failed negotiation,
 and pending launch without automatic game restarts.
 
+### Plugin-only control of a game the user started, 2026-09-18
+
+Jens set the product constraint for this package: the user starts the game, the
+plugin detects it, and the plugin alone obtains the smaller buffer. Launching
+the game, relaunching it, and editing the user's game settings are not the
+common path; a restart is acceptable only when the user deliberately chooses a
+setting that needs one. The mechanism must be invisible to the rest of the
+session and to the user, and the effect has to work after installing the
+package without the user configuring anything.
+
+That rules out the launch helpers measured above. Gamescope and the protocol
+proxy remain recorded evidence of what forwarding can achieve, not the product
+route. The experiments below therefore ask a narrower question: acting only as
+a loaded KWin effect, what can be done to a game that is already connected, or
+that connects while the effect is loaded?
+
+Observed on the development machine's own KWin 6.3.6 with a native probe
+effect, inside nested headless `kwin_wayland --virtual` sessions with the real
+GPU (Mesa 26.1.2, RADV STRIX_HALO). Each game ran with its own runtime,
+configuration and home directory; the session's own settings and the user's
+game settings were not touched. Sources are under `build/game-probe/`.
+
+#### The identities the games actually present
+
+| Application | Package version | Backend | `resourceClass` | `resourceName` | Desktop file | Executable at connect |
+| --- | --- | --- | --- | --- | --- | --- |
+| SuperTuxKart | `1.4+dfsg-5+b1` | native Wayland | `supertuxkart` | `supertuxkart` | `supertuxkart` | `/usr/games/supertuxkart` |
+| Extreme Tux Racer | `0.8.4-1` | Xwayland | `Extreme Tux Racer 0.8.4` | `etr` | empty | not separable |
+
+Extreme Tux Racer puts its version number in the window class, so a profile
+matching the class would stop matching after a package update. Its instance
+name `etr` is the stable field. This is the reason identities are measured
+rather than derived from a name.
+
+#### Requests to a game that is already running
+
+Each lever was applied to SuperTuxKart while it was fullscreen and committing
+3840 × 2160, on an unchanged 3840 × 2160 output.
+
+| Lever, applied through the effect | What KWin recorded | What the client committed |
+| --- | --- | --- |
+| `Window::setNextTargetScale(0.5)` | target scale became 0.5 | unchanged 3840 × 2160 |
+| `wl_output` mode rewritten to 1920 × 1080 on the game's own resources | events delivered to one resource | unchanged 3840 × 2160 |
+| The same plus `wl_output` scale 2 and a rewritten physical geometry | events delivered | unchanged 3840 × 2160 |
+| `Window::moveResize()` to 1920 × 1080 | frame geometry became 1920 × 1080 while still fullscreen | still a 3840 × 2160 buffer, now with a 1920 × 1080 viewport destination |
+
+The last row is worse than doing nothing: the game kept rendering at 4K and let
+its own viewport shrink the finished image. That is the case the handbook
+already refuses to call a resolution reduction. None of these levers reduced
+rendering work, which confirms for a real game what the earlier cooperative
+test client could not: a client that does not act on scale hints cannot be
+persuaded after it has chosen its fullscreen size.
+
+#### The one moment that works: before the client enumerates displays
+
+`OutputInterface::bound()` is emitted when a client binds `wl_output`, before it
+has a window and before it enumerates modes. At that point
+`ClientConnection::executablePath()` names the program, and
+`OutputInterface::clientResources()` reaches only that client's resources.
+Sending that one client a different current and preferred mode changes what it
+believes the screen is, and nothing else in the session observes a change.
+
+| Case | Told the client | Committed buffer | Destination |
+| --- | --- | --- | --- |
+| SuperTuxKart, OpenGL renderer | 1920 × 1080 | 1920 × 1080 | 3840 × 2160, fullscreen |
+| SuperTuxKart, OpenGL renderer | 2560 × 1440 | 2560 × 1440 | 3840 × 2160, fullscreen |
+| SuperTuxKart, OpenGL, desktop scale 3 | 1920 × 1080 | 1920 × 1080 | 1280 × 720 logical, the whole 3840 × 2160 output |
+| SuperTuxKart, OpenGL, desktop scale 3 | 2954 × 1662 | 2954 × 1662 | 1280 × 720 logical, the whole output |
+| SuperTuxKart, Vulkan renderer | 1920 × 1080 | 3840 × 2160 | unchanged |
+| Extreme Tux Racer through Xwayland | 1920 × 1080 | 3840 × 2160 | unchanged |
+
+In every successful row the window stayed fullscreen, covered the output, had
+no child surfaces and sat at the surface origin: the shape this effect already
+accepts. The scale-3 rows matter because that is the television's actual
+configuration. The fourth row shows that an arbitrary calculated size is
+honoured exactly, so the existing preset and percentage model can drive this
+directly rather than being limited to standard modes.
+
+The two failures have different causes and different consequences.
+SuperTuxKart's Vulkan renderer defaults to `vulkan_fullscreen_desktop`, which
+takes the compositor's fullscreen size instead of selecting a mode, so no mode
+information reaches the decision. Extreme Tux Racer is an Xwayland client:
+Xwayland binds the output while KWin starts, before any effect is loaded, and
+it is a single client for every X11 application, so rewriting its output would
+change the screen for all of them. Neither is a reason to call the mechanism
+unsupported; both are named limitations of it.
+
+#### What this mechanism is, and what it is not
+
+It tells one client that the screen has a different current mode. It does not
+change the output, the desktop scale, any other client's display information,
+or the user's game settings, and it needs no launch helper and no restart: the
+effect is loaded before the user starts the game. Its cost is that the game's
+own settings screen will offer resolutions only up to the advertised size,
+which is visible inside the game even though nothing else in the session sees
+it.
+
+It is also not enforcement. A client that ignores mode information, or that
+asks the compositor for its fullscreen size instead, keeps its own resolution,
+as the two failing rows show. Status must therefore report the advertised size,
+the desired size and the committed buffer as three separate observations.
+
+Remaining acceptance for this mechanism: real-session and television runs with
+input, pointer confinement and controllers; output and scale changes while a
+game holds an overridden mode; restoration when the profile, the method or the
+effect is switched off; a second client of the same program; games that
+enumerate outputs more than once; multiple outputs; HDR and VRR. The runs above
+establish committed buffer sizes in headless sessions and nothing beyond that.
+
+#### Implemented on 2026-09-18
+
+The mechanism above is now in the effect, as `UpscaleModeOverride`, with the
+recognized applications in `UpscaleApplication` and its catalogue. Verified by
+running the production plugin, not a probe, in a nested headless KWin 6.3.6
+with the real GPU:
+
+- SuperTuxKart, its own configuration set to fullscreen at 3840 × 2160, with
+  the effect at its factory defaults: committed a 2560 × 1440 buffer on a
+  3840 × 2160 fullscreen destination. The effect's own status reported
+  "2560 × 1440 requested from SuperTuxKart as its screen mode", supplied input
+  2560 × 1440, destination 3840 × 2160, and classified the buffer as eligible.
+- The unit tests `upscale-application` cover catalogue integrity, the observed
+  identities, case sensitivity, a changed Extreme Tux Racer version and
+  program matching by file name. The full native suite passes, 11 of 11.
+
+That run also produced the first named explanation for a refusal of a
+conforming buffer: the frame was not scaled because **the render target is
+rotated or flipped**. KWin's DRM backend sets `OutputTransform::FlipY` on the
+colour attachment it renders into, and KWin's own effects multiply
+`renderTarget.transform()` into their matrices instead of refusing it. This is
+the [rendering slice's](slice-fsr1-hdr-vrr.md#the-scaler-effective-gate)
+scaler-effective gate, recorded here because this package's work is what
+exposed it: obtaining the smaller buffer is no longer what blocks a scaled
+frame.
+
+Not done, and required before this counts as accepted: the real session and
+the television, input and pointer behaviour in a game running at a reduced
+mode, output and scale changes while an override is in force, a second client
+of the same program, restoration paths, HDR and VRR.
+
+#### Tested against a compositor on 2026-09-19
+
+The mechanism had no automated test: `modeoverride.cpp` was 35.1% of lines,
+which was the whole of its construction and none of what it does. The nested
+KWin session `upscale-integration` now covers it, and the test client binds
+`wl_output` so that the assertions are about the events the compositor sent
+rather than about what the effect says it sent. A client is the only thing that
+can observe this, and it is what a game reads.
+
+Covered on a 128 × 128 screen: nothing is said while the request is off; a
+client binding the output afterwards is told 85 × 85 at Quality; the screen's
+own mode comes back to a client that was told otherwise once the request is
+switched off, which is the restoration path; unlisted applications are asked
+nothing until the user turns them on; a catalogue entry reaches a client
+through its program name alone, which is the only identity that exists before
+it has a window; the entry's own resolution applies while the global preset is
+Automatic and an explicit global choice wins over it; a method of `None`
+recognizes the application and asks it for nothing; Native asks for the size
+the screen already has, so nothing is said; and a scale-driven method on an
+unscaled screen says nothing, because such a screen offers that kind of client
+no whole step below one. One case goes the whole way: the client was told
+85 × 85, committed 64 × 64 instead, and the effect reported both, which is the
+distinction between a request and a result that this package rests on.
+
+`modeoverride.cpp` is now 87.6% of lines. What is left is an output unplugged
+while an override is in force and a client that exits before restoration, both
+of which need hardware or a second compositor process, and both of which are
+already in the acceptance list above.
+
+Two defects in the request itself came out of reviewing it beside those tests:
+
+- The resources were given KWin's own answer back only when the effect was
+  switched off. A changed preset, a changed percentage or an edited application
+  list all move what would be asked for, and the resources kept carrying the
+  old mode; anything reading them again would have seen a request this effect
+  no longer makes. Every reconfiguration now restores them. What a program was
+  told is kept separately and outlives that, because it stays true and is what
+  explains the size that program is still rendering.
+- A request naming a scale was recorded, and its mode half-sent, to a client
+  that bound `wl_output` before version 2, which has no scale event. That
+  leaves exactly the disagreement between size and scale these methods exist to
+  avoid, and reported a request that was never made. Such a client is now left
+  alone. This is not covered by a test: the virtual output in the nested
+  session has no scale above one, so no advertisement reaches the scale path
+  there at all. It belongs with the output and scale acceptance already listed
+  above.
+
+Measuring the frames also had a defect the statistics view would have shown:
+the slow-tail figure was written `1%% low`, which is printf's escape and not
+KLocalizedString's, so the doubled sign would have reached the screen. Found by
+asserting on the text rather than on its presence, and corrected. Two more came
+from the same reading: a rejected timestamp, repeated or backward, became the
+baseline for the next real presentation and inflated its interval; and the
+settings page decided whether anything had been measured from the presentation
+mode rather than from the rate, so a window change, which restarts the sampling
+without clearing the mode, made it report a rate of minus one per second. The
+developer view also claimed variable refresh was unobserved, which stopped
+being true when the presentation mode became a measurement; it now reports the
+frames and the mode the screen presented them in.
+
 ## Remaining work
 
-- [ ] Resolve the recorded compatibility and input gaps on both KWin targets.
-- [ ] Implement and expose verified resolution-control methods and cleanup.
+- [x] Establish what a loaded effect can do to a game the user started, and
+      implement the one mechanism that was observed to work.
+- [ ] Accept it in the real session and on the television: input, pointer
+      confinement, output and scale changes, restoration, HDR and VRR.
+- [ ] Resolve the recorded compatibility and input gaps on both KWin targets,
+      including Xwayland and the fullscreen-desktop clients this cannot reach.
 - [ ] Complete the acceptance criteria and document supported limitations.

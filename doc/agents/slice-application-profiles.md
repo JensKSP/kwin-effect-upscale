@@ -235,6 +235,165 @@ one enabled profile must work. Do not carry one application's sharpening into
 another. Profiles configure the supplied-buffer scaler and resolution guidance;
 they do not implement resolution negotiation or prove a requested size was used.
 
+## Observed identities and the first shipped catalogue, 2026-09-18
+
+Jens asked for detection to be taken seriously and for entries covering the two
+games installed on the development machine. Both games were run against an
+unpatched KWin 6.3.6 and their identities read off the running windows rather
+than derived from their names. Details of the runs and of the resolution
+mechanism are in the
+[resolution-control slice](slice-resolution-control.md#plugin-only-control-of-a-game-the-user-started-2026-09-18).
+
+| Application | Package | Backend | `resourceClass` | `resourceName` | Desktop file | Executable |
+| --- | --- | --- | --- | --- | --- | --- |
+| SuperTuxKart | `1.4+dfsg-5+b1` | native Wayland | `supertuxkart` | `supertuxkart` | `supertuxkart` | `/usr/games/supertuxkart` |
+| Extreme Tux Racer | `0.8.4-1` | Xwayland | `Extreme Tux Racer 0.8.4` | `etr` | empty | `/usr/games/etr` |
+
+Two results change the model specified above.
+
+Extreme Tux Racer's window class contains its version number. An entry matching
+the class would stop matching at the next package update, so this entry
+constrains the instance name alone. The specification's requirement of a
+nonempty exact window class is therefore too strong: the requirement is that at
+least one stated field is exact, not that it is the class.
+
+A second identity is needed for the resolution mechanism. It acts when the
+client binds the output, before any window exists, so no window class is
+available; the identity there is the executable path KWin resolved for the
+connection, compared by file name. This is KWin's own `ClientConnection`
+accessor, not process inspection, and the specification's prohibition of
+process scanning still holds. A profile that selects a launch-independent
+method therefore needs a program field alongside its window identity.
+
+Implemented so far: `UpscaleApplication`, a code-owned catalogue with these two
+entries, matching by window identity and by program, and the reports that name
+a recognized application. Shipped entries are active on installation rather
+than offered as templates, as decided by Jens and recorded in the
+[handbook](../upscaling.md#per-application-overrides). The user-editable
+profile layer, its persistence and its editor are unchanged and still to build;
+the catalogue is the layer they will sit above, not a substitute for them.
+
+Unit tests cover catalogue integrity, both observed identities, case
+sensitivity, a changed Extreme Tux Racer version and program matching by file
+name. Nothing here has been accepted in a real session.
+
+## The application list as layered configuration, 2026-09-18
+
+Jens asked how the shipped list should be stored, and whether it should be
+copied into the user's profile on first run or by a reset button. It is neither:
+the list is a KConfig file whose defaults the package installs and whose user
+changes sit in a second file layered over it.
+
+### Why not a copy
+
+A copy stops receiving corrections the moment it is made. During a period of
+frequent packages, which is what is expected, a user with a copied list would
+have to press restore after every update merely to receive new applications,
+and that press would also discard the entries they added themselves. The
+layered form gives them both: what they never touched follows each package,
+what they changed stays changed.
+
+### What KDE already provides, measured rather than assumed
+
+`/etc/xdg` holds the configuration defaults of a dozen KDE applications on the
+development machine, and `konqautofiltersrc` is one of them shipping a *list*
+of named entries with `Enabled` and `Position` fields, which is the shape
+needed here. KWin's own per-application rules are KConfig groups in
+`kwinrulesrc`. JSON in KDE is plugin metadata, not a user-editable list.
+
+Measured against KConfig 6.13 on 2026-09-18, with a system layer and a user
+layer in temporary directories:
+
+| Asked | Observed |
+| --- | --- |
+| Group list across both layers | Merged: shipped-only, user-only and shared entries all appear |
+| A key the user set | The user's value wins |
+| A key the user did not set | Still the shipped value, in the same group |
+| `Key[$d]` in the user file | The shipped key is hidden, and stays hidden across updates |
+| `KConfigGroup::hasDefault(key)` | True exactly for entries the shipped file describes |
+| Removing the user's line | The shipped value returns |
+
+The last two rows are what restoring is built from, and the fourth is a trap:
+`deleteEntry()` writes the `[$d]` marker, which **suppresses** the shipped
+value instead of restoring it. A restore implemented with it would leave the
+user with nothing where the default should be, and would keep hiding every
+later package's value as well. Restoring uses `revertToDefault()` for a field
+the shipped file describes and `deleteEntry()` only for one it does not. An
+autotest asserts the restored values and fails when the two are swapped.
+
+### What is implemented
+
+`kwinupscalerc`, installed to `KDE_INSTALL_CONFDIR`, holds the four measured
+applications with their identities, method, preset, order and note. The effect
+and the settings module share one reader, which caches the list and re-reads it
+on reconfiguration so that no frame touches the disk. The reader drops an entry
+that constrains no identity, and reads a method or preset it does not know as
+the one that asks for nothing, so a file from a later version cannot make this
+build act on a method it has not implemented.
+
+The settings page reports how many applications are recognized and whether the
+list still matches the shipped one, and offers **Restore the shipped
+application list**, which asks first, then reverts the user's fields, removes
+their own entries and tells the running effect to read again. It is separate
+from the page's Defaults, which restores the effect's settings and leaves the
+list alone.
+
+Observed on 2026-09-18 with the production plugin in a nested KWin 6.3.6 at
+3840 × 2160 and desktop scale 3: with the defaults alone, SuperTuxKart supplied
+2560 × 1440 and the effect reported FSR 1. With a user file containing only
+`[Application-supertuxkart] Preset=Performance`, the same game supplied
+1920 × 1080 and the shipped method still applied, which it had to, or nothing
+would have been requested at all.
+
+### The editor, and its tests, 2026-09-19
+
+The settings page now carries `UpscaleApplicationEditor`: the list, the fields
+behind each entry, adding by hand or from a window KWin picks, removing an
+entry the user added, and the restore, which is separate from the page's own
+Defaults because the two are different kinds of data.
+
+`upscale-application-editor` drives that page rather than the class behind it,
+against the catalogue this build installs, so that an entry which stops parsing
+or a page that cannot show one fails here. It covers selecting an entry and
+reading its fields, editing through the controls a person actually uses, the
+list check box and the details check box following each other, holding edits
+until Apply, storing only the fields that differ, adding and removing an entry,
+the three replies the window picker can give, including cancellation, and
+restoring with both answers to the confirmation. `upscale-application` covers
+the same storage rules without a page: the key spellings both layers use, a
+method from a later version, identifiers for new entries, deleting an entry
+the user added against disabling one this build ships, and the unlisted-
+application setting. Coverage of `applicationeditor.cpp` is 98.3% of lines and
+of `application.cpp` 98.9%.
+
+### What the tests and the review found, 2026-09-19
+
+Three defects in the editor and its page, each of which loses or hides an edit:
+
+- Two applications added before Apply both took the identifier `application`,
+  because it was checked only against the stored list. Applying them wrote both
+  into one configuration group and one was written over the other. The
+  identifier is now generated against the editor's pending entries as well.
+- An entry stating neither a window class nor an instance was written and then
+  dropped by the next read, so it disappeared from the list without saying why
+  and left a group behind that nothing described. The editor now refuses to
+  write one, names it, selects it, and leaves the page applicable.
+- Reset restored the settings above the list but left the pending application
+  edits on screen, where a later Apply would write what had just been
+  discarded. It reloads the list with everything else now.
+
+And one in the matching itself. A program whose entry the user had switched off
+fell through to the unlisted-application setting, so with that setting on it was
+asked for a resolution anyway, which is the only thing switching it off was
+supposed to prevent. Being listed and switched off is now distinguished from
+not being listed: the first asks for nothing, the second follows the setting.
+
+### Still open
+
+Sparse per-setting overrides, profile ordering in the interface and the notes'
+translation, which needs the localized-entry extraction KDE uses for `.desktop`
+files, all remain part of this slice.
+
 ## Acceptance criteria
 
 Planned checks, not observed results:
@@ -259,8 +418,9 @@ Planned checks, not observed results:
 
 - [x] Inspect global configuration and supported KWin source revisions.
 - [x] Compare reuse options and specify sparse inheritance and editing.
-- [ ] Validate catalogue identities and recommended values on real applications.
-- [ ] Implement model, persistence, editor and runtime settings resolution.
+- [x] Observe the catalogue identities of both test games and ship them.
+- [ ] Validate the recommended values on real applications in a real session.
+- [x] Implement model, persistence, editor and runtime settings resolution.
 - [ ] Run acceptance tests, both compiler/container builds and TV checks.
 
 Observed documentation validation, 2026-09-18: `pre-commit run --all-files`

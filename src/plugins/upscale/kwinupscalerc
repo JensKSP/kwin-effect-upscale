@@ -1,0 +1,88 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# The applications this effect recognizes, and what it does for each of them.
+#
+# This file is the effect's own defaults. It is installed with the package,
+# replaced whenever the package is updated, and never written to. A user's own
+# entries and changes live in the file of the same name under their
+# configuration directory, where KConfig layers them over these: a field the
+# user did not change keeps following this file, so a later package delivers
+# new applications and corrected methods without touching what they edited.
+#
+# Every field below was read off a running instance of the stated version. A
+# name never implies an identity, and a method is not a preference but a
+# statement about how that program decides what to render, taken from its
+# source and then confirmed by running it. Setting a method a program does not
+# follow does not make it render less; it can stop its window covering the
+# screen.
+#
+# WindowClass and Instance identify the window, and each one stated has to
+# match exactly. Program identifies the connection before any window exists,
+# which is when the request has to be made, and is compared by file name only.
+#
+# Method is one of:
+#   None                   Recognize it, ask for nothing.
+#   AdvertisedMode         Tell it alone that its screen has a smaller mode.
+#                          For clients that select a mode and present it
+#                          through a viewport still covering the screen.
+#   AdvertisedScale        Tell it alone that its screen has a smaller scale.
+#                          For clients that render the logical size times the
+#                          scale they were told. Only whole steps of the
+#                          output's scale are reachable, so an unscaled screen
+#                          offers such a client nothing.
+#   AdvertisedModeAndScale Both together, for clients that take their size from
+#                          the mode but declare the output's scale themselves.
+#
+# Preset is what the application gets while the global preset is Automatic,
+# which means the user has not chosen. Any explicit global choice wins over it.
+
+[General]
+FormatVersion=1
+
+[Application-supertuxkart]
+Name=SuperTuxKart
+MeasuredVersion=1.4
+WindowClass=supertuxkart
+Instance=supertuxkart
+Program=supertuxkart
+Method=AdvertisedMode
+Preset=Quality
+Order=10
+Note=Follows the advertised screen mode with its OpenGL renderer. Its Vulkan renderer keeps the full resolution.
+
+[Application-extremetuxracer]
+Name=Extreme Tux Racer
+MeasuredVersion=0.8.4
+# Its window class carries its version number, so matching the class would
+# stop matching at the next package. The instance name is the stable field.
+Instance=etr
+Program=etr
+Method=None
+Preset=Automatic
+Order=20
+Note=Runs through Xwayland, which the effect cannot address separately. Choose a resolution in the game.
+
+[Application-glmark2]
+Name=glmark2
+MeasuredVersion=2023.01
+WindowClass=com.github.glmark2.glmark2
+Instance=glmark2-wayland
+Program=glmark2-wayland
+Method=AdvertisedScale
+# A benchmark measures a machine. Reducing what it renders without being asked
+# would make it report a number for something nobody chose.
+Preset=Automatic
+Order=30
+Note=Follows the advertised screen scale. A screen without a scale above one offers it no reduction.
+
+[Application-vkmark]
+Name=vkmark
+MeasuredVersion=2025.01
+WindowClass=com.github.vkmark.vkmark
+Instance=vkmark
+Program=vkmark
+Method=AdvertisedModeAndScale
+Preset=Automatic
+Order=40
+Note=Follows the advertised screen mode and scale together. A screen without a scale above one offers it no reduction.
