@@ -54,6 +54,7 @@ if(KWin_VERSION VERSION_LESS 6.7)
         ../src/plugins/upscale/framestatistics.cpp
         ../src/plugins/upscale/display.h
         ../src/plugins/upscale/eligibility.cpp
+        ../src/plugins/upscale/refusaltext.cpp
         ../src/plugins/upscale/modeoverride.cpp
         ../src/plugins/upscale/observation.cpp
         ../src/plugins/upscale/overlay.cpp
@@ -179,6 +180,7 @@ set(snapshot_test_sources
     ../src/plugins/upscale/application.cpp
     ../src/plugins/upscale/snapshot.cpp
     ../src/plugins/upscale/eligibility.cpp
+    ../src/plugins/upscale/refusaltext.cpp
 )
 kconfig_add_kcfg_files(snapshot_test_sources ../src/plugins/upscale/upscaleconfig.kcfgc)
 add_executable(upscale_snapshot_test ${snapshot_test_sources})
@@ -199,6 +201,7 @@ set(display_test_sources
     ../src/plugins/upscale/placement.cpp
     ../src/plugins/upscale/snapshot.cpp
     ../src/plugins/upscale/eligibility.cpp
+    ../src/plugins/upscale/refusaltext.cpp
 )
 kconfig_add_kcfg_files(display_test_sources ../src/plugins/upscale/upscaleconfig.kcfgc)
 add_executable(upscale_display_test ${display_test_sources})

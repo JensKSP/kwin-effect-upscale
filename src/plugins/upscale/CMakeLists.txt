@@ -5,6 +5,7 @@ set(upscale_SOURCES
     application.cpp
     display.cpp
     eligibility.cpp
+    refusaltext.cpp
     framestatistics.cpp
     main.cpp
     modeoverride.cpp
