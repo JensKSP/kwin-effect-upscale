@@ -99,9 +99,12 @@ void UpscaleX11IntegrationTest::lifecycle()
     if (fullscreen) {
         QTRY_VERIFY_WITH_TIMEOUT(target.isFullscreen(), 10000);
     }
-    QTRY_COMPARE(target.geometry(), QRect(position, native));
+    // Bounded like every other wait here: each one is a round trip through
+    // KWin, Xwayland and the client, and an instrumented build makes those
+    // slower without making them wrong.
+    QTRY_COMPARE_WITH_TIMEOUT(target.geometry(), QRect(position, native), 15000);
     configure(true);
-    QTRY_COMPARE(target.geometry(), QRect(position, QSize(1920, 1080)));
+    QTRY_COMPARE_WITH_TIMEOUT(target.geometry(), QRect(position, QSize(1920, 1080)), 15000);
     QTRY_VERIFY2(status().contains(QStringLiteral("Supplied input: 1920 × 1080")), qPrintable(status()));
     QTRY_VERIFY2(status().contains(QStringLiteral("Destination: 3840 × 2160")), qPrintable(status()));
     // Wait beyond negotiation's deadline: a transient small window does not
@@ -134,9 +137,16 @@ void UpscaleX11IntegrationTest::lifecycle()
     QCOMPARE(target.geometry(), QRect(position, QSize(2560, 1440)));
     QCOMPARE(other.geometry(), otherGeometry);
     configure(false);
-    QTRY_COMPARE(target.geometry(), QRect(position, native));
+    // Every wait in this case is really a wait for a round trip through KWin,
+    // Xwayland and the client, and how long that takes is a property of the
+    // machine rather than of this plugin. Observed on master's coverage job,
+    // 2026-09-19: this restore missed the 5000 ms default by 50 ms, and
+    // QtTest said so - the instrumented build makes each trip slower while
+    // measuring nothing about it. A generous bound costs a passing run
+    // nothing, because QTRY returns as soon as the condition holds.
+    QTRY_COMPARE_WITH_TIMEOUT(target.geometry(), QRect(position, native), 15000);
     configure(true);
-    QTRY_COMPARE(target.geometry(), QRect(position, QSize(1920, 1080)));
+    QTRY_COMPARE_WITH_TIMEOUT(target.geometry(), QRect(position, QSize(1920, 1080)), 15000);
     m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
     QTRY_COMPARE(target.geometry(), QRect(position, native));
     QCOMPARE(other.geometry(), otherGeometry);
