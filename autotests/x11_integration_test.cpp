@@ -121,7 +121,15 @@ void UpscaleX11IntegrationTest::lifecycle()
     QCOMPARE(target.geometry(), QRect(position, QSize(1920, 1080)));
     QCOMPARE(other.geometry(), otherGeometry);
     configure(true, 3);
-    QTRY_COMPARE(target.geometry(), QRect(position, QSize(2560, 1440)));
+    // Changing the preset asks the client for another size, and on KWin 6.6
+    // that first request fails its validation: the documented single retry is
+    // what recovers it, and the retry costs the whole path - validation 3 s
+    // after the request, a restore and reschedule 250 ms later, and validation
+    // of the new request 3 s after that. Measured on Ubuntu 26.04 / KWin
+    // 6.6.6, where QtTest reported that 8300 ms would have sufficed against
+    // the 5000 ms default; KWin 6.3.6 satisfies the request immediately. Wait
+    // out the retry rather than the moment 6.3.6 happens to answer in.
+    QTRY_COMPARE_WITH_TIMEOUT(target.geometry(), QRect(position, QSize(2560, 1440)), 15000);
     QTest::qWait(3500);
     QCOMPARE(target.geometry(), QRect(position, QSize(2560, 1440)));
     QCOMPARE(other.geometry(), otherGeometry);
