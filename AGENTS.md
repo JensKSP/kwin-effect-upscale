@@ -253,7 +253,18 @@ Laid down by Jens, 2026-09-19.
 agents' work meet. A branch an agent invents on its own splits that into two
 places and hides work he was reviewing somewhere he is not looking.
 
-## Follow pull request feedback through to resolution
+## Own the pull request through to green
+
+**The agent that opens or updates a pull request owns it end to end.** Opening
+it starts that task; it does not finish it. The pull request is done when its
+checks pass and its automated review approves its current revision — not when
+the work was pushed, and not when what is still wrong has been described
+accurately. Watching, fixing, re-running and answering the review are one task,
+and it stays with the agent until the pull request is green or a named blocker
+outside the agent's reach stops it. Jens's own review is such a blocker and is
+not the agent's to produce; report that it is awaited. **Ready to merge is the
+finish line.** Reaching it is where the agent's task ends and where Jens's
+begins: the merge is his, always.
 
 - **Never merge a pull request or enable auto-merge without Jens's explicit
   permission for that specific PR.** This applies even when every check and
@@ -278,11 +289,6 @@ places and hides work he was reviewing somewhere he is not looking.
   ready to merge. Mark it ready for review once the checks and the automated
   review have settled on the current head. Marking ready is not merging; merging
   stays with Jens either way.
-- **A passing revision is the goal, not a reported one.** Checks green and the
-  automated review approving, both on the exact revision being handed over, is
-  what finishing a pull request means. A `CHANGES_REQUESTED` verdict standing
-  against the current head is unfinished work; report it as that, never as a
-  status line that closes the task.
 - **`CodeRabbit approval` is a commit status, not a comment.**
   `.github/workflows/review-approval.yml` and `tools/review_approval.py` publish
   it, and it is decided by the bot's authenticated account, never by text that
@@ -296,9 +302,9 @@ places and hides work he was reviewing somewhere he is not looking.
 
 **Why:** a pull request that was pushed to is not a pull request that passed.
 The approval gate re-verifies every head precisely so that a fix which breaks
-something else cannot inherit the previous revision's approval, and an agent
-that stops at "the status is red and here is why" has handed back a task it was
-asked to finish.
+something else cannot inherit the previous revision's approval. An agent that
+stops at "the status is red and here is why" has described the task it was
+asked to finish, and left it open for someone else to close.
 
 ## Owner overrides require explicit permission
 
