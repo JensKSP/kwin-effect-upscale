@@ -20,6 +20,7 @@
 
 #include <drm_fourcc.h>
 
+#include <cmath>
 #include <optional>
 
 namespace KWin
@@ -124,7 +125,14 @@ static bool showingOnItsOutput(EffectWindow *window)
 // pixel, and nothing finer than a pixel can be drawn differently.
 static bool samePixel(double first, double second, double scale)
 {
-    return qRound(first * scale) == qRound(second * scale);
+    // Within one device pixel, rather than rounding each side and comparing.
+    // Rounding on its own is not enough: two edges a fraction of a pixel apart
+    // can still fall either side of a rounding boundary. Measured 2026-09-19
+    // on a 3840 x 2160 output at scale 1.45, a fullscreen SuperTuxKart window
+    // was 1490.3 logical high against an output 1489.7 high — 2160.9 device
+    // pixels against 2160.1 — and was refused for a difference no pixel can
+    // show and no frame can draw.
+    return std::abs(first - second) * scale <= 1.0;
 }
 
 // Whether the window occupies its whole output. This is a gate, not a

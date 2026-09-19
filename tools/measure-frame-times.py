@@ -342,14 +342,14 @@ def configure(preset: str, *, sharpening: bool) -> None:
     )
 
 
-def launch(game: str, seconds: int) -> subprocess.Popen[str]:
+def launch(plan: Plan, seconds: int) -> subprocess.Popen[str]:
     """Start the game in whatever mode renders without a person at the keyboard.
 
     @p seconds is how long the game has to keep rendering, which is the whole
     run and not only its sampled part: a demo mode told to last as long as the
     sampling window would stop while the warm-up was still being discarded.
     """
-    definition = GAMES[game]
+    definition = GAMES[plan.game]
     program = shutil.which(definition.program)
     if not program:
         missing = f"{definition.program} is not installed"
@@ -359,6 +359,12 @@ def launch(game: str, seconds: int) -> subprocess.Popen[str]:
     # it started rather than leaving a renderer behind holding the screen.
     environment = dict(os.environ)
     environment.update(definition.environment)
+    # SDL picks its video driver per launch, so naming one is how a game is
+    # made a Wayland client or an X11 client on the same session.
+    if plan.window_system:
+        environment["SDL_VIDEODRIVER"] = plan.window_system
+    if plan.renderer:
+        arguments.append(f"--render-driver={plan.renderer}")
     return subprocess.Popen(
         [program, *arguments],
         stdout=subprocess.PIPE,
@@ -415,6 +421,9 @@ class Plan:
     interval: float = 2.0
     warm_up: float = 10.0
     sharpening: bool = False
+    # Empty leaves the game to choose, which is what a player gets.
+    window_system: str = ""
+    renderer: str = ""
 
 
 def measure(plan: Plan, preset: str) -> tuple[Summary, list[Sample]]:
@@ -427,7 +436,7 @@ def measure(plan: Plan, preset: str) -> tuple[Summary, list[Sample]]:
     # The game outlives the sampling window by the time it spends starting and
     # warming up, and then by a margin: a demo that ends one second early takes
     # the last sample with it and leaves the run one reading short.
-    process = launch(game, int(startup + warm_up + seconds + 15))
+    process = launch(plan, int(startup + warm_up + seconds + 15))
     samples: list[Sample] = []
     try:
         time.sleep(startup)
@@ -519,6 +528,18 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--repeats", type=int, default=1, help="times to run the whole set")
     parser.add_argument("--sharpening", action="store_true", help="run with RCAS on")
+    parser.add_argument(
+        "--window-system",
+        default="",
+        choices=["", "wayland", "x11"],
+        help="tell the game which window system to use",
+    )
+    parser.add_argument(
+        "--renderer",
+        default="",
+        choices=["", "gl", "vulkan"],
+        help="tell the game which graphics API to use",
+    )
     parser.add_argument("--output", type=Path, default=Path("build/measurements"))
     options = parser.parse_args(argv)
 
@@ -537,6 +558,8 @@ def main(argv: list[str] | None = None) -> int:
         interval=options.interval,
         warm_up=options.warm_up,
         sharpening=options.sharpening,
+        window_system=options.window_system,
+        renderer=options.renderer,
     )
     for repeat in range(options.repeats):
         # Alternate nothing: run the presets in the order given, repeatedly, so
