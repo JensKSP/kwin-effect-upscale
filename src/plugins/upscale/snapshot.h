@@ -76,6 +76,11 @@ struct UpscaleSnapshot
     QSize destination;
     UpscaleSize desired{0, 0};
     double outputScale = 1;
+    // The two rectangles the coverage rule compares. A window is only scaled
+    // while it occupies its whole output, and when it is refused for that the
+    // sizes are the first thing anyone needs to see.
+    UpscaleRectF windowArea;
+    UpscaleRectF outputArea;
 
     // What the client is, which is the first thing to know when a request had
     // no effect. The window system decides which road a request can travel at

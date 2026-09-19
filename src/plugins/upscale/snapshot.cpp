@@ -204,10 +204,10 @@ static QString renderScale(const UpscaleSnapshot &snapshot)
     return i18n("%1%", qRound(100.0 * snapshot.supplied.width() / snapshot.destination.width()));
 }
 
-// What the client is, in the fewest words that stay true. This sits in the
-// block a person keeps on screen because it is the first thing to check when a
-// request had no effect: a game running through Xwayland cannot be reached by
-// a Wayland method, and that is invisible in every other figure here.
+// What the client is, in the fewest words that stay true. It sits on the
+// persistent view because that is the first thing to check when a request had
+// no effect: a game running through Xwayland cannot be reached by a Wayland
+// method, and that is invisible in every other figure there.
 //
 // "GPU" and "memory" describe how the buffer arrived, not what drew it. The
 // graphics API is not observable from a compositor, so it is not claimed.
@@ -222,7 +222,7 @@ static QString clientKind(const UpscaleSnapshot &snapshot)
         system = i18n("X11");
         break;
     case UpscaleWindowSystem::Unknown:
-        system = i18n("? window system");
+        system = unknown();
         break;
     }
     switch (snapshot.bufferKind) {
@@ -369,6 +369,13 @@ QString upscaleStatusText(const UpscaleSnapshot &snapshot)
     return lines.join(QLatin1Char('\n'));
 }
 
+static QString areaText(const UpscaleRectF &area)
+{
+    return i18nc("A rectangle, as position and size", "%1,%2 %3 × %4",
+                 QString::number(area.x(), 'f', 1), QString::number(area.y(), 'f', 1),
+                 QString::number(area.width(), 'f', 1), QString::number(area.height(), 'f', 1));
+}
+
 QString upscaleDeveloperInformation(const UpscaleSnapshot &snapshot)
 {
     QStringList lines;
@@ -392,6 +399,8 @@ QString upscaleDeveloperInformation(const UpscaleSnapshot &snapshot)
     lines.append(i18n("Configuration: %1, desired %2, sharpening %3",
                       snapshot.enabled ? i18n("enabled") : i18n("disabled"), desiredText(snapshot),
                       snapshot.sharpening > 0 ? i18n("RCAS %1%", qRound(snapshot.sharpening * 100)) : i18n("off")));
+    lines.append(i18n("Coverage: window %1, output %2", areaText(snapshot.windowArea),
+                      areaText(snapshot.outputArea)));
     lines.append(i18n("Geometry: supplied %1, destination %2, output scale %3",
                       sizeText(snapshot.supplied), sizeText(snapshot.destination),
                       QString::number(snapshot.outputScale, 'f', 2)));

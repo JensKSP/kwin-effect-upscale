@@ -325,9 +325,20 @@ void UpscaleSnapshotTest::namesEveryPresetAndTransferFunction()
 // beside it has to be named by what it actually is.
 void UpscaleSnapshotTest::namesTheClientItIsLookingAt()
 {
+    // The rectangles the coverage rule compares are reported as they are,
+    // fractions included: on a fractionally scaled output the logical size is
+    // not a whole number, and rounding it away would hide the difference this
+    // line exists to explain.
+    UpscaleSnapshot covered = scaling();
+    covered.windowArea = UpscaleRectF(0, 0, 2560, 1440);
+    covered.outputArea = UpscaleRectF(0, 0, 2648.28, 1489.66);
+    const QString areas = upscaleDeveloperInformation(covered);
+    QVERIFY2(areas.contains(QStringLiteral("window 0.0,0.0 2560.0 × 1440.0")), qPrintable(areas));
+    QVERIFY2(areas.contains(QStringLiteral("output 0.0,0.0 2648.3 × 1489.7")), qPrintable(areas));
+
     // The first thing to check when a request had no effect is which window
     // system the client speaks: a Wayland method cannot reach an Xwayland
-    // game, and no other figure in this block would ever show it.
+    // game, and no other figure on this block would ever show it.
     UpscaleSnapshot wayland = scaling();
     wayland.windowSystem = UpscaleWindowSystem::Wayland;
     wayland.bufferKind = UpscaleBufferKind::Gpu;

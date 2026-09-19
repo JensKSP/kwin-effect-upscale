@@ -62,11 +62,13 @@ UpscaleSnapshot UpscaleEffect::snapshot(EffectWindow *window, const RenderTarget
         state.output = output->name();
         state.destination = output->pixelSize();
         state.outputScale = output->scale();
+        state.outputArea = output->geometryF();
         state.desired = desiredResolution({state.destination.width(), state.destination.height()}, state.preset, state.percentage);
     }
     // Which window system the client speaks decides which requests can reach
     // it at all, so it is recorded for every window, refused or not. Both are
     // constant for a window's lifetime.
+    state.windowArea = window->frameGeometry();
     if (window->isWaylandClient()) {
         state.windowSystem = UpscaleWindowSystem::Wayland;
     } else if (window->isX11Client()) {
