@@ -8,6 +8,7 @@
 
 #include "framestatistics.h"
 #include "overlay.h"
+#include "placement.h"
 #include "snapshot.h"
 
 #include <QElapsedTimer>
@@ -23,10 +24,13 @@ class EffectWindow;
 /**
  * What the on-screen display shows, and when.
  *
- * It owns the visibility rules the handbook states: a timed announcement of
- * the selected window with a basic summary, a persistent statistics view, and
- * developer information extending it. The effect owns the rendering path and
- * the state; this owns the decision of what a person sees.
+ * It owns the visibility rules the handbook states, and the three separate
+ * things they describe: a timed announcement of the selected window with a
+ * basic summary, a persistent view of the measurements, and a developer dump.
+ * Each is its own block in its own corner, because they are read for different
+ * reasons and one of them disappears while the others stay. The effect owns
+ * the rendering path and the state; this owns the decision of what a person
+ * sees and where.
  *
  * Nothing here samples on a timer of its own. Text is rebuilt at a bounded
  * interval while frames are being painted anyway, and the one timer that does
@@ -83,20 +87,53 @@ public:
     /** Takes a new snapshot, completes its measurements and lays out the text. */
     void update(UpscaleSnapshot snapshot, EffectWindow *window);
 
+    /**
+     * Copies the measurements as they stand into another snapshot.
+     *
+     * The frame times belong to this class because it is what follows one
+     * window and one output long enough to have them. A caller reporting the
+     * state somewhere other than the screen — the status the settings page
+     * and D-Bus read — builds its own snapshot and has no way to measure, so
+     * it asks for these rather than reporting a window without them.
+     *
+     * Nothing is copied while nothing is being measured, which leaves the
+     * caller's snapshot saying so instead of quoting a stale rate.
+     */
+    void applyMeasurements(UpscaleSnapshot &snapshot, EffectWindow *window, UpscaleOutput *screen) const;
+
     /** Draws the text onto this output, whose logical geometry is given. */
     void paint(const RenderTarget &target, const RenderViewport &viewport, const UpscaleRectF &screen);
 
-    /** Hides everything and releases what it was holding. */
+    /**
+     * Hides everything and releases what it was holding.
+     *
+     * A display that had been drawn asks for one more frame on its way out.
+     * KWin stops calling an inactive effect's paint hooks, and a screen with
+     * nothing to repaint keeps the pixels it last composited, so without that
+     * frame the blocks stay on the desktop after the game that they described
+     * has gone, with later window repaints drawing over them.
+     */
     void hide();
 
-    /** What is on screen right now, and empty when nothing is. */
+    /** Whether anything was drawn and is still on the screen. */
+    bool drawn() const;
+
+    /** Everything on screen right now, block by block, and empty when
+     *  nothing is. The blocks are drawn apart; this reads them as one. */
     QString text() const;
 
 private:
     void compose();
+    void releaseBlocks();
     void resetSampling();
 
-    UpscaleOverlay m_overlay;
+    // Three blocks in three places. The announcement keeps the corner a
+    // message has always appeared in, the developer dump goes out of the way
+    // at the bottom, and the persistent view goes where the user put it.
+    UpscaleOverlay m_announcementOverlay;
+    UpscaleOverlay m_statisticsOverlay;
+    UpscaleOverlay m_developerOverlay;
+    UpscaleCorner m_statisticsCorner = UpscaleCorner::TopRight;
     UpscaleSnapshot m_snapshot;
     bool m_enabled = true;
     bool m_detection = true;
@@ -128,8 +165,9 @@ private:
     QMetaObject::Connection m_presentation;
     int m_presentationMode = -1;
     QElapsedTimer m_composed;
-    // Where the text was last drawn, so that its own expiry can repaint it.
-    UpscaleRectF m_area;
+    // Whether the last paint put anything on the screen, which decides
+    // whether hiding has to ask for the frame that takes it off again.
+    bool m_drawn = false;
 };
 
 } // namespace KWin

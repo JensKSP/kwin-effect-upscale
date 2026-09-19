@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -82,10 +83,19 @@ class BuildInfoTest(unittest.TestCase):
         self.git("tag", "v9.9.9")
         self.assertIn("0.1.0+git", self.generate())
         self.git("tag", "v0.1.0")
-        self.assertIn('QStringLiteral("0.1.0")', self.generate())
+        generated = self.generate()
+        self.assertIn('QStringLiteral("0.1.0")', generated)
+        revision = self.git("rev-parse", "--short=10", "HEAD")
+        self.assertIn(f'QStringLiteral("{revision}")', generated)
         with (self.source / "README.md").open("a") as stream:
             stream.write("\nChanged source.\n")
         self.assertIn("-dirty", self.generate())
+
+    def test_detached_tag(self) -> None:
+        """A detached release checkout reports its tag as the source ref."""
+        self.git("tag", "v0.1.0")
+        self.git("checkout", "--detach", "v0.1.0")
+        self.assertIn('QStringLiteral("v0.1.0")', self.generate())
 
     def test_package_version(self) -> None:
         """The package's explicit version wins over tracked packaging edits."""
@@ -115,25 +125,27 @@ class BuildInfoTest(unittest.TestCase):
             version = stream.read()
         shutil.rmtree(self.source / ".git")
         (self.source / "source-version").write_bytes(version)
-        self.assertIn('QStringLiteral("0.1.0+git20260917.0123456789")', self.generate())
+        generated = self.generate()
+        self.assertIn('QStringLiteral("0.1.0+git20260917.0123456789")', generated)
+        self.assertIn('QStringLiteral("0123456789")', generated)
 
     def test_unchanged_build(self) -> None:
-        """An unchanged build retains its original timestamp and source mtime."""
-        self.generate()
-        state = self.output.with_suffix(".cpp.state")
-        fingerprint = state.read_text().splitlines()[0]
-        state.write_text(f"{fingerprint}\n2000-01-01T00:00:00Z\n")
+        """Reproducible builds retain the generated source mtime when unchanged."""
+        self.environment["SOURCE_DATE_EPOCH"] = "946684800"
         first = self.generate()
         modification_time = self.output.stat().st_mtime_ns
         self.assertIn("2000-01-01T00:00:00Z", first)
         self.assertEqual(self.generate(), first)
         self.assertEqual(self.output.stat().st_mtime_ns, modification_time)
-        with (self.source / "src/plugins/upscale/upscale.cpp").open("a") as stream:
-            stream.write("\n// changed\n")
-        self.assertNotIn("2000-01-01T00:00:00Z", self.generate())
+
+    def test_build_date_refreshes(self) -> None:
+        """A later build invocation records a new date without source changes."""
+        first = self.generate()
+        time.sleep(1.1)
+        self.assertNotEqual(self.generate(), first)
 
     def test_reproducible_date(self) -> None:
-        """SOURCE_DATE_EPOCH overrides any previously cached build date."""
+        """SOURCE_DATE_EPOCH supplies the requested UTC timestamp."""
         self.generate()
         self.environment["SOURCE_DATE_EPOCH"] = "946684800"
         self.assertIn("2000-01-01T00:00:00Z", self.generate())

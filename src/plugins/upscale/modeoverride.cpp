@@ -7,6 +7,7 @@
 #include "modeoverride.h"
 
 #include "compatibility.h"
+#include "upscaleconfig.h"
 
 #include "effect/effecthandler.h"
 #include "wayland/clientconnection.h"
@@ -59,7 +60,7 @@ void UpscaleModeOverride::reconfigure(bool enabled, ResolutionPreset preset, int
     // taken. The games already running will not read it, but a client that
     // binds the output again, and the next thing that inspects these
     // resources, would otherwise see a mode this effect no longer asks for.
-    if (!m_announced.isEmpty()) {
+    if (!m_announced.isEmpty() || !enabled) {
         restore(enabled ? Record::Keep : Record::Discard);
     }
     m_enabled = enabled;
@@ -67,9 +68,9 @@ void UpscaleModeOverride::reconfigure(bool enabled, ResolutionPreset preset, int
     m_percentage = percentage;
 }
 
-QSize UpscaleModeOverride::advertised(const QString &program) const
+QSize UpscaleModeOverride::advertised(const ClientConnection *client, const QString &output) const
 {
-    return m_advertised.value(program);
+    return m_advertised.value(client).value(output);
 }
 
 void UpscaleModeOverride::watchOutputs()
@@ -90,8 +91,12 @@ void UpscaleModeOverride::watchOutput(OutputInterface *output)
         return;
     }
     m_watched.insert(output);
-    connect(output, &QObject::destroyed, this, [this, output]() {
+    const QString name = output->handle() ? output->handle()->name() : QString();
+    connect(output, &QObject::destroyed, this, [this, output, name]() {
         m_watched.remove(output);
+        for (auto &outputs : m_advertised) {
+            outputs.remove(name);
+        }
     });
     connect(output, &OutputInterface::bound, this,
             [this, output](ClientConnection *client, wl_resource *resource) {
@@ -110,13 +115,13 @@ UpscaleModeOverride::Advertisement UpscaleModeOverride::advertisementFor(OutputI
         return {};
     }
     const QSize pixels = handle->pixelSize();
-    if (pixels.isEmpty()) {
+    const int minimum = application.minimumPixels < 0 ? UpscaleConfig::minimumPixels() : application.minimumPixels;
+    if (!exceedsMinimumPixels({pixels.width(), pixels.height()}, minimum)) {
         return {};
     }
-    // The user's own choice always wins. Automatic means the user has not
-    // chosen, which is when a recognized application falls back to the size
-    // recorded for it, so that a fresh installation already does something.
-    const ResolutionPreset preset = m_preset == ResolutionPreset::Automatic ? application.preset : m_preset;
+    // Automatic follows the profile. Native in either place is an opt-out,
+    // so a global percentage cannot undo a rule to leave this client alone.
+    const ResolutionPreset preset = effectiveResolutionPreset(m_preset, application.preset);
     const UpscaleSize destination{pixels.width(), pixels.height()};
     if (application.method == UpscaleControlMethod::AdvertisedMode) {
         // This kind of client presents whatever size it picked through a
@@ -144,7 +149,8 @@ void UpscaleModeOverride::announce(OutputInterface *output, ClientConnection *cl
         return;
     }
     const UpscaleApplication *application = upscaleApplicationForProgram(client->executablePath());
-    if (!application || application->method == UpscaleControlMethod::None) {
+    if (!application || application->method == UpscaleControlMethod::None
+        || application->method == UpscaleControlMethod::X11Resize) {
         return;
     }
     const Advertisement advertisement = advertisementFor(output, *application);
@@ -175,7 +181,13 @@ void UpscaleModeOverride::announce(OutputInterface *output, ClientConnection *cl
         wl_output_send_done(resource);
     }
     m_announced.append({output, client, application->program});
-    m_advertised[application->program] = advertisement.size;
+    if (!m_advertised.contains(client)) {
+        connect(client, &QObject::destroyed, this, [this, client]() {
+            m_advertised.remove(client);
+        });
+    }
+    // A later instance of the same executable may have seen a different policy.
+    m_advertised[client][handle->name()] = advertisement.size;
     qCDebug(KWIN_UPSCALE, "advertised %dx%d scale %d to %s", advertisement.size.width(),
             advertisement.size.height(), advertisement.scale, qPrintable(application->name));
 }
@@ -209,7 +221,11 @@ void UpscaleModeOverride::restore(Record record)
     }
     m_announced.clear();
     if (record == Record::Discard) {
-        m_advertised.clear();
+        // Keep the connection keys until destruction, so a later bind does not
+        // install a second lifetime connection after every reconfiguration.
+        for (auto &outputs : m_advertised) {
+            outputs.clear();
+        }
     }
 }
 

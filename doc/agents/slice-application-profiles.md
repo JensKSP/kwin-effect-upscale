@@ -5,10 +5,24 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 # Slice: application profiles and setting overrides
 
-## Start state
+## Current status
 
-The effect has global settings only. Matching, profile storage and the profile
-editor are not implemented. Source investigation established reusable KWin
+Matching, layered catalogue storage and an editor are implemented. The shipped
+catalogue has four entries: SuperTuxKart, Extreme Tux Racer, glmark2 and vkmark.
+The editor supports manual/window-based addition, field editing, disabling
+shipped entries, deleting user entries and restoring defaults. Native is a
+scaling opt-out; Enabled controls matching participation. MinimumPixels can
+inherit the global threshold or override it, including zero to disable it.
+
+General sparse overrides for all effect/OSD settings and editor reordering
+remain open, along with full real-session acceptance. The early model below is
+a proposal; the later layered-configuration and editor records describe what
+was implemented.
+
+## Historical start state
+
+The effect initially had global settings only. Matching, profile storage and the profile
+editor were not implemented. Source investigation established reusable KWin
 window detection and the sparse setting model below.
 
 ## End state
@@ -29,8 +43,7 @@ The [development infrastructure](slice-development-infrastructure.md) owns the
 passive OSD and detection-message lifecycle. This profile package supplies real
 match events and sparse OSD overrides, and owns their integrated acceptance.
 The [overlay](slice-game-overlay.md) owns interactive controls and comparison.
-[Launching](slice-application-launching.md) owns launch
-definitions, restart and discovery. [Resolution control](slice-resolution-control.md)
+Managed launch/restart is [superseded](slice-application-launching.md). [Resolution control](slice-resolution-control.md)
 owns obtaining smaller buffers. Those packages must not prevent closing this
 profile package once its own end state is accepted.
 
@@ -129,7 +142,11 @@ copyright and licence headers; do not replace upstream attribution with the
 project's own header. A desktop entry, Steam identifier or suggested profile
 does not by itself authorize future client-resolution changes.
 
-## Proposed design
+## Early proposed design
+
+This section records the initial design, not the implemented configuration
+format. In particular, the template-only catalogue proposal was superseded by
+active shipped defaults, and matching permits an instance-only constraint.
 
 ### Identity and selection
 
@@ -176,7 +193,7 @@ valid and follows globals. The initial format needs no per-setting inheritance
 flags or copies of global defaults.
 [KConfigGroup API](https://api.kde.org/kconfiggroup.html).
 
-The five current settings can all be overridden: `Enabled`, `Preset`,
+The proposed general override layer would cover: `Enabled`, `Preset`,
 `Percentage`, `Sharpening`, and `Strength`. Resolve fields first, then apply
 their dependencies: `Percentage` matters for Custom, and `Strength` matters
 when sharpening is enabled. Changing the profile's percentage control should
@@ -265,13 +282,13 @@ accessor, not process inspection, and the specification's prohibition of
 process scanning still holds. A profile that selects a launch-independent
 method therefore needs a program field alongside its window identity.
 
-Implemented so far: `UpscaleApplication`, a code-owned catalogue with these two
+At that first observation: `UpscaleApplication`, a code-owned catalogue with these two
 entries, matching by window identity and by program, and the reports that name
 a recognized application. Shipped entries are active on installation rather
 than offered as templates, as decided by Jens and recorded in the
 [handbook](../upscaling.md#per-application-overrides). The user-editable
-profile layer, its persistence and its editor are unchanged and still to build;
-the catalogue is the layer they will sit above, not a substitute for them.
+profile editor was still to build at that observation; its later implementation
+is recorded below. General effect-setting overrides remain open.
 
 Unit tests cover catalogue integrity, both observed identities, case
 sensitivity, a changed Extreme Tux Racer version and program matching by file
@@ -331,8 +348,7 @@ that constrains no identity, and reads a method or preset it does not know as
 the one that asks for nothing, so a file from a later version cannot make this
 build act on a method it has not implemented.
 
-The settings page reports how many applications are recognized and whether the
-list still matches the shipped one, and offers **Restore the shipped
+The settings page reports whether the list still matches the shipped one, and offers **Restore the shipped
 application list**, which asks first, then reverts the user's fields, removes
 their own entries and tells the running effect to read again. It is separate
 from the page's Defaults, which restores the effect's settings and leaves the
@@ -394,6 +410,13 @@ Sparse per-setting overrides, profile ordering in the interface and the notes'
 translation, which needs the localized-entry extraction KDE uses for `.desktop`
 files, all remain part of this slice.
 
+How the shipped list grows beyond the applications one machine can run is not
+part of it. Producing a submittable report, the route people send it by and the
+rule for accepting one belong to
+[application submissions](slice-application-submissions.md), which builds on the
+storage, matching and editor implemented here and must not hold this package
+open.
+
 ## Acceptance criteria
 
 Planned checks, not observed results:
@@ -420,7 +443,8 @@ Planned checks, not observed results:
 - [x] Compare reuse options and specify sparse inheritance and editing.
 - [x] Observe the catalogue identities of both test games and ship them.
 - [ ] Validate the recommended values on real applications in a real session.
-- [x] Implement model, persistence, editor and runtime settings resolution.
+- [x] Implement catalogue model, layered persistence, editor and preset/pixel policy.
+- [ ] Implement general sparse effect/OSD overrides and editor reordering.
 - [ ] Run acceptance tests, both compiler/container builds and TV checks.
 
 Observed documentation validation, 2026-09-18: `pre-commit run --all-files`
@@ -430,3 +454,8 @@ flagged one wording choice in codespell; it was corrected before the passing
 run. No profile implementation, build or runtime test was performed for this
 investigation. Retain this slice document until implementation and required
 acceptance are complete.
+
+PR #14 review follow-up: window selection now uses an asynchronous D-Bus watcher
+owned by the editor, with duplicate selections suppressed while waiting. The
+catalogue test now explicitly requires the shipped entry before comparing its
+program matches. Revalidation is recorded with the combined PR candidate.

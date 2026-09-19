@@ -17,4 +17,7 @@ RUN test -n "$DEPENDENCY_EPOCH" && apt-get update \
 RUN PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install pre-commit==4.6.2 \
     && git config --system --add safe.directory /src/.git
 
+# Package-build tests start a private Xwayland without systemd-tmpfiles.
+RUN install -d -m 1777 /tmp/.X11-unix
+
 WORKDIR /src

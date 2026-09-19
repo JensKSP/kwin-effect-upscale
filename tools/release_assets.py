@@ -90,6 +90,10 @@ def validate_assets(directory: Path, version: str) -> list[Path]:
 def write_manifest(directory: Path, version: str) -> None:
     """Only produce a manifest after the full release inventory is validated."""
     paths = validate_assets(directory, version)
+    # GitHub replaces '~' in asset filenames with '.'. Choose those public
+    # names before checksumming and attesting, so downloaded manifests work.
+    # Package versions and Debian's original build records remain unchanged.
+    paths = [path.rename(path.with_name(path.name.replace("~", "."))) for path in paths]
     (directory / "SHA256SUMS").write_text(
         "".join(f"{digest(path)}  {path.name}\n" for path in paths)
     )

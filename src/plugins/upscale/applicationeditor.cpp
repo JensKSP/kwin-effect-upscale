@@ -12,7 +12,8 @@
 #include <QComboBox>
 #include <QDBusConnection>
 #include <QDBusMessage>
-#include <QDBusReply>
+#include <QDBusPendingCallWatcher>
+#include <QDBusPendingReply>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -21,20 +22,23 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QScopedValueRollback>
+#include <QSpinBox>
 #include <QVBoxLayout>
 
 #include <algorithm>
 #include <array>
+#include <limits>
 #include <ranges>
 
 namespace KWin
 {
 
-static const std::array<UpscaleControlMethod, 4> controlMethods = {
+static const std::array<UpscaleControlMethod, 5> controlMethods = {
     UpscaleControlMethod::None,
     UpscaleControlMethod::AdvertisedMode,
     UpscaleControlMethod::AdvertisedScale,
     UpscaleControlMethod::AdvertisedModeAndScale,
+    UpscaleControlMethod::X11Resize,
 };
 
 static const std::array<ResolutionPreset, 7> resolutionPresets = {
@@ -87,6 +91,12 @@ void UpscaleApplicationEditor::buildDetails(QFormLayout *form)
     form->addRow(i18n("Program:"), m_program);
     form->addRow(i18n("Resolution request:"), m_method);
     form->addRow(i18n("Resolution:"), m_preset);
+    m_preset->setToolTip(i18n("Native disables resolution requests and upscaling for this application, including when a global preset is selected."));
+    m_minimumPixels->setObjectName(QStringLiteral("applicationMinimumPixels"));
+    m_minimumPixels->setRange(-1, std::numeric_limits<int>::max());
+    m_minimumPixels->setSpecialValueText(i18n("Use global threshold"));
+    m_minimumPixels->setToolTip(i18n("Scale only on outputs with more physical pixels. Full HD is 2073600. Zero disables the threshold."));
+    form->addRow(i18n("Minimum output pixels:"), m_minimumPixels);
     form->addRow(QString(), m_enabled);
     form->addRow(QString(), m_note);
 }
@@ -120,6 +130,9 @@ void UpscaleApplicationEditor::connectControls()
     connect(m_enabled, &QCheckBox::clicked, this, [this]() {
         applyToSelected();
     });
+    connect(m_minimumPixels, &QSpinBox::valueChanged, this, [this]() {
+        applyToSelected();
+    });
 }
 
 UpscaleApplicationEditor::UpscaleApplicationEditor(QWidget *parent)
@@ -131,6 +144,7 @@ UpscaleApplicationEditor::UpscaleApplicationEditor(QWidget *parent)
     , m_program(new QLineEdit(this))
     , m_method(new QComboBox(this))
     , m_preset(new QComboBox(this))
+    , m_minimumPixels(new QSpinBox(this))
     , m_enabled(new QCheckBox(i18n("Recognize this application"), this))
     , m_note(new QLabel(this))
 {
@@ -212,7 +226,7 @@ void UpscaleApplicationEditor::showSelected()
     const QScopedValueRollback updating(m_updating, true);
     const UpscaleApplication *application = selected();
     const bool valid = application != nullptr;
-    const std::array<QWidget *, 7> fields = {m_name, m_windowClass, m_instance, m_program, m_method, m_preset, m_enabled};
+    const std::array<QWidget *, 8> fields = {m_name, m_windowClass, m_instance, m_program, m_method, m_preset, m_minimumPixels, m_enabled};
     for (QWidget *widget : fields) {
         widget->setEnabled(valid);
     }
@@ -230,6 +244,7 @@ void UpscaleApplicationEditor::showSelected()
     m_method->setCurrentIndex(int(std::ranges::distance(controlMethods.begin(), std::ranges::find(controlMethods, application->method))));
     m_preset->setCurrentIndex(int(std::ranges::distance(resolutionPresets.begin(), std::ranges::find(resolutionPresets, application->preset))));
     m_enabled->setChecked(application->enabled);
+    m_minimumPixels->setValue(application->minimumPixels);
     m_note->setText(application->shipped
                         ? application->note
                         : i18n("Added by you. A request this application does not follow will not make it "
@@ -252,6 +267,7 @@ void UpscaleApplicationEditor::applyToSelected()
     application->method = controlMethods.at(size_t(std::max(0, m_method->currentIndex())));
     application->preset = resolutionPresets.at(size_t(std::max(0, m_preset->currentIndex())));
     application->enabled = m_enabled->isChecked();
+    application->minimumPixels = m_minimumPixels->value();
     const QScopedValueRollback updating(m_updating, true);
     if (QListWidgetItem *item = m_list->currentItem()) {
         item->setText(application->shipped ? application->name
@@ -281,40 +297,51 @@ void UpscaleApplicationEditor::addApplication()
 
 void UpscaleApplicationEditor::addFromWindow()
 {
+    if (m_selecting) {
+        return;
+    }
+    m_selecting = true;
+    // Keep the settings event loop responsive during KWin's interactive picker.
+    // The watcher is owned by this editor; closing it cancels our reply handler.
     // KWin performs the selection itself, for native and X11 windows alike.
     const QDBusMessage message = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"), QStringLiteral("/KWin"),
                                                                 QStringLiteral("org.kde.KWin"), QStringLiteral("queryWindowInfo"));
-    QDBusReply<QVariantMap> reply = QDBusConnection::sessionBus().call(message, QDBus::Block, 60000);
-    if (!reply.isValid()) {
-        // Cancelling the selection is an error reply, and not a failure worth
-        // a dialog. Anything else is worth saying out loud.
-        if (reply.error().name() != QLatin1String("org.kde.KWin.Error.UserCancel")) {
-            QMessageBox::warning(this, i18n("Add from window"),
-                                 i18n("The window could not be identified: %1", reply.error().message()));
+    auto *watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(message, 60000), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this, [this, watcher]() {
+        const QDBusPendingReply<QVariantMap> reply = *watcher;
+        watcher->deleteLater();
+        m_selecting = false;
+        if (!reply.isValid()) {
+            // Cancelling the selection is an error reply, and not a failure worth
+            // a dialog. Anything else is worth saying out loud.
+            if (reply.error().name() != QLatin1String("org.kde.KWin.Error.UserCancel")) {
+                QMessageBox::warning(this, i18n("Add from window"),
+                                     i18n("The window could not be identified: %1", reply.error().message()));
+            }
+            return;
         }
-        return;
-    }
-    const QVariantMap information = reply.value();
-    UpscaleApplication application;
-    application.name = information.value(QStringLiteral("resourceClass")).toString();
-    application.windowClass = application.name;
-    application.instance = information.value(QStringLiteral("resourceName")).toString();
-    if (application.windowClass.isEmpty() && application.instance.isEmpty()) {
-        QMessageBox::warning(this, i18n("Add from window"),
-                             i18n("That window reports no application identity, so it cannot be recognized."));
-        return;
-    }
-    application.id = upscaleNewApplicationId(application.name.isEmpty() ? application.instance : application.name,
-                                             m_applications);
-    application.order = m_applications.empty() ? 100 : m_applications.back().order + 10;
-    m_applications.push_back(application);
-    m_original.push_back(UpscaleApplication{});
-    rebuildList();
-    m_list->setCurrentRow(int(m_applications.size()) - 1);
-    // The window gave its identity but not the program behind it, and the
-    // request has to be made before any window exists.
-    m_program->setFocus();
-    Q_EMIT changed();
+        const QVariantMap information = reply.value();
+        UpscaleApplication application;
+        application.name = information.value(QStringLiteral("resourceClass")).toString();
+        application.windowClass = application.name;
+        application.instance = information.value(QStringLiteral("resourceName")).toString();
+        if (application.windowClass.isEmpty() && application.instance.isEmpty()) {
+            QMessageBox::warning(this, i18n("Add from window"),
+                                 i18n("That window reports no application identity, so it cannot be recognized."));
+            return;
+        }
+        application.id = upscaleNewApplicationId(application.name.isEmpty() ? application.instance : application.name,
+                                                 m_applications);
+        application.order = m_applications.empty() ? 100 : m_applications.back().order + 10;
+        m_applications.push_back(application);
+        m_original.push_back(UpscaleApplication{});
+        rebuildList();
+        m_list->setCurrentRow(int(m_applications.size()) - 1);
+        // The window gave its identity but not the program behind it, and the
+        // request has to be made before any window exists.
+        m_program->setFocus();
+        Q_EMIT changed();
+    });
 }
 
 void UpscaleApplicationEditor::deleteSelected()

@@ -5,35 +5,18 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 # Slice: development infrastructure and diagnostics
 
-## Priority
+## Status and remaining work
 
-This is the next implementation slice, as requested on 2026-09-18 and confirmed
-after the first hardware runs. Its single topic is unchanged: making the current
-effect identifiable and observable during development through About and build
-identity, notices, logging, and the shared passive OSD with developer
-information. Existing rendering and pipeline acceptance records remain open
-until their own gates pass; their outstanding work is not absorbed here.
+The shared snapshot, refusal-specific diagnostics and passive OSD are implemented.
+They identified the render-target orientation defect; the rendering slice records
+its fix and a nested real-GPU SuperTuxKart observation. The early diagnostics-first
+sequence is therefore historical, not the next unimplemented capability.
 
-The package now carries a second purpose that fixes its order. The effect has
-never been observed scaling a frame. The
-[rendering slice](slice-fsr1-hdr-vrr.md) recorded a supplied buffer that meets
-every documented eligibility rule and that the effect refuses on the real
-session, without reporting which condition failed. Nothing in the product can
-currently answer that question, and the passing container tests did not predict
-it. This package builds the instrument that answers it.
-
-That makes the ordering deliberate rather than incidental: diagnostics first,
-so that the rendering slice's
-[scaler-effective gate](slice-fsr1-hdr-vrr.md#the-scaler-effective-gate) can be
-closed immediately afterwards. Work inside this package is sequenced to serve
-that. Candidate selection and rejection reporting come before About, notices and
-the overlay presentation, because the next gate depends on them and the rest
-does not.
-
-The obligation runs both ways. This package is not complete because a dialog
-renders and a log line appears. Its diagnostics have to be good enough to
-explain an actual refusal on real hardware, which is the acceptance recorded
-below.
+This package remains open for the full About/build identity and notices inventory,
+transition logging, session-font handling and its remaining native acceptance.
+Current presentation statistics remain observable even with the OSD hidden;
+overlay drawing and its own client/repaint sampling stop when hidden.
+Rendering, resolution-control and pipeline acceptance retain their own owners.
 
 ## Start state
 
@@ -263,6 +246,40 @@ Observed while implementing, not planned behaviour:
 
 ## Acceptance criteria
 
+### Settings version correction, 2026-09-19
+
+The owner reports a footer showing only `0.` and requests
+`X.X.X short_hash build_date branch/tag`. The current settings formatter uses
+the package version, branch and date; the generator has no independent public
+revision field and caches timestamps across build invocations. Correct the
+existing identity work here, preserving package-version semantics and the
+installed-versus-running comparison. Keep About, notices and rendering outside
+this correction. Use the existing build generator and settings test variants.
+
+The settings footer must show the base CMake version, abbreviated revision
+(including a dirty marker when applicable), UTC build timestamp and branch/tag
+in that order. Release tags must retain the hash; unavailable source identity
+must be explicit. Check the generated record and the actual label, including
+release, detached-tag, archive and reproducible-date cases. The supported-scope
+gate is the maintained build/check matrix; native settings inspection is the
+full acceptance for this footer. These checks are planned, not yet observed.
+
+Observed for the developer trial on 2026-09-19: all eight build-information
+regressions and both settings test variants passed in the maintained Trixie
+container. The configured commit hooks passed for the changed files. The
+Trixie GCC settings target built; a subsequent direct build refreshed the
+timestamp, compiled only `buildinfo.cpp` and linked the module, with no new moc
+or resource compilation. The native Release settings target built on pcjensd.
+A private-bus probe loaded both the old and new libraries and rendered their
+widgets: the previous installed label already contained a full snapshot
+version, so a literal `0.` was not reproduced there. The new visible label is
+`0.1.0 6313d6d37a-dirty 2026-09-19T12:43:20Z applications/recognize-and-request`.
+The new settings module was installed on pcjensd; the previous library is
+preserved under `build/settings-version/`. This was a focused build for the
+owner to try. The full two-container/two-compiler matrix, both whole-tree hook
+stages, clang-tidy and real-session acceptance have not run for this correction
+and remain required before closing the slice.
+
 Planned checks, not observed results:
 
 - All required fields are present in About and the initialization log: plugin
@@ -319,8 +336,8 @@ Planned checks, not observed results:
   launch environment or arbitrary arguments appear in routine diagnostics.
 - Passive modes never take focus, consume game input or contaminate capture.
   Verify bounded updates, no synchronous readback or new full-screen animation
-  loop for statistics, and release of diagnostic sampling and composition work
-  when hidden. Check legibility, game input, SDR/HDR and VRR in a native session,
+  loop for statistics, and release of overlay sampling and composition work
+  when hidden. Output presentation sampling remains active for status reports. Check legibility, game input, SDR/HDR and VRR in a native session,
   including visibility changes, output movement and lock/unlock.
 - The notices inventory covers actual incorporated shaders, libraries and
   dependencies with accurate upstream attribution and license expressions.
@@ -362,11 +379,64 @@ Planned checks, not observed results:
 - [x] Implement the passive OSD, the statistics and developer view and the
   build-type preference defaults. A shortcut to toggle the view, profile
   overrides and per-profile visibility remain open.
-- [ ] Follow the session's scaling and font settings in the OSD, per output,
-  and re-lay out when either changes. The text already follows the output's
-  scale factor; the family and size are the effect's own choice today.
+- [x] Separate the three passive displays. The timed announcement, the
+  persistent view and the developer dump were one growing block in one corner,
+  which is what Jens asked to have taken apart on 2026-09-19. They are now
+  three blocks in three corners: announcement top left, developer information
+  bottom right, and the persistent view in a corner the user chooses, stored
+  as `OsdPosition` and offered on the settings page as **Frame rate position**,
+  top right by default. Developer information no longer extends or enables the
+  persistent view. Placement lives in `placement.cpp`, which also stacks two
+  displays sent to the same corner and keeps a display larger than its output
+  from starting off the screen. The handbook states this in
+  [four displays, four places](../upscaling.md#four-displays-four-places).
+- [x] Make the persistent view a heads-up display: frames per second, frame
+  time, 1% low and what the picture is drawn at, in the terms every frame-rate
+  overlay uses, at 1.6 times the session's font size. Asked for by Jens on
+  2026-09-19, because the first version showed everything at once in one size
+  and could not be read at a glance mid-game. The detail it carried was
+  already in the developer view, so `upscaleStatistics` is gone rather than
+  duplicated; the handbook states the contract in
+  [the heads-up display](../upscaling.md#the-heads-up-display).
+- [x] Explain and fix the developer display Jens saw during Extreme Tux Racer
+  on 2026-09-19, reported as detached from the application and at one point
+  behind it. Every block is drawn after `effects->paintScreen`, so nothing is
+  wrong inside a composited frame; what was wrong is the frames that never
+  came. KWin calls no paint hook of an inactive effect, and a screen repaints
+  only what was damaged, so the blocks stayed in the framebuffer after the
+  game they described was gone, and windows repainting over them made them
+  look like they were behind. The display now records whether it reached the
+  screen and asks for one more frame when it hides, and the effect hides it
+  when its window closes, stops being the one on screen, leaves fullscreen or
+  the session locks. The corners this change moved two blocks into are over
+  the wallpaper, which is why it showed up now.
+- [ ] Test what a game that never exits cleanly leaves behind, asked for by
+  Jens on 2026-09-19: `kill -9` on a running game, repeatedly, watching that
+  nothing grows. Covered by the fix above for the display's own textures and
+  by [resolution control](slice-resolution-control.md) for what was requested
+  of the client. Not yet written; a nested-session test can kill a client
+  between frames, and a native check should watch process and video memory
+  across repeated launches.
+- [x] Follow the session's font settings and the output's scale factor in the
+  OSD. The family and the size now come from the session's fixed-width font,
+  and the size is multiplied by the scale factor of the output the text is
+  drawn on. A point size is converted at the 96 dpi reference KDE scale
+  factors are stated against.
+- [ ] Re-lay out when the session's font settings change. A changed family or
+  size applies to the next layout, which happens when the text or the scale
+  changes; nothing watches the settings themselves.
 - [ ] Complete automated, package and native acceptance; preserve lasting design
   in source/human documentation before removing this slice.
+
+Heads-up display follow-up, 2026-09-19: finish validation of the compact view.
+The current formatter calls every bypass native, even with a smaller supplied
+buffer, and abbreviates resolutions using only their height. Restrict native
+to observed equal input/output sizes and common names to their exact sizes;
+show other bypasses with the observed dimensions and FSR off. Keep unavailable
+timings as dashes. Cover these cases and the larger text, then run the required
+container/compiler, hook and static checks. These are planned checks. The
+reported developer-display ordering problem still needs reproduction in the
+real session; drawing last in one screen pass alone does not explain it.
 
 Documentation validation, 2026-09-18: `pre-commit run --all-files` and the full
 pre-push stage passed in the Trixie container on an isolated copy under
@@ -393,6 +463,34 @@ in Trixie on the isolated documentation candidate under
 `build/documentation-commit-check`. This includes the checker regressions and
 REUSE licensing check. Local paths and heading anchors resolved in all 13
 documentation files. No feature implementation or runtime acceptance is claimed.
+
+Lifetime work, 2026-09-19: three things outlived the game that needed them.
+The scaler holds two textures and their framebuffers at the game's resolution,
+which is tens of megabytes of video memory at 4K, and kept them for the rest
+of the session; the list of windows refused for their colours kept an entry
+per dead window; and the mode override kept an announcement per client that
+had been told a smaller mode, including clients that were killed. All three
+are released now, on the same events that end the display, and only when no
+window anywhere can still use them. Whether anything else grows across
+repeated crashes is the open test above.
+
+Display separation validation, 2026-09-19: built natively with GCC, warnings as
+errors, and the tests the change calls for passed: `upscale-display`,
+`upscale-display-gles`, `upscale-config`, `upscale-config-buildinfo`,
+`upscale-application-editor`, `upscale-snapshot`, `upscale-render`,
+`upscale-render-gles`, `upscale-render-shape`, `upscale-render-shape-gles`,
+`upscale-framestatistics` and `upscale-resolution`. New coverage:
+`blocksKeepTheirOwnCorners` in `autotests/display_test.cpp` asserts which
+corner each display landed in, that moving the persistent view moves nothing
+else, that the developer dump stands alone when the persistent view is off,
+that two displays in one corner stack with a gap instead of overdrawing, that
+twice the output scale covers about four times the area, and that a display
+larger than its output keeps its beginning on screen; `displayDefaults` in
+`autotests/config_test.cpp` covers the new control, its dependence on the
+persistent view, and storing, reloading and restoring the chosen corner. This
+was a build for Jens to try: the container builds, Clang, clang-tidy and both
+pre-commit stages have not been run for this change, and no native acceptance
+of the new placement has been recorded yet.
 
 ### PR #8 coverage follow-up
 
@@ -471,3 +569,8 @@ correctly remains pending. The eight earlier review threads also remain open
 although their fixes and regression coverage are published. A fresh full review
 has been proposed to the owner; permission to post that request is pending.
 No review override, merge or change to protection has been performed.
+
+PR #14 review follow-up: resetting presentation measurements with a null output
+now clears old samples even after the QPointer was cleared by output destruction.
+Presented-frame text uses plural-aware translation. The targeted tests and
+combined-candidate checks are being rerun before publication.

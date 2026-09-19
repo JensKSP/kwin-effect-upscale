@@ -152,7 +152,7 @@ static QString presented(const UpscaleSnapshot &snapshot)
     if (snapshot.presentedWorst > 0) {
         text += i18n(", worst %1 ms", QString::number(snapshot.presentedWorst, 'f', 1));
     }
-    return text + i18n(" (%1 frames, %2)", QString::number(snapshot.presentedFrames), presentationName(snapshot.presentation));
+    return text + i18np(" (%1 frame, %2)", " (%1 frames, %2)", snapshot.presentedFrames, presentationName(snapshot.presentation));
 }
 
 static QString measurement(const UpscaleSnapshot &snapshot)
@@ -167,11 +167,129 @@ static QString measurement(const UpscaleSnapshot &snapshot)
                 QString::number(snapshot.interval, 'f', 1), QString::number(snapshot.sampleAge, 'f', 1));
 }
 
-QString upscaleStatistics(const UpscaleSnapshot &snapshot)
+// How a resolution is named where people compare them: by its common name
+// where it has one, and by its pixels where it does not. "4K" is what a
+// television and a graphics setting call 3840 x 2160, and writing it out is
+// what makes this line readable at a glance rather than a row of numbers.
+static QString resolutionName(const QSize &size)
 {
-    return i18n("Upscale: %1\n%2 → %3 on %4\n%5",
-                processing(snapshot), sizeText(snapshot.supplied), sizeText(snapshot.destination),
-                snapshot.output.isEmpty() ? unknown() : snapshot.output, presented(snapshot));
+    if (!size.isValid() || size.isEmpty()) {
+        return unknown();
+    }
+    if (size == QSize(3840, 2160)) {
+        return i18n("4K");
+    }
+    if (size == QSize(2560, 1440)) {
+        return i18n("1440p");
+    }
+    if (size == QSize(1920, 1080)) {
+        return i18n("1080p");
+    }
+    if (size == QSize(1280, 720)) {
+        return i18n("720p");
+    }
+    // Equal height does not imply equal resolution, especially on ultrawide
+    // outputs. Keep both dimensions when no common name describes this size.
+    return sizeText(size);
+}
+
+// What share of the destination the game is actually drawing, in the linear
+// per-axis terms every upscaler states its presets in: FSR 1 Quality is
+// two thirds, not the four ninths of the pixels that implies.
+static QString renderScale(const UpscaleSnapshot &snapshot)
+{
+    if (snapshot.supplied.width() <= 0 || snapshot.destination.width() <= 0) {
+        return QString();
+    }
+    return i18n("%1%", qRound(100.0 * snapshot.supplied.width() / snapshot.destination.width()));
+}
+
+// What the client is, in the fewest words that stay true. It sits on the
+// persistent view because that is the first thing to check when a request had
+// no effect: a game running through Xwayland cannot be reached by a Wayland
+// method, and that is invisible in every other figure there.
+//
+// "GPU" and "memory" describe how the buffer arrived, not what drew it. The
+// graphics API is not observable from a compositor, so it is not claimed.
+static QString clientKind(const UpscaleSnapshot &snapshot)
+{
+    switch (snapshot.windowSystem) {
+    case UpscaleWindowSystem::Wayland:
+        return i18n("Wayland");
+    case UpscaleWindowSystem::X11:
+        return i18n("X11");
+    case UpscaleWindowSystem::Unknown:
+        break;
+    }
+    return unknown();
+}
+
+// How the buffer reached the compositor, for the display that carries the
+// formats. It is as close to "what did it render with" as a compositor gets:
+// neither protocol carries the client's graphics API, and an OpenGL and a
+// Vulkan client hand over the same kind of buffer, so naming one would be a
+// guess rather than an observation.
+static QString bufferArrival(const UpscaleSnapshot &snapshot)
+{
+    switch (snapshot.bufferKind) {
+    case UpscaleBufferKind::Gpu:
+        return i18n("on the GPU");
+    case UpscaleBufferKind::SharedMemory:
+        return i18n("through main memory");
+    case UpscaleBufferKind::Unknown:
+        break;
+    }
+    return unknown();
+}
+
+QString upscaleHeadsUp(const UpscaleSnapshot &snapshot)
+{
+    QStringList figures;
+    // Frames per second and the milliseconds one frame took are the same
+    // measurement twice, and every overlay shows both, because a player reads
+    // the rate and a developer reads the time.
+    if (snapshot.presentedRate > 0) {
+        figures.append(i18n("%1 FPS", QString::number(snapshot.presentedRate, 'f', 0)));
+        figures.append(i18n("%1 ms", QString::number(1000.0 / snapshot.presentedRate, 'f', 1)));
+    } else {
+        // A dash is what an overlay shows before it has measured anything. It
+        // is not a zero, and it is not last minute's rate.
+        figures.append(i18n("— FPS"));
+        figures.append(i18n("— ms"));
+    }
+    // "1% Low" is the name this figure carries everywhere it is quoted: the
+    // mean of the slowest hundredth of the frames, as a rate.
+    if (snapshot.presentedLow > 0) {
+        figures.append(i18n("1% Low %1 FPS", QString::number(snapshot.presentedLow, 'f', 0)));
+    } else {
+        figures.append(i18n("1% Low — FPS"));
+    }
+    QStringList picture;
+    if (snapshot.scaling) {
+        picture.append(snapshot.sharpening > 0 ? i18n("FSR 1 + RCAS") : i18n("FSR 1"));
+        picture.append(i18n("%1 → %2", resolutionName(snapshot.supplied), resolutionName(snapshot.destination)));
+        const QString scale = renderScale(snapshot);
+        if (!scale.isEmpty()) {
+            picture.append(scale);
+        }
+    } else if (!snapshot.destination.isEmpty() && snapshot.supplied == snapshot.destination) {
+        // Native describes the observed buffer size. Bypassing FSR can still
+        // leave KWin enlarging a smaller buffer, so bypass alone is not native.
+        picture.append(i18n("%1 native", resolutionName(snapshot.destination)));
+    } else if (!snapshot.destination.isEmpty()) {
+        picture.append(i18n("FSR off"));
+        picture.append(i18n("%1 → %2", resolutionName(snapshot.supplied), resolutionName(snapshot.destination)));
+    }
+    // On the picture line rather than a line of its own: it belongs with what
+    // is being drawn, and a block read at a glance mid-game earns no third row
+    // for it.
+    picture.append(clientKind(snapshot));
+    const QString separator = QStringLiteral("   ");
+    QString text = figures.join(separator);
+    if (!picture.isEmpty()) {
+        text += QLatin1Char('\n') + picture.join(separator);
+    }
+    return text;
 }
 
 static QString desiredText(const UpscaleSnapshot &snapshot)
@@ -194,10 +312,87 @@ static QString selection(const UpscaleSnapshot &snapshot)
     return states.join(QStringLiteral(", "));
 }
 
+// A line for programs rather than for people. Every key and every value here
+// is written with QStringLiteral and never translated, because a measurement
+// harness comparing two runs to a decimal place cannot depend on the language
+// the session happens to run in. The prose above says the same things for a
+// reader; this says them for a script.
+//
+// A key is left out rather than given a placeholder when nothing was measured,
+// so a missing key means "not measured" and never zero.
+static QString metrics(const UpscaleSnapshot &snapshot)
+{
+    QStringList fields;
+    const auto append = [&fields](QLatin1String key, const QString &value) {
+        fields.append(key + QLatin1Char('=') + value);
+    };
+    const auto number = [&append](QLatin1String key, double value, int digits) {
+        if (value >= 0) {
+            append(key, QString::number(value, 'f', digits));
+        }
+    };
+    const auto size = [&append](QLatin1String key, const QSize &value) {
+        if (!value.isEmpty()) {
+            append(key, QString::number(value.width()) + QLatin1Char('x') + QString::number(value.height()));
+        }
+    };
+    number(QLatin1String("presented"), snapshot.presentedRate, 2);
+    number(QLatin1String("low"), snapshot.presentedLow, 2);
+    number(QLatin1String("p99"), snapshot.presentedPercentile, 3);
+    number(QLatin1String("worst"), snapshot.presentedWorst, 3);
+    if (snapshot.presentedFrames > 0) {
+        append(QLatin1String("frames"), QString::number(snapshot.presentedFrames));
+    }
+    number(QLatin1String("client"), snapshot.clientUpdates, 2);
+    number(QLatin1String("repaints"), snapshot.repaints, 2);
+    if (snapshot.interval > 0) {
+        number(QLatin1String("interval"), snapshot.interval, 3);
+    }
+    size(QLatin1String("supplied"), snapshot.supplied);
+    size(QLatin1String("destination"), snapshot.destination);
+    // Which window this describes, so that a harness can tell the game it
+    // launched from whatever else the effect happened to be following. The
+    // fields are separated by spaces, and a window class is not always one
+    // word, so its spaces become hyphens rather than new fields.
+    if (!snapshot.application.isEmpty()) {
+        append(QLatin1String("window"), QString(snapshot.application).replace(QLatin1Char(' '), QLatin1Char('-')));
+    }
+    append(QLatin1String("scaling"), QString::number(snapshot.scaling ? 1 : 0));
+    // Whether this frame cost the output its direct scanout. A comparison that
+    // did not record it is comparing composition against scanout without
+    // saying so, and the difference between those is part of what is measured.
+    append(QLatin1String("scanout"), QLatin1String(snapshot.blocksScanout ? "blocked" : "direct"));
+    append(QLatin1String("selected"), QString::number(snapshot.selected ? 1 : 0));
+    switch (snapshot.windowSystem) {
+    case UpscaleWindowSystem::Wayland:
+        append(QLatin1String("windowsystem"), QStringLiteral("wayland"));
+        break;
+    case UpscaleWindowSystem::X11:
+        append(QLatin1String("windowsystem"), QStringLiteral("x11"));
+        break;
+    case UpscaleWindowSystem::Unknown:
+        break;
+    }
+    switch (snapshot.bufferKind) {
+    case UpscaleBufferKind::Gpu:
+        append(QLatin1String("buffer"), QStringLiteral("gpu"));
+        break;
+    case UpscaleBufferKind::SharedMemory:
+        append(QLatin1String("buffer"), QStringLiteral("memory"));
+        break;
+    case UpscaleBufferKind::Unknown:
+        break;
+    }
+    return QStringLiteral("metrics: ") + fields.join(QLatin1Char(' '));
+}
+
 QString upscaleStatusText(const UpscaleSnapshot &snapshot)
 {
     QString wish;
-    if (snapshot.advertised.isValid()) {
+    if (snapshot.requested.isValid()) {
+        wish = i18n("%1 requested from %2 as its X11 window size", sizeText(snapshot.requested),
+                    snapshot.recognized.isEmpty() ? application(snapshot) : snapshot.recognized);
+    } else if (snapshot.advertised.isValid()) {
         // Advertised, not applied. The committed input below is the only
         // evidence of what the application actually did with it.
         wish = i18n("%1 requested from %2 as its screen mode",
@@ -208,6 +403,9 @@ QString upscaleStatusText(const UpscaleSnapshot &snapshot)
     } else {
         wish = i18n("Select %1 × %2 in the game",
                     QString::number(snapshot.desired.width), QString::number(snapshot.desired.height));
+    }
+    if (!snapshot.requestFailure.isEmpty()) {
+        wish += i18n("; request failed: %1", snapshot.requestFailure);
     }
     QString state;
     if (snapshot.selected) {
@@ -231,8 +429,32 @@ QString upscaleStatusText(const UpscaleSnapshot &snapshot)
         ? i18n("Nothing has been presented on this screen yet.")
         : i18n("Presented at %1/s, %2.", QString::number(snapshot.presentedRate, 'f', 1),
                presentationName(snapshot.presentation));
-    return i18n("Desired: %1\nSupplied input: %2\nDestination: %3\n%4\n%5\nHDR follows KWin colour management.",
-                wish, sizeText(snapshot.supplied), sizeText(snapshot.destination), state, presentation);
+    QStringList lines;
+    lines.append(i18n("Desired: %1", wish));
+    lines.append(i18n("Supplied input: %1", sizeText(snapshot.supplied)));
+    lines.append(i18n("Destination: %1", sizeText(snapshot.destination)));
+    lines.append(state);
+    lines.append(presentation);
+    // The measurements the developer block draws on the screen, repeated here
+    // in the text a script can read. Comparing two runs is done on frame times
+    // to a decimal place, and photographing the display is not a way to
+    // collect them; this is the same numbers through D-Bus. They appear only
+    // once something has been measured, so the sentence above keeps saying
+    // that nothing has rather than being contradicted by a row of zeroes.
+    if (snapshot.presentedRate >= 0 || snapshot.clientUpdates >= 0) {
+        lines.append(presented(snapshot));
+        lines.append(measurement(snapshot));
+    }
+    lines.append(i18n("HDR follows KWin colour management."));
+    lines.append(metrics(snapshot));
+    return lines.join(QLatin1Char('\n'));
+}
+
+static QString areaText(const UpscaleRectF &area)
+{
+    return i18nc("A rectangle, as position and size", "%1,%2 %3 × %4",
+                 QString::number(area.x(), 'f', 1), QString::number(area.y(), 'f', 1),
+                 QString::number(area.width(), 'f', 1), QString::number(area.height(), 'f', 1));
 }
 
 QString upscaleDeveloperInformation(const UpscaleSnapshot &snapshot)
@@ -251,9 +473,15 @@ QString upscaleDeveloperInformation(const UpscaleSnapshot &snapshot)
                       snapshot.recognized.isEmpty() ? i18n("not recognized") : snapshot.recognized,
                       describeControlMethod(snapshot.method),
                       snapshot.advertised.isValid() ? sizeText(snapshot.advertised) : i18n("nothing")));
+    if (snapshot.method == UpscaleControlMethod::X11Resize) {
+        lines.append(i18n("X11 resize: requested %1, failure %2", sizeText(snapshot.requested),
+                          snapshot.requestFailure.isEmpty() ? i18n("none reported") : snapshot.requestFailure));
+    }
     lines.append(i18n("Configuration: %1, desired %2, sharpening %3",
                       snapshot.enabled ? i18n("enabled") : i18n("disabled"), desiredText(snapshot),
                       snapshot.sharpening > 0 ? i18n("RCAS %1%", qRound(snapshot.sharpening * 100)) : i18n("off")));
+    lines.append(i18n("Coverage: window %1, output %2", areaText(snapshot.windowArea),
+                      areaText(snapshot.outputArea)));
     lines.append(i18n("Geometry: supplied %1, destination %2, output scale %3",
                       sizeText(snapshot.supplied), sizeText(snapshot.destination),
                       QString::number(snapshot.outputScale, 'f', 2)));
@@ -265,8 +493,8 @@ QString upscaleDeveloperInformation(const UpscaleSnapshot &snapshot)
     lines.append(i18n("Frame: render target orientation %1, largest texture this GPU allows %2",
                       snapshot.targetTransform < 0 ? unknown() : QString::number(snapshot.targetTransform),
                       snapshot.maximumTexture > 0 ? QString::number(snapshot.maximumTexture) : unknown()));
-    lines.append(i18n("Processing: buffer format %1, resources %2, scanout blocked by this effect: %3",
-                      snapshot.format.isEmpty() ? unknown() : snapshot.format,
+    lines.append(i18n("Processing: buffer format %1 arrived %2, resources %3, scanout blocked by this effect: %4",
+                      snapshot.format.isEmpty() ? unknown() : snapshot.format, bufferArrival(snapshot),
                       snapshot.failed ? i18n("failed") : i18n("ready"),
                       snapshot.blocksScanout ? i18n("yes") : i18n("no")));
     // Only the destination colour description is observed here.

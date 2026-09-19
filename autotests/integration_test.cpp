@@ -23,6 +23,8 @@ class UpscaleIntegrationTest : public QObject
 private Q_SLOTS:
     void lifecycle();
     void asksApplicationsForASmallerImage();
+    void selectedBorderlessPresentation();
+    void outputPixelPolicy();
 
 private:
     QString status();
@@ -60,8 +62,11 @@ void UpscaleIntegrationTest::configureColors(bool unsupported)
     const KSharedConfig::Ptr config = KSharedConfig::openConfig(QStringLiteral("kwinrc"));
     KConfigGroup group(config, QStringLiteral("Effect-upscale-test"));
     group.writeEntry("UnsupportedColors", unsupported);
+    group.writeEntry("ColorsOnly", true);
     group.sync();
     const QDBusMessage reply = m_effects.call(QStringLiteral("reconfigureEffect"), QStringLiteral("upscale_test_driver"));
+    group.writeEntry("ColorsOnly", false);
+    group.sync();
     QVERIFY(reply.type() != QDBusMessage::ErrorMessage);
 }
 
@@ -199,6 +204,15 @@ void UpscaleIntegrationTest::asksApplicationsForASmallerImage()
                      qPrintable(status()));
         QVERIFY2(status().contains(QStringLiteral("Supplied input: 64 × 64")), qPrintable(status()));
 
+        // Another connection of this same executable must not overwrite the
+        // selected window's advertisement, even on the same output.
+        configureResolution(true, false, 5);
+        WaylandClient later;
+        QVERIFY(later.initialize());
+        QCOMPARE(later.advertisedMode(), QSize(64, 64));
+        QVERIFY2(status().contains(QStringLiteral("85 × 85 requested from Upscale integration test")),
+                 qPrintable(status()));
+
         // Changing a setting while the effect stays enabled moves what it
         // would ask for, so the resources of a client that was told otherwise
         // get KWin's own answer back. The client will not read them again, but
@@ -213,15 +227,16 @@ void UpscaleIntegrationTest::asksApplicationsForASmallerImage()
                  qPrintable(status()));
     }
 
-    // A method that says nothing recognizes the application and asks it for
-    // nothing, which is what an unmeasured program gets rather than a guess.
-    writeCatalogue(QStringLiteral("[Application-integrationtest]\n"
-                                  "Name=Upscale integration test\n"
-                                  "WindowClass=org.kde.upscale.integrationtest\n"
-                                  "Program=upscale_integration_test\n"
-                                  "Method=None\n"
-                                  "Order=1\n"));
-    {
+    // X11 methods must never reach a native Wayland connection, even when the
+    // process identity matches. None also recognizes without making a request.
+    for (const QString &method : {QStringLiteral("None"), QStringLiteral("X11Resize")}) {
+        writeCatalogue(QStringLiteral("[Application-integrationtest]\n"
+                                      "Name=Upscale integration test\n"
+                                      "WindowClass=org.kde.upscale.integrationtest\n"
+                                      "Program=upscale_integration_test\n"
+                                      "Method=%1\n"
+                                      "Order=1\n")
+                           .arg(method));
         WaylandClient silent;
         QVERIFY(silent.initialize());
         QCOMPARE(silent.advertisedMode(), QSize(128, 128));
@@ -264,6 +279,35 @@ void UpscaleIntegrationTest::asksApplicationsForASmallerImage()
     configureResolution(true, false, 0);
     m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
     QCOMPARE(status(), QString());
+}
+
+void UpscaleIntegrationTest::selectedBorderlessPresentation()
+{
+    const QDBusReply<bool> loaded = m_effects.call(QStringLiteral("loadEffect"), QStringLiteral("upscale_test_driver"));
+    QVERIFY(loaded.isValid() && loaded.value());
+    configureResolution(false, false, 0);
+    writeCatalogue(QString());
+    WaylandClient client;
+    QVERIFY(client.initialize(false));
+    QSocketNotifier notifier(client.descriptor(), QSocketNotifier::Read);
+    connect(&notifier, &QSocketNotifier::activated, this, [&client]() {
+        client.dispatch();
+    });
+    QVERIFY(client.show(QSize(64, 64)));
+    QTRY_VERIFY2(status().contains(QStringLiteral("the window is not fullscreen")), qPrintable(status()));
+
+    writeCatalogue(QStringLiteral("[Application-integrationtest]\n"
+                                  "Name=Upscale integration test\n"
+                                  "WindowClass=org.kde.upscale.integrationtest\n"
+                                  "Method=None\n"));
+    QTRY_VERIFY2(status().contains(QStringLiteral("FSR 1, sharpening")), qPrintable(status()));
+    client.resize(QSize(96, 96));
+    QTRY_VERIFY2(status().contains(QStringLiteral("the window is not fullscreen")), qPrintable(status()));
+    client.resize(QSize(128, 128));
+    QTRY_VERIFY2(status().contains(QStringLiteral("FSR 1, sharpening")), qPrintable(status()));
+    writeCatalogue(QString());
+    QTRY_VERIFY2(status().contains(QStringLiteral("the window is not fullscreen")), qPrintable(status()));
+    m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
 }
 
 void UpscaleIntegrationTest::lifecycle()
@@ -340,6 +384,31 @@ void UpscaleIntegrationTest::lifecycle()
         client.fullscreen(true);
         QTRY_VERIFY(status().contains(QStringLiteral("FSR 1, sharpening 0%")));
         {
+            // Switching away from a fullscreen game changes nothing about the
+            // window: it stays fullscreen, unminimized, on this desktop and
+            // covering its output. Only the activation moves. An effect that
+            // does not read it goes on scaling a window nobody can see, goes
+            // on holding the output in composition for it, and goes on drawing
+            // the display over whatever was raised in front of it. Giving the
+            // scanout requirement back is what says it stepped out of the way.
+            WaylandClient other;
+            QVERIFY(other.initialize());
+            QSocketNotifier otherNotifier(other.descriptor(), QSocketNotifier::Read);
+            connect(&otherNotifier, &QSocketNotifier::activated, this, [&other]() {
+                other.dispatch();
+            });
+            other.fullscreen(false);
+            QVERIFY(other.show(QSize(64, 64)));
+            QTRY_VERIFY2(status().contains(QStringLiteral("blocksScanout: false")), qPrintable(status()));
+        }
+        client.commit();
+        QTRY_VERIFY2(status().contains(QStringLiteral("FSR 1, sharpening 0%")), qPrintable(status()));
+        QTRY_VERIFY2(status().contains(QStringLiteral("blocksScanout: true")), qPrintable(status()));
+        {
+            // A second fullscreen window on the same output is no longer a
+            // reason to give up on both. Activation names the one on screen,
+            // by the same rule that retires the window switched away from, so
+            // the effect follows it instead of refusing to choose.
             WaylandClient second;
             QVERIFY(second.initialize());
             QSocketNotifier secondNotifier(second.descriptor(), QSocketNotifier::Read);
@@ -347,14 +416,15 @@ void UpscaleIntegrationTest::lifecycle()
                 second.dispatch();
             });
             QVERIFY(second.show(QSize(64, 64)));
-            QTRY_VERIFY2(status().contains(QStringLiteral("more than one fullscreen window is eligible")), qPrintable(status()));
+            QTRY_VERIFY2(status().contains(QStringLiteral("FSR 1, sharpening 0%")), qPrintable(status()));
+            QVERIFY2(!status().contains(QStringLiteral("more than one fullscreen window is eligible")), qPrintable(status()));
         }
         client.commit();
         QTRY_VERIFY(status().contains(QStringLiteral("FSR 1, sharpening 0%")));
         // A render target this effect cannot decode must not leave it
         // "active", because an active effect keeps the output in composition
-        // for frames it hands straight back to KWin. Applying settings is the
-        // way back, the same as after a graphics resource failure.
+        // for frames it hands straight back to KWin. A colour change on the
+        // output must recover without reconfiguring the effect.
         configureColors(true);
         QTRY_VERIFY2(status().contains(QStringLiteral("colour handling is not supported")), qPrintable(status()));
         configureColors(false);
@@ -371,6 +441,45 @@ void UpscaleIntegrationTest::lifecycle()
     QTRY_VERIFY(status().contains(QStringLiteral("Inactive: there is no window to scale")));
     m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
     QCOMPARE(status(), QString());
+}
+
+void UpscaleIntegrationTest::outputPixelPolicy()
+{
+    const QDBusReply<bool> loaded = m_effects.call(QStringLiteral("loadEffect"), QStringLiteral("upscale_test_driver"));
+    QVERIFY(loaded.isValid() && loaded.value());
+    configureResolution(true, false, 5);
+    const KSharedConfig::Ptr config = KSharedConfig::openConfig(QStringLiteral("kwinrc"));
+    KConfigGroup group(config, QStringLiteral("Effect-upscale"));
+    group.writeEntry("MinimumPixels", 128 * 128);
+    group.sync();
+    const QString rule = QStringLiteral("[Application-test]\nWindowClass=org.kde.upscale.integrationtest\n"
+                                        "Program=upscale_integration_test\nMethod=AdvertisedMode\n");
+    writeCatalogue(rule); // Inherit the global threshold, including equality.
+    WaylandClient client;
+    QVERIFY(client.initialize());
+    QCOMPARE(client.advertisedMode(), QSize(128, 128));
+    QSocketNotifier notifier(client.descriptor(), QSocketNotifier::Read);
+    connect(&notifier, &QSocketNotifier::activated, this, [&client]() {
+        client.dispatch();
+    });
+    QVERIFY(client.show(QSize(64, 64)));
+    QTRY_VERIFY2(status().contains(QStringLiteral("at or below the configured minimum")), qPrintable(status()));
+
+    writeCatalogue(rule + QStringLiteral("MinimumPixels=16383\n"));
+    QTRY_VERIFY2(status().contains(QStringLiteral("FSR 1, sharpening")), qPrintable(status()));
+    {
+        WaylandClient above;
+        QVERIFY(above.initialize());
+        QCOMPARE(above.advertisedMode(), QSize(64, 64));
+    }
+    writeCatalogue(rule + QStringLiteral("Preset=Native\nMinimumPixels=0\n"));
+    QTRY_VERIFY2(status().contains(QStringLiteral("rule selects Native")), qPrintable(status()));
+    {
+        WaylandClient native;
+        QVERIFY(native.initialize());
+        QCOMPARE(native.advertisedMode(), QSize(128, 128));
+    }
+    m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
 }
 
 QTEST_GUILESS_MAIN(UpscaleIntegrationTest)

@@ -253,7 +253,18 @@ Laid down by Jens, 2026-09-19.
 agents' work meet. A branch an agent invents on its own splits that into two
 places and hides work he was reviewing somewhere he is not looking.
 
-## Follow pull request feedback through to resolution
+## Own the pull request through to green
+
+**The agent that opens or updates a pull request owns it end to end.** Opening
+it starts that task; it does not finish it. The pull request is done when its
+checks pass and its automated review approves its current revision — not when
+the work was pushed, and not when what is still wrong has been described
+accurately. Watching, fixing, re-running and answering the review are one task,
+and it stays with the agent until the pull request is green or a named blocker
+outside the agent's reach stops it. Jens's own review is such a blocker and is
+not the agent's to produce; report that it is awaited. **Ready to merge is the
+finish line.** Reaching it is where the agent's task ends and where Jens's
+begins: the merge is his, always.
 
 - **Never merge a pull request or enable auto-merge without Jens's explicit
   permission for that specific PR.** This applies even when every check and
@@ -272,10 +283,28 @@ places and hides work he was reviewing somewhere he is not looking.
   evidence. Reply in the pull request when authorized to post there; otherwise
   report the assessment to the user. Do not silently discard feedback or mark
   unresolved findings as resolved.
+- **Open the pull request as a draft while it is still being brought to green.**
+  CodeRabbit reviews drafts, which is what `drafts: true` in `.coderabbit.yaml`
+  is for, so a draft collects checks and review feedback without ever looking
+  ready to merge. Mark it ready for review once the checks and the automated
+  review have settled on the current head. Marking ready is not merging; merging
+  stays with Jens either way.
+- **`CodeRabbit approval` is a commit status, not a comment.**
+  `.github/workflows/review-approval.yml` and `tools/review_approval.py` publish
+  it, and it is decided by the bot's authenticated account, never by text that
+  names the bot. It tracks one revision: the bot's latest decision has to
+  approve the exact head under review, so every push clears the status and it
+  has to be earned again. Waiting for it is part of watching the pull request.
 - Before handing back completed work, report the latest check and review status
   and any remaining findings. If a service, permission or reviewer is blocking
   progress, record the blocker in the slice document and tell the user rather
   than claiming completion.
+
+**Why:** a pull request that was pushed to is not a pull request that passed.
+The approval gate re-verifies every head precisely so that a fix which breaks
+something else cannot inherit the previous revision's approval. An agent that
+stops at "the status is red and here is why" has described the task it was
+asked to finish, and left it open for someone else to close.
 
 ## Owner overrides require explicit permission
 

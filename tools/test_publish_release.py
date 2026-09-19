@@ -58,7 +58,7 @@ elif args[1] == "view":
 elif args[1] == "download":
     destination = Path(args[args.index("--dir") + 1])
     for source in Path("assets").iterdir():
-        shutil.copy2(source, destination / source.name)
+        shutil.copy2(source, destination / source.name.replace("~", "."))
     if mode == "corrupt":
         (destination / "package.deb").write_bytes(b"corrupted")
 """
@@ -109,6 +109,16 @@ elif args[1] == "download":
         self.assertEqual(
             self.calls()[-1][:4], ["api", "--method", "PATCH", "repos/example/project/releases/123"]
         )
+
+    def test_hosted_rename_keeps_previous_nightly_and_identifies_mismatch(self) -> None:
+        """An unprepared Debian filename reproduces GitHub's asset renaming."""
+        (self.assets / "package_0.1.0~trixie_amd64.deb").write_bytes(b"package")
+        result = self.publish()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("missing=['package_0.1.0~trixie_amd64.deb']", result.stderr)
+        self.assertIn("unexpected=['package_0.1.0.trixie_amd64.deb']", result.stderr)
+        self.assertFalse(any(call[:2] == ["release", "delete"] for call in self.calls()))
+        self.assertFalse(any("PATCH" in call for call in self.calls()))
 
     def test_transient_promotion_failure_recovers(self) -> None:
         """Failure after deletion retries the same release ID without reuploading."""

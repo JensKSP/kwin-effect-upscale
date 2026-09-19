@@ -8,7 +8,7 @@
 
 #include "application.h"
 #include "applicationeditor.h"
-
+#include "placement.h"
 #include "resolution.h"
 #include "supportinformation.h"
 #include "upscaleconfig.h"
@@ -42,6 +42,8 @@
 #include <QSlider>
 #include <QSpinBox>
 
+#include <limits>
+
 K_PLUGIN_FACTORY(UpscaleEffectConfigFactory, registerPlugin<KWin::UpscaleEffectConfig>();)
 
 namespace KWin
@@ -53,6 +55,7 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     , m_output(new QComboBox(widget()))
     , m_preset(new QComboBox(widget()))
     , m_percentage(new QSlider(Qt::Horizontal, widget()))
+    , m_minimumPixels(new QSpinBox(widget()))
     , m_preview(new QLabel(widget()))
     , m_sharpening(new QCheckBox(i18n("Enable RCAS sharpening"), widget()))
     , m_strength(new QSlider(Qt::Horizontal, widget()))
@@ -62,6 +65,7 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     , m_osdSummary(new QCheckBox(i18n("Include a short summary in the announcement"), widget()))
     , m_osdStatistics(new QCheckBox(i18n("Show the frame rate on screen"), widget()))
     , m_osdDeveloper(new QCheckBox(i18n("Add developer information"), widget()))
+    , m_osdPosition(new QComboBox(widget()))
     , m_osdTimeout(new QSpinBox(widget()))
     , m_build(new QLabel(widget()))
     , m_status(new QLabel(widget()))
@@ -84,6 +88,7 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     layout->addRow(i18n("Input size:"), m_percentage);
     m_preview->setWordWrap(true);
     layout->addRow(m_preview);
+    addThresholdControl(layout);
     layout->addRow(m_sharpening);
     m_strength->setRange(0, 100);
     layout->addRow(i18n("Sharpening strength:"), m_strength);
@@ -115,6 +120,19 @@ void UpscaleEffectConfig::addStatusControls(QFormLayout *layout)
     refresh->setObjectName(QStringLiteral("refreshStatus"));
     layout->addRow(refresh);
     connect(refresh, &QPushButton::clicked, this, &UpscaleEffectConfig::refreshStatus);
+}
+
+void UpscaleEffectConfig::addThresholdControl(QFormLayout *layout)
+{
+    m_minimumPixels->setObjectName(QStringLiteral("minimumPixels"));
+    m_minimumPixels->setRange(0, std::numeric_limits<int>::max());
+    m_minimumPixels->setSpecialValueText(i18n("No threshold"));
+    m_minimumPixels->setToolTip(i18n("Each output is checked independently. Scale only above this physical pixel count; Full HD is 2073600. Application rules can override it."));
+    layout->addRow(i18n("Minimum output pixels:"), m_minimumPixels);
+    connect(m_minimumPixels, &QSpinBox::valueChanged, this, [this]() {
+        updatePreview();
+        setNeedsSave(true);
+    });
 }
 
 void UpscaleEffectConfig::connectControls()
@@ -149,7 +167,10 @@ void UpscaleEffectConfig::addDisplayControls(QFormLayout *layout)
     m_osdSummary->setObjectName(QStringLiteral("osdSummary"));
     m_osdStatistics->setObjectName(QStringLiteral("osdStatistics"));
     m_osdDeveloper->setObjectName(QStringLiteral("osdDeveloper"));
+    m_osdPosition->setObjectName(QStringLiteral("osdPosition"));
     m_osdTimeout->setObjectName(QStringLiteral("osdTimeout"));
+    // The order is the stored one in upscaleconfig.kcfg.
+    m_osdPosition->addItems({i18n("Top left"), i18n("Top right"), i18n("Bottom left"), i18n("Bottom right")});
     m_osdTimeout->setRange(1, 60);
     m_osdTimeout->setSuffix(i18n(" s"));
     layout->addRow(m_osd);
@@ -160,6 +181,11 @@ void UpscaleEffectConfig::addDisplayControls(QFormLayout *layout)
                                      "running, with the slowest frames beside the average, because an average alone "
                                      "hides stutter."));
     layout->addRow(m_osdStatistics);
+    // Only the view that stays on screen during play is worth moving. The
+    // announcement appears in the top left and the developer information in
+    // the bottom right, so that three different things are never one block.
+    m_osdPosition->setToolTip(i18n("Where the frame rate is shown on the game's screen."));
+    layout->addRow(i18n("Frame rate position:"), m_osdPosition);
     layout->addRow(m_osdDeveloper);
     // A Debug build shows statistics and developer information unless the
     // user has said otherwise; a release build shows only the announcement.
@@ -171,6 +197,9 @@ void UpscaleEffectConfig::addDisplayControls(QFormLayout *layout)
         });
     }
     connect(m_osdTimeout, &QSpinBox::valueChanged, this, [this]() {
+        setNeedsSave(true);
+    });
+    connect(m_osdPosition, &QComboBox::currentIndexChanged, this, [this]() {
         setNeedsSave(true);
     });
 }
@@ -219,6 +248,11 @@ void UpscaleEffectConfig::updateApplicationSummary()
     m_resetApplications->setEnabled(customized);
 }
 
+// The application list is a different kind of setting from the rest of this
+// page: it is a list the effect ships and the user edits, kept in its own file
+// so that a new package can deliver a corrected entry without touching what
+// the user changed. Its restore is therefore separate from this page's
+// Defaults, which restores the values above and leaves the list alone.
 void UpscaleEffectConfig::resetApplications()
 {
     // A different file than Apply writes, and not recoverable afterwards, so
@@ -264,6 +298,9 @@ void UpscaleEffectConfig::updatePreview()
                                : i18n("%1% — %2 × %3 physical pixels. Select this resolution in the game. Scaling follows the actual supplied buffer, even when it differs.",
                                       QString::number(ratio * 100, 'f', preset == ResolutionPreset::Custom || preset == ResolutionPreset::Native || preset == ResolutionPreset::Performance ? 0 : 1),
                                       desired.width, desired.height));
+        if (!exceedsMinimumPixels({pixels.width(), pixels.height()}, m_minimumPixels->value())) {
+            m_preview->setText(i18n("This output is at or below the pixel threshold: no resolution request or upscaling, unless an application overrides the threshold."));
+        }
     }
     m_strength->setEnabled(m_sharpening->isChecked());
     m_strengthLabel->setText(i18n("%1% (0% bypasses sharpening)", m_strength->value()));
@@ -273,6 +310,7 @@ void UpscaleEffectConfig::updatePreview()
         control->setEnabled(m_osd->isChecked());
     }
     m_osdTimeout->setEnabled(m_osd->isChecked() && (m_osdDetection->isChecked() || m_osdSummary->isChecked()));
+    m_osdPosition->setEnabled(m_osd->isChecked() && m_osdStatistics->isChecked());
 }
 
 void UpscaleEffectConfig::showSettings()
@@ -280,6 +318,7 @@ void UpscaleEffectConfig::showSettings()
     m_enabled->setChecked(UpscaleConfig::enabled());
     m_percentage->setValue(UpscaleConfig::percentage());
     m_preset->setCurrentIndex(UpscaleConfig::preset());
+    m_minimumPixels->setValue(UpscaleConfig::minimumPixels());
     m_sharpening->setChecked(UpscaleConfig::sharpening());
     m_strength->setValue(UpscaleConfig::strength());
     m_osd->setChecked(UpscaleConfig::osd());
@@ -287,6 +326,7 @@ void UpscaleEffectConfig::showSettings()
     m_osdSummary->setChecked(UpscaleConfig::osdSummary());
     m_osdStatistics->setChecked(UpscaleConfig::osdStatistics());
     m_osdDeveloper->setChecked(UpscaleConfig::osdDeveloper());
+    m_osdPosition->setCurrentIndex(int(upscaleCorner(UpscaleConfig::osdPosition())));
     m_osdTimeout->setValue(UpscaleConfig::osdTimeout());
     m_unknown->setChecked(UpscaleConfig::unknownApplications());
     updatePreview();
@@ -297,6 +337,7 @@ void UpscaleEffectConfig::applySettings()
     UpscaleConfig::setEnabled(m_enabled->isChecked());
     UpscaleConfig::setPreset(m_preset->currentIndex());
     UpscaleConfig::setPercentage(m_percentage->value());
+    UpscaleConfig::setMinimumPixels(m_minimumPixels->value());
     UpscaleConfig::setSharpening(m_sharpening->isChecked());
     UpscaleConfig::setStrength(m_strength->value());
     UpscaleConfig::setOsd(m_osd->isChecked());
@@ -304,6 +345,7 @@ void UpscaleEffectConfig::applySettings()
     UpscaleConfig::setOsdSummary(m_osdSummary->isChecked());
     UpscaleConfig::setOsdStatistics(m_osdStatistics->isChecked());
     UpscaleConfig::setOsdDeveloper(m_osdDeveloper->isChecked());
+    UpscaleConfig::setOsdPosition(m_osdPosition->currentIndex());
     UpscaleConfig::setOsdTimeout(m_osdTimeout->value());
     UpscaleConfig::setUnknownApplications(m_unknown->isChecked());
     // A value equal to the current default is stored as no entry at all, so a
@@ -372,8 +414,8 @@ QString UpscaleEffectConfig::installedBuild()
 {
 #if UPSCALE_BUILD_INFO
     const QString branch = UpscaleBuildInfo::branch();
-    return i18n("%1, %2, built %3", UpscaleBuildInfo::version(),
-                branch.isEmpty() ? i18n("no branch or tag recorded") : branch, UpscaleBuildInfo::buildDate());
+    const QString revision = UpscaleBuildInfo::revision();
+    return QStringLiteral("%1 %2 %3 %4").arg(UpscaleBuildInfo::baseVersion(), revision.isEmpty() ? i18n("unknown revision") : revision, UpscaleBuildInfo::buildDate(), branch.isEmpty() ? i18n("no branch or tag recorded") : branch);
 #else
     return i18n("unknown");
 #endif

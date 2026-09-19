@@ -60,15 +60,15 @@ public:
      * @p preset and @p percentage are the global values. A recognized
      * application whose global preset is Automatic uses the size recorded for
      * it in the catalogue instead, so that installing the effect is enough for
-     * a known game; an explicit global choice always wins over that.
+     * a known game; an application's Native opt-out overrides a global choice.
      */
     void reconfigure(bool enabled, ResolutionPreset preset, int percentage);
 
     /** Whether this session has a Wayland server to talk to at all. */
     static bool available();
 
-    /** The size last advertised to this program, or an invalid size. */
-    QSize advertised(const QString &program) const;
+    /** The size last advertised to this client for this output, or invalid. */
+    QSize advertised(const ClientConnection *client, const QString &output) const;
 
 private:
     // Whether the record of what each program was told goes back with the
@@ -109,7 +109,7 @@ private:
     int m_percentage = 100;
     QSet<const OutputInterface *> m_watched;
     QList<Announcement> m_announced;
-    QHash<QString, QSize> m_advertised;
+    QHash<const ClientConnection *, QHash<QString, QSize>> m_advertised;
 };
 
 } // namespace KWin

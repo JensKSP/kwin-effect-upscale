@@ -14,6 +14,20 @@ int main()
 {
     using namespace KWin;
     const UpscaleSize output{3840, 2160};
+    assert(!exceedsMinimumPixels({1920, 1080}, 2073600));
+    assert(!exceedsMinimumPixels({1280, 720}, 2073600));
+    assert(!exceedsMinimumPixels({1080, 1920}, 2073600));
+    assert(!exceedsMinimumPixels({3840, 540}, 2073600));
+    assert(exceedsMinimumPixels({2560, 1080}, 2073600));
+    assert(exceedsMinimumPixels({1920, 1081}, 2073600));
+    assert(exceedsMinimumPixels({3840, 2160}, 2073600));
+    assert(exceedsMinimumPixels({1, 1}, 0));
+    assert(!exceedsMinimumPixels({0, 1080}, 0));
+    assert(!exceedsMinimumPixels({-1, -1}, 0));
+    assert(exceedsMinimumPixels({std::numeric_limits<int>::max(), std::numeric_limits<int>::max()}, std::numeric_limits<int>::max()));
+    assert(effectiveResolutionPreset(ResolutionPreset::Custom, ResolutionPreset::Native) == ResolutionPreset::Native);
+    assert(effectiveResolutionPreset(ResolutionPreset::Native, ResolutionPreset::Quality) == ResolutionPreset::Native);
+    assert(effectiveResolutionPreset(ResolutionPreset::Automatic, ResolutionPreset::Quality) == ResolutionPreset::Quality);
     assert((desiredResolution(output, ResolutionPreset::UltraQuality, 50) == UpscaleSize{2954, 1662}));
     assert((desiredResolution(output, ResolutionPreset::Quality, 50) == UpscaleSize{2560, 1440}));
     assert((desiredResolution(output, ResolutionPreset::Balanced, 50) == UpscaleSize{2259, 1271}));

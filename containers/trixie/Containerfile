@@ -55,6 +55,9 @@ RUN cmake --version \
 
 # Git's local clone subprocess checks this repository directory separately
 # from the worktree. The mounted checkout belongs to the host runner's UID.
-RUN git config --system --add safe.directory /src/.git
+# No systemd-tmpfiles runs in this image. KWin needs the standard X11 socket
+# directory before it can start its private Xwayland integration session.
+RUN git config --system --add safe.directory /src/.git \
+    && install -d -m 1777 /tmp/.X11-unix
 
 WORKDIR /src

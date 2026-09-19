@@ -20,10 +20,11 @@ class WaylandClient
 public:
     WaylandClient();
     ~WaylandClient();
-    bool initialize();
+    bool initialize(bool fullscreen = true);
     bool show(const QSize &size, bool opaque = true);
     void commit();
     void fullscreen(bool enabled);
+    void resize(const QSize &destination);
     int descriptor() const;
     void dispatch();
     // Process everything the compositor has already sent. The output's events
