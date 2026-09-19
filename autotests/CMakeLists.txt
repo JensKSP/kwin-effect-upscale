@@ -196,23 +196,36 @@ if(KWin_VERSION VERSION_LESS 6.7)
 endif()
 
 if(KWIN_BUILD_KCMS)
-    set(config_test_SOURCES
-        config_test.cpp
+    set(settings_module_SOURCES
         ../src/plugins/upscale/application.cpp
         ../src/plugins/upscale/applicationeditor.cpp
         ../src/plugins/upscale/supportinformation.cpp
         ../src/plugins/upscale/upscale_config.cpp
     )
-    kconfig_add_kcfg_files(config_test_SOURCES ../src/plugins/upscale/upscaleconfig.kcfgc)
+    kconfig_add_kcfg_files(settings_module_SOURCES ../src/plugins/upscale/upscaleconfig.kcfgc)
     # Exercise both the upstream form without project identity and the packaged
-    # settings module, which compares the full identity reported by KWin.
-    foreach(variant IN ITEMS config config-buildinfo)
+    # settings module, which compares the full identity reported by KWin. The
+    # application editor is its own page and is tested once.
+    foreach(variant IN ITEMS config config-buildinfo application-editor)
         set(test_target "upscale_${variant}_test")
-        add_executable(${test_target} ${config_test_SOURCES})
+        if(variant STREQUAL "application-editor")
+            set(test_source application_editor_test.cpp)
+        else()
+            set(test_source config_test.cpp)
+        endif()
+        add_executable(${test_target} ${test_source} ${settings_module_SOURCES})
         target_include_directories(${test_target} PRIVATE ../src/plugins/upscale)
         target_link_libraries(
             ${test_target}
             PRIVATE KF6::KCMUtils KF6::ConfigGui KF6::CoreAddons KF6::I18n Qt6::DBus Qt6::Test
+        )
+        # The page edits the application list this build installs, so the tests
+        # read that file rather than a fixture standing in for it.
+        target_compile_definitions(
+            ${test_target}
+            PRIVATE
+                -DUPSCALE_APPLICATION_DEFAULTS="${CMAKE_CURRENT_SOURCE_DIR}/../src/plugins/upscale/kwinupscalerc"
+                -DTRANSLATION_DOMAIN="kwin_effect_upscale"
         )
         add_test(NAME upscale-${variant} COMMAND ${test_target})
         set_tests_properties(upscale-${variant} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

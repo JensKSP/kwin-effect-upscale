@@ -13,6 +13,9 @@
 #include <QTemporaryDir>
 #include <QTest>
 
+#include <algorithm>
+#include <ranges>
+
 using namespace KWin;
 
 // The effect's own defaults are what a package installs, so the tests read the
@@ -36,10 +39,17 @@ private Q_SLOTS:
     void matchesProgramsByFileName();
     void layersUserChangesOverTheDefaults();
     void restoringDiscardsOnlyTheUserChanges();
+    void dropsEntriesThatConstrainNothing();
+    void spellsEveryMethodAndPreset();
+    void namesNewApplicationsWithoutCollision();
+    void storesOnlyTheFieldsTheUserChanged();
+    void removesOwnEntriesAndDisablesShippedOnes();
+    void asksUnlistedApplicationsOnlyWhenTurnedOn();
     void describesEveryMethod();
 
 private:
     void writeUserConfig(const QString &contents);
+    static QByteArray readUserConfig();
 };
 
 void ApplicationTest::init()
@@ -56,6 +66,12 @@ void ApplicationTest::writeUserConfig(const QString &contents)
     QCOMPARE(file.write(contents.toUtf8()), qint64(contents.toUtf8().size()));
     file.close();
     upscaleReloadApplications();
+}
+
+QByteArray ApplicationTest::readUserConfig()
+{
+    QFile file(userDirectory() + QLatin1String("/kwinupscalerc"));
+    return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
 }
 
 void ApplicationTest::readsTheShippedDefaults()
@@ -221,6 +237,194 @@ void ApplicationTest::restoringDiscardsOnlyTheUserChanges()
     QVERIFY(upscaleApplicationForIdentity(QStringLiteral("com.github.vkmark.vkmark"), QStringLiteral("vkmark")));
     QCOMPARE(upscaleApplicationForIdentity(QStringLiteral("supertuxkart"), QStringLiteral("supertuxkart"))->preset,
              ResolutionPreset::Quality);
+}
+
+// An entry that names neither a window class nor an instance would match every
+// window on the screen, the desktop included. Reading it as "recognize
+// everything" is the one reading that cannot be right.
+void ApplicationTest::dropsEntriesThatConstrainNothing()
+{
+    const size_t shipped = upscaleApplications().size();
+    writeUserConfig(QStringLiteral("[Application-nothing]\n"
+                                   "Name=Constrains Nothing\n"
+                                   "Program=nothing\n"
+                                   "Order=5\n"));
+    QCOMPARE(upscaleApplications().size(), shipped);
+    QVERIFY(!upscaleApplicationForProgram(QStringLiteral("/usr/bin/nothing")));
+}
+
+// The keys are the file's vocabulary, so what is read has to be what is
+// written back: a method stored under a name the reader does not know would
+// silently become None the next time the file is read.
+void ApplicationTest::spellsEveryMethodAndPreset()
+{
+    for (const UpscaleControlMethod method : {UpscaleControlMethod::None, UpscaleControlMethod::AdvertisedMode,
+                                              UpscaleControlMethod::AdvertisedScale,
+                                              UpscaleControlMethod::AdvertisedModeAndScale}) {
+        const QString key = upscaleMethodKey(method);
+        QVERIFY(!key.isEmpty());
+        writeUserConfig(QStringLiteral("[Application-roundtrip]\nInstance=roundtrip\nMethod=%1\n").arg(key));
+        const UpscaleApplication *stored = upscaleApplicationForIdentity(QString(), QStringLiteral("roundtrip"));
+        QVERIFY(stored);
+        QCOMPARE(stored->method, method);
+    }
+    QCOMPARE(upscaleMethodKey(UpscaleControlMethod::None), QStringLiteral("None"));
+
+    for (const ResolutionPreset preset : {ResolutionPreset::Automatic, ResolutionPreset::Native,
+                                          ResolutionPreset::UltraQuality, ResolutionPreset::Quality,
+                                          ResolutionPreset::Balanced, ResolutionPreset::Performance,
+                                          ResolutionPreset::Custom}) {
+        const QString key = upscalePresetKey(preset);
+        QVERIFY(!key.isEmpty());
+        writeUserConfig(QStringLiteral("[Application-roundtrip]\nInstance=roundtrip\nPreset=%1\n").arg(key));
+        const UpscaleApplication *stored = upscaleApplicationForIdentity(QString(), QStringLiteral("roundtrip"));
+        QVERIFY(stored);
+        QCOMPARE(stored->preset, preset);
+    }
+    QCOMPARE(upscalePresetKey(ResolutionPreset::Automatic), QStringLiteral("Automatic"));
+
+    // A file from a later version can name a method this build does not
+    // implement. Recognizing the application and asking it for nothing is the
+    // only safe reading; refusing the entry would lose the identity as well.
+    writeUserConfig(QStringLiteral("[Application-roundtrip]\nInstance=roundtrip\nMethod=SomethingLater\nPreset=Enormous\n"));
+    const UpscaleApplication *later = upscaleApplicationForIdentity(QString(), QStringLiteral("roundtrip"));
+    QVERIFY(later);
+    QCOMPARE(later->method, UpscaleControlMethod::None);
+    QCOMPARE(later->preset, ResolutionPreset::Automatic);
+}
+
+void ApplicationTest::namesNewApplicationsWithoutCollision()
+{
+    // Readable, and free of anything a configuration group cannot hold.
+    QCOMPARE(upscaleNewApplicationId(QStringLiteral("My Game 2!")), QStringLiteral("mygame2"));
+    // A name that reduces to nothing still needs an identifier.
+    QCOMPARE(upscaleNewApplicationId(QStringLiteral("***")), QStringLiteral("application"));
+    QCOMPARE(upscaleNewApplicationId(QString()), QStringLiteral("application"));
+    // An identifier already in the list would make the two entries share a
+    // configuration group, so the second one is given a suffix.
+    QCOMPARE(upscaleNewApplicationId(QStringLiteral("SuperTuxKart")), QStringLiteral("supertuxkart2"));
+    writeUserConfig(QStringLiteral("[Application-supertuxkart2]\nName=Mine\nInstance=mine\n"));
+    QCOMPARE(upscaleNewApplicationId(QStringLiteral("SuperTuxKart")), QStringLiteral("supertuxkart3"));
+}
+
+// Saving has to store the difference and not a copy of the shipped values, or
+// the next package could no longer correct anything the user merely looked at.
+void ApplicationTest::storesOnlyTheFieldsTheUserChanged()
+{
+    QVERIFY(!upscaleApplicationsCustomized());
+
+    const UpscaleApplication *shipped = upscaleApplicationForIdentity(QStringLiteral("supertuxkart"), QStringLiteral("supertuxkart"));
+    QVERIFY(shipped);
+    const UpscaleApplication original = *shipped;
+    UpscaleApplication edited = original;
+    edited.preset = ResolutionPreset::Performance;
+    edited.enabled = false;
+    edited.order = original.order + 1;
+    upscaleSaveApplication(edited, original);
+    upscaleSyncApplications();
+
+    QVERIFY(upscaleApplicationsCustomized());
+    const QString stored = QString::fromUtf8(readUserConfig());
+    QVERIFY2(stored.contains(QStringLiteral("Preset=Performance")), qPrintable(stored));
+    QVERIFY(stored.contains(QStringLiteral("Enabled=false")));
+    QVERIFY(stored.contains(QStringLiteral("Order=%1").arg(original.order + 1)));
+    // Untouched fields keep following the installed package rather than being
+    // frozen into the user's file at today's values.
+    QVERIFY2(!stored.contains(QStringLiteral("Method=")), qPrintable(stored));
+    QVERIFY(!stored.contains(QStringLiteral("WindowClass=")));
+    QVERIFY(!stored.contains(QStringLiteral("Program=")));
+    QVERIFY(!stored.contains(QStringLiteral("Name=")));
+    // A shipped entry carries the package's own description, so the user's
+    // file must not copy it.
+    QVERIFY(!stored.contains(QStringLiteral("Note=")));
+
+    // The saved list is what the effect sees afterwards, without re-reading.
+    QVERIFY(!upscaleApplicationForIdentity(QStringLiteral("supertuxkart"), QStringLiteral("supertuxkart")));
+
+    // An application the user added has nothing behind it, so it carries every
+    // field it states, including its own description.
+    UpscaleApplication added;
+    added.id = upscaleNewApplicationId(QStringLiteral("My Game"));
+    added.name = QStringLiteral("My Game");
+    added.windowClass = QStringLiteral("mygame");
+    added.instance = QStringLiteral("mygame");
+    added.program = QStringLiteral("mygame");
+    added.method = UpscaleControlMethod::AdvertisedScale;
+    added.preset = ResolutionPreset::Balanced;
+    added.note = QStringLiteral("Measured by me.");
+    added.order = 200;
+    upscaleSaveApplication(added, UpscaleApplication{});
+    upscaleSyncApplications();
+
+    const UpscaleApplication *mine = upscaleApplicationForIdentity(QStringLiteral("mygame"), QStringLiteral("mygame"));
+    QVERIFY(mine);
+    QCOMPARE(mine->name, QStringLiteral("My Game"));
+    QCOMPARE(mine->method, UpscaleControlMethod::AdvertisedScale);
+    QCOMPARE(mine->preset, ResolutionPreset::Balanced);
+    QCOMPARE(mine->note, QStringLiteral("Measured by me."));
+    QVERIFY(!mine->shipped);
+    QCOMPARE(upscaleApplicationForProgram(QStringLiteral("/opt/games/mygame")), mine);
+}
+
+void ApplicationTest::removesOwnEntriesAndDisablesShippedOnes()
+{
+    UpscaleApplication added;
+    added.id = QStringLiteral("mygame");
+    added.name = QStringLiteral("My Game");
+    added.instance = QStringLiteral("mygame");
+    added.order = 200;
+    upscaleSaveApplication(added, UpscaleApplication{});
+    upscaleSyncApplications();
+    QVERIFY(upscaleApplicationForIdentity(QString(), QStringLiteral("mygame")));
+
+    upscaleDeleteApplication(QStringLiteral("mygame"));
+    upscaleSyncApplications();
+    QVERIFY(!upscaleApplicationForIdentity(QString(), QStringLiteral("mygame")));
+    QVERIFY(!QString::fromUtf8(readUserConfig()).contains(QStringLiteral("Application-mygame")));
+
+    // A shipped entry cannot be removed: the next package brings it back, so
+    // deleting it here would promise something that does not happen. It is
+    // switched off instead, which is what the user's file can record.
+    upscaleDeleteApplication(QStringLiteral("vkmark"));
+    upscaleSyncApplications();
+    QVERIFY(!upscaleApplicationForIdentity(QStringLiteral("com.github.vkmark.vkmark"), QStringLiteral("vkmark")));
+    const std::vector<UpscaleApplication> &list = upscaleApplications();
+    const auto disabled = std::ranges::find(list, QStringLiteral("vkmark"), &UpscaleApplication::id);
+    QVERIFY(disabled != list.end());
+    QVERIFY(!disabled->enabled);
+    QVERIFY(disabled->shipped);
+}
+
+// Nothing is known in advance about a program nobody measured, so this is off
+// unless the user asks for it, and a measured entry is never replaced by it.
+void ApplicationTest::asksUnlistedApplicationsOnlyWhenTurnedOn()
+{
+    QVERIFY(!upscaleUnknownApplication());
+    QVERIFY(!upscaleApplicationForProgram(QStringLiteral("/usr/bin/something-nobody-measured")));
+
+    upscaleSetUnknownApplications(true, ResolutionPreset::Balanced);
+    const UpscaleApplication *unknown = upscaleUnknownApplication();
+    QVERIFY(unknown);
+    QVERIFY(!unknown->name.isEmpty());
+    QCOMPARE(unknown->preset, ResolutionPreset::Balanced);
+    // The mode is the one request observed to leave a window covering the
+    // screen whether or not the client acts on it, which is the only thing to
+    // ask of an application nobody measured.
+    QCOMPARE(unknown->method, UpscaleControlMethod::AdvertisedMode);
+    QCOMPARE(upscaleApplicationForProgram(QStringLiteral("/usr/bin/something-nobody-measured")), unknown);
+    // It describes a setting rather than an entry, so it must never reach the
+    // list the editor writes back.
+    QVERIFY(std::ranges::none_of(upscaleApplications(), [](const UpscaleApplication &application) {
+        return application.id.isEmpty();
+    }));
+    // A measured entry still decides first.
+    QCOMPARE(upscaleApplicationForProgram(QStringLiteral("/usr/games/supertuxkart"))->name, QStringLiteral("SuperTuxKart"));
+    // It has no window identity, so it never matches a window either.
+    QVERIFY(!upscaleApplicationForIdentity(QStringLiteral("konsole"), QStringLiteral("konsole")));
+
+    upscaleSetUnknownApplications(false, ResolutionPreset::Balanced);
+    QVERIFY(!upscaleUnknownApplication());
+    QVERIFY(!upscaleApplicationForProgram(QStringLiteral("/usr/bin/something-nobody-measured")));
 }
 
 void ApplicationTest::describesEveryMethod()

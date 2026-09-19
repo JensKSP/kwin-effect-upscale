@@ -345,11 +345,30 @@ Observed on 2026-09-18 with the production plugin in a nested KWin 6.3.6 at
 1920 × 1080 and the shipped method still applied, which it had to, or nothing
 would have been requested at all.
 
+### The editor, and its tests, 2026-09-19
+
+The settings page now carries `UpscaleApplicationEditor`: the list, the fields
+behind each entry, adding by hand or from a window KWin picks, removing an
+entry the user added, and the restore, which is separate from the page's own
+Defaults because the two are different kinds of data.
+
+`upscale-application-editor` drives that page rather than the class behind it,
+against the catalogue this build installs, so that an entry which stops parsing
+or a page that cannot show one fails here. It covers selecting an entry and
+reading its fields, editing through the controls a person actually uses, the
+list check box and the details check box following each other, holding edits
+until Apply, storing only the fields that differ, adding and removing an entry,
+the three replies the window picker can give, including cancellation, and
+restoring with both answers to the confirmation. `upscale-application` covers
+the same storage rules without a page: the key spellings both layers use, a
+method from a later version, identifiers for new entries, deleting an entry
+the user added against disabling one this build ships, and the unlisted-
+application setting. Coverage of `applicationeditor.cpp` is 98.3% of lines and
+of `application.cpp` 98.9%.
+
 ### Still open
 
-The list has no editor: adding, changing and reordering an application means
-editing the file by hand, and the page offers only the restore. Sparse
-per-setting overrides, profile ordering in the interface and the notes'
+Sparse per-setting overrides, profile ordering in the interface and the notes'
 translation, which needs the localized-entry extraction KDE uses for `.desktop`
 files, all remain part of this slice.
 
@@ -379,7 +398,7 @@ Planned checks, not observed results:
 - [x] Compare reuse options and specify sparse inheritance and editing.
 - [x] Observe the catalogue identities of both test games and ship them.
 - [ ] Validate the recommended values on real applications in a real session.
-- [ ] Implement model, persistence, editor and runtime settings resolution.
+- [x] Implement model, persistence, editor and runtime settings resolution.
 - [ ] Run acceptance tests, both compiler/container builds and TV checks.
 
 Observed documentation validation, 2026-09-18: `pre-commit run --all-files`

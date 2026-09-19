@@ -199,10 +199,12 @@ void UpscaleEffectConfig::addApplicationControls(QFormLayout *layout)
     });
 
     m_applications = new QLabel(widget());
+    m_applications->setObjectName(QStringLiteral("applicationSummary"));
     m_applications->setTextFormat(Qt::PlainText);
     m_applications->setWordWrap(true);
     layout->addRow(QString(), m_applications);
     m_resetApplications = new QPushButton(i18n("Restore the shipped application list"), widget());
+    m_resetApplications->setObjectName(QStringLiteral("resetApplications"));
     layout->addRow(QString(), m_resetApplications);
     connect(m_resetApplications, &QPushButton::clicked, this, &UpscaleEffectConfig::resetApplications);
     updateApplicationSummary();

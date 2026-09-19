@@ -141,7 +141,10 @@ static QString presented(const UpscaleSnapshot &snapshot)
     }
     QString text = i18n("Presented: %1/s average", QString::number(snapshot.presentedRate, 'f', 1));
     if (snapshot.presentedLow > 0) {
-        text += i18n(", 1%% low %1/s", QString::number(snapshot.presentedLow, 'f', 1));
+        // A literal percent sign, written once: KLocalizedString substitutes
+        // numbered placeholders and does not collapse a doubled one the way
+        // printf does, so "%%" would reach the screen as it stands here.
+        text += i18n(", 1% low %1/s", QString::number(snapshot.presentedLow, 'f', 1));
     }
     if (snapshot.presentedPercentile > 0) {
         text += i18n(", 99th percentile %1 ms", QString::number(snapshot.presentedPercentile, 'f', 1));

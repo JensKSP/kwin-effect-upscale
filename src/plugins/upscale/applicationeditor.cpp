@@ -140,6 +140,20 @@ UpscaleApplicationEditor::UpscaleApplicationEditor(QWidget *parent)
     auto *add = new QPushButton(i18n("Add…"), this);
     auto *detect = new QPushButton(i18n("Add from window…"), this);
     m_delete = new QPushButton(i18n("Remove"), this);
+    // Named as the rest of the settings page names its controls, so that the
+    // tests reach them the way they reach everything else on it.
+    m_list->setObjectName(QStringLiteral("applicationList"));
+    m_name->setObjectName(QStringLiteral("applicationName"));
+    m_windowClass->setObjectName(QStringLiteral("applicationWindowClass"));
+    m_instance->setObjectName(QStringLiteral("applicationInstance"));
+    m_program->setObjectName(QStringLiteral("applicationProgram"));
+    m_method->setObjectName(QStringLiteral("applicationMethod"));
+    m_preset->setObjectName(QStringLiteral("applicationPreset"));
+    m_enabled->setObjectName(QStringLiteral("applicationEnabled"));
+    m_note->setObjectName(QStringLiteral("applicationNote"));
+    add->setObjectName(QStringLiteral("applicationAdd"));
+    detect->setObjectName(QStringLiteral("applicationAddFromWindow"));
+    m_delete->setObjectName(QStringLiteral("applicationRemove"));
     auto *buttons = new QHBoxLayout;
     buttons->addWidget(add);
     buttons->addWidget(detect);

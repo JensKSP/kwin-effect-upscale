@@ -8,6 +8,8 @@
 #include "supportinformation.h"
 #include "upscale_config.h"
 
+#include "settings_fixture.h"
+
 #if __has_include("buildinfo.h")
 #include "buildinfo.h"
 #endif
@@ -16,18 +18,14 @@
 #include <KPluginMetaData>
 #include <KSharedConfig>
 
-#include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDBusConnection>
-#include <QDir>
 #include <QLabel>
-#include <QProcess>
 #include <QPushButton>
 #include <QScreen>
 #include <QSlider>
 #include <QSpinBox>
-#include <QTemporaryDir>
 #include <QTest>
 
 // This service only exists on the private bus started by main(). Real KWin
@@ -277,32 +275,8 @@ void UpscaleConfigTest::readsWhatTheCompositorReported()
 
 int main(int argc, char **argv)
 {
-    QTemporaryDir configuration(QDir::currentPath() + QStringLiteral("/config-test-XXXXXX"));
-    if (!configuration.isValid()) {
-        return 1;
-    }
-    qputenv("XDG_CONFIG_HOME", configuration.path().toUtf8());
-    // Never connect the settings test to a developer's session bus.
-    qputenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/nonexistent-upscale-test-bus");
-    QProcess bus;
-    bus.start(QStringLiteral("dbus-daemon"), {QStringLiteral("--session"), QStringLiteral("--nofork"), QStringLiteral("--print-address=1")});
-    if (!bus.waitForStarted() || !bus.waitForReadyRead()) {
-        return 1;
-    }
-    const QByteArray address = bus.readLine().trimmed();
-    if (address.isEmpty()) {
-        return 1;
-    }
-    qputenv("DBUS_SESSION_BUS_ADDRESS", address);
-    QApplication application(argc, argv);
     UpscaleConfigTest test;
-    const int result = QTest::qExec(&test, argc, argv);
-    bus.terminate();
-    if (!bus.waitForFinished()) {
-        bus.kill();
-        bus.waitForFinished();
-    }
-    return result;
+    return runSettingsTest(&test, argc, argv);
 }
 
 #include "config_test.moc"

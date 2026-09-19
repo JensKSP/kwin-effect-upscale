@@ -628,6 +628,40 @@ the television, input and pointer behaviour in a game running at a reduced
 mode, output and scale changes while an override is in force, a second client
 of the same program, restoration paths, HDR and VRR.
 
+#### Tested against a compositor on 2026-09-19
+
+The mechanism had no automated test: `modeoverride.cpp` was 35.1% of lines,
+which was the whole of its construction and none of what it does. The nested
+KWin session `upscale-integration` now covers it, and the test client binds
+`wl_output` so that the assertions are about the events the compositor sent
+rather than about what the effect says it sent. A client is the only thing that
+can observe this, and it is what a game reads.
+
+Covered on a 128 × 128 screen: nothing is said while the request is off; a
+client binding the output afterwards is told 85 × 85 at Quality; the screen's
+own mode comes back to a client that was told otherwise once the request is
+switched off, which is the restoration path; unlisted applications are asked
+nothing until the user turns them on; a catalogue entry reaches a client
+through its program name alone, which is the only identity that exists before
+it has a window; the entry's own resolution applies while the global preset is
+Automatic and an explicit global choice wins over it; a method of `None`
+recognizes the application and asks it for nothing; Native asks for the size
+the screen already has, so nothing is said; and a scale-driven method on an
+unscaled screen says nothing, because such a screen offers that kind of client
+no whole step below one. One case goes the whole way: the client was told
+85 × 85, committed 64 × 64 instead, and the effect reported both, which is the
+distinction between a request and a result that this package rests on.
+
+`modeoverride.cpp` is now 87.6% of lines. What is left is an output unplugged
+while an override is in force and a client that exits before restoration, both
+of which need hardware or a second compositor process, and both of which are
+already in the acceptance list above.
+
+Measuring the frames also had a defect the statistics view would have shown:
+the slow-tail figure was written `1%% low`, which is printf's escape and not
+KLocalizedString's, so the doubled sign would have reached the screen. Found by
+asserting on the text rather than on its presence, and corrected.
+
 ## Remaining work
 
 - [x] Establish what a loaded effect can do to a game the user started, and
