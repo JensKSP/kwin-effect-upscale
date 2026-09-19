@@ -12,14 +12,20 @@ summarize = HARNESS["summarize"]
 game_reported_rate = HARNESS["game_reported_rate"]
 Sample = HARNESS["Sample"]
 
-# A status exactly as the effect answers it while it is scaling and measuring.
-# The prose is translated and deliberately not read; only the machine line is.
-# It is reproduced here in German to prove that, because a parser that quietly
-# depended on English would pass a test written only in English.
-SCALING = """Gewünscht: 2560 x 1440 von SuperTuxKart angefordert, Bildschirmmodus
-Geliefertes Bild: 2560 x 1440
-Ziel: 3840 x 2160
-FSR 1, Schärfung 0%
+# A status as the effect answers it while it is scaling and measuring.
+#
+# The prose carries figures that disagree with the machine line on purpose. In
+# a session running in another language that prose is translated and the
+# machine line is not, so a parser must take the machine line and nothing else.
+# Disagreeing numbers prove that here without writing the fixture in a language
+# this project does not otherwise use: a parser that read the prose would
+# report 1.0 and 99 frames, which no assertion below accepts.
+SCALING = """Desired: 2560 x 1440 requested from SuperTuxKart as its screen mode
+Supplied input: 1 x 1
+Destination: 9 x 9
+FSR 1, sharpening 0%
+Presented at 1.0/s, fixed refresh.
+Presented: 1.0/s average, 1% low 1.0/s, 99th percentile 1.0 ms (99 frames)
 metrics: presented=118.40 low=61.20 p99=20.400 worst=31.700 frames=1024 \
 client=117.90 repaints=118.20 interval=1.000 supplied=2560x1440 \
 destination=3840x2160 scaling=1 selected=1 windowsystem=wayland buffer=gpu""".replace("\\\n", "")
@@ -29,14 +35,13 @@ destination=3840x2160 scaling=1 selected=1 windowsystem=wayland buffer=gpu""".re
 # rather than zero.
 UNMEASURED = """Desired: Select 2560 x 1440 in the game
 Supplied input: 3840 x 2160
-Destination: 3840 x 2160
 Inactive: the window is not fullscreen or a selected borderless window covering its output.
 metrics: supplied=3840x2160 destination=3840x2160 scaling=0 selected=0"""
 
 # A build that predates the machine line, or any answer without one.
 NO_CONTRACT = """Desired: Automatic (no request)
 Supplied input: 3840 x 2160
-Presentation is not being measured."""
+Presented at 60.0/s, fixed refresh."""
 
 
 class ParseStatusTest(unittest.TestCase):
@@ -63,11 +68,13 @@ class ParseStatusTest(unittest.TestCase):
         self.assertEqual(sample.window_system, "wayland")
         self.assertEqual(sample.buffer_kind, "gpu")
 
-    def test_a_translated_session_is_read_exactly_the_same(self) -> None:
-        """The language of the prose above the machine line changes nothing."""
+    def test_the_prose_above_the_machine_line_is_never_read(self) -> None:
+        """Figures in the translated prose never reach the measurement."""
         sample = parse_status(SCALING)
         self.assertAlmostEqual(sample.presented_rate, 118.4)
         self.assertEqual(sample.presented_frames, 1024)
+        self.assertEqual(sample.supplied, "2560x1440")
+        self.assertEqual(sample.destination, "3840x2160")
 
     def test_an_answer_without_the_machine_line_measures_nothing(self) -> None:
         """An older build is reported as unmeasured, not parsed from prose."""
