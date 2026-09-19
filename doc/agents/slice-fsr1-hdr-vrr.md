@@ -38,15 +38,17 @@ Proton, HDR, VRR or the B-to-D cost matrix.
 real games under Valve Proton and standalone Wine, image quality and the
 complete cost matrix keep this requirement open after any release.
 
-VRR is currently blocked rather than pending on the only available acceptance
-host, whose output reports adaptive sync incapable. Record it as blocked and
-obtain a second output path; do not count it as passed or drop it.
+The recorded wzpc HDMI path reported adaptive sync incapable, blocking VRR
+acceptance there. The separately inventoried NVIDIA host has not yet passed
+VRR acceptance either; its recorded configuration has VRR disabled.
 
 ## The scaler-effective gate
 
 This gate is the package's first milestone and the project's next acceptance
-after the [development infrastructure slice](slice-development-infrastructure.md).
-It exists because the effect has never been observed scaling a frame. Loading
+after the [development infrastructure slice](slice-development-infrastructure.md)
+in the original sequence. The defect and regression coverage are now addressed;
+physical-display pixel comparison and lifecycle acceptance remain open.
+It was introduced before any real-GPU scaled frame had been observed. Loading
 the plugin, reporting it supported, passing the container and headless tests and
 installing it on the acceptance host have all been achieved and none of them
 establish that the scaler does anything.
@@ -61,7 +63,7 @@ on real hardware, and not before:
 | `activeEffects` lists `upscale` for an eligible window | The effect never entered KWin's active set, so it never took its scanout restriction. |
 | The destination pixels differ from ordinary KWin scaling | A covered output proves composition happened, not that EASU ran. |
 | An ineligible window still restores ordinary rendering | Fallback has only been exercised where the effect was already inactive. |
-| An automated test reproduces the real-backend refusal | The container and headless suites pass against the same case that fails on hardware. That is a coverage gap, not only a defect. |
+| An automated test reproduces the real-backend refusal | The orientation test now covers Normal/FlipY and detects the original refusal; physical-display acceptance remains separate. |
 
 The last row is the durable part. A fix that only repairs the running session
 leaves the suites unable to detect the next occurrence, so this gate requires
@@ -266,9 +268,10 @@ by downscaling a completed frame. HDR and VRR remain mandatory throughout.
   The implementation renders the surface item at buffer resolution
   through KWin's item renderer, retaining its import and release-fence handling.
 - Colour conversion to the current render target happens at input
-  resolution. Floating-point intermediates and a reversible working encoding
-  are required before EASU/RCAS; final composition must not convert colours a
-  second time. This encoding still requires HDR image-quality acceptance.
+  resolution. Linear destinations use floating-point intermediates and a
+  reversible bounded encoding; non-linear destinations use RGB10_A2 and direct
+  filtering. Final composition must not repeat colour conversion. Both paths
+  still require physical-display HDR image-quality acceptance.
 - KWin 6.3.6 selects adaptive presentation in `compositor_wayland.cpp`
   independently of direct scanout. This establishes an integration path, not
   proof of VRR on a physical display.
@@ -302,19 +305,21 @@ listed in the [README](../../README.md).
 
 Resolution-method source findings and prototypes are owned by the
 [resolution-control slice](slice-resolution-control.md); the current production
-effect sends no client requests.
+effect now sends the profile-specific Wayland/X11 requests documented there.
 
 ## Progress and remaining work
 
-- The README now leads with the observed non-working state and a short overview;
+- The README distinguishes nested/virtual observations from open physical acceptance;
   build and package availability are explicitly not claims of working upscaling.
 - [x] Select and implement FSR 1, optional RCAS and global configuration.
 - [x] Implement colour conversions and record automated shader/configuration tests.
 - [x] Measure A0 and A1 on the real output; record the unusable aggregate score.
-- [ ] Close the scaler-effective gate above: isolate and fix the refusal, observe
-  a scaled frame on hardware, and extend automated coverage to reach the case.
+- [x] Isolate and fix the orientation refusal and extend automated coverage.
+- [ ] Close the physical-display scaler-effective gate with observed pixel
+  comparison, active-effect state and fallback on the accepted candidate.
 - [ ] Complete original-buffer and lifecycle integration acceptance.
-- [ ] Measure runs B, C and D; blocked on resolution control on KWin 6.3.6.
+- [ ] Measure physical-output runs B, C and D using the now-implemented
+  cooperative resolution paths; nested timing is not acceptance evidence.
 - [ ] Complete real-game, HDR/VRR, image-quality and TV acceptance. VRR is
   blocked on this host: HDMI-A-1 reports adaptive sync incapable.
 
@@ -468,12 +473,13 @@ pre-push stage. `.clang-tidy` gained two exceptions for the function that
 `Q_LOGGING_CATEGORY` defines, because KWin's own effects declare their
 categories in exactly that way.
 
-Still open from the review, and not addressed here: the intermediate images are
-`RGBA32F`, which is about 160 MiB for a 1080p input on a 4K output. The bounded
-working encoding would allow `RGBA16F` for the destination-sized image, whose
-values stay within 0 to 1, while the input image keeps destination-encoded
-values that can be large or negative. This belongs with the cost measurements
-rather than ahead of them. The configuration module still derives its pixel
+The review's all-RGBA32F allocation concern has since been addressed for
+non-linear destinations: the current scaler uses RGB10_A2 and direct filtering
+there, retaining RGBA32F for signed/extended linear colour. Sharpening off releases
+the destination intermediate. The handbook describes this implemented path;
+physical-display HDR quality and total rendering cost remain open.
+
+The configuration module still derives its pixel
 preview from `QScreen::devicePixelRatio()`, which Qt may quantise at
 fractional desktop scales; the effect reports the true destination size over
 D-Bus and the preview could use it.
@@ -502,8 +508,9 @@ open-source game identification/reduction checks in this shared test sequence. T
 identify and select the correct game, obtain smaller committed buffers through
 our control, leave unrelated windows and the physical output unchanged, and
 restore normal policy. Manually choosing a smaller in-game resolution only
-provides a baseline. Explicit game selection/profiles and active resolution
-control remain unimplemented, so those acceptance cases cannot yet pass.
+provides a baseline. At the time of this plan, profiles and active control were unimplemented.
+They now exist; their bounded observations and remaining hardware acceptance
+are recorded in the resolution-control slice.
 
 Selected applications and the package candidates observed with
 `apt-cache policy` on wzpc:
@@ -592,7 +599,8 @@ geometry exactly and still failed. Buffer size is ruled out by the two sizes
 above. The remaining candidates are the surface child-item, transform, source
 box, opaque-region and buffer-format checks, and the difference between this
 session's OpenGL and DRM backend and the container fixture's QPainter backend.
-The cause is not isolated; no fix is claimed.
+At that first observation the cause was not isolated. The later
+TransformedRenderTarget diagnosis and fix above supersede this failure state.
 
 This is the first time the installed effect met a supplied buffer it was built
 to scale on real hardware, and it did not scale it. The passing container and
@@ -609,7 +617,7 @@ limitation. The following are required checks, not claims of success:
 
 | Area | Required evidence |
 | --- | --- |
-| Repository checks | `pre-commit run --all-files` in the container; inspect the output. |
+| Repository checks | Both `pre-commit run --all-files` and `pre-commit run --all-files --hook-stage pre-push` in the container; inspect the output. |
 | Builds | Trixie and neon unstable, GCC and Clang, warnings as errors; GLSL and GLSL ES shader validation. |
 | Runtime | Tests against KWin's virtual backend in the container; actual original-buffer sizes and pixel mapping. |
 | Configuration | Percentage-to-pixel conversion at different output and desktop scales; exact preset ratios, rounding, aspect tolerance, 50% and native boundaries, RCAS bypass and increasing strength. |
@@ -628,3 +636,8 @@ real-display acceptance.
 The native scaler build is installed on wzpc but has not yet been timed or
 accepted on the TV.
 Documentation checks do not constitute completion of the slice.
+
+PR #14 review follow-up: the GLES storage replacement discards prior errors
+from KWin’s shared GL context before testing its own allocation. A rendering
+regression supplies an earlier GL error and requires valid floating-point
+storage. Combined-candidate validation is pending.

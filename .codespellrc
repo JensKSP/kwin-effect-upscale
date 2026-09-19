@@ -1,21 +1,21 @@
 # SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
 # SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Words this project spells correctly that the check reads as mistakes.
+#
+# codespell's own dictionaries are lists of misspellings, not lists of terms a
+# project is allowed to use, so there is no community word list to import that
+# would teach it our vocabulary. Its 'code' dictionary is the opposite of what
+# the name suggests: it adds corrections for code-like words appearing in
+# prose, such as uint. The default 'clear,rare' is what runs here, and a term
+# it does not know is taught to it below.
+#
+# Add a word only when it is right where it stands: a keyword, a term of art, a
+# name, or a word of another language that a fixture or quotation needs. Every
+# entry switches the check off for that word everywhere in the repository, so a
+# word that is simply wrong is corrected in the text instead.
+#
+# inout  A GLSL storage qualifier, in the FSR shaders this effect compiles.
 
 [codespell]
-skip = ./.git,./build,./LICENSES,./po,./stage,*.png,*.qrc
-# codespell ships six dictionaries and enables two. The rest catch informal
-# spellings, misused words and typos in identifiers, which is most of what goes
-# wrong in comments.
-builtin = clear,rare,informal,usage,code
-check-filenames =
-# Words codespell reads as typos that are correct here. Keep this list short and
-# add to it only with a reason; every entry is a check switched off.
-# Every entry here is a check switched off, so each one has a reason.
-#   master    the branch this project and KWin both develop on
-#   cas       Contrast Adaptive Sharpening, an upscaling term this effect is about
-#   copyable  correct English, and the word the plugin folder rule is written with
-#   assertin  unittest's assertIn, which the code dictionary reads as a typo
-#   errorstring Qt plugin-loading diagnostic accessor
-#   inout     GLSL's input/output parameter qualifier
-ignore-words-list = nd,ba,te,doubleclick,master,cas,copyable,assertin,inout,errorstring
-check-hidden = true
+ignore-words-list = inout

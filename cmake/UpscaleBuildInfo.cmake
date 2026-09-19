@@ -5,8 +5,8 @@
 # without a header that would make every source depend on the current commit.
 #
 # What a commit costs to rebuild: one translation unit and a link. The generator
-# rewrites the source only when its content actually changed, so building twice
-# on the same commit recompiles nothing at all.
+# rewrites the source only when its content actually changed. An unchanged
+# reproducible timestamp therefore costs no compilation at all.
 
 set(UPSCALE_BUILD_INFO_DIR "${CMAKE_BINARY_DIR}/buildinfo")
 set(UPSCALE_BUILD_INFO_SOURCE "${UPSCALE_BUILD_INFO_DIR}/buildinfo.cpp")

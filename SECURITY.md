@@ -7,7 +7,7 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 ## Supported versions
 
-This is an experimental, non-working development project, not a supported
+This is an experimental development project, not a supported
 production release. Security fixes target the current `master` development
 branch. Older snapshots and nightly artifacts have no separate maintenance
 branch or backport commitment. Identify the exact affected commit or complete

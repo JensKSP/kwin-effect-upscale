@@ -82,7 +82,7 @@ void WaylandClient::global(void *data, wl_registry *registry, uint32_t name, con
     }
 }
 
-bool WaylandClient::initialize()
+bool WaylandClient::initialize(bool fullscreen)
 {
     m_display = wl_display_connect(nullptr);
     if (!m_display) {
@@ -109,7 +109,9 @@ bool WaylandClient::initialize()
     xdg_toplevel_add_listener(m_toplevel, &toplevelListener, this);
     xdg_toplevel_set_app_id(m_toplevel, "org.kde.upscale.integrationtest");
     xdg_toplevel_set_title(m_toplevel, "Upscale integration test");
-    xdg_toplevel_set_fullscreen(m_toplevel, nullptr);
+    if (fullscreen) {
+        xdg_toplevel_set_fullscreen(m_toplevel, nullptr);
+    }
     wl_surface_commit(m_surface);
     return wl_display_roundtrip(m_display) >= 0;
 }
@@ -211,6 +213,12 @@ void WaylandClient::fullscreen(bool enabled)
         xdg_toplevel_unset_fullscreen(m_toplevel);
     }
     wl_display_flush(m_display);
+}
+
+void WaylandClient::resize(const QSize &destination)
+{
+    m_destination = destination;
+    commit();
 }
 
 int WaylandClient::descriptor() const

@@ -5,8 +5,8 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 # Contributing
 
-The effect is experimental and does not yet have verified working upscaling on
-real hardware. Read the [current state](README.md#state) before testing it.
+The effect is experimental. Nested GPU tests have processed real-game buffers,
+but full physical-display acceptance remains open. Read the [current state](README.md#state) before testing it.
 Reports, documentation improvements and patches are welcome through
 [GitHub issues and pull requests](https://github.com/JensKSP/kwin-effect-upscale).
 Search existing issues first and link related reports rather than duplicating them.

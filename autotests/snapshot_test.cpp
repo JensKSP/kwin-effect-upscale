@@ -26,11 +26,14 @@ private Q_SLOTS:
     void unsupportedFormat();
     void refusalNamesTheConditionThatFailed();
     void reportsThePathActuallyTaken();
+    void headsUpDistinguishesBypassFromNative();
+    void headsUpKeepsUnusualDimensions();
     void doesNotInventUnknownValues();
     void pixelSizesAreNotGrouped();
     void developerInformationCoversTheState();
     void namesEveryPresetAndTransferFunction();
     void reportsPresentedFramesAndTheirSlowTail();
+    void namesTheClientItIsLookingAt();
     void separatesWhatWasRequestedFromWhatArrived();
 
 private:
@@ -101,7 +104,7 @@ void UpscaleSnapshotTest::refusalNamesTheConditionThatFailed()
     snapshot.refusal = UpscaleRefusal::TranslucentContent;
     const QString status = upscaleStatusText(snapshot);
     QVERIFY2(status.contains(QStringLiteral("Inactive: the supplied buffer is not fully opaque")), qPrintable(status));
-    QVERIFY(upscaleStatistics(snapshot).contains(QStringLiteral("not scaling: the supplied buffer is not fully opaque")));
+    QVERIFY(upscaleDeveloperInformation(snapshot).contains(QStringLiteral("not scaling: the supplied buffer is not fully opaque")));
     // The buffer format is named beside the refusal that was about the format.
     snapshot.refusal = UpscaleRefusal::UnsupportedBufferFormat;
     QVERIFY(upscaleStatusText(snapshot).contains(QStringLiteral("Supplied format: XR24 (0x34325258)")));
@@ -110,17 +113,23 @@ void UpscaleSnapshotTest::refusalNamesTheConditionThatFailed()
 void UpscaleSnapshotTest::reportsThePathActuallyTaken()
 {
     const UpscaleSnapshot snapshot = scaling();
-    const QString statistics = upscaleStatistics(snapshot);
-    QVERIFY2(statistics.contains(QStringLiteral("FSR 1 with RCAS sharpening 50%")), qPrintable(statistics));
-    QVERIFY(statistics.contains(QStringLiteral("1280 × 720")));
-    QVERIFY(statistics.contains(QStringLiteral("3840 × 2160")));
-    QVERIFY(statistics.contains(QStringLiteral("HDMI-A-1")));
-    // What a person turns this on for is the frame rate, so the view they see
-    // carries that and not the two counters below, which need explaining
-    // before they mean anything.
-    QVERIFY2(statistics.contains(QStringLiteral("Presented:")), qPrintable(statistics));
-    QVERIFY(!statistics.contains(QStringLiteral("Client buffer updates")));
-    QVERIFY(!statistics.contains(QStringLiteral("compositor repaints")));
+    const QString developerPath = upscaleDeveloperInformation(snapshot);
+    QVERIFY2(developerPath.contains(QStringLiteral("FSR 1 with RCAS sharpening 50%")), qPrintable(developerPath));
+    QVERIFY(developerPath.contains(QStringLiteral("1280 × 720")));
+    QVERIFY(developerPath.contains(QStringLiteral("3840 × 2160")));
+    QVERIFY(developerPath.contains(QStringLiteral("HDMI-A-1")));
+    // What a player turns the heads-up display on for is the frame rate, so it
+    // carries that and the picture it was drawn at, and nothing that needs
+    // explaining before it means anything.
+    const QString headsUp = upscaleHeadsUp(snapshot);
+    QVERIFY2(headsUp.contains(QStringLiteral("FSR 1 + RCAS")), qPrintable(headsUp));
+    QVERIFY2(headsUp.contains(QStringLiteral("720p → 4K")), qPrintable(headsUp));
+    QVERIFY2(headsUp.contains(QStringLiteral("33%")), qPrintable(headsUp));
+    QVERIFY(!headsUp.contains(QStringLiteral("Client buffer updates")));
+    QVERIFY(!headsUp.contains(QStringLiteral("compositor repaints")));
+    QVERIFY(!headsUp.contains(QStringLiteral("percentile")));
+    // Five lines of diagnostics are not a heads-up display.
+    QCOMPARE(headsUp.count(QLatin1Char('\n')), 1);
 
     // The two counters are named by what they count. A compositor repaint is
     // not the game's frame rate and must never be presented as one.
@@ -143,7 +152,17 @@ void UpscaleSnapshotTest::reportsThePathActuallyTaken()
     QVERIFY(upscaleStatusText(eligible).contains(QStringLiteral("the last frame was not scaled because")));
     UpscaleSnapshot unsharpened = snapshot;
     unsharpened.sharpening = 0;
-    QVERIFY(upscaleStatistics(unsharpened).contains(QStringLiteral("FSR 1, no sharpening")));
+    QVERIFY(upscaleDeveloperInformation(unsharpened).contains(QStringLiteral("FSR 1, no sharpening")));
+    // Sharpening changes the image, so the display that is always on screen
+    // says whether it is on; it is not left to the diagnostic view.
+    QVERIFY2(upscaleHeadsUp(unsharpened).contains(QStringLiteral("FSR 1   ")), qPrintable(upscaleHeadsUp(unsharpened)));
+    QVERIFY(!upscaleHeadsUp(unsharpened).contains(QStringLiteral("RCAS")));
+    // A game drawing at the size of the screen is not upscaled, and the
+    // display says so rather than implying a benefit that is not there.
+    UpscaleSnapshot native = snapshot;
+    native.scaling = false;
+    native.supplied = QSize(3840, 2160);
+    QVERIFY2(upscaleHeadsUp(native).contains(QStringLiteral("4K native")), qPrintable(upscaleHeadsUp(native)));
 }
 
 void UpscaleSnapshotTest::doesNotInventUnknownValues()
@@ -156,8 +175,12 @@ void UpscaleSnapshotTest::doesNotInventUnknownValues()
     QVERIFY(developer.contains(QStringLiteral("supplied unknown")));
     QVERIFY(upscaleDeveloperInformation(empty).contains(QStringLiteral("Client buffer updates: unknown")));
     // Nothing presented yet is said, not shown as a zero frame rate.
-    QVERIFY2(upscaleStatistics(empty).contains(QStringLiteral("Presented: unknown")),
-             qPrintable(upscaleStatistics(empty)));
+    // The heads-up display shows a dash before anything has been measured,
+    // which is what an overlay shows for a figure it does not have yet.
+    QVERIFY2(upscaleHeadsUp(empty).contains(QStringLiteral("— FPS")), qPrintable(upscaleHeadsUp(empty)));
+    QVERIFY(upscaleHeadsUp(empty).contains(QStringLiteral("— ms")));
+    QVERIFY(upscaleHeadsUp(empty).contains(QStringLiteral("1% Low — FPS")));
+    QVERIFY(!upscaleHeadsUp(empty).contains(QStringLiteral("0 FPS")));
     QVERIFY(upscaleAnnouncement(empty).contains(QStringLiteral("unknown")));
     // An unimplemented or unobserved colour state is not filled in either.
     QVERIFY2(developer.contains(QStringLiteral("destination transfer unknown")), qPrintable(developer));
@@ -173,6 +196,43 @@ void UpscaleSnapshotTest::doesNotInventUnknownValues()
     QVERIFY(upscaleStatusText(disabled).contains(QStringLiteral("Inactive: disabled")));
 }
 
+void UpscaleSnapshotTest::headsUpDistinguishesBypassFromNative()
+{
+    UpscaleSnapshot snapshot = scaling();
+    snapshot.scaling = false;
+    snapshot.refusal = UpscaleRefusal::TransformedPass;
+    const QString bypass = upscaleHeadsUp(snapshot);
+    QVERIFY2(bypass.contains(QStringLiteral("FSR off")), qPrintable(bypass));
+    QVERIFY(bypass.contains(QStringLiteral("720p → 4K")));
+    QVERIFY(!bypass.contains(QStringLiteral("native")));
+
+    snapshot.supplied = snapshot.destination;
+    QVERIFY(upscaleHeadsUp(snapshot).contains(QStringLiteral("4K native")));
+    snapshot.supplied = QSize();
+    const QString unknown = upscaleHeadsUp(snapshot);
+    QVERIFY(!unknown.contains(QStringLiteral("native")));
+    QVERIFY(unknown.contains(QStringLiteral("unknown → 4K")));
+}
+
+void UpscaleSnapshotTest::headsUpKeepsUnusualDimensions()
+{
+    UpscaleSnapshot snapshot = scaling();
+    snapshot.supplied = QSize(1720, 720);
+    snapshot.destination = QSize(5160, 2160);
+    const QString ultrawide = upscaleHeadsUp(snapshot);
+    QVERIFY2(ultrawide.contains(QStringLiteral("1720 × 720 → 5160 × 2160")), qPrintable(ultrawide));
+    QVERIFY(!ultrawide.contains(QStringLiteral("4K")));
+    QVERIFY(ultrawide.contains(QStringLiteral("33%")));
+
+    snapshot.supplied = QSize(2560, 1440);
+    snapshot.destination = QSize(3840, 2160);
+    const QString quality = upscaleHeadsUp(snapshot);
+    QVERIFY(quality.contains(QStringLiteral("1440p → 4K")));
+    QVERIFY(quality.contains(QStringLiteral("67%")));
+    snapshot.supplied = QSize(1920, 1080);
+    QVERIFY(upscaleHeadsUp(snapshot).contains(QStringLiteral("1080p → 4K")));
+}
+
 void UpscaleSnapshotTest::pixelSizesAreNotGrouped()
 {
     // A locale that groups thousands turned "3840 × 2160" into "3.840 × 2.160",
@@ -180,10 +240,10 @@ void UpscaleSnapshotTest::pixelSizesAreNotGrouped()
     const QLocale previous = QLocale();
     QLocale::setDefault(QLocale(QLocale::German, QLocale::Germany));
     const UpscaleSnapshot snapshot = scaling();
-    const QString statistics = upscaleStatistics(snapshot);
+    const QString developer = upscaleDeveloperInformation(snapshot);
     QLocale::setDefault(previous);
-    QVERIFY2(statistics.contains(QStringLiteral("3840 × 2160")), qPrintable(statistics));
-    QVERIFY2(!statistics.contains(QStringLiteral("3.840")), qPrintable(statistics));
+    QVERIFY2(developer.contains(QStringLiteral("3840 × 2160")), qPrintable(developer));
+    QVERIFY2(!developer.contains(QStringLiteral("3.840")), qPrintable(developer));
 }
 
 void UpscaleSnapshotTest::developerInformationCoversTheState()
@@ -263,6 +323,50 @@ void UpscaleSnapshotTest::namesEveryPresetAndTransferFunction()
 // The frame rate is what a person turns this on for, and an average alone
 // hides the stutter that decides whether something feels smooth. Every measure
 // beside it has to be named by what it actually is.
+void UpscaleSnapshotTest::namesTheClientItIsLookingAt()
+{
+    // The rectangles the coverage rule compares are reported as they are,
+    // fractions included: on a fractionally scaled output the logical size is
+    // not a whole number, and rounding it away would hide the difference this
+    // line exists to explain.
+    UpscaleSnapshot covered = scaling();
+    covered.windowArea = UpscaleRectF(0, 0, 2560, 1440);
+    covered.outputArea = UpscaleRectF(0, 0, 2648.28, 1489.66);
+    const QString areas = upscaleDeveloperInformation(covered);
+    QVERIFY2(areas.contains(QStringLiteral("window 0.0,0.0 2560.0 × 1440.0")), qPrintable(areas));
+    QVERIFY2(areas.contains(QStringLiteral("output 0.0,0.0 2648.3 × 1489.7")), qPrintable(areas));
+
+    // The first thing to check when a request had no effect is which window
+    // system the client speaks: a Wayland method cannot reach an Xwayland
+    // game, and no other figure on this block would ever show it.
+    UpscaleSnapshot wayland = scaling();
+    wayland.windowSystem = UpscaleWindowSystem::Wayland;
+    wayland.bufferKind = UpscaleBufferKind::Gpu;
+    const QString shown = upscaleHeadsUp(wayland);
+    QVERIFY2(shown.contains(QStringLiteral("Wayland")), qPrintable(shown));
+    // How the buffer arrived is buffer information, which the handbook keeps
+    // out of the block read at a glance and puts with the formats instead.
+    QVERIFY2(!shown.contains(QStringLiteral("GPU")), qPrintable(shown));
+    const QString detail = upscaleDeveloperInformation(wayland);
+    QVERIFY2(detail.contains(QStringLiteral("arrived on the GPU")), qPrintable(detail));
+
+    UpscaleSnapshot x11 = scaling();
+    x11.windowSystem = UpscaleWindowSystem::X11;
+    x11.bufferKind = UpscaleBufferKind::SharedMemory;
+    const QString other = upscaleHeadsUp(x11);
+    QVERIFY2(other.contains(QStringLiteral("X11")), qPrintable(other));
+    QVERIFY2(!other.contains(QStringLiteral("Wayland")), qPrintable(other));
+    QVERIFY2(upscaleDeveloperInformation(x11).contains(QStringLiteral("through main memory")),
+             qPrintable(upscaleDeveloperInformation(x11)));
+
+    // Neither is claimed when neither was established. A guess here would be
+    // read as a measurement, which is what this block is for.
+    UpscaleSnapshot unknown = scaling();
+    const QString silent = upscaleHeadsUp(unknown);
+    QVERIFY2(!silent.contains(QStringLiteral("GPU")), qPrintable(silent));
+    QVERIFY2(!silent.contains(QStringLiteral("Wayland")), qPrintable(silent));
+}
+
 void UpscaleSnapshotTest::reportsPresentedFramesAndTheirSlowTail()
 {
     UpscaleSnapshot snapshot = scaling();
@@ -270,9 +374,14 @@ void UpscaleSnapshotTest::reportsPresentedFramesAndTheirSlowTail()
     snapshot.presentedLow = 41.2;
     snapshot.presentedPercentile = 28.35;
     snapshot.presentedWorst = 51.7;
+    // One frame is one frame. The count carries a plural form so that a window
+    // holding a single interval does not report "1 frames".
+    snapshot.presentedFrames = 1;
+    QVERIFY2(upscaleDeveloperInformation(snapshot).contains(QStringLiteral("1 frame,")),
+             qPrintable(upscaleDeveloperInformation(snapshot)));
     snapshot.presentedFrames = 600;
     snapshot.presentation = int(PresentationMode::AdaptiveSync);
-    const QString statistics = upscaleStatistics(snapshot);
+    const QString statistics = upscaleDeveloperInformation(snapshot);
     QVERIFY2(statistics.contains(QStringLiteral("Presented: 59.9/s average")), qPrintable(statistics));
     // The two figures both called a "one per cent low" do not mean the same
     // thing, so each is named by what it measures rather than by that phrase.
@@ -283,6 +392,13 @@ void UpscaleSnapshotTest::reportsPresentedFramesAndTheirSlowTail()
     // Adaptive synchronisation is finally an observation rather than a
     // disclaimer, so the mode the screen presented in is reported with them.
     QVERIFY2(statistics.contains(QStringLiteral("adaptive sync")), qPrintable(statistics));
+    // The same frames, as a player reads them: a whole number of frames a
+    // second, the milliseconds one of them took, and the slow tail by the
+    // name every overlay gives it.
+    const QString glance = upscaleHeadsUp(snapshot);
+    QVERIFY2(glance.contains(QStringLiteral("60 FPS")), qPrintable(glance));
+    QVERIFY2(glance.contains(QStringLiteral("16.7 ms")), qPrintable(glance));
+    QVERIFY2(glance.contains(QStringLiteral("1% Low 41 FPS")), qPrintable(glance));
     QVERIFY(upscaleStatusText(snapshot).contains(QStringLiteral("Presented at 59.9/s, adaptive sync.")));
 
     // Each presentation mode has to be named, and named differently: two modes
@@ -291,9 +407,14 @@ void UpscaleSnapshotTest::reportsPresentedFramesAndTheirSlowTail()
     for (const PresentationMode mode : {PresentationMode::VSync, PresentationMode::AdaptiveSync,
                                         PresentationMode::Async, PresentationMode::AdaptiveAsync}) {
         snapshot.presentation = int(mode);
-        const QString text = upscaleStatistics(snapshot);
-        QVERIFY(!text.contains(QStringLiteral("unknown")));
-        modes.insert(text.section(QLatin1String("frames, "), 1));
+        // Only the phrase naming the mode is under test. The rest of this view
+        // says "unknown" for everything this snapshot never observed, which is
+        // the behaviour asserted elsewhere.
+        const QString named = upscaleDeveloperInformation(snapshot)
+                                  .section(QLatin1String("frames, "), 1)
+                                  .section(QLatin1Char('\n'), 0, 0);
+        QVERIFY2(!named.contains(QStringLiteral("unknown")), qPrintable(named));
+        modes.insert(named);
     }
     QCOMPARE(modes.size(), 4);
 
@@ -303,7 +424,7 @@ void UpscaleSnapshotTest::reportsPresentedFramesAndTheirSlowTail()
     partial.presentedRate = 30;
     partial.presentedFrames = 12;
     partial.presentation = int(PresentationMode::VSync);
-    const QString sparse = upscaleStatistics(partial);
+    const QString sparse = upscaleDeveloperInformation(partial);
     QVERIFY2(sparse.contains(QStringLiteral("Presented: 30.0/s average")), qPrintable(sparse));
     QVERIFY(!sparse.contains(QStringLiteral("1% low")));
     QVERIFY(!sparse.contains(QStringLiteral("percentile")));
@@ -368,6 +489,16 @@ void UpscaleSnapshotTest::separatesWhatWasRequestedFromWhatArrived()
     QVERIFY(developer.contains(QStringLiteral("advertised 2560 × 1440")));
     QVERIFY(developer.contains(QStringLiteral("advertised screen mode")));
 
+    snapshot.method = UpscaleControlMethod::X11Resize;
+    snapshot.advertised = {};
+    snapshot.requested = QSize(1920, 1080);
+    snapshot.requestFailure = QStringLiteral("The requested mode was ignored.");
+    const QString refused = upscaleStatusText(snapshot);
+    QVERIFY(refused.contains(QStringLiteral("1920 × 1080 requested from SuperTuxKart as its X11 window size")));
+    QVERIFY(refused.contains(snapshot.requestFailure));
+    QVERIFY(refused.contains(QStringLiteral("Supplied input: 3840 × 2160")));
+    QVERIFY(!refused.contains(QStringLiteral("as its screen mode")));
+
     // A window nothing in the catalogue describes says so, rather than
     // reporting an empty name or implying a match.
     UpscaleSnapshot unlisted = scaling();
@@ -397,7 +528,7 @@ void UpscaleSnapshotTest::unsupportedFormat()
             state.selected = selected;
             QVERIFY(upscaleStatusText(state).contains(expected));
             QVERIFY(upscaleBasicSummary(state).contains(expected));
-            QVERIFY(upscaleStatistics(state).contains(expected));
+
             QVERIFY(upscaleDeveloperInformation(state).contains(expected));
         }
     }

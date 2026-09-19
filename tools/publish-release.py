@@ -27,7 +27,17 @@ def verify_download(tag: str, directory: Path) -> None:
         downloaded = {p.name: digest(p) for p in Path(temporary).iterdir()}
         expected = {p.name: digest(p) for p in directory.iterdir()}
         if downloaded != expected:
-            message = "Uploaded release contents differ from the validated artifacts"
+            missing = sorted(expected.keys() - downloaded.keys())
+            unexpected = sorted(downloaded.keys() - expected.keys())
+            changed = sorted(
+                name
+                for name in expected.keys() & downloaded.keys()
+                if expected[name] != downloaded[name]
+            )
+            message = (
+                "Uploaded release contents differ from the validated artifacts: "
+                f"missing={missing}, unexpected={unexpected}, changed={changed}"
+            )
             raise ValueError(message)
 
 

@@ -119,6 +119,10 @@ inline std::unique_ptr<GLTexture> allocateTexture(const QSize &size, GLenum inte
         } else if (internalFormat == GL_RGBA16F) {
             type = GL_HALF_FLOAT;
         }
+        // GL errors belong to the shared context. Discard earlier errors so
+        // only this storage replacement can make the allocation fail.
+        while (glGetError() != GL_NO_ERROR) {
+        }
         texture->bind();
         glTexImage2D(GL_TEXTURE_2D, 0, GLint(internalFormat), size.width(), size.height(), 0, GL_RGBA, type, nullptr);
         texture->unbind();

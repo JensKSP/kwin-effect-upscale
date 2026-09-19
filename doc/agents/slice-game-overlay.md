@@ -11,20 +11,21 @@ At the start of implementation, the
 [development infrastructure slice](slice-development-infrastructure.md) has
 provided the shared passive OSD, timed detection/basic summaries, statistics,
 developer information and diagnostic state. Interactive controls, comparison
-and managed-restart integration remain specified but not implemented.
+remain specified but not implemented. Managed restart was superseded by the
+2026-09-19 plugin-only requirement and is excluded.
 
 ## End state
 
 The existing overlay offers an on-demand settings panel that distinguishes
-live and pending changes, invokes explicit managed restart, and permits a
+live and pending changes, explains when a normal new launch is needed, and permits a
 temporary visual comparison without altering saved settings or supplied input.
 Required automated and real-game/TV acceptance has passed.
 
 ## Scope and boundaries
 
 Own interactive settings actions, input/focus handling, comparison and the
-presentation of pending settings/restart actions. Reuse the diagnostic surface
-and state from development infrastructure and the profile/launch contracts.
+presentation of pending settings. Reuse the diagnostic surface and state from
+development infrastructure and the profile/resolution contracts.
 Do not reimplement passive statistics, build defaults, detection or logging.
 Future filters, geometry modes and display-specific overrides do not expand
 this package's completion gate. Optional full About access may reuse the
@@ -33,11 +34,10 @@ shared identity/notices, but it is not required to close this package.
 ## Dependencies
 
 Development infrastructure comes first. [Profiles](slice-application-profiles.md)
-provide matching and resolved settings. [Launching](slice-application-launching.md)
-provides pending/effective state and restart actions;
+provide matching and resolved settings;
 [resolution control](slice-resolution-control.md) supplies live capabilities
 and actual results. UI checks may use controlled states, but closing this slice
-requires integrated live/restart behaviour and real-game input acceptance.
+requires integrated live/pending-setting behaviour and real-game input acceptance.
 
 ## Approach
 
@@ -45,16 +45,15 @@ requires integrated live/restart behaviour and real-game input acceptance.
    and diagnostic state with the settings module and passive views.
 2. Apply verified live changes and show pending ones without automatic restarts.
    Keep global edits, explicit profile overrides and Use global distinct.
-3. Integrate explicit managed restart using the launch package's action and
-   outcome states. Rendering callbacks must not launch or wait for processes.
+3. Report settings that apply on the next normal launch. The effect does not
+   launch, close or restart processes.
 4. Add temporary comparison at unchanged input/destination geometry; verify
    input, focus and pointer restoration, cleanup and HDR/VRR interactions.
 
 The permanent handbook defines [in-game controls](../upscaling.md#in-game-controls-and-applying-settings)
 and [restart behaviour](../upscaling.md#restarting-a-game-with-pending-settings).
-The launch owner preserves command, arguments, environment, directory and
-runtime; a window match cannot reconstruct an unmanaged launch. Saving settings
-never restarts a running game. These are requirements, not observed behaviour.
+A window match cannot reconstruct a launch, and launch management is excluded.
+Saving settings never restarts a running game. These are requirements, not observed behaviour.
 
 ## Acceptance criteria
 
@@ -70,12 +69,11 @@ Planned checks, not observed results:
   outside capture and takes no input after the panel closes.
 - Comparison preserves saved settings and supplied resolution while switching
   paths; if split view is provided, both halves use the same source frame.
-- Invoke restart only on the user's explicit choice; display close refusal,
-  failure, cancellation and retry accurately. Process/launch preservation
-  tests belong to the launching package.
+- Explain bind-time changes without claiming they changed the running client.
+  No control may start a launch wrapper or relaunch the game.
 - Run repository checks and relevant rendering/configuration/integration tests
   with GCC and Clang on both container targets. On wzpc, verify legibility,
-  live/restart settings, game input and HDR/VRR during and after interaction.
+  live/pending settings, game input and HDR/VRR during and after interaction.
 
 ## Progress and remaining work
 
@@ -83,7 +81,7 @@ Planned checks, not observed results:
 - [x] Assign the passive OSD, metrics and developer defaults to the preceding
   development infrastructure slice so this package has one completion gate.
 - [ ] Integrate interactive controls with profiles and diagnostic state.
-- [ ] Implement comparison and launch action integration.
+- [ ] Implement comparison and pending-setting presentation.
 - [ ] Complete required checks and real-session acceptance.
 
 Overlay/restart documentation validation, 2026-09-18: `pre-commit run --all-files`
