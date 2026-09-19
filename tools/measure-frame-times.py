@@ -178,7 +178,14 @@ def send_keys(game: str) -> str:
         return f"no {window} window appeared, so no keys were sent and the game stayed in its menu"
     for key in definition.keys:
         time.sleep(1.5)
-        run_command(["xdotool", "search", "--classname", window, "key", "--window", "%1", key])
+        sent = run_command(
+            ["xdotool", "search", "--classname", window, "key", "--window", "%1", key]
+        )
+        if sent.returncode != 0:
+            # The window closed, or the key never arrived. Either way the game
+            # is not where the run needs it, and measuring the menu would look
+            # like measuring the game.
+            return f"could not send {key} to {window}: {sent.stderr.strip() or 'no reason given'}"
     return ""
 
 
@@ -230,7 +237,7 @@ def measure(
     clear_game_log(game)
     settings = prepare(game, plan.output)
     print(f"      settings           {settings.describe()}", flush=True)
-    reset = reset_game_resolution(game)
+    reset = reset_game_resolution(game, plan.output)
     startup = GAMES[game].startup
     # The game outlives the sampling window by the time it spends starting and
     # warming up, and then by a margin: a demo that ends one second early takes
@@ -299,7 +306,7 @@ def record_conditions(summary: Summary, plan: Plan, done: Conducted) -> None:
     # The application writes its own settings on the way out, so what was
     # verified before the run is not necessarily what the run ended with.
     kept = still_holds(plan.game)
-    if not kept.controlled and kept.applied:
+    if not kept.controlled:
         summary.notes.append(f"settings changed while running: {kept.describe()}")
     summary.run_id = done.run_id
     summary.repeat = done.repeat
@@ -332,6 +339,8 @@ def write_samples(path: Path, rows: list[tuple[str, Sample]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
+        # Every row names the run it belongs to, so rows from repeated runs
+        # stay distinguishable once they are together in one file.
         writer.writerow(["preset", *asdict(Sample()).keys()])
         for preset, sample in rows:
             writer.writerow([preset, *asdict(sample).values()])
@@ -398,7 +407,7 @@ def compare(summaries: list[Summary]) -> None:
             print(f"note ({summary.preset}): {note}")
 
 
-def positive_seconds(text: str) -> float:
+def waiting_seconds(text: str) -> float:
     """Read a duration that a run can actually wait for.
 
     argparse's float accepts "-1" and "nan", which reach time.sleep() and end
@@ -412,6 +421,20 @@ def positive_seconds(text: str) -> float:
     if not math.isfinite(value) or value < 0:
         impossible = f"{text!r} is not a duration a run can wait for"
         raise argparse.ArgumentTypeError(impossible)
+    return value
+
+
+def positive_seconds(text: str) -> float:
+    """Read a duration that has to be more than nothing.
+
+    Zero is a duration a run can wait for, but not one it can sample at: the
+    loop would start a process per iteration for the whole run and measure the
+    machine's ability to start processes.
+    """
+    value = waiting_seconds(text)
+    if value <= 0:
+        too_small = f"{text!r} has to be more than zero"
+        raise argparse.ArgumentTypeError(too_small)
     return value
 
 
@@ -431,7 +454,7 @@ def main(argv: list[str] | None = None) -> int:
         "--interval", type=positive_seconds, default=2.0, help="seconds between readings"
     )
     parser.add_argument(
-        "--warm-up", type=positive_seconds, default=10.0, help="seconds discarded before sampling"
+        "--warm-up", type=waiting_seconds, default=10.0, help="seconds discarded before sampling"
     )
     parser.add_argument("--repeats", type=int, default=1, help="times to run the whole set")
     parser.add_argument("--sharpening", action="store_true", help="run with RCAS on")

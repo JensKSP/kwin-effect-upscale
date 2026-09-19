@@ -99,7 +99,7 @@ def configure(preset: str, *, sharpening: bool) -> str:
     return ""
 
 
-def reset_game_resolution(game: str) -> str:
+def reset_game_resolution(game: str, output: str = "") -> str:
     """Put the game back to the screen's own size before a run.
 
     A game that stores the resolution it last ran at starts the next run from
@@ -116,7 +116,7 @@ def reset_game_resolution(game: str) -> str:
     path = Path.home() / ".config/supertuxkart/config-0.10/config.xml"
     if not path.exists():
         return "no configuration yet"
-    native = screen_pixels()
+    native = screen_pixels(output)
     if not native:
         return "screen size unknown"
     width, height = native
@@ -132,8 +132,25 @@ def reset_game_resolution(game: str) -> str:
     return f"{width}x{height}"
 
 
-def screen_pixels() -> tuple[int, int] | None:
-    """Read the output's own size in pixels, where a game should start."""
-    result = run_command(["kscreen-doctor", "-o"])
-    found = re.search(r"([0-9]{3,5})x([0-9]{3,5})@[0-9]+\*", result.stdout)
+def screen_pixels(output: str = "") -> tuple[int, int] | None:
+    """Read one screen's size in pixels, where a game should start.
+
+    Names the screen rather than taking the first current mode listed. A
+    session with more than one has more than one, and sizing a game for a
+    screen it is not on is a run that measured the wrong thing.
+    """
+    text = run_command(["kscreen-doctor", "-o"]).stdout
+    if output:
+        blocks = re.split(r"(?=Output:)", text)
+        # The name ends where it ends: a word boundary also matches before a
+        # hyphen, so DP-1 would otherwise take DP-1-1.
+        named = [
+            block
+            for block in blocks
+            if re.search(rf"Output:\s*\d+\s+{re.escape(output)}(?![\w-])", block)
+        ]
+        if not named:
+            return None
+        text = named[0]
+    found = re.search(r"([0-9]{3,5})x([0-9]{3,5})@[0-9]+\*", text)
     return (int(found.group(1)), int(found.group(2))) if found else None

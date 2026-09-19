@@ -3,9 +3,11 @@
 """Regression tests for reading the effect's measurements out of its status."""
 
 import runpy
+import subprocess
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 # The script imports its sibling the way every tool here does, which works
 # because Python puts a script's own directory on the path. Loading it by path
@@ -16,6 +18,7 @@ HARNESS = runpy.run_path(str(Path(__file__).with_name("measure-frame-times.py"))
 game_reported_rate = HARNESS["game_reported_rate"]
 game_reported_renderer = HARNESS["game_reported_renderer"]
 
+from effect_control import screen_pixels  # noqa: E402
 from frame_metrics import Sample, parse_status, summarize  # noqa: E402
 
 # A status as the effect answers it while it is scaling and measuring.
@@ -180,6 +183,34 @@ class SummarizeTest(unittest.TestCase):
         self.assertEqual(summary.samples, 0)
         self.assertIsNone(summary.presented_rate)
         self.assertTrue(summary.notes)
+
+
+class ScreenSelectionTest(unittest.TestCase):
+    """Choosing the screen a run is about, among several."""
+
+    LISTING = """Output: 1 DP-1-1
+\tModes: 1:1920x1080@60*!
+Output: 2 DP-1
+\tModes: 1:3840x2160@240*!
+"""
+
+    def test_a_name_is_not_a_prefix_of_another(self) -> None:
+        """DP-1 selects DP-1, even where DP-1-1 is listed first.
+
+        A word boundary also matches before a hyphen, so the shorter name
+        would take the longer one's block and the game would be sized for a
+        screen it is not on.
+        """
+        with mock.patch("effect_control.run_command") as running:
+            running.return_value = subprocess.CompletedProcess([], 0, self.LISTING, "")
+            self.assertEqual(screen_pixels("DP-1"), (3840, 2160))
+            self.assertEqual(screen_pixels("DP-1-1"), (1920, 1080))
+
+    def test_a_screen_that_is_not_there_is_not_guessed(self) -> None:
+        """A name nothing matches gives nothing, rather than the first screen."""
+        with mock.patch("effect_control.run_command") as running:
+            running.return_value = subprocess.CompletedProcess([], 0, self.LISTING, "")
+            self.assertIsNone(screen_pixels("HDMI-A-1"))
 
 
 class GameReportedRateTest(unittest.TestCase):

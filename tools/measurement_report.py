@@ -61,9 +61,18 @@ def read_environment(qdbus_tool: str = "qdbus6", output: str = "") -> Environmen
     if output:
         # One screen's conditions, named, so a session with several does not
         # have the first one's mode recorded for a game running on another.
+        # The name has to end where it ends: a word boundary also matches
+        # before a hyphen, so DP-1 would otherwise take DP-1-1.
         blocks = re.split(r"(?=Output:)", outputs)
-        named = [b for b in blocks if re.search(rf"Output:\s*\d+\s+{re.escape(output)}\b", b)]
-        outputs = named[0] if named else outputs
+        named = [
+            b for b in blocks if re.search(rf"Output:\s*\d+\s+{re.escape(output)}(?![\w-])", b)
+        ]
+        if not named:
+            # Falling back to the first screen would record conditions for a
+            # screen nobody asked about, which is worse than saying so.
+            found.output = f"{output} (not found)"
+            return found
+        outputs = named[0]
     name = re.search(r"Output:\s*\d+\s+(\S+)", outputs)
     found.output = name.group(1) if name else "unknown"
     mode = re.search(r"([0-9]{3,5})x([0-9]{3,5})@([0-9]+)\*", outputs)
