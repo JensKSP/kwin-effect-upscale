@@ -24,7 +24,7 @@ private Q_SLOTS:
     void cleanup();
     void lifecycle_data();
     void lifecycle();
-    void refusesMissingEmulation();
+    void presentsWithoutEmulation();
     void expiresDepartedClientRefusal();
     void refusesUnavailableMode();
     void respectsPrimaryOutputRestriction();
@@ -35,6 +35,7 @@ private Q_SLOTS:
 private:
     QString status();
     void configure(bool enabled, int preset = 5);
+    void movePointer(const QPoint &position);
     QDBusInterface m_effects{QStringLiteral("org.kde.KWin"), QStringLiteral("/Effects"),
                              QStringLiteral("org.kde.kwin.Effects"), QDBusConnection::sessionBus()};
 };
@@ -137,7 +138,7 @@ void UpscaleX11IntegrationTest::lifecycle()
     QCOMPARE(target.geometry(), QRect(position, native));
 }
 
-void UpscaleX11IntegrationTest::refusesMissingEmulation()
+void UpscaleX11IntegrationTest::presentsWithoutEmulation()
 {
     X11Client target(false);
     const QRect native(0, 0, 3840, 2160);
@@ -145,35 +146,68 @@ void UpscaleX11IntegrationTest::refusesMissingEmulation()
     QTRY_VERIFY_WITH_TIMEOUT(target.isFullscreen(), 10000);
     QTRY_COMPARE(target.geometry(), native);
     configure(true);
+    // The client accepts the window and supplies the buffer but never asks
+    // Xwayland for a mode, which is what Left 4 Dead 2 does. The effect then
+    // presents the buffer across the output itself: the window keeps its
+    // size past negotiation, the buffer is captured, and status says who is
+    // presenting it.
     QTRY_COMPARE(target.geometry().size(), QSize(1920, 1080));
-    QTRY_VERIFY_WITH_TIMEOUT(status().contains(QStringLiteral("did not supply the requested fullscreen buffer")), 9000);
+    QTest::qWait(3500);
+    QCOMPARE(target.geometry().size(), QSize(1920, 1080));
+    QVERIFY2(!status().contains(QStringLiteral("request failed")), qPrintable(status()));
+    QVERIFY2(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()));
+    QVERIFY2(status().contains(QStringLiteral("Supplied input: 1920 × 1080")), qPrintable(status()));
+    QVERIFY2(status().contains(QStringLiteral("Destination: 3840 × 2160")), qPrintable(status()));
+    QTRY_VERIFY2(status().contains(QStringLiteral("captured: upscale-x11-test")), qPrintable(status()));
+    // Input follows the picture: a pointer at the middle of the output has to
+    // arrive at the middle of the half-size window, not outside it. Nothing
+    // is asserted before the compositor has answered, because a stale last
+    // motion would pass the wrong assertion.
+    movePointer(QPoint(1920, 1080));
+    QTRY_COMPARE(target.lastMotion(), QPoint(960, 540));
+    // Releasing the window hands KWin's own mapping back at once, without a
+    // focus or geometry change to prompt it.
+    configure(false);
     QTRY_COMPARE(target.geometry(), native);
     QVERIFY(!status().contains(QStringLiteral("as its X11 window size")));
-    // The refusal must persist after restoration, instead of retrying every
-    // damage or geometry notification and trapping the application in a loop.
+    movePointer(QPoint(1930, 1090));
+    QTRY_COMPARE(target.lastMotion(), QPoint(1930, 1090));
+    // Nothing starts a fresh negotiation on its own after the request is
+    // released: the client's own resize must not put the effect back to work.
     target.resize(QSize(1600, 900));
     QTest::qWait(500);
     QCOMPARE(target.geometry(), native);
 }
 
+void UpscaleX11IntegrationTest::movePointer(const QPoint &position)
+{
+    // Read and removed by the test driver inside the compositor; see there.
+    QFile request(QString::fromLocal8Bit(qgetenv("XDG_RUNTIME_DIR")) + QStringLiteral("/upscale-test-pointer"));
+    QVERIFY(request.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    QVERIFY(request.write(QByteArray::number(position.x()) + ' ' + QByteArray::number(position.y())) > 0);
+    request.close();
+}
+
 void UpscaleX11IntegrationTest::expiresDepartedClientRefusal()
 {
     const QRect native(0, 0, 3840, 2160);
-    {
-        X11Client target(false);
+    configure(true);
+    // A client that keeps replacing its window is what the negotiation budget
+    // exists for, and the budget only works if it survives the replacement:
+    // a client could otherwise evade it by recreating its XID. Six windows
+    // spend it; the seventh is told so and keeps its own size.
+    for (int spent = 0; spent < 6; ++spent) {
+        X11Client target;
         QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), native));
         QTRY_VERIFY_WITH_TIMEOUT(target.isFullscreen(), 10000);
-        configure(true);
-        QTRY_VERIFY_WITH_TIMEOUT(status().contains(QStringLiteral("did not supply the requested fullscreen buffer")), 9000);
+        QTRY_COMPARE(target.geometry().size(), QSize(1920, 1080));
     }
-    // A prompt replacement must retain refusal, otherwise an uncooperative
-    // client could evade the retry bound by recreating its XID.
     {
-        X11Client replacement;
-        QVERIFY(replacement.show(QByteArrayLiteral("upscale-x11-test"), native));
-        QTRY_VERIFY_WITH_TIMEOUT(replacement.isFullscreen(), 10000);
-        QTRY_VERIFY(status().contains(QStringLiteral("did not supply the requested fullscreen buffer")));
-        QCOMPARE(replacement.geometry(), native);
+        X11Client refused;
+        QVERIFY(refused.show(QByteArrayLiteral("upscale-x11-test"), native));
+        QTRY_VERIFY_WITH_TIMEOUT(refused.isFullscreen(), 10000);
+        QTRY_VERIFY2(status().contains(QStringLiteral("repeatedly replaced its window")), qPrintable(status()));
+        QCOMPARE(refused.geometry(), native);
     }
     QTest::qWait(3500);
     // All connections belong to this test process: the same PID/profile/output
@@ -182,7 +216,7 @@ void UpscaleX11IntegrationTest::expiresDepartedClientRefusal()
     QVERIFY(relaunched.show(QByteArrayLiteral("upscale-x11-test"), native));
     QTRY_VERIFY_WITH_TIMEOUT(relaunched.isFullscreen(), 10000);
     QTRY_COMPARE(relaunched.geometry().size(), QSize(1920, 1080));
-    QVERIFY2(!status().contains(QStringLiteral("did not supply")), qPrintable(status()));
+    QVERIFY2(!status().contains(QStringLiteral("repeatedly replaced")), qPrintable(status()));
 }
 
 void UpscaleX11IntegrationTest::refusesUnavailableMode()

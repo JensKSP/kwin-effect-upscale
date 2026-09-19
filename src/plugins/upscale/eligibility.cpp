@@ -139,7 +139,7 @@ static bool samePixel(double first, double second, double scale)
 // measurement of where to draw: the scaler is given the window's own geometry
 // as its destination, so a window that passes here is one whose enlargement
 // this effect may replace.
-static bool coversOutput(EffectWindow *window)
+bool upscaleCoversOutput(EffectWindow *window)
 {
     UpscaleOutput *screen = window->screen();
     if (!screen) {
@@ -172,7 +172,7 @@ bool upscalePresentation(EffectWindow *window)
     // profile keeps ordinary desktop windows out of this additional path.
     return internal && internal->isNormalWindow() && !internal->isDecorated()
         && internal->clientGeometry() == internal->frameGeometry()
-        && coversOutput(window)
+        && upscaleCoversOutput(window)
         && upscaleApplicationForIdentity(internal->resourceClass(), internal->resourceName());
 }
 
@@ -220,7 +220,7 @@ static UpscaleRefusal placementRefusal(EffectWindow *window)
     if (window->screen()->transform() != OutputTransform::Normal) {
         return UpscaleRefusal::TransformedOutput;
     }
-    if (!coversOutput(window)) {
+    if (!upscaleCoversOutput(window)) {
         return UpscaleRefusal::NotCoveringOutput;
     }
     if (!window->windowItem()->transform().isIdentity()) {

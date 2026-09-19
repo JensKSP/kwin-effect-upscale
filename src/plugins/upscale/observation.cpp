@@ -114,6 +114,7 @@ void UpscaleEffect::describeApplication(UpscaleSnapshot &state, const Window *wi
     if (known->method == UpscaleControlMethod::X11Resize) {
         state.requested = m_x11Resolution->requested(window);
         state.requestFailure = m_x11Resolution->failure(window);
+        state.x11Presentation = m_x11Resolution->presentation(window);
     }
 }
 

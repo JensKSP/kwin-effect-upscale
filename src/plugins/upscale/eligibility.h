@@ -44,6 +44,21 @@ enum class UpscaleBufferKind {
     SharedMemory,
 };
 
+/**
+ * Who enlarges an X11 window this effect made smaller than its output.
+ *
+ * Xwayland does it for a client that established an emulated mode on its own
+ * connection: a viewport carries the buffer to the output and its input
+ * coordinates come back scaled. For every other client the effect does it,
+ * sizing the surface item to the frame so that KWin paints, damages and
+ * clips the window as covering the output, and mapping pointer input itself.
+ */
+enum class UpscaleX11Presentation {
+    None,
+    Xwayland,
+    Effect,
+};
+
 enum class UpscaleRefusal {
     None,
 
@@ -95,6 +110,17 @@ enum class UpscaleRefusal {
 
 /** Fullscreen, or a profiled borderless window covering its own output. */
 bool upscalePresentation(EffectWindow *window);
+
+/**
+ * Whether the window's frame sits exactly on its output, in device pixels.
+ *
+ * Fullscreen is a state, not a size. A client can hold that state while its
+ * window is still being sized during startup, and a window this effect has
+ * itself made smaller keeps the state too. Anything that acts on a window
+ * because it presents full-screen has to ask this as well, or it acts on a
+ * window that presents nothing of the kind.
+ */
+bool upscaleCoversOutput(EffectWindow *window);
 
 /**
  * Why this window cannot be scaled, or None when only the effect's own state

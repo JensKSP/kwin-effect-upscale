@@ -57,6 +57,10 @@ struct UpscaleSnapshot
     // A live X11 request is a window size, not a Wayland mode advertisement.
     QSize requested;
     QString requestFailure;
+    // Who enlarges the resized window to the output, read from its geometry
+    // rather than from what was planned: Xwayland when the client established
+    // an emulated mode, otherwise this effect, with pointer input mapped.
+    UpscaleX11Presentation x11Presentation = UpscaleX11Presentation::None;
     QString output;
     bool selected = false;
     bool activeWindow = false;
@@ -159,6 +163,13 @@ QString upscaleHeadsUp(const UpscaleSnapshot &snapshot);
 
 /** The complete effective configuration and diagnostic state. */
 QString upscaleDeveloperInformation(const UpscaleSnapshot &snapshot);
+
+/**
+ * One line of the developer information, written for a program rather than a
+ * person: every key and value untranslated, so that a harness comparing two
+ * runs to a decimal place does not depend on the session's language.
+ */
+QString upscaleMetrics(const UpscaleSnapshot &snapshot);
 
 /** The settings page's status text, in the words that page has always used. */
 QString upscaleStatusText(const UpscaleSnapshot &snapshot);

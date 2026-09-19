@@ -14,10 +14,14 @@ set(upscale_SOURCES
     placement.cpp
     scaler.cpp
     snapshot.cpp
+    snapshot_metrics.cpp
     upscale.cpp
     x11geometry.cpp
+    x11input.cpp
     x11resolution.cpp
     x11resolution_events.cpp
+    x11resolution_present.cpp
+    x11resolution_validate.cpp
     upscale.qrc
 )
 

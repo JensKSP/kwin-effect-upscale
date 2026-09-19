@@ -312,78 +312,20 @@ static QString selection(const UpscaleSnapshot &snapshot)
     return states.join(QStringLiteral(", "));
 }
 
-// A line for programs rather than for people. Every key and every value here
-// is written with QStringLiteral and never translated, because a measurement
-// harness comparing two runs to a decimal place cannot depend on the language
-// the session happens to run in. The prose above says the same things for a
-// reader; this says them for a script.
-//
-// A key is left out rather than given a placeholder when nothing was measured,
-// so a missing key means "not measured" and never zero.
-static QString metrics(const UpscaleSnapshot &snapshot)
+// Which of the two enlargements a resized X11 window is getting. It is the
+// first thing to know when the picture is right and the pointer is not: the
+// effect's own mapping is the one this project can change.
+static QString x11Presentation(const UpscaleSnapshot &snapshot)
 {
-    QStringList fields;
-    const auto append = [&fields](QLatin1String key, const QString &value) {
-        fields.append(key + QLatin1Char('=') + value);
-    };
-    const auto number = [&append](QLatin1String key, double value, int digits) {
-        if (value >= 0) {
-            append(key, QString::number(value, 'f', digits));
-        }
-    };
-    const auto size = [&append](QLatin1String key, const QSize &value) {
-        if (!value.isEmpty()) {
-            append(key, QString::number(value.width()) + QLatin1Char('x') + QString::number(value.height()));
-        }
-    };
-    number(QLatin1String("presented"), snapshot.presentedRate, 2);
-    number(QLatin1String("low"), snapshot.presentedLow, 2);
-    number(QLatin1String("p99"), snapshot.presentedPercentile, 3);
-    number(QLatin1String("worst"), snapshot.presentedWorst, 3);
-    if (snapshot.presentedFrames > 0) {
-        append(QLatin1String("frames"), QString::number(snapshot.presentedFrames));
-    }
-    number(QLatin1String("client"), snapshot.clientUpdates, 2);
-    number(QLatin1String("repaints"), snapshot.repaints, 2);
-    if (snapshot.interval > 0) {
-        number(QLatin1String("interval"), snapshot.interval, 3);
-    }
-    size(QLatin1String("supplied"), snapshot.supplied);
-    size(QLatin1String("destination"), snapshot.destination);
-    // Which window this describes, so that a harness can tell the game it
-    // launched from whatever else the effect happened to be following. The
-    // fields are separated by spaces, and a window class is not always one
-    // word, so its spaces become hyphens rather than new fields.
-    if (!snapshot.application.isEmpty()) {
-        append(QLatin1String("window"), QString(snapshot.application).replace(QLatin1Char(' '), QLatin1Char('-')));
-    }
-    append(QLatin1String("scaling"), QString::number(snapshot.scaling ? 1 : 0));
-    // Whether this frame cost the output its direct scanout. A comparison that
-    // did not record it is comparing composition against scanout without
-    // saying so, and the difference between those is part of what is measured.
-    append(QLatin1String("scanout"), QLatin1String(snapshot.blocksScanout ? "blocked" : "direct"));
-    append(QLatin1String("selected"), QString::number(snapshot.selected ? 1 : 0));
-    switch (snapshot.windowSystem) {
-    case UpscaleWindowSystem::Wayland:
-        append(QLatin1String("windowsystem"), QStringLiteral("wayland"));
-        break;
-    case UpscaleWindowSystem::X11:
-        append(QLatin1String("windowsystem"), QStringLiteral("x11"));
-        break;
-    case UpscaleWindowSystem::Unknown:
+    switch (snapshot.x11Presentation) {
+    case UpscaleX11Presentation::Xwayland:
+        return i18n("presented by Xwayland's emulated mode");
+    case UpscaleX11Presentation::Effect:
+        return i18n("presented by this effect, pointer input mapped");
+    case UpscaleX11Presentation::None:
         break;
     }
-    switch (snapshot.bufferKind) {
-    case UpscaleBufferKind::Gpu:
-        append(QLatin1String("buffer"), QStringLiteral("gpu"));
-        break;
-    case UpscaleBufferKind::SharedMemory:
-        append(QLatin1String("buffer"), QStringLiteral("memory"));
-        break;
-    case UpscaleBufferKind::Unknown:
-        break;
-    }
-    return QStringLiteral("metrics: ") + fields.join(QLatin1Char(' '));
+    return QString();
 }
 
 QString upscaleStatusText(const UpscaleSnapshot &snapshot)
@@ -406,6 +348,9 @@ QString upscaleStatusText(const UpscaleSnapshot &snapshot)
     }
     if (!snapshot.requestFailure.isEmpty()) {
         wish += i18n("; request failed: %1", snapshot.requestFailure);
+    }
+    if (const QString presentedBy = x11Presentation(snapshot); !presentedBy.isEmpty()) {
+        wish += i18n("; %1", presentedBy);
     }
     QString state;
     if (snapshot.selected) {
@@ -446,7 +391,7 @@ QString upscaleStatusText(const UpscaleSnapshot &snapshot)
         lines.append(measurement(snapshot));
     }
     lines.append(i18n("HDR follows KWin colour management."));
-    lines.append(metrics(snapshot));
+    lines.append(upscaleMetrics(snapshot));
     return lines.join(QLatin1Char('\n'));
 }
 
@@ -474,8 +419,10 @@ QString upscaleDeveloperInformation(const UpscaleSnapshot &snapshot)
                       describeControlMethod(snapshot.method),
                       snapshot.advertised.isValid() ? sizeText(snapshot.advertised) : i18n("nothing")));
     if (snapshot.method == UpscaleControlMethod::X11Resize) {
-        lines.append(i18n("X11 resize: requested %1, failure %2", sizeText(snapshot.requested),
-                          snapshot.requestFailure.isEmpty() ? i18n("none reported") : snapshot.requestFailure));
+        const QString presentedBy = x11Presentation(snapshot);
+        lines.append(i18n("X11 resize: requested %1, failure %2, %3", sizeText(snapshot.requested),
+                          snapshot.requestFailure.isEmpty() ? i18n("none reported") : snapshot.requestFailure,
+                          presentedBy.isEmpty() ? i18n("not presented") : presentedBy));
     }
     lines.append(i18n("Configuration: %1, desired %2, sharpening %3",
                       snapshot.enabled ? i18n("enabled") : i18n("disabled"), desiredText(snapshot),

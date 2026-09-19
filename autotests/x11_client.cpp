@@ -55,7 +55,7 @@ bool X11Client::show(const QByteArray &identity, const QRect &geometry, bool ful
     m_size = geometry.size();
     m_fullscreenOnMap = full;
     m_window = xcb_generate_id(m_connection);
-    const uint32_t values[] = {0xff0000, XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_EXPOSURE};
+    const uint32_t values[] = {0xff0000, XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_POINTER_MOTION};
     xcb_create_window(m_connection, XCB_COPY_FROM_PARENT, m_window, m_screen->root,
                       geometry.x(), geometry.y(), geometry.width(), geometry.height(), 0,
                       XCB_WINDOW_CLASS_INPUT_OUTPUT, m_screen->root_visual,
@@ -129,6 +129,11 @@ void X11Client::resize(const QSize &size)
     const uint32_t values[] = {uint32_t(size.width()), uint32_t(size.height())};
     xcb_configure_window(m_connection, m_window, XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
     xcb_flush(m_connection);
+}
+
+QPoint X11Client::lastMotion() const
+{
+    return m_lastMotion;
 }
 
 QRect X11Client::geometry() const
@@ -226,6 +231,9 @@ void X11Client::dispatch()
             }
         } else if (type == XCB_EXPOSE) {
             paint(m_size);
+        } else if (type == XCB_MOTION_NOTIFY) {
+            const auto motion = reinterpret_cast<xcb_motion_notify_event_t *>(event);
+            m_lastMotion = QPoint(motion->event_x, motion->event_y);
         }
         std::free(event);
     }

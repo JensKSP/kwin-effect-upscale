@@ -60,10 +60,14 @@ if(KWin_VERSION VERSION_LESS 6.7)
         ../src/plugins/upscale/overlay.cpp
         ../src/plugins/upscale/placement.cpp
         ../src/plugins/upscale/snapshot.cpp
+        ../src/plugins/upscale/snapshot_metrics.cpp
         ../src/plugins/upscale/upscale.cpp
         ../src/plugins/upscale/x11geometry.cpp
+        ../src/plugins/upscale/x11input.cpp
         ../src/plugins/upscale/x11resolution.cpp
         ../src/plugins/upscale/x11resolution_events.cpp
+        ../src/plugins/upscale/x11resolution_present.cpp
+        ../src/plugins/upscale/x11resolution_validate.cpp
         ../src/plugins/upscale/upscale.h
         ../src/plugins/upscale/scaler.cpp
         ../src/plugins/upscale/upscale.qrc
@@ -179,6 +183,7 @@ set(snapshot_test_sources
     snapshot_test.cpp
     ../src/plugins/upscale/application.cpp
     ../src/plugins/upscale/snapshot.cpp
+    ../src/plugins/upscale/snapshot_metrics.cpp
     ../src/plugins/upscale/eligibility.cpp
     ../src/plugins/upscale/refusaltext.cpp
 )
@@ -200,6 +205,7 @@ set(display_test_sources
     ../src/plugins/upscale/overlay.cpp
     ../src/plugins/upscale/placement.cpp
     ../src/plugins/upscale/snapshot.cpp
+    ../src/plugins/upscale/snapshot_metrics.cpp
     ../src/plugins/upscale/eligibility.cpp
     ../src/plugins/upscale/refusaltext.cpp
 )

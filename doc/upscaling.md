@@ -1465,6 +1465,46 @@ on a screen that can only halve gets the half, and the status reports the size
 that was actually asked for beside the one that was calculated. Steps the
 scaler would then refuse are never offered.
 
+#### Letting the user choose the resolution in the game
+
+Not every game can be asked. An Xwayland client that ignores resize requests, a
+title behind Proton and a launcher, a renderer that takes its size from nothing
+the compositor controls: for these the effect has no lever, and every method
+above is a request that will not be answered.
+
+The scaler itself needs no cooperation at all. It acts on the buffer a client
+supplied, and none of the eligibility conditions ask which application supplied
+it or why it is small. A fullscreen window presenting fewer pixels than its
+output is scaled whether the effect asked for that size or the person playing
+chose it in the game's own video settings. That gives a game with a resolution
+menu a second route, and it is the only route that reaches every game.
+
+The option is `UserConfigured`. The person selects the resolution once, in the
+game, and the entry records that this is how this game is driven. It is not the
+same statement as `None`. `None` says the question was asked and the program
+followed nothing; `UserConfigured` says the program never needed to follow
+anything, because its own settings already produce the smaller buffer. Neither
+sends a request, and both recognize the game. They differ in what they tell the
+next person who looks at the entry, which is what an entry is for.
+
+What it costs is the single thing the automatic methods exist to avoid: a video
+menu, opened once. What it buys is every game that has one. The effect never
+writes a game's settings, so the value stays the user's, survives a package that
+corrects a method, and is visible where the player expects to find it.
+
+The preset means something different under this method. It is not what the
+effect will request but what the person should select, which is the size the
+settings page already names when it says which resolution to choose in the game.
+When the supplied buffer matches that size the status says so; when it does not,
+the status reports the size actually supplied rather than the one recommended,
+because a recommendation that quietly reports itself as a result would make the
+entry unfalsifiable.
+
+**Status:** specified, not implemented. The scaling half is already what the
+effect does for any smaller buffer, and needs nothing added. The method value,
+its meaning in the editor, and reporting that distinguishes a recommended size
+from a requested one are not written.
+
 #### The recognized applications shipped with this effect
 
 Installing the package is meant to be enough for a game the effect knows, so
@@ -1674,9 +1714,10 @@ or treat the emulation property as a generic game-resolution setter.
 
 **Status:** implemented as the profile method `X11Resize`, with a shipped Tux
 Racer profile and virtual-backend regression coverage on KWin 6.3.6. Real-device
-acceptance remains open. Applications must handle resize requests and establish
-Xwayland's per-client mode emulation; this does not universally force internal
-rendering dimensions.
+acceptance remains open. Applications must handle resize requests; this does
+not universally force internal rendering dimensions. A client that establishes
+Xwayland's per-client mode emulation is enlarged by Xwayland; one that does not
+is enlarged by the effect, which maps pointer input itself (below).
 
 **Deployment rationale and upstream direction.** The immediate goal is useful
 resolution control on existing KDE installations through an ordinary package
@@ -1731,12 +1772,40 @@ another client's mode or editing game settings. The mechanism is a standard
 window resize; calling game-specific functions or automating the game's menus
 is not part of the implementation.
 
-Two independent conditions govern fullscreen presentation. The application's
-connection must have an emulated mode, and its native X geometry must match
-that mode at the output origin. [Xwayland's window implementation](https://gitlab.freedesktop.org/xorg/xserver/-/blob/xwayland-24.1.6/hw/xwayland/xwayland-window.c)
+Two independent conditions govern Xwayland's own fullscreen presentation. The
+application's connection must have an emulated mode, and its native X geometry
+must match that mode at the output origin. [Xwayland's window implementation](https://gitlab.freedesktop.org/xorg/xserver/-/blob/xwayland-24.1.6/hw/xwayland/xwayland-window.c)
 then establishes a viewport from the smaller buffer to the output and adjusts
 its input coordinates. Writing `_XWAYLAND_RANDR_EMU_MONITOR_RECTS` does not
 establish that internal per-client mode: the property reports server state.
+KWin 6.3.6 does not read that property and sizes a fullscreen X window to the
+output regardless, so under KWin the emulation only takes effect while this
+effect holds the window at the emulated size.
+
+The Source engine, and every client that takes its fullscreen size from the
+window manager, never selects a mode: it asks its toolkit for fullscreen at the
+desktop mode and renders its own resolution into whatever window it gets, so
+the request is followed but nothing enlarges the result. For such a client the
+effect presents the window itself. KWin's frame stays at the output; once the
+requested buffer has arrived, the effect sizes the window's surface item to the
+frame, which is what Xwayland's viewport does for an emulated mode and what
+makes KWin paint, damage and clip the window as covering its output — the
+paint region KWin hands an effect is intersected with the item's own rectangle,
+so an enlargement drawn over a smaller item is cut off at the item's edge. The
+scaler then paints the buffer across the frame, and an input event filter
+installed ahead of KWin's forwarding gives the seat a transformation that
+scales pointer coordinates by the requested size over the frame's size in X
+pixels, in addition to KWin's own translation — the same factor Xwayland's
+emulation applies, on absolute positions and relative deltas alike. Where
+KWin's hit test finds nothing under the pointer, because the surface's input
+region is still the client's own size, the filter focuses the surface on the
+seat itself and withdraws that focus when the pointer leaves the frame or KWin
+finds a window of its own on top. KWin's delivery and cursor are untouched;
+the filter delivers and consumes nothing. Whether Xwayland or the effect
+presents a window is decided once, when the requested buffer first arrives,
+from the emulation property, so the two paths never scale twice. Status names
+which of the two is presenting. Touch, tablet, pointer confinement regions and
+the locked-pointer position hint are not mapped.
 
 KWin 6.3.6 normally configures a fullscreen X window to the full output size,
 which can make a resizing application recreate its window repeatedly. An
@@ -1860,12 +1929,11 @@ spanning outputs do not qualify. The existing opacity, surface, aspect-ratio
 and buffer-size checks still apply.
 
 A Wayland client must retain that logical area while supplying a smaller
-buffer, for example through a viewport or a supported scale policy. The X11
-resize controller additionally requires the client's mode emulation to preserve
-full-output presentation and input mapping. A borderless client which only
-shrinks its drawable is restored and reported as unsupported. Extending support
-to such clients still requires a complete placement and input design; a paint
-transform alone does not provide it. The effect does not change a game's own
+buffer, for example through a viewport or a supported scale policy. A resized
+X11 client keeps its full-output presentation and pointer mapping either from
+its own mode emulation or from the effect, as described above; a client that
+shrinks its drawable but supplies a buffer of another size than requested is
+restored and reported. The effect does not change a game's own
 fullscreen/windowed preference.
 
 [SuperTux's SDL event handling](https://github.com/SuperTux/supertux/blob/v0.6.3/src/supertux/screen_manager.cpp)

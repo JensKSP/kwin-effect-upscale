@@ -24,6 +24,8 @@ public:
     bool mode(const QSize &size);
     void fullscreen(bool enabled);
     void resize(const QSize &size);
+    /** Where the last pointer motion landed, in the window's own coordinates. */
+    QPoint lastMotion() const;
 
 private:
     xcb_atom_t atom(const QByteArray &name) const;
@@ -35,6 +37,7 @@ private:
     xcb_gcontext_t m_context = XCB_NONE;
     QPoint m_position;
     QSize m_size;
+    QPoint m_lastMotion{-1, -1};
     bool m_cooperative;
     int m_ignoredResizes = 0;
     bool m_fullscreenOnMap = false;

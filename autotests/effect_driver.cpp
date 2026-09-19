@@ -6,8 +6,10 @@
 
 #include "upscale.h"
 
+#include "core/inputdevice.h"
 #include "effect/effecthandler.h"
 #include "effect/effectwindow.h"
+#include "input.h"
 #include "opengl/eglcontext.h"
 #include "opengl/egldisplay.h"
 #include "opengl/glframebuffer.h"
@@ -20,7 +22,12 @@
 #include <KConfigGroup>
 #include <KSharedConfig>
 
+#include <QFile>
+#include <QStandardPaths>
+#include <QTimer>
+
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <functional>
 
@@ -66,6 +73,70 @@ public:
     int captures = 0;
 };
 
+// The virtual backend has no input devices, and without a pointer among them
+// the seat offers clients no pointer at all, so nothing a test injects would
+// ever reach an X window. This device exists so that one does. A test moves it
+// by writing a position to a file in the private runtime directory, which
+// the driver polls: the test process cannot reach the compositor's input, and
+// what then arrives at the X client is the end of the whole path - focus,
+// seat, Xwayland - rather than any one piece of it.
+class TestPointer : public InputDevice
+{
+public:
+    QString name() const override
+    {
+        return QStringLiteral("upscale test pointer");
+    }
+    bool isEnabled() const override
+    {
+        return true;
+    }
+    void setEnabled(bool) override
+    {
+    }
+    bool isKeyboard() const override
+    {
+        return false;
+    }
+    bool isPointer() const override
+    {
+        return true;
+    }
+    bool isTouchpad() const override
+    {
+        return false;
+    }
+    bool isTouch() const override
+    {
+        return false;
+    }
+    bool isTabletTool() const override
+    {
+        return false;
+    }
+    bool isTabletPad() const override
+    {
+        return false;
+    }
+    bool isTabletModeSwitch() const override
+    {
+        return false;
+    }
+    bool isLidSwitch() const override
+    {
+        return false;
+    }
+
+    void move(const QPointF &position)
+    {
+        const auto now = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch());
+        Q_EMIT pointerMotionAbsolute(position, now, this);
+        // Clients speaking wl_pointer version 5 or later, Xwayland among
+        // them, act on a motion only when the frame that closes it arrives.
+        Q_EMIT pointerFrame(this);
+    }
+};
+
 class UpscaleTestDriver : public Effect
 {
     Q_OBJECT
@@ -95,10 +166,19 @@ public:
         if (!m_framebuffer->valid()) {
             qFatal("Invalid test framebuffer");
         }
+        if (input()) {
+            input()->addInputDevice(&m_pointer);
+        }
+        auto poll = new QTimer(this);
+        connect(poll, &QTimer::timeout, this, &UpscaleTestDriver::movePointer);
+        poll->start(50);
     }
 
     ~UpscaleTestDriver() override
     {
+        if (input()) {
+            input()->removeInputDevice(&m_pointer);
+        }
         m_context->makeCurrent();
         m_effect.reset();
         m_framebuffer.reset();
@@ -158,6 +238,20 @@ public:
             return;
         }
         m_effect->reconfigure(flags);
+    }
+
+    void movePointer()
+    {
+        QFile request(QString::fromLocal8Bit(qgetenv("XDG_RUNTIME_DIR")) + QStringLiteral("/upscale-test-pointer"));
+        if (!request.exists() || !request.open(QIODevice::ReadOnly)) {
+            return;
+        }
+        const QList<QByteArray> fields = request.readAll().simplified().split(' ');
+        request.close();
+        request.remove();
+        if (fields.size() == 2) {
+            m_pointer.move(QPointF(fields.at(0).toDouble(), fields.at(1).toDouble()));
+        }
     }
 
     int requestedEffectChainPosition() const override
@@ -231,6 +325,7 @@ public:
 
 private:
     CaptureRenderer m_renderer;
+    TestPointer m_pointer;
     bool m_unsupportedColors = false;
     std::unique_ptr<EglDisplay> m_display;
     QStringList m_captured;

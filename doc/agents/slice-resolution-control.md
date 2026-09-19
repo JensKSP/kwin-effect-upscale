@@ -949,6 +949,422 @@ separately have been narrowed to the production Wayland mode-advertising path.
 The prototype's observed results remain here; they do not change the production
 catalogue's `None` method for Tux Racer.
 
+### Left 4 Dead 2 against X11Resize, 2026-09-19
+
+**Concluded: this client cannot use the method, and the reason is not its
+refusal to resize.** The measurements below were taken before that was
+established; the conclusion is stated here first because it is what the entry
+and the handbook have to carry.
+
+Observed on pcjensd, KWin 6.3.6 Wayland, one output DP-3 at 3840 x 2160 scale
+1.45, RTX 5090 on NVIDIA 615.71.09. Left 4 Dead 2, Steam build 23990068, the
+native Linux Source build, launched normally from Steam. Its stored settings
+were read from `left4dead2/cfg/video.txt` rather than from the menu:
+`setting.fullscreen` `1` and `setting.nowindowborder` `0`, so the game was in
+exclusive fullscreen and not borderless, and `setting.defaultres` 2560 with
+`setting.defaultresheight` 1440 against a 3840 x 2160 output.
+
+That combination is the only one that tests anything. A game asking for the
+mode the output already has gives Xwayland nothing to emulate, and an absent
+emulation then means nothing at all. Two earlier runs were inconclusive for
+exactly that reason and were read as evidence before the configuration was
+checked.
+
+With a genuine mode change to make, sampled once a second:
+
+    20:49:59  win=3840x2160  EMU=ABSENT
+    20:50:00  win=2560x1440  EMU=ABSENT   the game applied its own setting
+    20:50:01  win=3840x2160  EMU=ABSENT   forced back within one second
+
+`_XWAYLAND_RANDR_EMU_MONITOR_RECTS` was absent at every sample of every run:
+during startup, at the game's own non-native resolution, under our request, and
+in steady gameplay. **Source sets its window size and never asks RandR for a
+mode**, so Xwayland establishes no per-client emulation, KWin's fullscreen
+handling returns the window to the output size, and the game renders the
+output's resolution whatever its own setting says.
+
+Three consequences, all of them measured rather than reasoned:
+
+- `X11Resize` cannot work for this client. It accepts the resize immediately -
+  asked for 2560 x 1440 it supplied exactly that buffer and held it for the
+  full three seconds - but without the emulation the window stops covering the
+  output, which is a failed trial under this project's own rule whatever the
+  buffer says.
+- The user configuring the game themselves does not work either, so the
+  `UserConfigured` method specified in the handbook does not rescue this title.
+  The same forcing defeats the game's own menu.
+- The game therefore renders at output resolution on a 4K screen no matter what
+  is selected, which is a performance problem belonging to the game and the
+  window manager, not to this effect. `scaling=0` throughout every observation.
+
+This is a property of the engine, not of the title: every native Source game
+shares the `hl2_linux` identity and this behaviour. Whether other SDL2 clients
+behave the same way is not established here.
+
+**What would be needed to reach such a client** is for the compositor to accept
+a window smaller than its output as the fullscreen presentation, scale it up
+itself, and transform input to match. The emulation currently supplies all
+three for free. Doing without it is KWin work rather than effect work, and the
+input mapping is the part that decides whether it is feasible at all; a smaller
+buffer whose pointer lands in the wrong place fails the trial rule as surely as
+a window that does not cover the screen.
+
+#### The measurements this conclusion was drawn from
+
+Observed on pcjensd: KWin 6.3.6 Wayland session, one output DP-3 at
+3840 × 2160 with scale 1.45, RTX 5090 on NVIDIA 615.71.09, effect build
+`0.1.0+git20260919.759c8a4993-dirty`. Left 4 Dead 2, Steam build 23990068, the
+native Linux Source build (`hl2.sh` → `hl2_linux`), launched normally from
+Steam through pressure-vessel. Profile: `WindowClass=hl2_linux`,
+`Instance=hl2_linux`, `Method=X11Resize`, `Preset=Quality`, giving a
+2560 × 1440 request.
+
+**Identity.** `hl2_linux` for both class and instance, read from the running
+window. This is the Source engine binary, not the game: every native Source
+title shares it, so the entry cannot be specific to Left 4 Dead 2. The window
+title does name the game, but titles are excluded as identity because they
+carry save-game and player names.
+
+**The request is followed, once the window has settled.** The attempt made when
+the window appeared failed twice and latched. Reapplying settings while the game
+was running produced, within two seconds:
+
+    Desired: 2560 × 1440 requested from Left 4 Dead 2 as its X11 window size
+    Supplied input: 2560 × 1440
+    Destination: 3840 × 2160
+
+So Source does act on an external X11 resize. The startup failure was the
+loading-transition discard this slice already describes, and the single retry
+in `x11resolution.cpp` was not enough to outlast it. Whatever else is decided,
+the method is not inapplicable to this engine.
+
+**It was refused for presentation, not for size.** The refusal on that frame was
+`ResizedSurface` — "the window's surface is displayed at a different size than
+the window". The 1440p buffer was being presented stretched into the 3840 × 2160
+window, so Xwayland was performing the enlargement itself rather than leaving a
+1440p window for the effect to scale. Of the two conditions this slice records
+for fullscreen presentation — an emulated mode on the client's connection, and
+native X geometry matching that mode at the output origin — the second was not
+satisfied. The validation in `x11resolution.cpp` therefore rejected the result,
+took its one retry, refused, and restored normal geometry; the game returned to
+3840 × 2160.
+
+**The restore did not leave the window covering the output.** Sixteen seconds
+later the supplied buffer was 993 × 748 and the window was no longer fullscreen.
+Under the trial rule an image that stops covering the screen is a failure
+outright, so this run is recorded as failed even though the buffer did shrink.
+
+**Not established.** Whether the presentation condition can be met for this
+client at all; whether more than one retry, or a request deferred until after
+the first map has loaded, changes the outcome; and whether the small window
+after restore is a fault in the restore path or the game reacting to it.
+
+**A separate problem, not caused by the effect.** The game produced roughly
+18–24 frames per second at 3840 × 2160, dipping to about 3, with a worst frame
+of 6.7 seconds. `scaling=0` throughout: the effect never composited a scaled
+frame, so it is not in this path. The GPU was at 16% and the X11 GL renderer
+resolves to the RTX 5090, so the hardware is present and idle. The cause was not
+established — the game being unfocused while the session was driven from another
+window, Source's own GL path on this driver, and the container runtime are all
+candidates, none tested. Until this is understood, no frame-time comparison from
+this machine can support a preset, which under the submission rule means the
+entry's preset stays `Automatic`.
+
+#### Why the mode is never set, and who would have to own the scaling
+
+Read on 2026-09-19 from the captured evidence only — no new run against the
+game, no tracer attached to it. Sources: the xtrace and strace logs under the
+ignored `build/research/traces`, SDL at `release-2.0.14` and
+`release-2.32.x` in the research checkout, `xserver-24.1.6/hw/xwayland`, and
+KWin 6.3.6 as installed here — its headers under `/usr/include/kwin` and
+`libkwin.so.6.3.6`.
+
+**The client does reach SDL's mode-setting code, every single time, and is
+turned back one request short of the mode change.** Fifteen fullscreen state
+changes appear in the trace — eight `_NET_WM_STATE_FULLSCREEN` adds, seven
+removes — and each one is preceded, within a millisecond and with nothing in
+between, by exactly `RRGetScreenResources`, `RRGetOutputInfo` and one
+`RRGetCrtcInfo`. That triple is the opening of `X11_SetDisplayMode`
+(`src/video/x11/SDL_x11modes.c:983-994` at 2.0.14, unchanged in 2.32). Its
+fourth request, `RRSetCrtcConfig`, never follows. No other SDL function emits
+that triple once per fullscreen call: `X11_InitModes_XRandR` also reads the
+primary output and asks for two CRTC infos, and `X11_GetDisplayModes` asks for
+one per mode, which is the single burst of thirty-eight at 741.588.
+
+Since SDL 2.0.16 the function returns between those two requests when the CRTC
+is already in the wanted mode — commit `25cd749ad`, Simon McVittie, 2021-08-12,
+written because setting a redundant mode on Xwayland could disable the CRTC
+for good. The traffic stops exactly there. **So the mode SDL asked for is the
+mode the output already has, 3840 x 2160.**
+
+The path that got there is exclusive fullscreen, not `FULLSCREEN_DESKTOP`.
+Desktop fullscreen calls `SDL_SetDisplayModeForDisplay(display, NULL)`, which
+compares the desktop mode against the current one and returns before any X
+traffic, so it can never produce the triple. The first triple also arrives four
+milliseconds after the thirty-eight-mode enumeration, which is the lazy
+enumeration `SDL_GetClosestDisplayModeForDisplay` triggers on that same path.
+
+The game's own resolution in this run was 2560 x 1440, twice over: the D3D9
+device is created at that size (`game-stdout.log:68`), and the size hints SDL
+writes when it makes the window non-resizable again carry
+`min = max = 0xa00 x 0x5a0`, which is SDL's stored windowed size. **The engine
+asks for a fullscreen window at the desktop mode and renders its own resolution
+into whatever window it gets.** Resolution and display mode are separate
+decisions here, and only the window size follows the menu.
+
+Nothing in that decision is reachable from outside the process. The mode comes
+from `window->fullscreen_mode`, written only by `SDL_SetWindowDisplayMode`, or,
+when that is unset, from the window's windowed size; `GetClosest` then maps it
+onto the server's list. All of it is client state. The server's list is not the
+obstacle either: Xwayland offered 2560 x 1440 as mode `0x3f`. The one input a
+compositor does feed is `_NET_SUPPORTING_WM_CHECK`: without it SDL takes
+`X11_BeginWindowFullscreenLegacy` (`SDL_x11window.c:1463-1490`) and covers the
+screen with an override-redirect window of its own. That still sets no mode,
+and it would mean telling every X client in the session that there is no EWMH
+window manager.
+
+Not established: which library the process loaded. strace shows the game
+opening `steam-runtime/pinned_libs_32/libSDL2-2.0.so.0` immediately after
+`execve` of `hl2_linux`, and the host's `libSDL2-2.0.so.0.3200.4` opened only
+by the runtime's `ldconfig`. Both the pinned Steam Runtime build and 2.32.4
+contain the same early return, and both reach it only because the requested
+mode equals the current one, so the conclusion holds either way.
+
+**What Xwayland's per-client emulation is.** Four separate mechanisms, all
+started by the client's own `RRSetCrtcConfig` (or a VidMode switch):
+
+1. `xwl_randr_crtc_set` (`xwayland-output.c:1048`) stores the mode per client
+   and output and deliberately does not call `RRCrtcNotify`, so the RandR state
+   every other client sees is untouched — the comment at `:1074` says so.
+2. `_XWAYLAND_RANDR_EMU_MONITOR_RECTS`, one `x, y, width, height` per emulated
+   output, is written on every toplevel that client owns and on later ones as
+   they are realized (`xwayland-output.c:437-489`, `xwayland-window.c:1512`).
+3. That client alone receives a synthetic `ConfigureNotify` for the root with
+   the emulated size, and an `RRScreenChangeNotify` if it asked for one
+   (`xwayland-output.c:537-566`). The root's real size never changes; only the
+   events lie.
+4. The viewport: when the client's toplevel sits exactly at the output origin
+   and is exactly the emulated size, Xwayland attaches a `wp_viewport` with
+   source the emulated size and destination the output size, and records
+   `viewport_scale = emulated / output` (`xwayland-window.c:548-616, 438-467`).
+
+The input adjustment is that same scale applied to everything that comes back
+through the enlarged surface: absolute pointer positions
+(`xwayland-input.c:674`, with the drawable origin added at `:670-678`),
+relative motion accelerated and unaccelerated (`:647`, `:710`), touch
+(`:1476`, `:1519`) and tablet position and tilt (`:2221`, `:2268`).
+
+Note the gate in the fourth mechanism: the window has to *be* the emulated
+size. Under EWMH fullscreen the window manager decides that, and KWin sizes it
+to the output. **KWin 6.3.6 does not know the property at all** — the atom is
+absent from `atoms.h` and the string appears in neither `kwin_wayland` nor
+`libkwin.so.6.3.6`. So even a client that does set a mode gets the enlargement
+only if something else holds its window at the emulated size, which is what
+this effect's X11 resize does and why the earlier prototype saw Xwayland
+performing the enlargement itself.
+
+**What KWin would have to do to provide both itself.** The pointer focus path
+already carries a matrix: `PointerInputRedirection::focusUpdate` passes
+`Window::inputTransformation()` to
+`SeatInterface::notifyPointerEnter(surface, position, QMatrix4x4)` — both calls
+are in that function in the shipped library, the declarations are
+`window.h:829` and `wayland/seat.h:252` — and KWin refreshes it through
+`setFocusedPointerSurfaceTransformation` when the focused window's geometry
+changes. A scale would fit in that matrix. But `Window::inputTransformation()`
+is a translation by minus the window position and nothing else — identity
+followed by `QMatrix4x4::translate` in the disassembly — it is neither virtual
+nor settable, and no effect API reaches it.
+
+The rest of the input path does not take a matrix at all:
+
+- `Window::mapToLocal` (`window.h:640`) feeds `Window::hitTest`,
+  `PointerInputRedirection::applyPointerConfinement` and
+  `updatePointerConstraints`, so the confinement and lock regions a game states
+  in its own coordinates would land in the wrong place — and a first-person
+  shooter locks the pointer.
+- `SeatInterface::notifyTouchDown` (`seat.h:531`) takes a surface position and
+  no transformation.
+- `SeatInterface::relativePointerMotion` (`seat.h:369`) is handed the raw
+  delta. Xwayland scales that delta; whether KWin should is a decision, not a
+  detail, because it is what the game's mouse look feels like.
+- The window's input region would have to cover the presented area rather than
+  the X window, or the pointer would reach only the top-left 2560 x 1440 of the
+  screen.
+
+Effects have nothing for any of it: `EffectsHandler` offers
+`startMouseInterception` with `Effect::windowInputMouseEvent`, which takes all
+input away from the window rather than transforming what reaches it, plus
+shortcut registration; `EffectWindow` exposes no input surface. The scene holds
+the concept the input path lacks — `Item::setTransform`, `Item::mapFromScene`,
+`SurfaceItem::setDestinationSize` — but input mapping does not go through the
+scene.
+
+**So the fourth link is an upstream KWin change, and it is a legitimate
+answer.** Two shapes, which are worth keeping apart:
+
+- Honouring `_XWAYLAND_RANDR_EMU_MONITOR_RECTS` when sizing a fullscreen X11
+  window. Small, self-contained, and it makes Xwayland's existing emulation —
+  enlargement and input mapping both — work under KWin for clients that do set
+  a mode. It does nothing for Source, which never sets one. Worth proposing on
+  its own merits.
+- A per-window presentation scale that the input path honours: the focus
+  matrix, `mapToLocal`/`mapFromLocal`, hit testing and input region, pointer
+  confinement and constraints, relative deltas, touch and tablet. The tidy form
+  is to map input through the same transform the scene already applies to the
+  window item, so one transform serves picture and pointer.
+
+With either in place the X server's own answers stay consistent, because
+Xwayland reconstructs root coordinates as the drawable origin plus the
+surface-local position it is handed. That is exactly as shallow as Xwayland's
+own emulation, which never changes the real root size either.
+
+## Remaining work
+
+### A game that never exits
+
+Asked for by Jens on 2026-09-19. A game can disappear without warning —
+`kill -9`, a driver fault, a crash inside the engine — and everything this
+slice arranges for it has to survive that: the advertised mode a client was
+told, the X11 window size that was requested, the per-window bookkeeping, and
+the resources KWin holds on the effect's behalf. Nothing may be kept for a
+client that cannot receive it, and nothing may grow across repeated launches.
+
+Announcements whose client is gone are dropped now, so restoring the real mode
+walks only clients that still exist. What remains to be tested: a client killed
+between the request and its first commit, a client killed while its window is
+being resized on X11, and repeated kill-and-relaunch cycles with process and
+video memory watched across them. The display's own side of this is in the
+[development infrastructure slice](slice-development-infrastructure.md).
+
+### Presenting a resized X11 window without Xwayland's emulation
+
+Asked for by Jens on 2026-09-19, after the analysis above: force the game to
+the wished resolution from the plugin alone, with no change to the game's
+configuration and no proxy compositor. The engine already renders at whatever
+size its X window has, so the request itself is not the problem; what is
+missing is that nothing presents the smaller window across the output and
+maps input back to it when the client never asks Xwayland for a mode.
+
+**Start state.** `X11Resize` holds the client's X window at the requested size
+and keeps KWin's fullscreen frame at the output. Validation then requires the
+emulated mode: without it the surface is smaller than the frame, eligibility
+refuses `ResizedSurface`, the request is refused and geometry restored. Left 4
+Dead 2 and every other client that takes its fullscreen size from the window
+manager therefore ends there.
+
+**End state.** For a window under a live `X11Resize` request whose surface is
+smaller than KWin's frame, the effect paints the supplied buffer over the whole
+frame and maps pointer input to the buffer's coordinates itself. A client that
+does establish the emulated mode keeps being presented by Xwayland, with no
+change in behaviour. Status names which of the two is presenting.
+
+**Approach.**
+
+1. Validation accepts a second success shape: the supplied buffer is the
+   requested size, KWin's frame still covers the output, and the surface is
+   presented at the buffer's own size. The refusal for a missing emulated mode
+   goes; the retry and refusal for a buffer that is not the requested size stay.
+2. A window under a live request is marked through `EffectWindow::setData`,
+   and the surface check waives `ResizedSurface` for a marked window whose
+   surface is smaller than its frame. The scaler already reads the buffer at
+   its own size and paints the frame, so the paint path needs no change.
+3. Input: an `InputEventFilter` installed ahead of KWin's forwarding filter.
+   Its only work, per pointer event whose focused surface belongs to a marked
+   window, is to replace the seat's focused-surface transformation with a
+   translation to the buffer origin followed by a scale of surface size over
+   frame size, and to scale relative deltas by the same factor, which is what
+   Xwayland's own emulation does. KWin's focus logic is untouched: it already
+   believes the window covers the output, so hit testing and enter/leave are
+   right and no event has to be delivered by the effect itself. The factor is
+   derived from the same geometry the scaler uses, so it is one while Xwayland
+   presents the window and the two paths cannot double-scale.
+4. Touch, tablet, pointer confinement regions and the locked-pointer position
+   hint are not mapped in this step; they are recorded as limitations.
+
+**Planned, not yet observed.** On wzpc, one test at a time: Left 4 Dead 2
+menu navigation first, mouse look in play second. Both containers, both
+compilers, warnings as errors, on the rebuilt Trixie image.
+
+**Implemented on 2026-09-19.** `x11input.cpp` holds the filter; the
+controller marks a window under a live request with `upscaleResizedRole`,
+answers `presentedUnder()` for the filter and `presentation()` for status;
+`x11resolution_validate.cpp` accepts the second success shape; the surface
+check in `eligibility.cpp` waives `ResizedSurface` for a marked window whose
+surface is smaller than its frame. The handbook's X11 resize section describes
+both presentations and the input mapping.
+
+Two things the virtual backend taught before the test passed, both now in
+source comments. KWin's hit test goes through the surface's own input region,
+not the frame, so over the part of the output the small surface does not
+occupy KWin focuses nothing at all; the filter therefore establishes the
+seat's focus itself there, and withdraws it when the pointer leaves the frame
+or KWin finds a window of its own on top. And at the moment a request begins
+the surface can still carry a 1 x 1 placeholder, so the scale is only taken
+from a surface that is the requested size, which is also the only surface the
+scaler paints.
+
+**Observed, virtual backend on this machine (KWin 6.3.6, `build/native`,
+2026-09-19).** `upscale-x11-integration`: 11 passed, 0 failed. The new
+`presentsWithoutEmulation` run, with a client that never sets a mode: the
+window held 1920 x 1080 for 3.5 seconds past negotiation, status reported
+`presented by this effect, pointer input mapped`, no request failure, the
+buffer was captured, a pointer moved to 1920, 1080 arrived at the X client as
+960, 540, and after the request was released a pointer at 1930, 1090 arrived
+unscaled. `upscale-snapshot`: 10 passed. Getting that far needed two test
+fixtures: a pointer device in the test driver, because a seat without one
+offers clients no pointer at all, and a `wl_pointer.frame` after each injected
+motion, because Xwayland acts on a motion only when its frame arrives.
+
+**Observed, containers.** KDE neon unstable (KWin master): GCC and Clang
+builds with warnings as errors passed, render tests passed; the test driver
+and the X11 integration test do not build there by design. Debian Trixie: the
+first run failed in configure because the local check image predated the
+`libxcb-randr0-dev` build dependency; results of the rebuilt image are
+recorded below when observed. The lint stage's commit-level hooks reported
+findings only in `tools/measure-frame-times.py` and its test, which this
+slice did not touch: a shebang without the executable bit, a spelling
+codespell rejects, and two files ruff-format would rewrite. That stopped the
+runner before the pre-push hooks, which are run separately below. They are
+fixed with this work, because the branch cannot go up for review red.
+
+**Observed on pcjensd, first real run, 2026-09-19 22:43.** Left 4 Dead 2
+with the profile enabled, build `0.1.0+git20260919.5a082be4b2-dirty`
+installed by Jens. Status while the game was active: `2560 × 1440 requested
+… presented by this effect, pointer input mapped`, `Supplied input: 2560 ×
+1440`, `FSR 1`. The X window was 2560 x 1440 at the origin with
+`_NET_WM_STATE_FULLSCREEN` and no emulation property, and `xwd` of that
+window (a query to the X server, nothing attached to the game) gave a
+complete 2560 x 1440 frame of the game's video menu. `video.txt` still said 2560 x
+1440 fullscreen. What Jens saw on the screen, though, was the enlarged
+picture cut off: only its top-left 2560 x 2160 pixels. KWin's
+`WorkspaceScene::paintSimpleScreen` intersects each window's paint region
+with its item's bounding rectangle (read in the 6.3.6 binary: `QRegion
+&= Item::mapToScene(Item::boundingRect()).toAlignedRect()`), and the item was
+the surface's own size. The effect's paint was therefore clipped, whatever it
+drew.
+
+The fix, implemented the same evening: once the requested buffer has arrived
+and the client established no emulated mode, the controller sizes the surface
+item to the frame (`SurfaceItem::setDestinationSize`), which is exactly what
+Xwayland's viewport does for an emulated mode; KWin then treats the window as
+covering the output for painting, damage and opacity. The pointer scale is
+taken from the requested size against the frame in X pixels, and who presents
+is decided once, from the emulation property, when that buffer first arrives.
+The `upscaleResizedRole` mark and the `ResizedSurface` waiver went again.
+Virtual backend after the fix: 11 passed, 0 failed, with the cooperative
+clients still presented by Xwayland and the non-cooperative one by the effect
+at the scaled pointer position. Not yet observed on the real machine.
+
+**Limitations, by design of this step.** Where KWin's own hit test does not
+find the window - the part of the output outside the small surface - KWin
+shows its fallback cursor rather than the client's, and grants no pointer
+lock or confinement, because both follow KWin's own focus. Relative motion
+reaches the client regardless, scaled like Xwayland scales it. Touch, tablet,
+confinement regions and the locked-pointer position hint are not mapped.
+Crossing the edge of the small surface produces a leave and enter pair for
+the client. Whether Source's mouse look is content with that is the second
+real-device test.
+
 ## Source-led compatibility investigations
 
 Requested by Jens on 2026-09-19: turn the known gaps into concrete investigations
@@ -1075,9 +1491,7 @@ acceptance tasks below. HDR/VRR and image/performance acceptance retain their
 owner in the [rendering slice](slice-fsr1-hdr-vrr.md); source review cannot replace
 those checks. No new live compatibility result is claimed by this task list.
 
-## Remaining work
-
-### Production X11 integration
+## Remaining work### Production X11 integration
 
 Jens requested integration of the demonstrated mechanism into the actual effect
 so that Tux Racer works without game configuration. Start state: the production
@@ -1361,3 +1775,11 @@ present with regression coverage. The two earlier findings outside the diff
 (historical rendering status and scoped GL allocation errors) are fixed too.
 No review was dismissed and no approval override was requested. Every push still
 requires a fresh approval for its exact revision.
+
+- [ ] Implement the `UserConfigured` method specified in the
+      [handbook](../upscaling.md#letting-the-user-choose-the-resolution-in-the-game):
+      the method value and its editor meaning, a preset that reads as a
+      recommendation rather than a request, and status that reports the size
+      actually supplied beside the one recommended. Asked for by Jens on
+      2026-09-19, for games no per-client request can reach. The scaling half
+      needs nothing: a smaller buffer is already scaled whoever chose its size.
