@@ -320,10 +320,15 @@ void UpscaleX11IntegrationTest::independentOutputRules()
     configure(true);
     // Reconfiguring restores every managed window before applying the rules
     // again, so the window this rule does not concern leaves its reduced mode
-    // and returns to it. Wait for that round trip instead of assuming it fits
-    // in a fixed delay, then give the rule its own delay to resize the other
-    // window wrongly, which is what this is watching for.
-    QTRY_COMPARE(first.geometry().size(), QSize(1920, 1080));
+    // and returns to it. On KWin 6.6 the request that follows that restore
+    // fails its validation and the documented single retry is what recovers
+    // it: validation runs 3 s after a request, the retry restores and
+    // reschedules 250 ms later, and that request is validated 3 s after that.
+    // Measured at about 8.1 s on Ubuntu 26.04, against well under 500 ms on
+    // 6.3.6. Allow the whole retry path rather than a fixed delay, then give
+    // the rule its own delay to resize the other window wrongly, which is
+    // what this is watching for.
+    QTRY_COMPARE_WITH_TIMEOUT(first.geometry().size(), QSize(1920, 1080), 15000);
     QTest::qWait(500);
     QCOMPARE(other.geometry(), QRect(3840, 0, 3840, 2160));
     QCOMPARE(first.geometry().size(), QSize(1920, 1080));
