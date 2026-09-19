@@ -26,8 +26,8 @@ from __future__ import annotations
 import argparse
 import contextlib
 import csv
+import math
 import os
-import re
 import shutil
 import signal
 import subprocess
@@ -37,38 +37,27 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from effect_control import (
+    PRESETS,
+    RATIOS,
+    configure,
+    qdbus,
+    reset_game_resolution,
+    run_command,
+    status,
+)
 from frame_metrics import Sample, Summary, parse_status, summarize
-from game_settings import prepare
+from game_output import clear_game_log, game_log, game_reported_rate, game_reported_renderer
+from game_settings import Outcome, prepare, still_holds
 from measurement_report import announce, read_environment, report, write_json, write_markdown
 
 if TYPE_CHECKING:
     # Only ever named in an annotation, and this module postpones those.
     from collections.abc import Mapping
 
+
 # The effect's own settings, in the group its KConfig file names. Preset values
 # are the ResolutionPreset enum in src/plugins/upscale/resolution.h, in order.
-GROUP = "Effect-upscale"
-PRESETS = {
-    "automatic": 0,
-    "native": 1,
-    "ultra-quality": 2,
-    "quality": 3,
-    "balanced": 4,
-    "performance": 5,
-    "custom": 6,
-}
-
-# What a preset asks for, as a fraction of the output. Reported alongside the
-# measurement so a table says what was rendered, not only which word was set.
-RATIOS = {
-    "native": 1.0,
-    "ultra-quality": 1.0 / 1.3,
-    "quality": 1.0 / 1.5,
-    "balanced": 1.0 / 1.7,
-    "performance": 0.5,
-}
-
-
 @dataclass(frozen=True)
 class Game:
     """How one game is started so that it renders without a person present.
@@ -126,89 +115,6 @@ GAMES = {
 # same things in the session's language, which is exactly why it is not read
 # here -- a harness that parsed it would report "nothing was measured" on any
 # machine not running in English.
-def run_command(arguments: list[str]) -> subprocess.CompletedProcess[str]:
-    """Run a helper and return it, without raising on a non-zero exit."""
-    return subprocess.run(arguments, capture_output=True, text=True, check=False)
-
-
-def qdbus() -> str:
-    """Find the Qt D-Bus helper this session has, under either of its names."""
-    for name in ("qdbus6", "qdbus-qt6", "qdbus"):
-        found = shutil.which(name)
-        if found:
-            return found
-    missing = "no qdbus binary found; install qt6-tools or qttools5-dev-tools"
-    raise SystemExit(missing)
-
-
-def status(tool: str) -> str:
-    """Ask the running effect for its current state, accumulated."""
-    result = run_command(
-        [tool, "org.kde.KWin", "/Effects", "org.kde.kwin.Effects.supportInformation", "upscale"]
-    )
-    return result.stdout
-
-
-def configure(preset: str, *, sharpening: bool) -> None:
-    """Set the effect's own settings for the next run and apply them.
-
-    These are the effect's own settings, not the session's: the preset under
-    test, resolution control and the sharpening state. The on-screen display is
-    left exactly as the user had it, because measuring does not depend on it
-    and showing it would cost every run the same composition it saves.
-    """
-    settings = {
-        "Preset": str(PRESETS[preset]),
-        "ResolutionControl": "true",
-        "Sharpening": "true" if sharpening else "false",
-    }
-    for key, value in settings.items():
-        run_command(["kwriteconfig6", "--file", "kwinrc", "--group", GROUP, "--key", key, value])
-    run_command(
-        [qdbus(), "org.kde.KWin", "/Effects", "org.kde.kwin.Effects.reconfigureEffect", "upscale"]
-    )
-
-
-def reset_game_resolution(game: str) -> str:
-    """Put the game back to the screen's own size before a run.
-
-    A game that stores the resolution it last ran at starts the next run from
-    there, so one run decides what the next one renders: measured 2026-09-19,
-    a run at Performance left 1920 x 1080 in SuperTuxKart's configuration and
-    every later run began at 1080p whatever the effect advertised. Starting
-    each run at the screen's size makes the effect's request the only thing
-    that can change it.
-
-    Returns what was changed, for the record, or why nothing was.
-    """
-    if game != "supertuxkart":
-        return "not configurable here"
-    path = Path.home() / ".config/supertuxkart/config-0.10/config.xml"
-    if not path.exists():
-        return "no configuration yet"
-    native = screen_pixels()
-    if not native:
-        return "screen size unknown"
-    width, height = native
-    text = path.read_text()
-    for key, value in (
-        ("real_width", width),
-        ("real_height", height),
-        ("width", width),
-        ("height", height),
-    ):
-        text = re.sub(rf'(\n\s*{key}=")[^"]*(")', rf"\g<1>{value}\g<2>", text)
-    path.write_text(text)
-    return f"{width}x{height}"
-
-
-def screen_pixels() -> tuple[int, int] | None:
-    """Read the output's own size in pixels, where a game should start."""
-    result = run_command(["kscreen-doctor", "-o"])
-    found = re.search(r"([0-9]{3,5})x([0-9]{3,5})@[0-9]+\*", result.stdout)
-    return (int(found.group(1)), int(found.group(2))) if found else None
-
-
 def launch(plan: Plan, seconds: int) -> subprocess.Popen[str]:
     """Start the game in whatever mode renders without a person at the keyboard.
 
@@ -242,15 +148,38 @@ def launch(plan: Plan, seconds: int) -> subprocess.Popen[str]:
     )
 
 
-def send_keys(game: str) -> None:
-    """Walk a menu-driven game into a running scene, where it needs one."""
+def wait_for_window(window: str, seconds: float) -> bool:
+    """Wait for the game's window to exist, within a bounded time.
+
+    A fixed delay is a guess about how long a game takes to start. Sending keys
+    before the window exists walks nothing into a scene, and the run then
+    measures a game sitting in its menu.
+    """
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if run_command(["xdotool", "search", "--classname", window]).stdout.strip():
+            return True
+        time.sleep(0.5)
+    return False
+
+
+def send_keys(game: str) -> str:
+    """Walk a menu-driven game into a running scene, where it needs one.
+
+    Returns what went wrong, or nothing when the keys were sent.
+    """
     definition = GAMES[game]
-    if not definition.keys or not shutil.which("xdotool"):
-        return
+    if not definition.keys:
+        return ""
+    if not shutil.which("xdotool"):
+        return "xdotool is not installed, so the game was left in its menu"
     window = definition.window
+    if not wait_for_window(window, seconds=30):
+        return f"no {window} window appeared, so no keys were sent and the game stayed in its menu"
     for key in definition.keys:
         time.sleep(1.5)
         run_command(["xdotool", "search", "--classname", window, "key", "--window", "%1", key])
+    return ""
 
 
 def stop(process: subprocess.Popen[str]) -> str:
@@ -267,49 +196,6 @@ def stop(process: subprocess.Popen[str]) -> str:
     return output or ""
 
 
-def game_reported_rate(output: str) -> float | None:
-    """Read the frame rate a game printed itself, where its demo mode prints one."""
-    # SuperTuxKart's profile mode ends with a summary naming the frames it drew
-    # and the time it took. That is its render throughput, which is not what
-    # the screen presented and is reported separately for exactly that reason.
-    found = re.search(r"Number of frames:\s*([0-9]+)\s*time\s*([0-9.]+)", output)
-    if found and float(found.group(2)) > 0:
-        return float(found.group(1)) / float(found.group(2))
-    found = re.search(r"FPS\s*[:=]\s*([0-9.]+)", output)
-    return float(found.group(1)) if found else None
-
-
-def game_reported_renderer(output: str, game: str) -> str:
-    """Read the graphics API the game says it used, not the one it was asked for.
-
-    A compositor cannot observe this: neither protocol carries a client's
-    graphics API and an OpenGL and a Vulkan client hand over the same kind of
-    buffer. The game knows, and says so in its own output, so that is where a
-    run finds out what it actually measured.
-    """
-    lines = output.splitlines()
-    if game == "supertuxkart":
-        # "Using renderer: OpenGL 4.3.0", or Vulkan where that renderer ran.
-        found = next((line for line in lines if "Using renderer:" in line), "")
-        _, _, named = found.partition("Using renderer:")
-        return named.strip()
-    found = next((line for line in lines if "renderer" in line.lower()), "")
-    return found.strip()
-
-
-def game_log(game: str) -> str:
-    """Whatever the game wrote about itself, where it writes to its own file.
-
-    SuperTuxKart reopens its output onto a log of its own within a second of
-    starting, so almost nothing reaches the pipe this script holds.
-    """
-    if game == "supertuxkart":
-        path = Path.home() / ".config/supertuxkart/config-0.10/stdout.log"
-        if path.exists():
-            return path.read_text(errors="replace")
-    return ""
-
-
 @dataclass
 class Plan:
     """How one run is conducted, so that a run is described rather than listed."""
@@ -322,16 +208,21 @@ class Plan:
     # Empty leaves the game to choose, which is what a player gets.
     window_system: str = ""
     renderer: str = ""
+    # Which screen the run is about, so a session with several is unambiguous.
+    output: str = ""
 
 
-def measure(plan: Plan, preset: str) -> tuple[Summary, list[Sample]]:
+def measure(
+    plan: Plan, preset: str, run_id: str = "", repeat: int = 1
+) -> tuple[Summary, list[Sample]]:
     """Conduct one run: set the preset, start the game, read the instrument, stop."""
     game, seconds, interval, warm_up = plan.game, plan.seconds, plan.interval, plan.warm_up
     sharpening = plan.sharpening
     tool = qdbus()
     configure(preset, sharpening=sharpening)
     # Before anything starts, so the run is not inheriting the last one's size.
-    settings = prepare(game)
+    clear_game_log(game)
+    settings = prepare(game, plan.output)
     print(f"      settings           {settings.describe()}", flush=True)
     reset = reset_game_resolution(game)
     startup = GAMES[game].startup
@@ -342,7 +233,7 @@ def measure(plan: Plan, preset: str) -> tuple[Summary, list[Sample]]:
     samples: list[Sample] = []
     try:
         time.sleep(startup)
-        send_keys(game)
+        driven = send_keys(game)
         # Shaders compile and caches fill on the first frames of a scene, and
         # they do it again at a resolution the game has not drawn before. A run
         # that counted them would charge the change of resolution for work that
@@ -352,6 +243,7 @@ def measure(plan: Plan, preset: str) -> tuple[Summary, list[Sample]]:
         while time.monotonic() - started < seconds:
             sample = parse_status(status(tool))
             sample.elapsed = round(time.monotonic() - started, 1)
+            sample.run_id = run_id
             samples.append(sample)
             if process.poll() is not None:
                 break
@@ -359,14 +251,60 @@ def measure(plan: Plan, preset: str) -> tuple[Summary, list[Sample]]:
     finally:
         output = stop(process)
     summary = summarize(game, preset, samples, GAMES[game].window)
+    # Readings taken while the effect described some other window are not this
+    # game's frames. Without this a run reports the desktop.
+    if not any(sample.selected for sample in samples):
+        summary.notes.append(
+            "the effect never selected this game's window, so nothing here describes the game"
+        )
+    record_conditions(
+        summary,
+        plan,
+        Conducted(run_id, repeat, settings, driven, output, reset),
+    )
+    return summary, samples
+
+
+@dataclass
+class Conducted:
+    """What happened while one run was conducted, for its record."""
+
+    run_id: str = ""
+    repeat: int = 1
+    settings: Outcome = field(default_factory=Outcome)
+    driven: str = ""
+    spoken_output: str = ""
+    reset: str = ""
+
+
+def record_conditions(summary: Summary, plan: Plan, done: Conducted) -> None:
+    """Put the run's identity and what actually happened onto its summary.
+
+    Kept apart from conducting the run so that neither is read through the
+    other: one starts a game and waits, this one writes down what that was.
+    """
     # What the game says it did, against what it was asked to do. A request is
     # not proof: SDL falls back to another video driver without complaint, and
     # a renderer a build does not carry is simply not the one that ran. A run
     # that measured something other than what it was set up to measure has to
     # say so rather than be read as the case it was named after.
-    summary.started_at = reset
-    summary.settings = settings.describe()
-    spoken = output + game_log(plan.game)
+    summary.started_at = done.reset
+    summary.settings = done.settings.describe()
+    # The application writes its own settings on the way out, so what was
+    # verified before the run is not necessarily what the run ended with.
+    kept = still_holds(plan.game)
+    if not kept.controlled and kept.applied:
+        summary.notes.append(f"settings changed while running: {kept.describe()}")
+    summary.run_id = done.run_id
+    summary.repeat = done.repeat
+    summary.requested_window_system = plan.window_system
+    summary.requested_renderer = plan.renderer
+    summary.sharpening = plan.sharpening
+    summary.seconds = plan.seconds
+    summary.warm_up = plan.warm_up
+    if done.driven:
+        summary.notes.append(done.driven)
+    spoken = done.spoken_output + game_log(plan.game)
     summary.game_rate = game_reported_rate(spoken)
     summary.renderer_used = game_reported_renderer(spoken, plan.game)
     if plan.renderer and summary.renderer_used:
@@ -381,13 +319,6 @@ def measure(plan: Plan, preset: str) -> tuple[Summary, list[Sample]]:
             f"asked for the {plan.window_system} window system but the effect saw "
             f"{summary.window_system}; this run did not measure {plan.window_system}"
         )
-    # Samples taken while the effect was describing some other window are not
-    # this game's frames. Without this a run reports the desktop.
-    if not any(sample.selected for sample in samples):
-        summary.notes.append(
-            "the effect never selected this game's window, so nothing here describes the game"
-        )
-    return summary, samples
 
 
 def write_samples(path: Path, rows: list[tuple[str, Sample]]) -> None:
@@ -457,6 +388,23 @@ def compare(summaries: list[Summary]) -> None:
             print(f"note ({summary.preset}): {note}")
 
 
+def positive_seconds(text: str) -> float:
+    """Read a duration that a run can actually wait for.
+
+    argparse's float accepts "-1" and "nan", which reach time.sleep() and end
+    the run with an exception instead of a message about the command line.
+    """
+    try:
+        value = float(text)
+    except ValueError as problem:
+        unreadable = f"{text!r} is not a number of seconds"
+        raise argparse.ArgumentTypeError(unreadable) from problem
+    if not math.isfinite(value) or value < 0:
+        impossible = f"{text!r} is not a duration a run can wait for"
+        raise argparse.ArgumentTypeError(impossible)
+    return value
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the comparison the handbook's matrix asks for and report it."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -466,10 +414,14 @@ def main(argv: list[str] | None = None) -> int:
         default="native,quality,performance",
         help="presets to run, in order, starting with the baseline",
     )
-    parser.add_argument("--seconds", type=int, default=60, help="sampled length of each run")
-    parser.add_argument("--interval", type=float, default=2.0, help="seconds between readings")
     parser.add_argument(
-        "--warm-up", type=float, default=10.0, help="seconds discarded before sampling"
+        "--seconds", type=positive_seconds, default=60, help="sampled length of each run"
+    )
+    parser.add_argument(
+        "--interval", type=positive_seconds, default=2.0, help="seconds between readings"
+    )
+    parser.add_argument(
+        "--warm-up", type=positive_seconds, default=10.0, help="seconds discarded before sampling"
     )
     parser.add_argument("--repeats", type=int, default=1, help="times to run the whole set")
     parser.add_argument("--sharpening", action="store_true", help="run with RCAS on")
@@ -486,6 +438,9 @@ def main(argv: list[str] | None = None) -> int:
         help="tell the game which graphics API to use",
     )
     parser.add_argument("--output", type=Path, default=Path("build/measurements"))
+    parser.add_argument(
+        "--output-name", default="", help="the screen the run is about, when there is more than one"
+    )
     options = parser.parse_args(argv)
 
     presets = [name.strip() for name in options.presets.split(",") if name.strip()]
@@ -505,8 +460,10 @@ def main(argv: list[str] | None = None) -> int:
         sharpening=options.sharpening,
         window_system=options.window_system,
         renderer=options.renderer,
+        output=options.output_name,
     )
-    conditions = read_environment()
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    conditions = read_environment(qdbus(), options.output_name)
     print("Measuring with:")
     for key, value in asdict(conditions).items():
         print(f"  {key:<20} {value}")
@@ -534,13 +491,14 @@ def main(argv: list[str] | None = None) -> int:
                     "sampled for": f"{options.seconds} s after {options.warm_up} s warm-up",
                 },
             )
-            summary, samples = measure(plan, preset)
+            run_id = f"{options.game}-{stamp}-{repeat + 1:02d}-{preset}"
+            summary, samples = measure(plan, preset, run_id, repeat + 1)
+            summary.asked_for = preset_size(preset, conditions.output_pixels)
             summaries.append(summary)
             rows.extend((preset, sample) for sample in samples)
             report(summary)
             records.append(asdict(summary))
 
-    stamp = time.strftime("%Y%m%d-%H%M%S")
     stem = options.output / f"{options.game}-{stamp}"
     write_samples(stem.with_suffix(".csv"), rows)
     write_json(stem.with_suffix(".json"), conditions, records)

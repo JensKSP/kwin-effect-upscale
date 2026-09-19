@@ -76,10 +76,24 @@ class Outcome:
         return f"{len(self.applied)} verified, not kept: {missing}"
 
 
-def screen_pixels() -> tuple[int, int] | None:
-    """Read the output's own size in pixels, where a game should start."""
+def screen_pixels(output: str = "") -> tuple[int, int] | None:
+    """Read one output's size in pixels, where a game should start.
+
+    Names the output rather than taking the first match. A session with more
+    than one screen has more than one current mode, and a benchmark that took
+    whichever came first would size the game for a screen it is not on.
+    """
     result = subprocess.run(["kscreen-doctor", "-o"], capture_output=True, text=True, check=False)
-    found = re.search(r"([0-9]{3,5})x([0-9]{3,5})@[0-9]+\*", result.stdout)
+    text = result.stdout
+    if output:
+        blocks = re.split(r"(?=Output:)", text)
+        named = [
+            block for block in blocks if re.search(rf"Output:\s*\d+\s+{re.escape(output)}\b", block)
+        ]
+        if not named:
+            return None
+        text = named[0]
+    found = re.search(r"([0-9]{3,5})x([0-9]{3,5})@[0-9]+\*", text)
     return (int(found.group(1)), int(found.group(2))) if found else None
 
 
@@ -110,19 +124,29 @@ def _write_xml_attributes(path: Path, wanted: dict[str, str]) -> Outcome:
 
     # Read back from disk. A value that did not land is worth more as a
     # reported gap than as an assumption the run was conducted correctly.
+    return _read_back_xml(path, wanted, outcome)
+
+
+def _read_back_xml(path: Path, wanted: dict[str, str], outcome: Outcome | None = None) -> Outcome:
+    """Compare a configuration on disk against what was asked of it."""
+    found_state = outcome or Outcome()
+    if not path.exists():
+        found_state.note = f"no configuration at {path}"
+        found_state.refused |= dict(wanted)
+        return found_state
     written = path.read_text()
     for key, value in wanted.items():
-        if key in outcome.refused:
+        if key in found_state.refused:
             continue
         found = re.search(rf'\n\s*{re.escape(key)}="([^"]*)"', written)
         if found and found.group(1) == value:
-            outcome.applied[key] = value
+            found_state.applied[key] = value
         else:
-            outcome.refused[key] = value
-    return outcome
+            found_state.refused[key] = value
+    return found_state
 
 
-def prepare_supertuxkart(*, native: tuple[int, int] | None = None) -> Outcome:
+def prepare_supertuxkart(*, native: tuple[int, int] | None = None, output: str = "") -> Outcome:
     """Put SuperTuxKart at its highest quality and at the screen's own size.
 
     The resolution matters as much as the quality. The game stores the size it
@@ -131,7 +155,7 @@ def prepare_supertuxkart(*, native: tuple[int, int] | None = None) -> Outcome:
     thing that changed.
     """
     wanted = dict(SUPERTUXKART_QUALITY)
-    size = native or screen_pixels()
+    size = native or screen_pixels(output)
     if size:
         width, height = size
         wanted |= {
@@ -181,6 +205,16 @@ def _write_bracket_settings(path: Path, wanted: dict[str, str]) -> Outcome:
             lines.append(f"[{key}] {value}")
     path.write_text("\n".join(lines) + "\n")
 
+    return _read_back_bracket(path, wanted)
+
+
+def _read_back_bracket(path: Path, wanted: dict[str, str]) -> Outcome:
+    """Compare a bracketed options file against what was asked of it."""
+    outcome = Outcome()
+    if not path.exists():
+        outcome.note = f"no options at {path}"
+        outcome.refused = dict(wanted)
+        return outcome
     written = path.read_text()
     for key, value in wanted.items():
         found = re.search(rf"^\[{re.escape(key)}\]\s+(\S+)", written, re.MULTILINE)
@@ -230,7 +264,24 @@ PREPARE: dict[str, Callable[[], Outcome]] = {
 }
 
 
-def prepare(game: str) -> Outcome:
+def prepare(game: str, output: str = "") -> Outcome:
     """Put one application into a known state, whatever that means for it."""
+    if game == "supertuxkart":
+        return prepare_supertuxkart(output=output)
     action = PREPARE.get(game)
     return action() if action else Outcome(note=f"no settings known for {game}")
+
+
+def still_holds(game: str) -> Outcome:
+    """Check an application's settings again once it has exited.
+
+    Both writers verify the file the moment they wrote it, which says nothing
+    about what the application does on its way out. Extreme Tux Racer writes
+    its options when it quits, so a run that reported settings as verified can
+    finish with different ones on disk; this is what catches that.
+    """
+    if game == "supertuxkart":
+        return _read_back_xml(supertuxkart_config(), SUPERTUXKART_QUALITY)
+    if game == "extremetuxracer":
+        return _read_back_bracket(Path.home() / ".config/etr/options", EXTREMETUXRACER_QUALITY)
+    return Outcome(note="nothing stored to check")

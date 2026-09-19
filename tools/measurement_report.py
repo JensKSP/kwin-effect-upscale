@@ -45,14 +45,25 @@ def _run(command: list[str]) -> str:
     return result.stdout
 
 
-def read_environment() -> Environment:
-    """Gather the session's fixed conditions from the session itself."""
+def read_environment(qdbus_tool: str = "qdbus6", output: str = "") -> Environment:
+    """Gather the session's fixed conditions from the session itself.
+
+    Takes the D-Bus helper the runner resolved rather than naming one: an
+    installation that calls it something else would otherwise record the effect
+    as absent while the benchmark ran against it perfectly well.
+    """
     found = Environment()
     version = _run(["kwin_wayland", "--version"]).strip()
     found.compositor = version or "unknown"
     found.session = _run(["sh", "-c", "echo $XDG_SESSION_TYPE/$XDG_CURRENT_DESKTOP"]).strip()
 
     outputs = _run(["kscreen-doctor", "-o"])
+    if output:
+        # One screen's conditions, named, so a session with several does not
+        # have the first one's mode recorded for a game running on another.
+        blocks = re.split(r"(?=Output:)", outputs)
+        named = [b for b in blocks if re.search(rf"Output:\s*\d+\s+{re.escape(output)}\b", b)]
+        outputs = named[0] if named else outputs
     name = re.search(r"Output:\s*\d+\s+(\S+)", outputs)
     found.output = name.group(1) if name else "unknown"
     mode = re.search(r"([0-9]{3,5})x([0-9]{3,5})@([0-9]+)\*", outputs)
@@ -67,7 +78,13 @@ def read_environment() -> Environment:
     found.high_dynamic_range = hdr.group(1) if hdr else "unknown"
 
     status = _run(
-        ["qdbus6", "org.kde.KWin", "/Effects", "org.kde.kwin.Effects.supportInformation", "upscale"]
+        [
+            qdbus_tool,
+            "org.kde.KWin",
+            "/Effects",
+            "org.kde.kwin.Effects.supportInformation",
+            "upscale",
+        ]
     )
     build = re.search(r"build:\s*(.+)", status)
     found.effect_build = build.group(1).strip() if build else "effect not loaded"

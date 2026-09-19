@@ -41,6 +41,9 @@ METRIC_FIELDS = {
 class Sample:
     """One reading of the accumulated statistics, with the time it was taken."""
 
+    # Which run this reading belongs to. Rows from repeated runs are otherwise
+    # indistinguishable once they are in one file.
+    run_id: str = ""
     elapsed: float = 0.0
     presented_rate: float | None = None
     presented_low: float | None = None
@@ -110,8 +113,16 @@ def measuring(sample: Sample) -> bool:
 class Summary:
     """What a run came to, across the samples that were actually measuring."""
 
+    run_id: str = ""
     game: str = ""
     preset: str = ""
+    repeat: int = 1
+    requested_window_system: str = ""
+    requested_renderer: str = ""
+    asked_for: str = ""
+    sharpening: bool = False
+    seconds: float = 0.0
+    warm_up: float = 0.0
     samples: int = 0
     supplied: str = ""
     destination: str = ""
