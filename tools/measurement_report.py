@@ -129,6 +129,10 @@ def _cell(value: object, digits: int = 1) -> str:
 def write_markdown(path: Path, environment: Environment, runs: list[dict[str, Any]]) -> None:
     """Write the same record as a document, with the conditions at the top."""
     path.parent.mkdir(parents=True, exist_ok=True)
+    # REUSE-IgnoreStart
+    # The lines below are the licence header of the document being written, not
+    # of this file. Without this the licence checker reads them as a second,
+    # malformed declaration for the source it finds them in.
     lines = [
         "<!--",
         "SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>",
@@ -153,6 +157,7 @@ def write_markdown(path: Path, environment: Environment, runs: list[dict[str, An
         "",
         "## Runs",
         "",
+        # REUSE-IgnoreEnd
         (
             "| Application | Window API | Graphics API | Preset | Supplied | Destination"
             " | Upscaled | Presented /s | Frame ms | 99th ms | Game /s | Samples |"
