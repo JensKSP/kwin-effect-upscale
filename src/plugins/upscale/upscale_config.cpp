@@ -132,9 +132,9 @@ void UpscaleEffectConfig::addThresholdControl(QFormLayout *layout)
     // anybody might want a threshold at.
     m_minimumPixels->setEditable(true);
     m_minimumPixels->setInsertPolicy(QComboBox::NoInsert);
-    m_minimumPixels->setToolTip(i18n("Each output is checked independently. Scale only on outputs at least this large. Choose one of your screens, or type a resolution such as 1920x1080. Application rules can override it."));
+    m_minimumPixels->setToolTip(i18n("Each output is checked independently, by pixel count: width times height. An output with this many pixels or fewer is left alone; only a larger one is scaled, whatever its shape. Choose one of your screens, or type a resolution such as 1920x1080. Application rules can override it."));
     upscaleFillResolutions(m_minimumPixels);
-    layout->addRow(i18n("Smallest output to scale on:"), m_minimumPixels);
+    layout->addRow(i18n("Biggest resolution not to scale:"), m_minimumPixels);
     connect(m_minimumPixels, &QComboBox::currentTextChanged, this, [this]() {
         updatePreview();
         setNeedsSave(true);

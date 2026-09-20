@@ -1218,6 +1218,13 @@ no reduced-resolution request and bypasses FSR. This is an output eligibility
 threshold, not a lower bound on the requested buffer size. Full HD and
 1080 × 1920 therefore bypass at the default; 2560 × 1080 and 3840 × 2160 exceed
 it. Desktop scale and logical window dimensions do not change the comparison.
+
+The configuration key keeps the name `MinimumPixels`, but the settings page
+labels it **Biggest resolution not to scale**, because that is what the value
+is: the comparison is strictly greater than, so an output of exactly the
+threshold is left alone. A label naming it the smallest output that is scaled
+states the opposite of the behaviour at the boundary, which is precisely the
+value a user is most likely to enter.
 The pixel count approximates resolution-related rendering cost; it does not
 measure refresh rate or application complexity.
 
