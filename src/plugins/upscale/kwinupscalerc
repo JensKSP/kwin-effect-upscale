@@ -69,6 +69,21 @@ Preset=Quality
 Order=20
 Note=Follows X11 resize requests on the primary display. Its SFML mode selection always uses that display, so requests on other displays are refused. Requested sizes must match an available mode.
 
+[Application-hl2_linux]
+Name=Left 4 Dead 2 and other native Source games
+MeasuredVersion=Steam build 23990068
+# hl2_linux is the Source engine binary, not the game: every native Source
+# title presents this class and instance, so this entry cannot be made specific
+# to one of them. The window title does name the game, but a title carries
+# save-game and player names and is never used as an identity here.
+WindowClass=hl2_linux
+Instance=hl2_linux
+Program=hl2_linux
+Method=X11Resize
+Preset=Quality
+Order=50
+Note=Takes its fullscreen size from the window manager and never asks Xwayland for a mode, so the effect presents the resized window itself and maps pointer input to it. Measured through Steam's pressure-vessel runtime.
+
 [Application-glmark2]
 Name=glmark2
 MeasuredVersion=2023.01

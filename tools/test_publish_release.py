@@ -4,6 +4,7 @@
 
 import json
 import os
+import runpy
 import subprocess
 import sys
 import tempfile
@@ -148,3 +149,76 @@ elif args[1] == "download":
         self.assertEqual(result.returncode, 0, result.stderr)
         operations = [call[1] for call in self.calls() if call[0] == "release"]
         self.assertEqual(operations, ["download"])
+
+
+class InstallationGuideTest(unittest.TestCase):
+    """The release page answers "which file do I need" before anything else."""
+
+    version = "0.1.0+git20260920.1482287abc"
+
+    def assets(self) -> list[str]:
+        """Name everything one nightly candidate actually carries."""
+        version = self.version
+        names = [f"kwin-effect-upscale-{version}.tar.gz", "SHA256SUMS", "provenance.sigstore.json"]
+        for distribution in ("trixie", "resolute"):
+            for architecture in ("amd64", "arm64"):
+                stem = f"{version}.{distribution}_{architecture}"
+                names += [
+                    f"kwin-effect-upscale_{stem}.deb",
+                    f"kwin-effect-upscale-dbgsym_{stem}.deb",
+                    f"kwin-effect-upscale_{stem}.buildinfo",
+                    f"kwin-effect-upscale_{stem}.changes",
+                ]
+            names += [
+                f"kwin-effect-upscale_{version}.{distribution}.dsc",
+                f"kwin-effect-upscale_{version}.{distribution}.tar.xz",
+            ]
+        for architecture in ("x86_64", "aarch64"):
+            names += [
+                f"kwin-effect-upscale-{version}-1.fc43.{architecture}.rpm",
+                f"kwin-effect-upscale-debuginfo-{version}-1.fc43.{architecture}.rpm",
+                f"kwin-effect-upscale-{version}-1.{architecture}.rpm",
+                f"kwin-effect-upscale-debuginfo-{version}-1.{architecture}.rpm",
+            ]
+        return [
+            *names,
+            f"kwin-effect-upscale-{version}-1.fc43.src.rpm",
+            f"kwin-effect-upscale-{version}-1.src.rpm",
+            f"kwin-effect-upscale-{version}-1-x86_64.pkg.tar.zst",
+            f"kwin-effect-upscale-debug-{version}-1-x86_64.pkg.tar.zst",
+            f"kwin-effect-upscale-{version}-1.src.tar.gz",
+        ]
+
+    def guide(self) -> str:
+        """Render the notes the publisher writes, without contacting GitHub."""
+        module = runpy.run_path(str(PUBLISH))
+        return str(module["installation_guide"]("owner/repo", "nightly", self.assets()))
+
+    def test_debian_trixie_on_a_desktop_is_named_first(self) -> None:
+        """It is the one build with an acceptance machine behind it."""
+        rows = [line for line in self.guide().splitlines() if line.startswith("| ")]
+        self.assertIn("Debian Trixie", rows[2])
+        self.assertIn("amd64", rows[2])
+        self.assertIn(f"kwin-effect-upscale_{self.version}.trixie_amd64.deb", rows[2])
+
+    def test_every_installable_package_is_offered_once(self) -> None:
+        """One row per distribution and architecture, and no companion files."""
+        rows = [line for line in self.guide().splitlines() if line.startswith("| ")][2:]
+        self.assertEqual(len(rows), 9)
+        for row in rows:
+            for companion in ("-dbgsym_", "-debuginfo-", "-debug-", ".src.", ".dsc", ".buildinfo"):
+                self.assertNotIn(companion, row)
+
+    def test_the_rest_is_folded_away_and_nothing_is_lost(self) -> None:
+        """Every asset appears exactly once, in the table or under the fold."""
+        guide = self.guide()
+        self.assertIn("<details>", guide)
+        for name in self.assets():
+            self.assertEqual(guide.count(f"/{name})"), 1, name)
+
+    def test_opensuse_is_not_confused_with_fedora(self) -> None:
+        """Only openSUSE's names carry no distribution stamp at all."""
+        guide = self.guide()
+        row = "| openSUSE Tumbleweed | 64-bit PC (x86_64) | "
+        self.assertIn(f"{row}[kwin-effect-upscale-{self.version}-1.x86_64.rpm]", guide)
+        self.assertNotIn(f"{row}[kwin-effect-upscale-{self.version}-1.fc43", guide)

@@ -42,9 +42,14 @@ def build(root: Path, destination: Path, version: str, epoch: int) -> list[Path]
     )
     # dpkg-buildpackage selects native parallelism and respects DEB_BUILD_OPTIONS.
     environment = {**os.environ, "SOURCE_DATE_EPOCH": str(epoch)}
+    # -F builds the source package as well, -b the binaries alone. The source
+    # package describes the tree and not the machine, so building it on both
+    # architectures would produce the same two files twice under one name. It
+    # is built where the rest of the source deliverables are, on amd64.
+    mode = "-F" if output("dpkg", "--print-architecture", cwd=source) == "amd64" else "-b"
     with (destination / "build.log").open("w") as log:
         result = subprocess.run(
-            ["dpkg-buildpackage", "-b", "-us", "-uc"],
+            ["dpkg-buildpackage", mode, "-us", "-uc"],
             cwd=source,
             env=environment,
             stdout=log,
@@ -90,7 +95,7 @@ def main() -> None:
         raise ValueError(message)
     artifacts = root / "build/artifacts"
     artifacts.mkdir(parents=True, exist_ok=True)
-    for pattern in ("*.deb", "*.ddeb", "*.buildinfo", "*.changes"):
+    for pattern in ("*.deb", "*.ddeb", "*.buildinfo", "*.changes", "*.dsc", "*.tar.xz"):
         for path in (root / "build/packages/first").glob(pattern):
             shutil.copy2(path, artifacts / path.name)
     print("Both clean builds produced identical packages.")

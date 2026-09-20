@@ -95,8 +95,8 @@ void UpscaleApplicationEditor::buildDetails(QFormLayout *form)
     m_minimumPixels->setObjectName(QStringLiteral("applicationMinimumPixels"));
     m_minimumPixels->setRange(-1, std::numeric_limits<int>::max());
     m_minimumPixels->setSpecialValueText(i18n("Use global threshold"));
-    m_minimumPixels->setToolTip(i18n("Scale only on outputs with more physical pixels. Full HD is 2073600. Zero disables the threshold."));
-    form->addRow(i18n("Minimum output pixels:"), m_minimumPixels);
+    m_minimumPixels->setToolTip(i18n("An output with this many physical pixels or fewer is left alone; only a larger one is scaled. Full HD is 2073600. Zero scales on every output."));
+    form->addRow(i18n("Biggest output not to scale, in pixels:"), m_minimumPixels);
     form->addRow(QString(), m_enabled);
     form->addRow(QString(), m_note);
 }

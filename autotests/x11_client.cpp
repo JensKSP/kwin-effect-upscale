@@ -54,6 +54,11 @@ bool X11Client::show(const QByteArray &identity, const QRect &geometry, bool ful
     m_position = geometry.topLeft();
     m_size = geometry.size();
     m_fullscreenOnMap = full;
+    // Interned before the window exists, because interning is a round trip:
+    // done between creating the window and describing it, it would leave a
+    // window the window manager can already see but whose hints are not set
+    // yet, and the placement it deserves decided from what was there then.
+    const xcb_atom_t motif = atom(QByteArrayLiteral("_MOTIF_WM_HINTS"));
     m_window = xcb_generate_id(m_connection);
     const uint32_t values[] = {0xff0000, XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_POINTER_MOTION};
     xcb_create_window(m_connection, XCB_COPY_FROM_PARENT, m_window, m_screen->root,
@@ -66,15 +71,33 @@ bool X11Client::show(const QByteArray &identity, const QRect &geometry, bool ful
     // An explicit position makes the two-output case independent of placement
     // policy. Motif decorations=0 models a normal managed borderless window.
     const uint32_t hints[] = {1U << 1, 0, 0, 0, 0};
-    const xcb_atom_t motif = atom(QByteArrayLiteral("_MOTIF_WM_HINTS"));
     xcb_change_property(m_connection, XCB_PROP_MODE_REPLACE, m_window, motif, motif, 32, 5, hints);
-    uint32_t normalHints[18] = {1U, uint32_t(geometry.x()), uint32_t(geometry.y())};
+    // USPosition and PPosition together. ICCCM lets a window manager honour
+    // either, and the obsolete x and y fields are filled in as well, so no
+    // reading of this structure has to fall back on placement policy.
+    uint32_t normalHints[18] = {1U | 4U, uint32_t(geometry.x()), uint32_t(geometry.y())};
     xcb_change_property(m_connection, XCB_PROP_MODE_REPLACE, m_window, XCB_ATOM_WM_NORMAL_HINTS,
                         XCB_ATOM_WM_SIZE_HINTS, 32, 18, normalHints);
     m_context = xcb_generate_id(m_connection);
     const uint32_t foreground = 0xff0000;
     xcb_create_gc(m_connection, m_context, m_window, XCB_GC_FOREGROUND, &foreground);
     xcb_map_window(m_connection, m_window);
+    // A managed window is placed by the window manager, and a borderless client
+    // that cares which screen it is on says so again once it is mapped rather
+    // than trusting the placement it was given. Without this the test depends
+    // on the window manager having read the hints above before it decided,
+    // which is a race the client can simply not have.
+    //
+    // Only borderless. A fullscreen window is placed through
+    // _NET_WM_FULLSCREEN_MONITORS below, which names the output directly and
+    // never needed this; asserting a position on top of that puts a second
+    // geometry request into a path whose whole subject is the window manager
+    // resizing this window.
+    if (!full) {
+        const uint32_t position[] = {uint32_t(geometry.x()), uint32_t(geometry.y())};
+        xcb_configure_window(m_connection, m_window,
+                             XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, position);
+    }
     paint(m_size);
     xcb_flush(m_connection);
     return true;
@@ -222,12 +245,21 @@ void X11Client::dispatch()
             const QSize size(configure->width, configure->height);
             if (size != m_size) {
                 m_size = size;
+                // Commit the resized buffer first, before anything that can
+                // block. mode() is several synchronous RandR round trips, and
+                // what the effect validates is the buffer: on a slow runner
+                // those round trips outlast the validation window, so it sees
+                // the size from before the resize and refuses the request as
+                // "the application supplied a 3840 x 2160 buffer where
+                // 1920 x 1080 was requested". Painting again afterwards is
+                // what a client does once its emulated mode is established.
+                paint(size);
                 if (m_ignoredResizes > 0) {
                     --m_ignoredResizes;
                 } else if (m_cooperative) {
                     mode(size);
+                    paint(size);
                 }
-                paint(size);
             }
         } else if (type == XCB_EXPOSE) {
             paint(m_size);

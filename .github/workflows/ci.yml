@@ -72,6 +72,25 @@ jobs:
           mode: ${{ matrix.mode }}
           base: ${{ github.event.pull_request.base.sha || github.event.before }}
 
+  # The packages ship for arm64, so a pull request has to compile for arm64.
+  # One GCC build with warnings as errors, not the whole mode matrix: the
+  # architecture is what is being checked here, not the toolchain.
+  arm64:
+    name: Trixie arm64 (gcc)
+    needs: commits
+    if: needs.commits.outputs.build == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/check
+        with:
+          mode: gcc
+          base: ${{ github.event.pull_request.base.sha || github.event.before }}
+
   instrumentation:
     needs: commits
     if: needs.commits.outputs.build == 'true'
@@ -91,7 +110,7 @@ jobs:
   quality:
     name: Quality gate
     if: always()
-    needs: [commits, checks, instrumentation, package-smoke]
+    needs: [commits, checks, arm64, instrumentation, package-smoke]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

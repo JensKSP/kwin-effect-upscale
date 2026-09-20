@@ -120,6 +120,13 @@ if(KWin_VERSION VERSION_LESS 6.7)
     # buffer every three seconds on the slowest machine this runs on, need
     # more headroom than one session of the other test does.
     set_tests_properties(upscale-x11-integration PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
+    if(NOT UPSCALE_SESSION_TESTS)
+        # Disabled rather than unregistered, so the test binaries are still
+        # compiled and linked by a package build and only the sessions are
+        # skipped. ctest reports them as disabled, which is visible in the log
+        # rather than silently absent from it.
+        set_tests_properties(upscale-integration upscale-x11-integration PROPERTIES DISABLED TRUE)
+    endif()
     if(UPSCALE_SANITIZER)
         set_tests_properties(
             upscale-integration

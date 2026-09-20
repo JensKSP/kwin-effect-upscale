@@ -46,10 +46,15 @@
 #define UPSCALE_PRESENTATION_API 0
 #endif
 
-#if __has_include("core/renderdevice.h")
+// Whether the effect callbacks return bool, RenderView offers renderDevice()
+// and renderItem() reports failure. These arrived together, so one switch
+// covers them, but which one it is cannot be told from a file name:
+// core/renderdevice.h is present in KWin 6.7, whose callbacks still return
+// void. The build compiles KWin's own declaration to find out and defines this
+// from the answer. Left undefined - building inside KWin's tree, where the
+// headers beside this file are the current ones - the newest API is correct.
+#ifndef UPSCALE_RENDER_DEVICE_API
 #define UPSCALE_RENDER_DEVICE_API 1
-#else
-#define UPSCALE_RENDER_DEVICE_API 0
 #endif
 
 namespace KWin
@@ -82,13 +87,21 @@ inline UpscaleRegion unlimitedRegion()
 #endif
 }
 
-inline bool validShader(GLShader *shader)
+// KWin dropped GLShader::isValid() when a failed compile stopped producing a
+// shader at all. That happened on its own schedule, earlier than the effect
+// API change above, so it gets its own question rather than sharing that one's
+// answer: 6.7 has no isValid() and still has the old paint callbacks.
+//
+// A template because if constexpr only discards the branch it is not taking
+// inside one; in a plain function the call would still have to compile.
+template<typename Shader>
+inline bool validShader(Shader *shader)
 {
-#if UPSCALE_RENDER_DEVICE_API
-    return shader != nullptr;
-#else
-    return shader && shader->isValid();
-#endif
+    if constexpr (requires { shader->isValid(); }) {
+        return shader && shader->isValid();
+    } else {
+        return shader != nullptr;
+    }
 }
 
 // GL_VERSION always starts with "OpenGL ES" on an OpenGL ES implementation.

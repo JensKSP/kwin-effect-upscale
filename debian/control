@@ -2,6 +2,10 @@ Source: kwin-effect-upscale
 Section: kde
 Priority: optional
 Maintainer: Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# Everything KWin's own CMake config resolves through find_dependency is
+# named here, not relied on: Qt6Quick, KF6WindowSystem and Vulkan reach a
+# Debian build through kwin-dev and an openSUSE one through nothing at all.
+# This list is what every distribution's package names are derived from.
 Build-Depends: debhelper-compat (= 13),
                dbus-daemon <!nocheck>,
                cmake (>= 3.24),
@@ -19,6 +23,7 @@ Build-Depends: debhelper-compat (= 13),
                libkf6coreaddons-dev (>= 6.13.0),
                libkf6i18n-dev (>= 6.13.0),
                libkf6kcmutils-dev (>= 6.13.0),
+               libkf6windowsystem-dev (>= 6.13.0),
                libwayland-dev,
                libwayland-bin <!nocheck>,
                libxcb-composite0-dev,
@@ -26,10 +31,12 @@ Build-Depends: debhelper-compat (= 13),
                libxcb-res0-dev,
                libxcb-shm0-dev,
                libxcb-sync-dev,
+               libvulkan-dev,
                libxkbcommon-dev,
                ninja-build,
                pkgconf,
                qt6-base-dev (>= 6.8.0),
+               qt6-declarative-dev (>= 6.8.0),
                wayland-protocols <!nocheck>,
                xwayland <!nocheck>,
 Standards-Version: 4.7.2
@@ -49,5 +56,5 @@ Description: KWin effect that upscales fullscreen windows
  high resolution screen or television. The effect scales such a window up on the
  GPU instead of leaving the scaling to the display.
  .
- The effect is disabled by default and is switched on in the Desktop Effects
- configuration module.
+ The effect is enabled by default and can be switched off in the Desktop
+ Effects configuration module.

@@ -1,0 +1,43 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# A template, not a PKGBUILD. The placeholders below are filled in by
+# tools/build-distribution-packages.py, and the build dependencies come from
+# debian/control, which is the repository's only list of them.
+#
+# Maintainer: Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+
+pkgname=kwin-effect-upscale
+pkgver=@VERSION@
+pkgrel=1
+pkgdesc='KWin effect that upscales fullscreen windows rendering below their output resolution'
+# Arch itself is x86_64; aarch64 is Arch Linux ARM, which shares this recipe.
+arch=('x86_64' 'aarch64')
+url='https://github.com/JensKSP/kwin-effect-upscale'
+license=('GPL-2.0-or-later')
+@MAKEDEPENDS@
+# KWin's effect ABI is private, so the package is loadable only by the exact
+# KWin it was built against. On a rolling distribution that pin is doing more
+# work than anywhere else: KWin moves often, and an unpinned plugin would be
+# loaded by a compositor it was never compiled for.
+depends=('kwin=@KWIN_VERSION@')
+source=("$pkgname-$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+    cd "$pkgname-$pkgver"
+    # Warnings are not errors for a packager building with a compiler nobody
+    # here has tried, which on a rolling distribution is the normal case.
+    cmake -S . -B build -G Ninja \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+        -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF \
+        -DBUILD_TESTING=OFF \
+        -DUPSCALE_PACKAGE_VERSION="$pkgver-$pkgrel"
+    cmake --build build
+}
+
+package() {
+    cd "$pkgname-$pkgver"
+    DESTDIR="$pkgdir" cmake --install build
+}

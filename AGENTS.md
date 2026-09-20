@@ -178,8 +178,8 @@ at the earliest level that can carry it, and moves up only when it cannot.
 | --- | --- | --- |
 | commit | formatters and linters, on the changed files | ~1s, and they fix rather than complain |
 | push | whole-tree checks and the regression tests | they scale with the repository, not with the commit |
-| pull request | both of the above over the whole tree, plus a build with GCC and with Clang, clang-tidy and the plugin metadata schema | needs a toolchain and KDE Frameworks installed |
-| nightly | packages for two distributions and two architectures, and a build against KWin master | expensive, or a moving target nobody pushing can be blamed for |
+| pull request | both of the above over the whole tree, plus a build with GCC and with Clang, an arm64 GCC build, clang-tidy and the plugin metadata schema | needs a toolchain and KDE Frameworks installed |
+| nightly | packages for two Debian distributions on two architectures, packages for Fedora, openSUSE and Arch, and a build against KWin master | expensive, or a moving target nobody pushing can be blamed for |
 
 - A commit hook that takes noticeable time gets skipped with `--no-verify`, and a
   check that is skipped is not a check. Keep the commit level to what a commit

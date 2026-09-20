@@ -85,10 +85,100 @@ find_package(KWin REQUIRED COMPONENTS kwineffects)
 find_package(Libdrm REQUIRED)
 find_package(XCB REQUIRED COMPONENTS XCB RANDR)
 
+# Which generation of KWin's effect API this KWin has, asked of KWin rather
+# than guessed from a file name.
+#
+# The effect's paint callbacks returned void and now return bool, and the same
+# change brought RenderView::renderDevice() and a renderItem() that reports
+# failure. Probing for a header instead got this wrong: core/renderdevice.h is
+# present in KWin 6.7, whose callbacks still return void, so a 6.7 build
+# selected the new signatures and failed to compile. Nothing in the installed
+# headers states a version the preprocessor can compare - config-kwin.h gives
+# KWIN_VERSION_STRING as a constexpr QLatin1StringView, and
+# KWIN_EFFECT_API_VERSION is 0.237 in both 6.7 and master - and a version
+# threshold would only be a second guess, wrong for anyone who backports.
+#
+# So compile the declaration and see. This cannot drift from KWin's headers,
+# because it is those headers that answer.
+include(CheckCXXSourceCompiles)
+# KWin's effect header pulls in KCoreAddons, KConfig and Qt headers of its own,
+# so the probe is given the same interface the effect itself links against
+# rather than a hand-picked include path that would need a new entry every time
+# KWin includes something else.
+set(CMAKE_REQUIRED_LIBRARIES
+    KWin::kwin
+    Qt6::Core
+    Qt6::Gui
+    KF6::CoreAddons
+    KF6::ConfigCore
+    KF6::ConfigGui
+    KF6::I18n
+)
+set(CMAKE_REQUIRED_QUIET ON)
+
+# A probe that answers "no" because it could not compile at all would pick an
+# API silently and wrongly, which is the failure this replaces. So establish
+# first that the probe can compile KWin's effect header, and refuse to guess
+# when it cannot.
+check_cxx_source_compiles(
+    "#include \"effect/effect.h\"
+    int main() { return 0; }"
+    UPSCALE_KWIN_EFFECT_HEADER_USABLE
+)
+if(NOT UPSCALE_KWIN_EFFECT_HEADER_USABLE)
+    message(
+        FATAL_ERROR
+        "Cannot compile KWin's effect/effect.h to determine its API generation.\n"
+        "This is a broken build environment rather than an unsupported KWin: see\n"
+        "the try_compile output in ${CMAKE_BINARY_DIR}/CMakeFiles/CMakeConfigureLog.yaml."
+    )
+endif()
+
+# Only the return type is in question now, and the header above compiles, so a
+# failure here means the callbacks return void rather than that the probe broke.
+check_cxx_source_compiles(
+    "#include \"effect/effect.h\"
+    bool probe(KWin::Effect &effect, const KWin::RenderTarget &target,
+               const KWin::RenderViewport &viewport, const KWin::Region &region,
+               KWin::LogicalOutput *screen)
+    {
+        return effect.paintScreen(target, viewport, 0, region, screen);
+    }
+    int main() { return 0; }"
+    UPSCALE_KWIN_PAINT_RETURNS_BOOL
+)
+unset(CMAKE_REQUIRED_LIBRARIES)
+unset(CMAKE_REQUIRED_QUIET)
+if(UPSCALE_KWIN_PAINT_RETURNS_BOOL)
+    add_definitions(-DUPSCALE_RENDER_DEVICE_API=1)
+else()
+    add_definitions(-DUPSCALE_RENDER_DEVICE_API=0)
+endif()
+message(STATUS "KWin effect callbacks return bool: ${UPSCALE_KWIN_PAINT_RETURNS_BOOL}")
+
 # Build the configuration page the way KWin does when its KCMs are enabled.
 option(KWIN_BUILD_KCMS "Build the effect configuration page" ON)
+
 if(KWIN_BUILD_KCMS)
     find_package(KF6KCMUtils ${KF_MIN_VERSION} REQUIRED)
+endif()
+
+# The two integration cases each start a nested kwin_wayland with Xwayland and
+# drive a real client through it. Whether that client answers inside the
+# effect's three-second validation window is a property of the machine, so they
+# belong where a machine is chosen - the pull request checks, which run the
+# whole suite on both architectures - and not in a distribution package build,
+# which runs on whatever the builder has. debian/rules turns this off for
+# exactly that reason; everywhere else it stays on.
+#
+# A plain variable rather than option(), so nothing is written to the cache.
+# The source archive job began failing with "manifest 'build.ninja' still dirty
+# after 100 tries" in the commit that introduced this switch - 201 configures in
+# one job, so a genuine regeneration loop - and moving the option to this file
+# did not stop it. A -D on the command line still wins, which is all
+# debian/rules needs; it just no longer adds a cache entry to do it.
+if(NOT DEFINED UPSCALE_SESSION_TESTS)
+    set(UPSCALE_SESSION_TESTS ON)
 endif()
 
 include(KWinBuiltinEffectShim)

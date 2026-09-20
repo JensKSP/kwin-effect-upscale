@@ -16,6 +16,20 @@
 #include <QSaveFile>
 #include <QTest>
 
+// Three hosted failures in this file have reported only that a wait timed out.
+// What actually decided the outcome is the effect, and it publishes its reasons
+// in the status the settings page reads; QTRY_COMPARE has no message form, so
+// none of that reached the log and each failure had to be guessed at. This says
+// what was seen, what was wanted, and what the effect thought, which is the
+// difference between a diagnosable failure and another round of guessing.
+#define UPSCALE_TRY_GEOMETRY(client, expected)                                           \
+    QTRY_VERIFY2_WITH_TIMEOUT((client).geometry() == (expected),                         \
+                              qPrintable(QStringLiteral("have %1, wanted %2\n%3")        \
+                                             .arg(QDebug::toString((client).geometry()), \
+                                                  QDebug::toString(expected),            \
+                                                  status())),                            \
+                              30000)
+
 class UpscaleX11IntegrationTest : public QObject
 {
     Q_OBJECT
@@ -102,9 +116,9 @@ void UpscaleX11IntegrationTest::lifecycle()
     // Bounded like every other wait here: each one is a round trip through
     // KWin, Xwayland and the client, and an instrumented build makes those
     // slower without making them wrong.
-    QTRY_COMPARE_WITH_TIMEOUT(target.geometry(), QRect(position, native), 30000);
+    UPSCALE_TRY_GEOMETRY(target, QRect(position, native));
     configure(true);
-    QTRY_COMPARE_WITH_TIMEOUT(target.geometry(), QRect(position, QSize(1920, 1080)), 30000);
+    UPSCALE_TRY_GEOMETRY(target, QRect(position, QSize(1920, 1080)));
     QTRY_VERIFY2(status().contains(QStringLiteral("Supplied input: 1920 × 1080")), qPrintable(status()));
     QTRY_VERIFY2(status().contains(QStringLiteral("Destination: 3840 × 2160")), qPrintable(status()));
     // Wait beyond negotiation's deadline: a transient small window does not
@@ -132,7 +146,7 @@ void UpscaleX11IntegrationTest::lifecycle()
     // 6.6.6, where QtTest reported that 8300 ms would have sufficed against
     // the 5000 ms default; KWin 6.3.6 satisfies the request immediately. Wait
     // out the retry rather than the moment 6.3.6 happens to answer in.
-    QTRY_COMPARE_WITH_TIMEOUT(target.geometry(), QRect(position, QSize(2560, 1440)), 30000);
+    UPSCALE_TRY_GEOMETRY(target, QRect(position, QSize(2560, 1440)));
     QTest::qWait(3500);
     QCOMPARE(target.geometry(), QRect(position, QSize(2560, 1440)));
     QCOMPARE(other.geometry(), otherGeometry);
@@ -144,9 +158,9 @@ void UpscaleX11IntegrationTest::lifecycle()
     // QtTest said so - the instrumented build makes each trip slower while
     // measuring nothing about it. A generous bound costs a passing run
     // nothing, because QTRY returns as soon as the condition holds.
-    QTRY_COMPARE_WITH_TIMEOUT(target.geometry(), QRect(position, native), 30000);
+    UPSCALE_TRY_GEOMETRY(target, QRect(position, native));
     configure(true);
-    QTRY_COMPARE_WITH_TIMEOUT(target.geometry(), QRect(position, QSize(1920, 1080)), 30000);
+    UPSCALE_TRY_GEOMETRY(target, QRect(position, QSize(1920, 1080)));
     m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
     QTRY_COMPARE(target.geometry(), QRect(position, native));
     QCOMPARE(other.geometry(), otherGeometry);
@@ -278,7 +292,7 @@ void UpscaleX11IntegrationTest::repeatedFullscreenTransitions()
     X11Client target;
     const QSize reduced(1920, 1080);
     QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(QPoint(0, 0), reduced), false));
-    QTRY_COMPARE(target.geometry().size(), reduced);
+    QTRY_COMPARE_WITH_TIMEOUT(target.geometry().size(), reduced, 30000);
     QVERIFY(target.mode(reduced));
     configure(true);
     // A new emulated-mode window can request fullscreen while its logical
@@ -298,14 +312,19 @@ void UpscaleX11IntegrationTest::repeatedFullscreenTransitions()
         QTRY_VERIFY2_WITH_TIMEOUT(status().contains(QStringLiteral("frame QRectF(0,0 3840x2160)")), qPrintable(status()), 30000);
         QTRY_COMPARE_WITH_TIMEOUT(target.geometry().size(), reduced, 30000);
         target.fullscreen(false);
-        QTRY_VERIFY(!target.isFullscreen());
+        // The same bound as the waits above, and for the same reason. Left at
+        // the 5 s default this one decided the next iteration: leaving
+        // fullscreen is a round trip too, and when it had not finished the
+        // loop asked a still-fullscreen window for a reduced buffer and failed
+        // on the size check three lines up rather than here.
+        QTRY_VERIFY_WITH_TIMEOUT(!target.isFullscreen(), 30000);
     }
     target.fullscreen(true);
     QTRY_VERIFY_WITH_TIMEOUT(target.isFullscreen(), 10000);
     QTest::qWait(3500);
     QVERIFY2(!status().contains(QStringLiteral("did not supply")), qPrintable(status()));
     QVERIFY2(!status().contains(QStringLiteral("repeatedly replaced")), qPrintable(status()));
-    QTRY_VERIFY(status().contains(QStringLiteral("captured: upscale-x11-test")));
+    QTRY_VERIFY_WITH_TIMEOUT(status().contains(QStringLiteral("captured: upscale-x11-test")), 30000);
 }
 
 void UpscaleX11IntegrationTest::respectsPrimaryOutputRestriction()

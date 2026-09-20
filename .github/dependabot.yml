@@ -24,3 +24,24 @@ updates:
     groups:
       actions:
         patterns: ['*']
+
+  # The base images. These are rolling tags on purpose - the minimum supported
+  # environment is whatever Debian Trixie currently ships, and neon unstable
+  # tracks KWin master - so this is not what keeps the installed packages
+  # current. Refreshing those is the DEPENDENCY_EPOCH build argument, which CI
+  # sets to the day, and the dependency stamp that tells a developer when a
+  # cached image has fallen behind debian/control.
+  #
+  # What this does catch is the base moving on underneath us: Trixie becoming
+  # oldstable, or a tag being replaced. Those are worth a pull request rather
+  # than a surprise.
+  - package-ecosystem: docker
+    directories:
+      - /containers/trixie
+      - /containers/neon-unstable
+      - /containers/package
+    schedule:
+      interval: weekly
+    groups:
+      containers:
+        patterns: ['*']

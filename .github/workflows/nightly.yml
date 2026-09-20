@@ -100,8 +100,20 @@ jobs:
       version: ${{ needs.version.outputs.version }}
       channel: nightly
 
+  # Fedora, openSUSE and Arch. Nightly and nowhere earlier: their KWin is well
+  # ahead of the supported minimum and two of them roll, so a break is not the
+  # author of whatever was pushed to answer for. Unlike kwin-master above this
+  # does gate publication, because a release that silently lost a distribution
+  # is worse than one that is late.
+  distribution-packages:
+    needs: version
+    if: needs.version.outputs.build == 'true'
+    uses: ./.github/workflows/distribution-packages.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+
   publish:
-    needs: [version, quality, package]
+    needs: [version, quality, package, distribution-packages]
     permissions:
       contents: write
       id-token: write

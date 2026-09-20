@@ -119,11 +119,21 @@ a game the way they always have, and it works.
    wrap, relaunch, interpose itself in, or require anything of the command
    that starts the game.
 3. **Installing the package is the whole of the setup.** The user installs the
-   Debian package and, while the effect ships disabled, ticks it once in System
-   Settings. Nothing else: no configuration file to write, no environment
+   package and is finished. The effect is enabled by default, and the shipped
+   defaults are chosen so that this is safe: the global preset is Automatic,
+   which defers to the application profiles, so a program the package does not
+   recognize is untouched; outputs at or below Full HD are below the pixel
+   threshold and bypass the effect entirely; and the effect blocks direct
+   scanout only while it actually has eligible content, never merely by being
+   loaded. Nothing else: no configuration file to write, no environment
    variable to set, no external tool to install, no per-game preparation. The
    application profiles ship inside the package and are updated by it; a user's
    own entries are an option they may take, never a step they must take.
+
+   Choosing a global preset, writing a profile for a game the package does not
+   know, and switching on the diagnostic display are power-user features. Each
+   one must remain optional, and none of them may become a step the ordinary
+   user has to take before the effect does anything.
 4. **The plugin affects only what it is configured to act on.** A program the
    effect has not been configured to manipulate renders exactly as it would
    with the effect uninstalled: same resolution, same screen information, same
@@ -1208,6 +1218,13 @@ no reduced-resolution request and bypasses FSR. This is an output eligibility
 threshold, not a lower bound on the requested buffer size. Full HD and
 1080 × 1920 therefore bypass at the default; 2560 × 1080 and 3840 × 2160 exceed
 it. Desktop scale and logical window dimensions do not change the comparison.
+
+The configuration key keeps the name `MinimumPixels`, but the settings page
+labels it **Biggest resolution not to scale**, because that is what the value
+is: the comparison is strictly greater than, so an output of exactly the
+threshold is left alone. A label naming it the smallest output that is scaled
+states the opposite of the behaviour at the boundary, which is precisely the
+value a user is most likely to enter.
 The pixel count approximates resolution-related rendering cost; it does not
 measure refresh rate or application complexity.
 
@@ -2716,8 +2733,18 @@ not construct an effect in a real KWin session. An upgrade from an older release
 and actual GPU rendering remain separate acceptance cases.
 
 The source archive is extracted, configured, built, tested and staged without
-Git metadata. Publication accepts only the complete four-platform package
-matrix, its build records and the source archive. Reports and fuzz corpora are
+Git metadata. Publication accepts the complete four-platform Debian package
+matrix with its build records and one Debian source package per distribution,
+the project's own source archive, and from each of Fedora, openSUSE and Arch a
+binary package per architecture it is built for together with exactly one
+source package. Each distribution therefore ships what its own packaging
+expects: the binary, its debug symbols and the source the binary came from. Two
+binaries of one distribution for the same architecture are refused, because
+which of them a user would install would then be decided by nothing. Those three are matched by
+shape rather than enumerated, because Fedora stamps `%{?dist}` into the name
+and Arch writes `x86_64` where Debian writes `amd64`; their debug subpackages
+are accepted but not required, since which of them a distribution emits is that
+distribution's decision. Reports and fuzz corpora are
 never release assets. A SHA-256 manifest covers all deliverables. The workflow
 replaces `~` with `.` in public asset filenames before checksumming and attesting,
 because GitHub applies that rename on upload. Package versions retain the Debian
@@ -2851,8 +2878,11 @@ the publication script; a repeat publication must match the existing assets.
 
 ### Distributions beyond Debian
 
-Proposed targets, not decided and not implemented. The pipeline builds Debian
-and Ubuntu packages, while many KDE users who game are on other distributions.
+Implemented for Arch, Fedora and openSUSE; the notes below on form and
+verification still hold. The nightly builds all three beside the Debian and
+Ubuntu packages, and the release publishes them through the same attested
+pipeline rather than through Copr, OBS or the AUR, which would need external
+accounts and would put the checksum manifest and provenance somewhere else.
 A KWin effect is a compositor plugin built against the KWin the session
 actually runs, so a package per distribution is the only workable delivery
 form. A scripted effect could be published through the KDE Store; a C++ effect
@@ -2860,9 +2890,17 @@ cannot, and Flatpak does not apply to a compositor plugin.
 
 | Target | Form | Notes |
 | --- | --- | --- |
-| Arch | `PKGBUILD` in the AUR | builds from the published source archive; a rolling KWin makes the minimum-version claim worth rechecking per release |
-| Fedora and its KDE variants | RPM spec built in Copr | the usual route for KDE packages outside the distribution proper |
-| openSUSE | spec built in OBS | OBS can build Debian formats too, which is a reason to keep the existing pipeline authoritative rather than migrating to it |
+| Arch | `PKGBUILD` built with `makepkg` in `containers/arch` | a rolling KWin is why the package pins the exact KWin it was built against |
+| Fedora | RPM spec built with `rpmbuild` in `containers/fedora` | shares one spec with openSUSE; they differ only in what KWin is called |
+| openSUSE | the same spec built in `containers/opensuse` | Tumbleweed rolls, so the same exact-version pin applies |
+
+The recipes live under `packaging/` and are templates: their build
+dependencies are filled in from `debian/control` at build time, because that
+file is the repository's only list of them. KWin's own CMake config resolves
+Qt6Quick, KF6WindowSystem and Vulkan through `find_dependency`, which a Debian
+build receives through `kwin-dev` and an openSUSE one receives through nothing
+at all; all three are therefore named in `debian/control` rather than relied
+upon.
 
 - Each target builds the published source archive unchanged. Distribution
   patches do not belong in this repository, and a recipe that needs one is a

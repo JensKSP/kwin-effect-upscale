@@ -15,11 +15,22 @@ include /usr/share/dpkg/pkg-info.mk
 
 # Warnings are errors for developers, not for whoever is building the package on
 # an architecture or compiler version nobody here has tried.
+#
+# The tests that need a compositor session are off for the same reason. They
+# start a nested kwin_wayland with Xwayland and drive a real client through it,
+# and whether that client answers inside the effect's three second validation
+# window is a property of the builder's machine: on a slow one it does not, the
+# effect correctly reports that the application supplied a 3840 x 2160 buffer
+# where 1920 x 1080 was requested, and the package build then fails for a reason
+# that is not about the package. The coverage stays where a machine is chosen -
+# the pull request checks run the whole suite, these cases included, on both
+# architectures. Every other test still runs here.
 override_dh_auto_configure:
 	dh_auto_configure -- \
 		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
 		-DCMAKE_COMPILE_WARNING_AS_ERROR=OFF \
-		-DUPSCALE_PACKAGE_VERSION=$(DEB_VERSION)
+		-DUPSCALE_PACKAGE_VERSION=$(DEB_VERSION) \
+		-DUPSCALE_SESSION_TESTS=OFF
 
 # KWin's effect ABI is private. Its common package has the version shared by
 # the development headers and both compositors; shlibs alone gives no upper bound.

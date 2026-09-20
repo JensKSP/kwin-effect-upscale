@@ -4,6 +4,7 @@
 """Run the configured checks inside a maintained project container."""
 
 import argparse
+import hashlib
 import os
 import re
 import shutil
@@ -11,6 +12,34 @@ import subprocess
 from pathlib import Path
 
 from ci_scope import changed_files, scope
+
+# Written by the maintained Containerfiles from the debian/control they
+# installed. Absent outside those images, where there is nothing to compare.
+DEPENDENCY_STAMP = Path("/etc/upscale-dependency-stamp")
+
+
+def verify_container_dependencies(root: Path) -> None:
+    """Refuse to check in a container built from a different debian/control.
+
+    A cached image that predates a build dependency does not announce itself.
+    It fails much later, in a configure or compile step, as a missing package
+    or a missing header, and the message names neither the image nor the
+    dependency. Both maintained images have done exactly that. Comparing what
+    the image was built from against what the tree now asks for turns that into
+    one sentence naming the cause.
+    """
+    if not DEPENDENCY_STAMP.is_file():
+        return
+    current = hashlib.sha256((root / "debian" / "control").read_bytes()).hexdigest()
+    if DEPENDENCY_STAMP.read_text().split()[0] != current:
+        message = (
+            "This container was built from a different debian/control, so its "
+            "installed build dependencies no longer match the tree. Rebuild it, "
+            "for example:\n"
+            "    podman build --pull --build-arg DEPENDENCY_EPOCH=$(date -u +%Y-%m-%d) \\\n"
+            "        -t upscale-check:trixie -f containers/trixie/Containerfile ."
+        )
+        raise SystemExit(message)
 
 
 def run(*command: str) -> None:
@@ -80,6 +109,7 @@ def main() -> None:
     arguments = parser.parse_args()
     root = Path(__file__).resolve().parent.parent
     os.chdir(root)
+    verify_container_dependencies(root)
     # Scope Git ownership trust to this process tree, not a user's global config.
     index = int(os.environ.get("GIT_CONFIG_COUNT", "0"))
     os.environ.update(

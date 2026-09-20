@@ -2,6 +2,14 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 # These images deliberately follow the supported distribution and KWin master.
-# Exact apt versions would prevent security updates and disappear from mirrors.
+# Exact package versions would prevent security updates and disappear from
+# mirrors, so the pinning rules are off for every package manager here, not
+# only for apt. DEPENDENCY_EPOCH is what controls when packages are refreshed.
 ignored:
   - DL3008
+  - DL3037
+  - DL3041
+  # The package list is produced by tools/distribution-packages.py and is meant
+  # to split into separate arguments. Quoting it would install one package
+  # whose name is the whole list.
+  - SC2046

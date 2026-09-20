@@ -29,7 +29,7 @@ jobs:
           prepare: pkg install -y python3 git
           run: |
             set -eu
-            pkg install -y $(python3 -B tools/freebsd-packages.py)
+            pkg install -y $(python3 -B tools/distribution-packages.py freebsd)
             cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++ \
               -DCMAKE_COMPILE_WARNING_AS_ERROR=ON -DBUILD_TESTING=ON
             cmake --build build

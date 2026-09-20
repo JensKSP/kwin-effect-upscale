@@ -484,7 +484,7 @@ FreeBSD Clang failed in 50 seconds, before compiling anything, on a bare
 `KeyError` naming the `libxcb-res0-dev` build dependency. That name was
 added to
 `debian/control` because Ubuntu's `kwin-dev` does not pull in the package
-carrying `xcb/res.h`; `tools/freebsd-packages.py` is the only translation of
+carrying `xcb/res.h`; `tools/distribution_packages.py` is the only translation of
 those names for the one platform that does not read `debian/control`, and it
 had no entry. Fixed in `05ad5d0`, which also replaced the bare `KeyError` from
 a set comprehension with a message naming the dependency and the file to edit,

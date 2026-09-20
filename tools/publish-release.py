@@ -74,6 +74,102 @@ def promote(repository: str, release_id: int, tag: str, commit: str) -> None:
             return
 
 
+# The order a person reads them in, which is not the order a file listing
+# produces. Debian Trixie on a 64-bit PC is the one build with an acceptance
+# machine behind it, so it comes first; everything below it is offered in
+# descending order of how likely someone is to want it.
+INSTALLATION = (
+    ("trixie_amd64.deb", "Debian Trixie", "64-bit PC (amd64)", "sudo apt install ./{name}"),
+    ("trixie_arm64.deb", "Debian Trixie", "ARM64", "sudo apt install ./{name}"),
+    ("resolute_amd64.deb", "Kubuntu 26.04 LTS", "64-bit PC (amd64)", "sudo apt install ./{name}"),
+    ("resolute_arm64.deb", "Kubuntu 26.04 LTS", "ARM64", "sudo apt install ./{name}"),
+    (".fc*.x86_64.rpm", "Fedora", "64-bit PC (x86_64)", "sudo dnf install ./{name}"),
+    (".fc*.aarch64.rpm", "Fedora", "ARM64 (aarch64)", "sudo dnf install ./{name}"),
+    ("!.x86_64.rpm", "openSUSE Tumbleweed", "64-bit PC (x86_64)", "sudo zypper install ./{name}"),
+    ("!.aarch64.rpm", "openSUSE Tumbleweed", "ARM64 (aarch64)", "sudo zypper install ./{name}"),
+    ("x86_64.pkg.tar.zst", "Arch", "64-bit PC (x86_64)", "sudo pacman -U ./{name}"),
+)
+
+
+def wanted(name: str, shape: str) -> bool:
+    """Match one installable package, never its debug or source companion."""
+    if any(part in name for part in ("-debuginfo-", "-debugsource-", "-debug-", "-dbgsym_")):
+        return False
+    if name.endswith((".src.rpm", ".src.tar.gz", ".dsc", ".tar.xz", ".buildinfo", ".changes")):
+        return False
+    # "!" marks openSUSE, whose names carry no distribution stamp at all and
+    # would otherwise also match Fedora's.
+    if shape.startswith("!"):
+        return name.endswith(shape[1:]) and ".fc" not in name
+    if "*" in shape:
+        head, tail = shape.split("*", 1)
+        return head in name and name.endswith(tail)
+    return name.endswith(shape)
+
+
+# The header plus the table's two rules: a guide with nothing under them has
+# found no installable package and is not worth writing.
+GUIDE_HEADER_LINES = 4
+
+
+def installation_guide(repository: str, tag: str, names: list[str]) -> str:
+    """Write the part of the release notes a person installing this reads.
+
+    A release carries five distributions, two architectures, debug symbols,
+    source packages and Debian's build records. That is a long list to face
+    when the question is "which one do I download", so the few files that
+    answer it are named first and the rest is folded away.
+    """
+    base = f"https://github.com/{repository}/releases/download/{tag}"
+    rows = [
+        "## Which file do I need?",
+        "",
+        "| System | Architecture | Package |",
+        "| --- | --- | --- |",
+    ]
+    listed: set[str] = set()
+    install: list[str] = []
+    for shape, system, architecture, command in INSTALLATION:
+        found = sorted(name for name in names if wanted(name, shape))
+        for name in found:
+            listed.add(name)
+            rows.append(f"| {system} | {architecture} | [{name}]({base}/{name}) |")
+            if not install:
+                install.append(command.format(name=name))
+    if len(rows) == GUIDE_HEADER_LINES:
+        return ""
+    rows.extend(
+        (
+            "",
+            "Install a downloaded package with your own package manager:",
+            "",
+            "```bash",
+            *install,
+            "```",
+            "",
+        )
+    )
+    rows.append(
+        "Each package depends on the exact KWin it was built against, so it "
+        "refuses to install against a different one rather than letting the "
+        "compositor load a plugin built for another ABI. After a KWin upgrade, "
+        "take the matching build."
+    )
+    rest = sorted(set(names) - listed)
+    if rest:
+        rows.extend(
+            (
+                "",
+                "<details>",
+                "<summary>Debug symbols, source packages, build records and checksums</summary>",
+                "",
+            )
+        )
+        rows.extend(f"- [{name}]({base}/{name})" for name in rest)
+        rows.extend(("", "</details>"))
+    return "\n".join(rows)
+
+
 def main() -> None:
     """Keep published stable releases unchanged and stage nightly replacements."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -128,6 +224,18 @@ def main() -> None:
     release_id = int(
         run("gh", "release", "view", draft, "--json", "databaseId", "--jq", ".databaseId")
     )
+    # Written after the upload, because it links the assets by name, and
+    # against the final tag rather than the staging one a nightly is built in.
+    guide = installation_guide(
+        repository, tag, [path.name for path in arguments.directory.iterdir()]
+    )
+    if guide:
+        body = run("gh", "release", "view", draft, "--json", "body", "--jq", ".body")
+        with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as notes:
+            notes.write(guide + ("\n\n" + body if body else "\n"))
+            written = notes.name
+        run("gh", "release", "edit", draft, "--notes-file", written)
+        Path(written).unlink()
     # The old nightly remains downloadable until the replacement's assets have
     # been uploaded and checked. A failure before here leaves it untouched.
     if nightly and tag in releases:
