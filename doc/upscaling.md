@@ -119,11 +119,21 @@ a game the way they always have, and it works.
    wrap, relaunch, interpose itself in, or require anything of the command
    that starts the game.
 3. **Installing the package is the whole of the setup.** The user installs the
-   Debian package and, while the effect ships disabled, ticks it once in System
-   Settings. Nothing else: no configuration file to write, no environment
+   package and is finished. The effect is enabled by default, and the shipped
+   defaults are chosen so that this is safe: the global preset is Automatic,
+   which defers to the application profiles, so a program the package does not
+   recognize is untouched; outputs at or below Full HD are below the pixel
+   threshold and bypass the effect entirely; and the effect blocks direct
+   scanout only while it actually has eligible content, never merely by being
+   loaded. Nothing else: no configuration file to write, no environment
    variable to set, no external tool to install, no per-game preparation. The
    application profiles ship inside the package and are updated by it; a user's
    own entries are an option they may take, never a step they must take.
+
+   Choosing a global preset, writing a profile for a game the package does not
+   know, and switching on the diagnostic display are power-user features. Each
+   one must remain optional, and none of them may become a step the ordinary
+   user has to take before the effect does anything.
 4. **The plugin affects only what it is configured to act on.** A program the
    effect has not been configured to manipulate renders exactly as it would
    with the effect uninstalled: same resolution, same screen information, same

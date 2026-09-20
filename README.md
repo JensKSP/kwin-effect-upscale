@@ -8,6 +8,12 @@ SPDX-License-Identifier: GPL-2.0-or-later
 **KWin-native game upscaling for KDE Plasma — designed for launching games
 normally, including from Steam, without wrapping them in gamescope.**
 
+`kwin-effect-upscale` is an effect plugin for KWin, the compositor KDE Plasma
+already runs. It is loaded by that compositor and does its work inside it:
+there is no separate program to start, no service to run and nothing wrapped
+around the game. Installing the package is the whole of the setup, and the
+effect is enabled once it is installed.
+
 > [!WARNING]
 > **Working alpha — it works, it is not finished.** The effect can make a game
 > render at a lower resolution and upscale the result to the physical display.
@@ -16,8 +22,7 @@ normally, including from Steam, without wrapping them in gamescope.**
 > 3840 x 2160 display. See [Measured](#measured).
 >
 > Image quality, HDR, VRR and broad game compatibility still require more
-> real-world testing. The effect is disabled by default and its settings may
-> still change.
+> real-world testing, and its settings may still change.
 
 [![CI](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/ci.yml/badge.svg)](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/ci.yml)
 [![Nightly](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/nightly.yml/badge.svg)](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/nightly.yml)
@@ -59,17 +64,21 @@ rather than a separate launch environment.
 Eventually the normal workflow should be:
 
 1. Install the matching package.
-2. Enable **Upscale** in KDE System Settings.
-3. Select a global preset or configure a game.
-4. Start the game normally — including directly from Steam.
-5. Play.
+2. Start the game normally — including directly from Steam.
+3. Play.
 
-The effect should take care of the rest.
+The effect should take care of the rest. It is enabled by the package, and the
+profiles it ships decide what a recognised game is asked to render, so there is
+no preset to choose and no configuration to write before it does anything.
+
+There is plenty to tune for those who want to: a global preset, your own
+profile for a game the package does not yet know, per-display rules, a pixel
+threshold that decides which outputs are worth scaling at all, and a diagnostic
+display reporting what a game actually drew. These are **power-user features**
+— worth having, and never a step between installing the package and playing.
 
 A maintained catalogue of well-known games should eventually provide tested
-settings for common combinations of game, hardware and display. Advanced
-controls should remain available without turning basic use into a setup
-exercise.
+settings for common combinations of game, hardware and display.
 
 Installation and updates should be equally ordinary. The distribution package
 manager should handle dependencies and compatible versions, without hand-edited
@@ -351,23 +360,26 @@ installs as:
 0.1.0+git20260917.3d2d99e6a0~trixie
 ```
 
-### Enable the effect
+### Check that the effect is running
 
-The effect ships disabled.
+The package enables the effect, so there is nothing to switch on. To confirm it
+is loaded in the running Plasma session:
 
-In **System Settings**, open **Desktop Effects** and enable **Upscale** under
-**Appearance**.
+```bash
+qdbus6 org.kde.KWin /Effects org.kde.kwin.Effects.isEffectLoaded upscale
+```
 
-From a shell in the running Plasma session, the equivalent commands are:
+A freshly installed plugin is normally picked up immediately. If that reports
+`false`, log out and back in.
+
+It appears as **Upscale** under **Appearance** in **System Settings** →
+**Desktop Effects**, which is also where it is switched off again. From a
+shell, the equivalent of that tick is:
 
 ```bash
 kwriteconfig6 --file kwinrc --group Plugins --key upscaleEnabled true
 qdbus6 org.kde.KWin /Effects org.kde.kwin.Effects.loadEffect upscale
-qdbus6 org.kde.KWin /Effects org.kde.kwin.Effects.isEffectLoaded upscale
 ```
-
-A freshly installed plugin is normally picked up immediately. If
-`isEffectLoaded` remains `false`, log out and back in.
 
 ### Which build am I running?
 
