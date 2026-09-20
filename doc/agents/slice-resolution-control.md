@@ -2028,3 +2028,43 @@ was never going to reach it.
 carried this change. Until one has, the cure is established on the mechanism
 and on a local reproduction of it, and not on the pipeline that reported the
 failure.
+
+### The Kubuntu package job still fails, and could not be reproduced here
+
+The hosted `resolute` package job fails on both architectures on `4ec65c3`,
+which carries the buffer-ordering fix, while `trixie` passes on both and all
+five distribution-package jobs pass. It is always `upscale-x11-integration`,
+and always with QtTest's own verdict rather than a refusal:
+
+    lifecycle(primary-fullscreen) ... the requested timeout (30000 ms) was too
+    short, 33050 ms would have been sufficient this time.
+    Loc: [./autotests/x11_integration_test.cpp(149)]
+
+That figure is the signature worth keeping. QTRY re-runs its loop for twice the
+bound after timing out and reports `timeout + elapsed-in-the-second-loop`, so
+33050 against 30000 means the condition became true 3050 ms into the second
+loop - and 8250 against 5000 meant 3250 ms into it. Three runs, three bounds,
+the same ~3.1 s measured from wherever the first loop happened to stop. A
+bound that is simply too small cannot produce that: the second loop polls
+identically, so a fixed amount of work would complete at a fixed time.
+
+**Not reproduced here, after four attempts**, all on `containers/package` built
+from `ubuntu:26.04`, all passing:
+
+| Attempt | Result |
+| --- | --- |
+| `upscale-x11-integration` alone | 13 of 13 |
+| the same under `--cpus=1` | 13 of 13 |
+| the whole suite at `CTEST_PARALLEL_LEVEL=4` | 17 of 17 |
+| the same constrained to `--cpus=4`, as the runner has | 17 of 17 |
+
+The package job runs the suite through `dh_auto_test`, which honours
+`CTEST_PARALLEL_LEVEL` from `DEB_BUILD_OPTIONS`, so several nested KWin
+sessions do share the runner. That was the most promising explanation and it
+did not hold here.
+
+**What was done instead of a claimed fix.** The waits that have failed in
+hosted runs now report what they saw, what they wanted, and the effect's own
+status, through `UPSCALE_TRY_GEOMETRY`. `QTRY_COMPARE` has no message form, so
+three hosted failures in a row reported only that a wait expired, and each had
+to be guessed at. The next one will say what the effect decided.
