@@ -397,11 +397,12 @@ what fixes it.
 
 ### The nightly's second arm64 failure, 2026-09-20
 
-`Build / resolute arm64` failed in the nightly, in "Build, test and compare two
-clean builds". It had already failed the same way on master that morning,
-before this branch touched anything, and the run that showed it was on a head
-that already carried the placement fix above. So it is a second, separate
-case.
+`Build / resolute arm64` failed in a manual verify-only dispatch of
+`nightly.yml` on this branch, run `35505819019`, in "Build, test and compare
+two clean builds". The scheduled nightly `35498145241` had already failed the
+same way on `master` that morning, before this branch touched anything, and the
+dispatch that showed it ran on a head that already carried the placement fix
+above. So it is a second, separate case, and a pre-existing one.
 
 The log names it: `dh_auto_test` returned 8, CTest reported
 `upscale-x11-integration` failed, and inside it
@@ -429,13 +430,19 @@ package jobs, each on a different runner, and never the same one twice:
 
 | Run | Job | Case |
 | --- | --- | --- |
-| pull request | Trixie arm64 | `lifecycle(secondary-borderless)` |
-| nightly | resolute arm64 | `repeatedFullscreenTransitions()` |
-| nightly | resolute amd64 | `lifecycle(primary-fullscreen)` |
+| pull request, `35502238962` | Trixie arm64 | `lifecycle(secondary-borderless)` |
+| manual `workflow_dispatch` of `nightly.yml`, `35505819019` | resolute arm64 | `repeatedFullscreenTransitions()` |
+| manual `workflow_dispatch` of `nightly.yml`, `35507345955` | resolute amd64 | `lifecycle(primary-fullscreen)` |
 
-The third is the one that matters for attribution: `resolute amd64` had passed
-in the previous nightly **with** the client placement change already in it, so
-that change alone does not explain it. The window stayed at 3840 × 2160 instead
+Two of the three are manual verify-only dispatches of the nightly workflow on
+this branch, not the scheduled nightly, and they are named that way because the
+distinction decides what a failure is evidence about. The scheduled run that
+did fail this way is `35498145241`, on `master`, before this branch existed;
+that is what establishes the case as pre-existing rather than introduced here.
+
+The third row is the one that matters for attribution: `resolute amd64` had
+passed in the preceding dispatch **with** the client placement change already
+in it, so that change alone does not explain it. The window stayed at 3840 × 2160 instead
 of reaching 2560 × 1440 within thirty seconds, against a measured 8.3 s for the
 retry path on KWin 6.6.
 
