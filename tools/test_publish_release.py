@@ -11,6 +11,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import ci_targets
+
 PUBLISH = Path(__file__).with_name("publish-release.py").resolve()
 
 
@@ -187,6 +189,13 @@ class InstallationGuideTest(unittest.TestCase):
             f"kwin-effect-upscale-{version}-1-x86_64.pkg.tar.zst",
             f"kwin-effect-upscale-debug-{version}-1-x86_64.pkg.tar.zst",
             f"kwin-effect-upscale-{version}-amd64.pkg",
+            # The stable copies the publisher uploads beside them, which the
+            # guide must neither offer twice nor file under debug symbols.
+            *(
+                ci_targets.download_name(entry.identifier, architecture)
+                for entry in ci_targets.TARGETS
+                for architecture in entry.architectures
+            ),
             f"kwin-effect-upscale-{version}-1.src.tar.gz",
         ]
 
@@ -223,6 +232,15 @@ class InstallationGuideTest(unittest.TestCase):
                 f"sudo pkg add ./kwin-effect-upscale-{self.version}-amd64.pkg",
             ],
         )
+
+    def test_no_stable_copy_is_offered_as_a_package(self) -> None:
+        """An alias ends exactly as the package it copies, so a shape cannot tell."""
+        rows = [line for line in self.guide().splitlines() if line.startswith("| ")][2:]
+        for entry in ci_targets.TARGETS:
+            for architecture in entry.architectures:
+                alias = ci_targets.download_name(entry.identifier, architecture)
+                with self.subTest(alias=alias):
+                    self.assertFalse(any(f"/{alias})" in row for row in rows))
 
     def test_the_rest_is_folded_away_and_nothing_is_lost(self) -> None:
         """Every asset appears exactly once, in the table or under the fold."""

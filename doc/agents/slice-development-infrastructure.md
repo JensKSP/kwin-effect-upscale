@@ -580,6 +580,133 @@ now clears old samples even after the QPointer was cleared by output destruction
 Presented-frame text uses plural-aware translation. The targeted tests and
 combined-candidate checks are being rerun before publication.
 
+## Placing the passive displays
+
+Opened 2026-09-20 from Jens's observation on the acceptance television. This
+continues the passive-display topic this package already owns; it is recorded
+here rather than as a slice of its own.
+
+### Start state
+
+Observed on 2026-09-20 with the nightly package installed on wzpc: on a
+3840 x 2160 television configured at scale 3, the three passive displays
+overlap each other.
+
+The cause is in `UpscaleCornerLayout::place()`, which stacks only blocks that
+were sent to the *same* corner and bounds no block's width. Two blocks in
+adjacent corners therefore collide as soon as their widths sum past the logical
+screen width. A scale factor makes that certain rather than unlikely: the
+blocks are rasterised at `scale x emphasis` destination pixels, so their
+logical size stays roughly constant while the logical screen shrinks. At
+scale 3 the screen is 1280 x 720 logical while a block that covered a quarter
+of an unscaled screen now covers three quarters of it. The heads-up block
+carries a further 1.6x emphasis.
+
+Estimated from font metrics, not yet measured: the long developer lines run
+about 110 characters, so that block and the heads-up each want roughly 900 of
+the 1280 available logical pixels. Measuring the real figures is the first
+implementation task.
+
+Before this package, the announcement and the developer dump had fixed corners
+and only the heads-up corner was a setting, and a switch above the four display
+choices duplicated what "all four off" already said.
+
+### End state
+
+Complete when the three passive displays cannot overlap by construction, at any
+output scale, and each one's corner is the user's to choose:
+
+- Each display is confined to its own quarter of the output, inset by the
+  television margin. A block too large for that quarter is laid out smaller
+  until it fits; when the readable-size floor is reached first, what remains
+  outside the quarter is clipped away. No configuration and no output scale
+  produces two blocks over one another.
+- All three displays have a position setting. The three corners are always
+  distinct: choosing a corner another display holds moves that display to the
+  next free corner. The fourth corner stays free for the interactive panel.
+- The settings page offers no switch above the four display choices.
+
+### Scope and boundaries
+
+In scope: the passive blocks' placement and sizing, the three position
+settings and their mutual exclusion, the removal of the master switch, and the
+handbook rules that describe all of it.
+
+Excluded: what the blocks say, the sampling behind the figures, the interactive
+panel's own placement (it takes the corner this package leaves free, and is
+specified with that feature), and per-application overrides of any of these.
+
+### Supported scope and full acceptance
+
+Supported scope, which this package closes and releases against: the container
+runtime tests paint all three blocks at representative scale factors and assert
+the quarter invariant and the mutual exclusion directly. This gate needs no
+hardware and is what the package closes on.
+
+Full acceptance, which keeps the requirement open: reading the three blocks on
+the acceptance television at scale 3 on wzpc, confirming that none overlaps and
+that each remains legible from the seating position after being laid out
+smaller.
+
+### Approach
+
+1. Measure the real block sizes first, in the container, painting at
+   1280 x 720 logical with scale 3. Replace the estimate above with the
+   observed figures before designing around them.
+2. Give `UpscaleCornerLayout` a per-corner budget: the quarter of the output
+   belonging to that corner, inset by the margin on all four sides, so two
+   adjacent blocks are separated by twice the margin. Keep the existing
+   stacking of blocks sharing a corner, as a safety net for a hand-edited
+   configuration, with the second block drawing on what the first left.
+3. Fit each block to its budget before placing it. The fitting factor is
+   `min(1, budget width / block width, budget height / block height)` applied
+   to `scale x emphasis`, with the existing 11-pixel device floor still in
+   force. Rasterisation moves to the point where the budget is known so that a
+   block is never drawn twice for one text.
+4. Crop whatever still exceeds the budget after the floor. The quarter is then
+   an invariant rather than an intention.
+5. Add `OsdAnnouncementPosition` and `OsdDeveloperPosition`, and rename
+   `OsdPosition` to `OsdStatisticsPosition` so the three read alike. A stored
+   `OsdPosition` is not migrated; the only release carrying it is the rolling
+   nightly and the value is a cosmetic preference. Defaults: announcement top
+   left, heads-up top right, developer bottom right, bottom left free.
+6. Enforce distinct corners in two places. The settings page moves the
+   displaced display as the user changes a box, so the move is visible. The
+   effect re-distributes duplicates when it reads the configuration, so a
+   hand-edited file cannot put two blocks in one corner either. The displaced
+   display takes the next free corner scanning forward from the contested one
+   in settings order, wrapping; it is deliberately not a swap.
+
+### Acceptance criteria
+
+- Painting all three blocks at scale 1, 2 and 3 on one output leaves every
+  block inside its own quarter, and no two blocks share a pixel.
+- A block whose text cannot fit its quarter at the readable-size floor is
+  clipped to the quarter rather than drawn over its neighbour.
+- Choosing a corner another display holds moves that display to the next free
+  corner, in the settings page and when the effect reads the configuration.
+  The three corners are distinct after every such change.
+- The settings page has no master switch, and each of the four display choices
+  is enabled independently of the other three.
+- Both hook stages, GCC and Clang in both containers with warnings as errors,
+  the runtime tests, clang-tidy and metadata validation all pass.
+- Real-device acceptance on the television at scale 3 remains open until read
+  there.
+
+### Progress and remaining work
+
+The master switch is removed from the settings page, its member and wiring are
+gone from `UpscaleEffectConfig`, and the four choices are each enabled by the
+display they belong to. The `Osd` key stays in `upscaleconfig.kcfg` with its
+`true` default and is still read by `UpscaleDisplay::reconfigure()`, so a
+configuration file can still start a session with the display out of the way
+without the four choices being lost; nothing in the page writes it any more.
+The handbook's settings table and the configuration test were updated with it.
+
+Nothing else below has been implemented, and nothing here has been built or
+tested yet. Measurement, the budget, the fitting, the clipping, the three
+position settings and their mutual exclusion all remain open.
+
 ## Absorbed topics
 
 Two packages that were specified but never started were merged into this

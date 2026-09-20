@@ -817,7 +817,7 @@ as a successfully applied client resolution.
 | Resolution preset | Native, Ultra Quality, Quality, Balanced, Performance, or Custom; changing the slider selects Custom. |
 | Sharpening | RCAS switch, initially off, and a 0–100% strength slider. Zero bypasses sharpening; increasing the value increases strength. The UI must not expose AMD's reversed parameter directly. |
 | Status | Desired input, actual supplied input, destination resolution, active scaler, and a reason when upscaling is inactive. Show HDR and VRR information only to the extent actually known. The reason names the one condition that refused the window, not the general eligibility rule. |
-| On-screen display | The master switch, the announcement and summary choices with their timeout, and the persistent statistics and developer information choices. Their defaults come from the build type; the page writes an entry only where the user's choice differs from that default. |
+| On-screen display | The announcement and summary choices with their timeout, and the persistent statistics and developer information choices. Each display is switched on its own and no switch sits above them, because all four off already means nothing is drawn. Their defaults come from the build type; the page writes an entry only where the user's choice differs from that default. |
 
 HDR and VRR follow KWin's display settings. They are mandatory supported paths,
 not optional quality presets. An enabled VRR setting must not be labelled as

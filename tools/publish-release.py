@@ -12,6 +12,7 @@ import tempfile
 import time
 from pathlib import Path
 
+import ci_targets
 from release_assets import digest, validate_version
 
 
@@ -94,8 +95,22 @@ INSTALLATION = (
 )
 
 
+# The stable download names, which are copies of packages already in the table.
+# Matched by name rather than by shape: an Arch or FreeBSD alias ends exactly as
+# the package it copies does, so a shape cannot tell them apart, and the table
+# would offer the same package twice. The README links to these; the release
+# notes name the versioned file, which says what it is.
+ALIASES = frozenset(
+    ci_targets.download_name(entry.identifier, architecture)
+    for entry in ci_targets.TARGETS
+    for architecture in entry.architectures
+)
+
+
 def wanted(name: str, shape: str) -> bool:
-    """Match one installable package, never its debug or source companion."""
+    """Match one installable package, never its debug, source or stable copy."""
+    if name in ALIASES:
+        return False
     if any(part in name for part in ("-debuginfo-", "-debugsource-", "-debug-", "-dbgsym_")):
         return False
     if name.endswith((".src.rpm", ".src.tar.gz", ".dsc", ".tar.xz", ".buildinfo", ".changes")):
@@ -167,7 +182,10 @@ def installation_guide(repository: str, tag: str, names: list[str]) -> str:
             (
                 "",
                 "<details>",
-                "<summary>Debug symbols, source packages, build records and checksums</summary>",
+                (
+                    "<summary>Stable download names, debug symbols, source"
+                    " packages, build records and checksums</summary>"
+                ),
                 "",
             )
         )
