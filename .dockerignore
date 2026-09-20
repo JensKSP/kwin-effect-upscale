@@ -5,3 +5,8 @@
 !debian/control
 !containers/
 !containers/**
+# The RPM and Arch images translate debian/control into their own package
+# names during the build, so they need the translation, and nothing else.
+!tools/
+!tools/distribution_packages.py
+!tools/distribution-packages.py

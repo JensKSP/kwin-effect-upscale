@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# openSUSE Tumbleweed package environment. Tumbleweed is a rolling
+# distribution, so this is the target whose KWin moves under the package
+# without warning; the built package pins the exact KWin it saw.
+#
+# This image runs in the nightly and, deliberately, nowhere earlier. Build it
+# locally only when working on this platform.
+ARG BASE_IMAGE=docker.io/opensuse/tumbleweed
+FROM ${BASE_IMAGE}
+ARG DEPENDENCY_EPOCH=local
+# Laid out so tools/distribution-packages.py finds debian/control where it
+# expects it, one directory above itself.
+COPY debian/control /tmp/upscale/debian/control
+COPY tools/distribution_packages.py tools/distribution-packages.py /tmp/upscale/tools/
+WORKDIR /tmp
+RUN test -n "$DEPENDENCY_EPOCH" \
+    && zypper --non-interactive --gpg-auto-import-keys refresh \
+    && zypper --non-interactive install --no-recommends \
+        gcc-c++ git python3 rpm-build \
+    && zypper --non-interactive install --no-recommends \
+        $(python3 -B /tmp/upscale/tools/distribution-packages.py opensuse) \
+    && zypper clean --all
+
+# What this image installed its build dependencies from. A checkout whose
+# debian/control has moved on is told to rebuild, rather than failing later
+# on a missing header that names neither the image nor the dependency.
+RUN sha256sum /tmp/upscale/debian/control > /etc/upscale-dependency-stamp
+
+WORKDIR /src

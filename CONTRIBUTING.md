@@ -73,13 +73,30 @@ podman run --rm -v "$PWD:/src" -w /src upscale-check:trixie \
 Docker can run the same commands in place of Podman. Build outputs and check
 caches stay under `build/`.
 
+Fedora, openSUSE and Arch have their own images under `containers/`, used to
+build their packages. They run in the nightly and nowhere earlier, so build one
+only when working on that platform:
+
+```sh
+podman build --build-arg DEPENDENCY_EPOCH="$(date -u +%Y-%m-%d)" \
+    -t upscale-package:fedora -f containers/fedora/Containerfile .
+podman run --rm -v "$PWD:/src" -w /src upscale-package:fedora \
+    python3 -B tools/build-distribution-packages.py fedora "$(python3 -B tools/release-version.py snapshot | sed -n 's/^version=//p')"
+```
+
+The package lands in `build/artifacts/`. `tools/test-installed-distribution-package.py`
+installs it in a clean container of that distribution, loads the plugin,
+reinstalls and removes it, which is what the nightly does with it.
+
 `DEPENDENCY_EPOCH` invalidates the layer that installs packages, so passing
 today's date refreshes them from an otherwise unchanged Containerfile; CI
 passes the same value. The image also records the `debian/control` it installed
 in `/etc/upscale-dependency-stamp`, and `tools/run-checks.py` stops with a
 rebuild instruction when that no longer matches the checkout. A cached image
 that predates a build dependency otherwise fails much later, in a configure
-step, as a missing header that names neither the image nor the dependency. For KWin master compatibility, build the
+step, as a missing header that names neither the image nor the dependency.
+
+For KWin master compatibility, build the
 `containers/neon-unstable/Containerfile` image and run both compiler modes there
 as well. The handbook describes the [complete check matrix and native resource
 limits](doc/upscaling.md#build-and-release-pipeline), including the extra container

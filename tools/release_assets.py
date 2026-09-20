@@ -13,6 +13,22 @@ VERSION_PATTERN = r"[0-9]+\.[0-9]+\.[0-9]+(?:\+git[0-9]{8}\.[0-9a-f]{10})?"
 DISTRIBUTIONS = ("trixie", "resolute")
 ARCHITECTURES = ("amd64", "arm64")
 
+# The distributions whose packages are built in the nightly beside the Debian
+# ones. Their file names cannot be enumerated the way the Debian matrix can:
+# Fedora stamps its release with %{?dist}, so the name carries fc43 and will
+# carry fc44, and Arch names the architecture x86_64 rather than amd64. So each
+# is matched by shape, and the requirement is that the main package is there.
+#
+# Their subpackages are accepted but not required, because which of debuginfo,
+# debugsource or -debug a distribution emits is that distribution's decision
+# and not something this repository should assert.
+DISTRIBUTION_PACKAGE_PATTERNS = {
+    "fedora": r"kwin-effect-upscale-{version}-\d+\.fc\d+\.(?:x86_64|aarch64)\.rpm",
+    "opensuse": r"kwin-effect-upscale-{version}-\d+\.(?:x86_64|aarch64)\.rpm",
+    "arch": r"kwin-effect-upscale-{version}-\d+-(?:x86_64|aarch64)\.pkg\.tar\.zst",
+}
+DISTRIBUTION_SUBPACKAGE = r"kwin-effect-upscale-(?:debuginfo|debugsource|debug)-"
+
 
 def validate_version(version: str) -> str:
     """Reject malformed versions before using them as file or package names."""
@@ -41,6 +57,34 @@ def digest(path: Path) -> str:
 def package_field(path: Path, field: str) -> str:
     """Read package metadata rather than trusting its filename alone."""
     return subprocess.check_output(["dpkg-deb", "-f", str(path), field], text=True).strip()
+
+
+def validate_distribution_assets(entries: set[str], version: str) -> set[str]:
+    """Return the Fedora, openSUSE and Arch assets, requiring one of each.
+
+    A release that silently lost a distribution is the failure this prevents:
+    the nightly builds all three, so a candidate carrying only two of them
+    means a job failed and its absence would otherwise go unnoticed.
+    """
+    escaped = re.escape(version)
+    recognized: set[str] = set()
+    for distribution, pattern in DISTRIBUTION_PACKAGE_PATTERNS.items():
+        expression = pattern.format(version=escaped)
+        main = {name for name in entries if re.fullmatch(expression, name)}
+        # A subpackage is the main name with debuginfo, debugsource or
+        # debug inserted; strip that and it has to match the same shape.
+        subpackages = set()
+        for name in entries:
+            if not re.match(DISTRIBUTION_SUBPACKAGE, name):
+                continue
+            stripped = re.sub(DISTRIBUTION_SUBPACKAGE, "kwin-effect-upscale-", name, count=1)
+            if re.fullmatch(expression, stripped):
+                subpackages.add(name)
+        if not main:
+            message = f"No {distribution} package for {version} in the release candidate"
+            raise ValueError(message)
+        recognized |= main | subpackages
+    return recognized
 
 
 def validate_assets(directory: Path, version: str) -> list[Path]:
@@ -77,8 +121,11 @@ def validate_assets(directory: Path, version: str) -> list[Path]:
                         raise ValueError(message)
                 packages.append(package)
     entries = {path.name for path in directory.iterdir()}
-    if entries != expected:
-        message = f"Missing assets: {expected - entries}; unexpected assets: {entries - expected}"
+    extra = validate_distribution_assets(entries, version)
+    if entries - extra != expected:
+        missing = expected - entries
+        unexpected = entries - extra - expected
+        message = f"Missing assets: {missing}; unexpected assets: {unexpected}"
         raise ValueError(message)
     paths = sorted(directory.iterdir())
     if any(not path.is_file() or path.is_symlink() or path.stat().st_size == 0 for path in paths):

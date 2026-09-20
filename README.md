@@ -312,12 +312,23 @@ composition no longer does so.
 These are development artifacts, not a stable release. The alpha warning at
 the top of this document also applies to packaged builds.
 
-Packages are built for two distributions on two architectures:
+Packages are built for:
 
-| Distribution | Filename suffix | Architectures |
+| Distribution | Filename | Architectures |
 | --- | --- | --- |
-| Debian Trixie | `trixie` | amd64, arm64 |
-| Kubuntu 26.04 LTS | `resolute` | amd64, arm64 |
+| Debian Trixie | `..._<version>.trixie_<arch>.deb` | amd64, arm64 |
+| Kubuntu 26.04 LTS | `..._<version>.resolute_<arch>.deb` | amd64, arm64 |
+| Fedora | `...-<version>-1.fc43.x86_64.rpm` | x86_64 |
+| openSUSE Tumbleweed | `...-<version>-1.x86_64.rpm` | x86_64 |
+| Arch | `...-<version>-1-x86_64.pkg.tar.zst` | x86_64 |
+
+> [!IMPORTANT]
+> **Only Debian Trixie is tested on real hardware.** That is the one
+> distribution with an acceptance machine behind it, so it is the only one
+> where the effect has been run against a physical display and a real game.
+> Every other package is built and checked in a container — it compiles, it
+> installs, and its plugin loads — which is not the same as having been used.
+> Treat the others as untested builds until that changes.
 
 Pick the package matching your distribution because a KWin effect is built
 against the KWin version it is loaded into.
@@ -327,11 +338,18 @@ against the KWin version it is loaded into.
 
 The nightly release is rebuilt from `master` whenever `master` moves.
 
-Install a downloaded package with:
+Install a downloaded package with your distribution's own tool:
 
 ```bash
 sudo apt install ./kwin-effect-upscale_<version>.<distribution>_<architecture>.deb
+sudo dnf install ./kwin-effect-upscale-<version>-1.fc43.x86_64.rpm
+sudo zypper install ./kwin-effect-upscale-<version>-1.x86_64.rpm
+sudo pacman -U ./kwin-effect-upscale-<version>-1-x86_64.pkg.tar.zst
 ```
+
+Each package depends on the exact KWin it was built against, so it refuses
+to install against a different one rather than letting the compositor load a
+plugin built for another ABI. After a KWin upgrade, take the matching build.
 
 Every release also carries the source tarball with its SHA-256 checksum and a
 debug-symbol package next to each binary package.

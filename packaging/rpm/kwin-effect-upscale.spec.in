@@ -1,0 +1,74 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# A template, not a spec. The placeholders below are filled in by
+# tools/build-distribution-packages.py, and the build dependencies come from
+# debian/control, which is the repository's only list of them, so that adding
+# one cannot leave an RPM distribution building without it.
+#
+# One file covers Fedora and openSUSE. They differ in what KWin is called and
+# in nothing else that matters here: both generate the debuginfo and
+# debugsource subpackages themselves, so asking for one explicitly is what
+# makes openSUSE refuse the spec for defining it twice.
+
+Name:           kwin-effect-upscale
+Version:        @VERSION@
+Release:        1%{?dist}
+Summary:        KWin effect that upscales fullscreen windows
+License:        GPL-2.0-or-later
+URL:            https://github.com/JensKSP/kwin-effect-upscale
+Source0:        %{name}-%{version}.tar.gz
+
+@BUILD_REQUIRES@
+
+%if 0%{?suse_version}
+%define kwin_package kwin6
+%else
+%define kwin_package kwin
+%endif
+
+# KWin's effect ABI is private and its API version is not a compatibility
+# promise, so the package is only loadable by the exact KWin it was built
+# against. Pinning it makes a KWin upgrade refuse to install this package
+# rather than leave the compositor loading a plugin built for another ABI.
+Requires:       %{kwin_package}%{?_isa} = %(rpm -q --queryformat '%%{VERSION}-%%{RELEASE}' %{kwin_package} 2>/dev/null || echo 0)
+
+%description
+A KWin effect for windows that render below the resolution of the output they
+cover, for example a game or a video player running at a lower resolution on a
+high resolution screen or television. The effect scales such a window up on the
+GPU instead of leaving the scaling to the display.
+
+The effect is enabled by default and is switched off in the Desktop Effects
+configuration module.
+
+%prep
+%autosetup
+
+%build
+# Not the distribution's %%cmake macro: Fedora's and openSUSE's differ in the
+# build directory they choose and in the flags they inject, and this has to
+# produce the same build on both. Warnings are not errors for a packager, who
+# is building with a compiler nobody here has tried.
+cmake -S . -B build -G Ninja \
+    -DCMAKE_INSTALL_PREFIX=%{_prefix} \
+    -DCMAKE_INSTALL_LIBDIR=%{_lib} \
+    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+    -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF \
+    -DBUILD_TESTING=OFF \
+    -DUPSCALE_PACKAGE_VERSION=%{version}-%{release}
+cmake --build build
+
+%install
+DESTDIR=%{buildroot} cmake --install build
+
+%files
+%license LICENSES/*
+%doc README.md
+%{_libdir}/qt6/plugins/kwin/effects/plugins/upscale.so
+%{_libdir}/qt6/plugins/kwin/effects/configs/kwin_upscale_config.so
+%config(noreplace) %{_sysconfdir}/xdg/kwinupscalerc
+
+%changelog
+* Sun Sep 20 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de> - @VERSION@-1
+- Build of the tested commit; see the release notes for what changed.

@@ -37,6 +37,7 @@ FREEBSD = {
     "libkf6coreaddons-dev": ("kf6-kcoreaddons",),
     "libkf6i18n-dev": ("kf6-ki18n",),
     "libkf6kcmutils-dev": ("kf6-kcmutils",),
+    "libkf6windowsystem-dev": ("kf6-kwindowsystem",),
     "libwayland-dev": ("wayland",),
     "libwayland-bin": ("wayland",),
     "libxcb-composite0-dev": ("libxcb",),
@@ -45,10 +46,12 @@ FREEBSD = {
     "libxcb-shm0-dev": ("libxcb",),
     "libxcb-sync-dev": ("libxcb",),
     "xwayland": ("xwayland",),
+    "libvulkan-dev": ("vulkan-loader", "vulkan-headers"),
     "libxkbcommon-dev": ("libxkbcommon",),
     "ninja-build": ("ninja",),
     "pkgconf": ("pkgconf",),
     "qt6-base-dev": ("qt6-base",),
+    "qt6-declarative-dev": ("qt6-declarative",),
     "wayland-protocols": ("wayland-protocols",),
 }
 
@@ -73,6 +76,7 @@ FEDORA = {
     "libkf6coreaddons-dev": ("kf6-kcoreaddons-devel",),
     "libkf6i18n-dev": ("kf6-ki18n-devel",),
     "libkf6kcmutils-dev": ("kf6-kcmutils-devel",),
+    "libkf6windowsystem-dev": ("kf6-kwindowsystem-devel",),
     "libwayland-dev": ("wayland-devel",),
     "libwayland-bin": ("wayland-devel",),
     "libxcb-composite0-dev": ("libxcb-devel",),
@@ -81,10 +85,12 @@ FEDORA = {
     "libxcb-shm0-dev": ("libxcb-devel",),
     "libxcb-sync-dev": ("libxcb-devel",),
     "xwayland": ("xorg-x11-server-Xwayland",),
+    "libvulkan-dev": ("vulkan-loader-devel", "vulkan-headers"),
     "libxkbcommon-dev": ("libxkbcommon-devel",),
     "ninja-build": ("ninja-build",),
     "pkgconf": ("pkgconf-pkg-config",),
     "qt6-base-dev": ("qt6-qtbase-devel",),
+    "qt6-declarative-dev": ("qt6-qtdeclarative-devel",),
     "wayland-protocols": ("wayland-protocols-devel",),
 }
 
@@ -108,6 +114,7 @@ OPENSUSE = {
     "libkf6coreaddons-dev": ("kf6-kcoreaddons-devel",),
     "libkf6i18n-dev": ("kf6-ki18n-devel",),
     "libkf6kcmutils-dev": ("kf6-kcmutils-devel",),
+    "libkf6windowsystem-dev": ("kf6-kwindowsystem-devel",),
     "libwayland-dev": ("wayland-devel",),
     "libwayland-bin": ("wayland-devel",),
     "libxcb-composite0-dev": ("libxcb-devel",),
@@ -116,10 +123,12 @@ OPENSUSE = {
     "libxcb-shm0-dev": ("libxcb-devel",),
     "libxcb-sync-dev": ("libxcb-devel",),
     "xwayland": ("xwayland",),
+    "libvulkan-dev": ("vulkan-devel",),
     "libxkbcommon-dev": ("libxkbcommon-devel",),
     "ninja-build": ("ninja",),
     "pkgconf": ("pkgconf",),
     "qt6-base-dev": ("qt6-base-devel",),
+    "qt6-declarative-dev": ("qt6-declarative-devel",),
     "wayland-protocols": ("wayland-protocols-devel",),
 }
 
@@ -143,6 +152,7 @@ ARCH = {
     "libkf6coreaddons-dev": ("kcoreaddons",),
     "libkf6i18n-dev": ("ki18n",),
     "libkf6kcmutils-dev": ("kcmutils",),
+    "libkf6windowsystem-dev": ("kwindowsystem",),
     "libwayland-dev": ("wayland",),
     "libwayland-bin": ("wayland",),
     "libxcb-composite0-dev": ("libxcb",),
@@ -151,10 +161,12 @@ ARCH = {
     "libxcb-shm0-dev": ("libxcb",),
     "libxcb-sync-dev": ("libxcb",),
     "xwayland": ("xorg-xwayland",),
+    "libvulkan-dev": ("vulkan-icd-loader", "vulkan-headers"),
     "libxkbcommon-dev": ("libxkbcommon",),
     "ninja-build": ("ninja",),
     "pkgconf": ("pkgconf",),
     "qt6-base-dev": ("qt6-base",),
+    "qt6-declarative-dev": ("qt6-declarative",),
     "wayland-protocols": ("wayland-protocols",),
 }
 

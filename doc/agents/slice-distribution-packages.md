@@ -302,6 +302,62 @@ it did before, so this is not a regression. Whether it fixes arm64 is decided
 by the job in CI, because this machine has no aarch64 emulation registered and
 cannot run that session locally.
 
+### All three distributions build, install and load, 2026-09-20
+
+| Distribution | Package | KWin pin | Install, load, reinstall, remove |
+| --- | --- | --- | --- |
+| Fedora 43 | `...-1.fc43.x86_64.rpm`, debuginfo, debugsource | `kwin(x86-64) = 6.7.5-1.fc43` | passed |
+| openSUSE Tumbleweed | `...-1.x86_64.rpm`, debuginfo, debugsource | `kwin6(x86-64) = 6.7.5-1.1` | passed |
+| Arch | `...-1-x86_64.pkg.tar.zst`, debug | `kwin=6.7.5-1` | passed |
+
+The load check is not a file listing: `tools/test-installed-distribution-package.py`
+dlopens both plugins in a clean container of the distribution and resolves
+`qt_plugin_instance`, which is what a missing runtime dependency breaks and
+what a package manager's file list cannot tell us.
+
+Four defects were found and fixed getting there:
+
+- The recipe templates named their own placeholders in a comment, so the
+  substitution wrote a `BuildRequires` block into the middle of a comment and
+  rpm tried to install packages called `and`, `are` and `by`.
+- KWin's own CMake config resolves **Qt6Quick, KF6WindowSystem and Vulkan**
+  through `find_dependency`. Debian's `kwin-dev` pulls all three in and
+  openSUSE's `kwin6-devel` pulls none, so they are named in `debian/control`
+  now rather than relied upon. Every added name was checked against the real
+  repositories of all three distributions before use.
+- A `#` comment at column 0 inside `Build-Depends` ends the field, so the
+  parser silently dropped every dependency after it. The explanation moved
+  above the field.
+- openSUSE refuses a spec that asks for `%debug_package` when it already
+  generates one, and `pacman -Q --quiet` prints the name without the version,
+  so the Arch recipe pinned `kwin=kwin`.
+
+`makepkg` refuses to run as root, and the unprivileged user it has to run as
+cannot write to a mount owned by whoever started the container. The Arch build
+therefore works in a container-local directory and only the finished package is
+copied back.
+
+### Release inventory and nightly wiring, 2026-09-20
+
+`validate_assets` keeps requiring the Debian matrix exactly and now also
+requires one main package from each of the three new distributions, matched by
+shape rather than enumerated: Fedora stamps `%{?dist}` into the name, so it
+carries `fc43` today and `fc44` later, and Arch writes `x86_64` where Debian
+writes `amd64`. Their debug subpackages are accepted but not required, because
+which of them a distribution emits is that distribution's decision. A stray
+file is still rejected. 133 tooling tests pass, including three new ones for
+the inventory.
+
+`distribution-packages.yml` builds all three, installs and loads each in a
+clean container of its own distribution, and uploads them as `deliverable-*`.
+The nightly and the release both call it, and both gate publication on it: a
+release that silently lost a distribution is worse than one that is late.
+
+**Scope note.** The three new distributions build for x86_64 only. The Debian
+matrix keeps both architectures. Nothing here verifies an aarch64 Fedora,
+openSUSE or Arch container, and claiming one without running it is exactly what
+this project's rules forbid.
+
 ### Remaining work
 
 - Packaging recipes, containers, build and install-test tooling, release

@@ -2868,8 +2868,11 @@ the publication script; a repeat publication must match the existing assets.
 
 ### Distributions beyond Debian
 
-Proposed targets, not decided and not implemented. The pipeline builds Debian
-and Ubuntu packages, while many KDE users who game are on other distributions.
+Implemented for Arch, Fedora and openSUSE; the notes below on form and
+verification still hold. The nightly builds all three beside the Debian and
+Ubuntu packages, and the release publishes them through the same attested
+pipeline rather than through Copr, OBS or the AUR, which would need external
+accounts and would put the checksum manifest and provenance somewhere else.
 A KWin effect is a compositor plugin built against the KWin the session
 actually runs, so a package per distribution is the only workable delivery
 form. A scripted effect could be published through the KDE Store; a C++ effect
@@ -2877,9 +2880,17 @@ cannot, and Flatpak does not apply to a compositor plugin.
 
 | Target | Form | Notes |
 | --- | --- | --- |
-| Arch | `PKGBUILD` in the AUR | builds from the published source archive; a rolling KWin makes the minimum-version claim worth rechecking per release |
-| Fedora and its KDE variants | RPM spec built in Copr | the usual route for KDE packages outside the distribution proper |
-| openSUSE | spec built in OBS | OBS can build Debian formats too, which is a reason to keep the existing pipeline authoritative rather than migrating to it |
+| Arch | `PKGBUILD` built with `makepkg` in `containers/arch` | a rolling KWin is why the package pins the exact KWin it was built against |
+| Fedora | RPM spec built with `rpmbuild` in `containers/fedora` | shares one spec with openSUSE; they differ only in what KWin is called |
+| openSUSE | the same spec built in `containers/opensuse` | Tumbleweed rolls, so the same exact-version pin applies |
+
+The recipes live under `packaging/` and are templates: their build
+dependencies are filled in from `debian/control` at build time, because that
+file is the repository's only list of them. KWin's own CMake config resolves
+Qt6Quick, KF6WindowSystem and Vulkan through `find_dependency`, which a Debian
+build receives through `kwin-dev` and an openSUSE one receives through nothing
+at all; all three are therefore named in `debian/control` rather than relied
+upon.
 
 - Each target builds the published source archive unchanged. Distribution
   patches do not belong in this repository, and a recipe that needs one is a

@@ -58,6 +58,50 @@ class ReleaseAssetsTest(unittest.TestCase):
                         "record\n"
                     )
         (self.assets / f"kwin-effect-upscale-{self.version}.tar.gz").write_bytes(b"archive")
+        for name in self.distribution_assets():
+            (self.assets / name).write_bytes(b"package")
+
+    def distribution_assets(self) -> list[str]:
+        """Return the Fedora, openSUSE and Arch names a nightly candidate carries."""
+        return [
+            f"kwin-effect-upscale-{self.version}-1.fc43.x86_64.rpm",
+            f"kwin-effect-upscale-debuginfo-{self.version}-1.fc43.x86_64.rpm",
+            f"kwin-effect-upscale-debugsource-{self.version}-1.fc43.x86_64.rpm",
+            f"kwin-effect-upscale-{self.version}-1.x86_64.rpm",
+            f"kwin-effect-upscale-debuginfo-{self.version}-1.x86_64.rpm",
+            f"kwin-effect-upscale-{self.version}-1-x86_64.pkg.tar.zst",
+            f"kwin-effect-upscale-debug-{self.version}-1-x86_64.pkg.tar.zst",
+        ]
+
+    def test_every_distribution_must_be_present(self) -> None:
+        """A candidate that silently lost one of them must not publish."""
+        for name in self.distribution_assets():
+            if "debug" in name:
+                continue
+            with self.subTest(missing=name):
+                (self.assets / name).rename(self.root / name)
+                with self.assertRaises(ValueError) as failure:
+                    validate_assets(self.assets, self.version)
+                self.assertIn("package for", str(failure.exception))
+                (self.root / name).rename(self.assets / name)
+
+    def test_distribution_subpackages_are_optional(self) -> None:
+        """Which debug packages a distribution emits is its own decision."""
+        for name in self.distribution_assets():
+            if "debug" not in name:
+                continue
+            with self.subTest(without=name):
+                (self.assets / name).rename(self.root / name)
+                validate_assets(self.assets, self.version)
+                (self.root / name).rename(self.assets / name)
+
+    def test_a_stray_package_is_still_rejected(self) -> None:
+        """Accepting these by shape must not accept anything else by accident."""
+        stray = self.assets / f"kwin-effect-upscale-{self.version}-1.fc43.s390x.rpm"
+        stray.write_bytes(b"package")
+        with self.assertRaises(ValueError) as failure:
+            validate_assets(self.assets, self.version)
+        self.assertIn("unexpected assets", str(failure.exception))
 
     def test_manifest_covers_every_deliverable(self) -> None:
         """Checksums cover binaries, symbols, build records and source."""

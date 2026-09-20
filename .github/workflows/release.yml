@@ -44,8 +44,14 @@ jobs:
       version: ${{ needs.version.outputs.version }}
       channel: release
 
+  distribution-packages:
+    needs: version
+    uses: ./.github/workflows/distribution-packages.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+
   publish:
-    needs: [version, quality, package]
+    needs: [version, quality, package, distribution-packages]
     permissions:
       contents: write
       id-token: write
