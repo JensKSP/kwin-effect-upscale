@@ -89,7 +89,18 @@ if(KWin_VERSION VERSION_LESS 6.7)
             ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-integration-test.py
             $<TARGET_FILE:upscale_integration_test>
     )
-    set_tests_properties(upscale-integration PROPERTIES TIMEOUT 100)
+    # Each of these starts a KWin session of its own, with Xwayland, software
+    # rendering and a client that has to answer resize requests inside the
+    # plugin's own validation windows. Run beside other tests - a package
+    # build runs four at once - they compete for the cores that decide how
+    # fast those round trips are, and the waits in them stop describing the
+    # plugin and start describing the machine. Observed 2026-09-20 on the
+    # nightly's package jobs: waits satisfied in under a second here needed
+    # 18 and 30 seconds there, on both architectures, while the same tests
+    # passed in the quality jobs that run them alone. RUN_SERIAL is what says
+    # "not beside anything else"; the timeout then covers the whole run of a
+    # session that is merely slow rather than stuck.
+    set_tests_properties(upscale-integration PROPERTIES TIMEOUT 300 RUN_SERIAL TRUE)
     add_executable(upscale_x11_integration_test x11_integration_test.cpp x11_client.cpp)
     target_link_libraries(
         upscale_x11_integration_test
@@ -101,13 +112,13 @@ if(KWin_VERSION VERSION_LESS 6.7)
             ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-integration-test.py
             $<TARGET_FILE:upscale_x11_integration_test> --x11
     )
-    set_tests_properties(upscale-x11-integration PROPERTIES TIMEOUT 100)
+    set_tests_properties(upscale-x11-integration PROPERTIES TIMEOUT 300 RUN_SERIAL TRUE)
     if(UPSCALE_SANITIZER)
         set_tests_properties(
             upscale-integration
             upscale-x11-integration
             PROPERTIES
-                TIMEOUT 300
+                TIMEOUT 600
                 ENVIRONMENT
                     "UPSCALE_SANITIZER_RUNTIME=${UPSCALE_SANITIZER_RUNTIME};LSAN_OPTIONS=suppressions=${CMAKE_CURRENT_SOURCE_DIR}/lsan.supp:print_suppressions=1"
         )
