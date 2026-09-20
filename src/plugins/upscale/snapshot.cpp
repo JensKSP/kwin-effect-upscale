@@ -10,6 +10,8 @@
 
 #include <KLocalizedString>
 
+#include <QLocale>
+
 #include <algorithm>
 
 namespace KWin
@@ -265,7 +267,11 @@ static QString stableNumber(double value)
     } else if (bounded >= 10) {
         decimals = 2;
     }
-    return QString::number(bounded, 'f', decimals).rightJustified(5);
+    // In the reader's own language: a German session writes 1,053 where a US
+    // English one writes 1.053, and QString::number can only write the latter.
+    // The width survives it, because a locale that moves the separator does
+    // not add one: five columns either way, grouped or not.
+    return QLocale().toString(bounded, 'f', decimals).rightJustified(5);
 }
 
 QString upscaleHeadsUp(const UpscaleSnapshot &snapshot)

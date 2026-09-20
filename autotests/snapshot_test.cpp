@@ -22,6 +22,7 @@ class UpscaleSnapshotTest : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
+    void initTestCase();
     void everyRefusalHasItsOwnSentence();
     void unsupportedFormat();
     void refusalNamesTheConditionThatFailed();
@@ -64,6 +65,13 @@ UpscaleSnapshot UpscaleSnapshotTest::scaling()
     snapshot.interval = 1;
     snapshot.sampleAge = 0.2;
     return snapshot;
+}
+
+void UpscaleSnapshotTest::initTestCase()
+{
+    // The source language, so a case that quotes a formatted figure quotes one
+    // formatting. pixelSizesAreNotGrouped changes it deliberately and restores.
+    QLocale::setDefault(QLocale(QLocale::English, QLocale::UnitedStates));
 }
 
 void UpscaleSnapshotTest::everyRefusalHasItsOwnSentence()

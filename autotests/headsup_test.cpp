@@ -8,6 +8,7 @@
 
 #include "effect/globals.h"
 
+#include <QLocale>
 #include <QTest>
 
 using namespace KWin;
@@ -21,6 +22,8 @@ class UpscaleHeadsUpTest : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
+    void initTestCase();
+    void figuresFollowTheReadersLanguage();
     void distinguishesBypassFromNative();
     void keepsUnusualDimensions();
     void separatesTheGameFromTheScreen();
@@ -45,6 +48,40 @@ UpscaleSnapshot UpscaleHeadsUpTest::scaling()
     snapshot.presentedLow = 41.2;
     snapshot.clientUpdates = 59.8;
     return snapshot;
+}
+
+void UpscaleHeadsUpTest::initTestCase()
+{
+    // The source language of this project, so the rest of these cases state
+    // one formatting and mean it. What a German reader sees is its own case.
+    QLocale::setDefault(QLocale(QLocale::English, QLocale::UnitedStates));
+}
+
+void UpscaleHeadsUpTest::figuresFollowTheReadersLanguage()
+{
+    // A figure is read by whoever is playing, in their language: a German
+    // session writes a comma where a US English one writes a point, and
+    // "1.053 ms/f" means a thousand times too much to somebody reading it as
+    // German. The machine-readable metrics line is the opposite case and is
+    // deliberately not localised.
+    UpscaleSnapshot snapshot = scaling();
+    snapshot.presentedRate = 237.1;
+    snapshot.clientUpdates = 949.4;
+    const QLocale previous = QLocale();
+    QLocale::setDefault(QLocale(QLocale::German, QLocale::Germany));
+    const QString german = upscaleHeadsUp(snapshot);
+    QLocale::setDefault(previous);
+    QVERIFY2(german.contains(QStringLiteral("237,1 FPS")), qPrintable(german));
+    QVERIFY2(german.contains(QStringLiteral("1,053 ms/f")), qPrintable(german));
+
+    const QString english = upscaleHeadsUp(snapshot);
+    QVERIFY2(english.contains(QStringLiteral("237.1 FPS")), qPrintable(english));
+    QVERIFY2(english.contains(QStringLiteral("1.053 ms/f")), qPrintable(english));
+
+    // The width is the same either way, which is what the fixed columns are
+    // for: a language that moves the separator does not add one.
+    QCOMPARE(german.split(QLatin1Char('\n')).at(0).size(),
+             english.split(QLatin1Char('\n')).at(0).size());
 }
 
 void UpscaleHeadsUpTest::distinguishesBypassFromNative()
@@ -147,7 +184,10 @@ void UpscaleHeadsUpTest::keepsItsColumnsStill()
     // Nothing presents ten thousand frames a second, and a frame slower than
     // a second is reported as a second rather than widening the block.
     snapshot.presentedRate = 99999;
-    QVERIFY2(upscaleHeadsUp(snapshot).contains(QStringLiteral(" 9999 FPS")),
+    // Grouped, because US English groups a thousand - and still five columns,
+    // which is the point: the separator replaces the padding rather than
+    // widening the field.
+    QVERIFY2(upscaleHeadsUp(snapshot).contains(QStringLiteral("9,999 FPS")),
              qPrintable(upscaleHeadsUp(snapshot)));
     snapshot.presentedRate = 0.0001;
     QVERIFY2(upscaleHeadsUp(snapshot).contains(QStringLiteral("0.999 FPS")),

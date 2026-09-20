@@ -37,6 +37,11 @@ QString upscaleMetrics(const UpscaleSnapshot &snapshot)
             append(key, QString::number(value.width()) + QLatin1Char('x') + QString::number(value.height()));
         }
     };
+    // Every number below is written with QString::number on purpose, which
+    // formats as C does regardless of the session's language. This line is
+    // read by machines - tools/frame_metrics.py parses it - and a decimal
+    // comma or a grouped thousand would break them. The figures a person
+    // reads are localised; this line is not a figure a person reads.
     number(QLatin1String("presented"), snapshot.presentedRate, 2);
     number(QLatin1String("low"), snapshot.presentedLow, 2);
     number(QLatin1String("p99"), snapshot.presentedPercentile, 3);
