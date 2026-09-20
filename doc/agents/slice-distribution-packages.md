@@ -222,9 +222,41 @@ has to be verified against all four KWin versions above before it can be
 trusted. Whether it belongs in this slice or its own is an open question for
 Jens; it is recorded here because this slice cannot proceed without it.
 
+### KWin 6.7 compatibility, resolved 2026-09-20
+
+The build now asks KWin which API it has instead of guessing from a file name.
+`CMakeLists.txt` compiles a declaration against KWin's own `effect/effect.h`
+and defines `UPSCALE_RENDER_DEVICE_API` from whether the callbacks return bool.
+
+Two things make that safe rather than a different guess:
+
+- A probe that failed to compile for an unrelated reason would answer "no" and
+  select an API silently and wrongly, which is the failure being replaced. So a
+  first check establishes that KWin's effect header compiles at all, and the
+  configure stops with `FATAL_ERROR` when it does not. This caught a real case
+  during development: the probe was missing the KConfig and KCoreAddons
+  interfaces that `effect/effect.h` pulls in, and it reported "void" on master.
+  It now links the same interface the effect itself does.
+- `GLShader::isValid()` turned out to be a *separate* boundary: KWin dropped it
+  in 6.7, before the paint API changed. It gets its own question, a `requires`
+  expression in `validShader`, rather than sharing the paint API's answer. That
+  is the same mistake as the original bug, one level down.
+
+Observed, three containers, source mounted read only:
+
+| Environment | KWin | Probe | Build |
+| --- | --- | --- | --- |
+| Debian Trixie | 6.3.6 | `0` | passed, warnings as errors |
+| Fedora 43 | 6.7.5 | `0` | passed |
+| KDE neon unstable | 6.8.80 | `1` | passed, warnings as errors |
+
+Native build on this machine: 17 of 17 tests passed. The stale local Trixie and
+neon images needed `libxcb-randr0-dev`, `libxcb-composite0-dev`,
+`libxcb-res0-dev`, `libxcb-shm0-dev` and `libxcb-sync-dev` installed into the
+throwaway container; they predate those build dependencies and need rebuilding.
+
 ### Remaining work
 
-- KWin 6.7 compatibility, above. Blocks everything else here.
 - Packaging recipes, containers, build and install-test tooling, release
   inventory entries and the nightly wiring for all three distributions.
 
