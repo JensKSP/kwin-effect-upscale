@@ -1932,3 +1932,86 @@ so that another session's concurrent edits could not affect them:
 `/tmp/.X11-unix`, which `containers/trixie/Containerfile` creates. Every X11
 case fails there in about 210 ms with `kwin_xwl: /tmp/.X11-unix does not exist`
 before any test logic runs. That is an image to rebuild, not a code failure.
+
+### The arm64 nightly refuses a slow machine, and a validation-window fix did not cure it
+
+The nightly's `resolute arm64` package job fails one X11 integration case per
+run, and never the same one: `repeatedFullscreenTransitions` on 2026-09-19,
+`lifecycle(primary-fullscreen)` on 2026-09-20, and `repeatedFullscreenTransitions`
+again on the re-run of that same commit. The suite's runtime moved with it -
+88.6 s, 61.1 s, then 156.2 s for the identical thirteen cases - which is the
+runner's speed rather than the change under test. `resolute amd64` passes.
+
+**Reproduction.** `pipeline-resolute` (Ubuntu 26.04, KWin 6.6.6) with
+`--cpus=1` reproduces it exactly: same case, same line 135, same refusal text.
+Unconstrained on the same image it passes, which is why amd64 never shows it.
+The image needs `/tmp/.X11-unix` created and the `debian/control` build
+dependencies installed first; see the note at the end of this section.
+
+**What is established.** `begin()` validates a request three seconds after
+making it, and `unmetCondition()` then reads the client's buffer. A client
+answers a resize on a frame it is given the chance to draw, and that runner
+presents every 3.1 s, so the verdict can be reached before one frame carries
+the answer. Every failing run logs the same refusal: "The application
+repeatedly replaced its window without accepting the request."
+
+**What was tried and rejected.** Deferring validation while the output had
+presented fewer than N frames, bounded by a cap, frame-driven rather than
+polled. Three variants were measured under `--cpus=1`, five clean sequential
+runs each. All failed, and the failing assertions reported the same
+32.5-33.4 s requirement against their 30 s windows whether the cap allowed 33 s
+or 15 s - so the deferral was not what determined the outcome. Worse, the
+one-frame variant failed 3/3 unconstrained, where the unmodified code passes
+100%: the change regressed ordinary hardware and was reverted in full.
+
+**The open lead.** `attempt.count` in `begin()` increments whenever the key's
+`X11Window` differs from the last, and `m_attempts` is only cleared by a
+successful validation. `repeatedFullscreenTransitions` legitimately replaces
+its window eight times; where validations do not succeed promptly the count
+passes six and the effect refuses, telling the user their application would not
+cooperate when what failed to keep up was the machine. That is the refusal the
+nightly logs, and it is untouched by any validation-window change. Not yet
+investigated: whether the count should ignore a replacement the effect's own
+restore provoked, decay with time, or reset on a deferred request.
+
+**Consequence for the release.** `publish` depends on `package`, and
+`tools/release_assets.py` requires the complete distribution x architecture
+matrix, so a missing `deliverable-resolute-arm64` blocks the nightly release
+entirely. There is no partial-matrix route that does not weaken that check.
+
+Both maintained images are stale against `debian/control`: they predate
+`libxcb-randr0-dev` and `libxcb-composite0-dev`, so a container build fails to
+configure until the build dependencies are installed, and `pipeline-resolute`
+has no `/tmp/.X11-unix`, so every X11 case fails in about 300 ms before any
+test logic runs. Rebuilding them is outstanding and is not a code failure.
+
+### What actually cured it: the client committed its buffer too late
+
+The refusal counts window replacements without a successful validation, and the
+validation reads the client's buffer. The test client was answering a resize in
+the wrong order: on `ConfigureNotify` it called `mode()` first, which is several
+synchronous RandR round trips, and only painted afterwards. On a slow machine
+those round trips outlast the three-second validation window, so the effect read
+the buffer from before the resize, refused the request as "the application
+supplied a 3840 x 2160 buffer where 1920 x 1080 was requested", restored, and
+retried - which is what drove the replacement count past six and produced the
+refusal the nightly logged.
+
+`X11Client::dispatch()` now paints the new size before anything that can block,
+and paints again after the emulated mode is established, which is what a client
+does anyway. Nothing in the plugin changed: the validation window, the retry and
+the replacement counter are untouched.
+
+**Observed.** Ubuntu 26.04 with KWin 6.6.6, the image built from
+`containers/package`: before the change the suite failed two cases, after it
+thirteen of thirteen pass. Repeated under the documented `--cpus=1`
+reproduction, which is the constraint that reproduces the nightly: thirteen of
+thirteen pass. Debian Trixie with KWin 6.3.6 natively: thirteen of thirteen
+pass, as before, so ordinary hardware is not regressed - which is where the
+rejected frame-deferral variant above failed.
+
+This supersedes the timeout raise that was tried first. Raising the bound from
+5 s to 30 s moved QTest's own verdict from "8250 ms would have been sufficient"
+to "33250 ms would have been sufficient": the same 3250 ms - the validation
+window plus the reschedule - measured from whenever the wait gave up. A bound
+was never going to reach it.
