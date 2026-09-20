@@ -1533,6 +1533,43 @@ loaded and a client returning to its own size, a user sees an upscaled image
 they did not ask for. It is brief, and nothing here establishes how brief on a
 machine under load.
 
+### The negotiation does not complete on a machine drawing 3 frames a second
+
+Blocker for the nightly's `resolute` package jobs, 2026-09-20, and not a test
+defect. Once the session was allowed to run to completion - the harness had
+been killing it at 90 s - the run finished in 146 s with two cases failing for
+the same reason:
+
+    lifecycle(primary-fullscreen)  x11_integration_test.cpp:135
+      expected 2560 x 1440, actual 3840 x 2160, after waiting 30 s
+    repeatedFullscreenTransitions  x11_integration_test.cpp:297
+      metrics: presented=3.14  worst=3166.667  supplied=3840x2160
+               scaling=0  selected=0
+
+The runner presents 3.14 frames a second, one frame every 3.17 seconds. This
+control validates a request 3 seconds after issuing it. A client that draws
+once every 3.2 seconds cannot answer inside that window, so validation fails,
+the retry re-issues, that fails too, and the request is refused. The plugin is
+behaving as designed; the design assumes a client that draws faster than the
+window it is given.
+
+No bound inside a test can change that, and the three ways out are decisions
+rather than fixes:
+
+- **Make the validation window follow the client.** Time it in the client's
+  own frames rather than in seconds - a request judged after, say, two commits
+  or three seconds, whichever is longer. This is the only option that makes the
+  feature work on a slow machine rather than merely stop testing it there.
+- **Skip these cases where the machine cannot sustain the negotiation**, with
+  the measured rate in the skip message. Honest, and it keeps the quality jobs
+  covering the behaviour, but a regression could hide behind the skip.
+- **Do not run these tests in package builds at all**, leaving them to the
+  quality jobs. Cheapest, and it weakens what a package build verifies.
+
+Jens's call. Nothing here should be widened further in the meantime: four
+rounds of larger numbers each moved the failure to a different line, and the
+timeout that was actually ending the runs was the harness's own.
+
 ## Remaining work on the X11 production integration
 
 ### Production X11 integration
