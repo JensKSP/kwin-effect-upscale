@@ -65,4 +65,5 @@ not imply that already implemented diagnostics or resolution control are absent.
 | Aspect ratio and integer scaling | [Scaling geometry](slice-scaling-geometry.md) |
 | Shipping the effect in the user's language | [Translations](slice-translations.md) |
 | Validated package and release publication | [Build and release pipeline](slice-build-release-pipeline.md) |
+| Packages for Fedora, openSUSE and Arch | [Distribution packages](slice-distribution-packages.md) |
 | GitHub contribution, security and maintenance workflow | [GitHub project workflow](slice-github-project-workflow.md) |
