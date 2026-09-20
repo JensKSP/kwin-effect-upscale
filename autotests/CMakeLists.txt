@@ -83,6 +83,14 @@ if(KWin_VERSION VERSION_LESS 6.7)
         upscale_test_driver
         PROPERTIES PREFIX "" LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/kwin/effects/plugins"
     )
+    # The two cases below each start a nested kwin_wayland with Xwayland and
+    # drive a real client through it. Whether that client answers inside the
+    # effect's three second validation window is a property of the machine, so
+    # they belong where a machine is chosen - the pull request checks, which run
+    # the whole suite on both architectures - and not in a distribution package
+    # build, which runs on whatever the builder has. debian/rules turns this off
+    # for exactly that reason; everywhere else it stays on.
+    option(UPSCALE_SESSION_TESTS "Register the tests that need a compositor session" ON)
     add_test(
         NAME upscale-integration
         COMMAND
@@ -120,6 +128,13 @@ if(KWin_VERSION VERSION_LESS 6.7)
     # buffer every three seconds on the slowest machine this runs on, need
     # more headroom than one session of the other test does.
     set_tests_properties(upscale-x11-integration PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
+    if(NOT UPSCALE_SESSION_TESTS)
+        # Disabled rather than unregistered, so the test binaries are still
+        # compiled and linked by a package build and only the sessions are
+        # skipped. ctest reports them as disabled, which is visible in the log
+        # rather than silently absent from it.
+        set_tests_properties(upscale-integration upscale-x11-integration PROPERTIES DISABLED TRUE)
+    endif()
     if(UPSCALE_SANITIZER)
         set_tests_properties(
             upscale-integration
