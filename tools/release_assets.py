@@ -22,10 +22,13 @@ ARCHITECTURES = ("amd64", "arm64")
 # Their subpackages are accepted but not required, because which of debuginfo,
 # debugsource or -debug a distribution emits is that distribution's decision
 # and not something this repository should assert.
+# x86_64 only, because that is what distribution-packages.yml builds. Allowing
+# an architecture nothing produces would let an unexpected asset through the one
+# check whose job is to reject exactly that.
 DISTRIBUTION_PACKAGE_PATTERNS = {
-    "fedora": r"kwin-effect-upscale-{version}-\d+\.fc\d+\.(?:x86_64|aarch64)\.rpm",
-    "opensuse": r"kwin-effect-upscale-{version}-\d+\.(?:x86_64|aarch64)\.rpm",
-    "arch": r"kwin-effect-upscale-{version}-\d+-(?:x86_64|aarch64)\.pkg\.tar\.zst",
+    "fedora": r"kwin-effect-upscale-{version}-\d+\.fc\d+\.x86_64\.rpm",
+    "opensuse": r"kwin-effect-upscale-{version}-\d+\.x86_64\.rpm",
+    "arch": r"kwin-effect-upscale-{version}-\d+-x86_64\.pkg\.tar\.zst",
 }
 DISTRIBUTION_SUBPACKAGE = r"kwin-effect-upscale-(?:debuginfo|debugsource|debug)-"
 
@@ -80,8 +83,13 @@ def validate_distribution_assets(entries: set[str], version: str) -> set[str]:
             stripped = re.sub(DISTRIBUTION_SUBPACKAGE, "kwin-effect-upscale-", name, count=1)
             if re.fullmatch(expression, stripped):
                 subpackages.add(name)
-        if not main:
-            message = f"No {distribution} package for {version} in the release candidate"
+        # Exactly one, not merely one or more: two main packages for the same
+        # distribution means two builds landed in one candidate, and which of
+        # them a user would install is then decided by nothing.
+        if len(main) != 1:
+            message = (
+                f"Expected exactly one {distribution} package for {version}, found {sorted(main)}"
+            )
             raise ValueError(message)
         recognized |= main | subpackages
     return recognized

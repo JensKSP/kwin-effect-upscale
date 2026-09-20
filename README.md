@@ -351,8 +351,10 @@ Each package depends on the exact KWin it was built against, so it refuses
 to install against a different one rather than letting the compositor load a
 plugin built for another ABI. After a KWin upgrade, take the matching build.
 
-Every release also carries the source tarball with its SHA-256 checksum and a
-debug-symbol package next to each binary package.
+Every release also carries the source tarball with its SHA-256 checksum. The
+Debian packages each have a debug-symbol package beside them; the Fedora,
+openSUSE and Arch builds carry whatever debug sidecar their own distribution
+generates, which is not guaranteed to be present.
 
 Release assets are covered by a keyless GitHub build attestation, so a download
 can be traced back to the workflow and commit that produced it:

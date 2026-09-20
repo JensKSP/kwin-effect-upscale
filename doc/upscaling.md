@@ -2733,8 +2733,13 @@ not construct an effect in a real KWin session. An upgrade from an older release
 and actual GPU rendering remain separate acceptance cases.
 
 The source archive is extracted, configured, built, tested and staged without
-Git metadata. Publication accepts only the complete four-platform package
-matrix, its build records and the source archive. Reports and fuzz corpora are
+Git metadata. Publication accepts only the complete four-platform Debian
+package matrix, its build records, the source archive, and exactly one main
+package from each of Fedora, openSUSE and Arch. Those three are matched by
+shape rather than enumerated, because Fedora stamps `%{?dist}` into the name
+and Arch writes `x86_64` where Debian writes `amd64`; their debug subpackages
+are accepted but not required, since which of them a distribution emits is that
+distribution's decision. Reports and fuzz corpora are
 never release assets. A SHA-256 manifest covers all deliverables. The workflow
 replaces `~` with `.` in public asset filenames before checksumming and attesting,
 because GitHub applies that rename on upload. Package versions retain the Debian

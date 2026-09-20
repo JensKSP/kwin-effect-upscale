@@ -360,7 +360,8 @@ this project's rules forbid.
 
 ### Remaining work
 
-- Packaging recipes, containers, build and install-test tooling, release
-  inventory entries and the nightly wiring for all three distributions.
-
-No package has been built for any of the three distributions.
+- A hosted run. Everything above was observed locally, in containers; the
+  nightly has not yet built these three.
+- Real-device acceptance on Fedora, openSUSE and Arch, which no acceptance host
+  provides. The full-acceptance gate stays open and this slice stays with it.
+- aarch64 packages for the three new distributions, if they are ever wanted.

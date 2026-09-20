@@ -95,6 +95,22 @@ class ReleaseAssetsTest(unittest.TestCase):
                 validate_assets(self.assets, self.version)
                 (self.root / name).rename(self.assets / name)
 
+    def test_two_packages_for_one_distribution_are_rejected(self) -> None:
+        """Two builds in one candidate leave the choice to nobody."""
+        second = self.assets / f"kwin-effect-upscale-{self.version}-2.fc43.x86_64.rpm"
+        second.write_bytes(b"package")
+        with self.assertRaises(ValueError) as failure:
+            validate_assets(self.assets, self.version)
+        self.assertIn("exactly one fedora package", str(failure.exception))
+
+    def test_an_unbuilt_architecture_is_rejected(self) -> None:
+        """Only x86_64 is built, so an aarch64 asset is an unexpected one."""
+        stray = self.assets / f"kwin-effect-upscale-{self.version}-1.fc43.aarch64.rpm"
+        stray.write_bytes(b"package")
+        with self.assertRaises(ValueError) as failure:
+            validate_assets(self.assets, self.version)
+        self.assertIn("unexpected assets", str(failure.exception))
+
     def test_a_stray_package_is_still_rejected(self) -> None:
         """Accepting these by shape must not accept anything else by accident."""
         stray = self.assets / f"kwin-effect-upscale-{self.version}-1.fc43.s390x.rpm"
