@@ -28,11 +28,16 @@ SPDX-License-Identifier: GPL-2.0-or-later
         <entry name="OsdSummary" type="Bool"><default>true</default></entry>
         <entry name="OsdStatistics" type="Bool"><default code="true">KWin::upscaleDebugBuild</default></entry>
         <entry name="OsdDeveloper" type="Bool"><default code="true">KWin::upscaleDebugBuild</default></entry>
-        <!-- Which corner the persistent view occupies, in the order the
-             settings list them: top left, top right, bottom left, bottom
-             right. The timed message and the developer dump have fixed
-             corners of their own. -->
-        <entry name="OsdPosition" type="Int"><default>1</default><min>0</min><max>3</max></entry>
+        <!-- Which corner each display occupies, in the order the settings
+             list them: top left, top right, bottom left, bottom right. The
+             three are always distinct, so no two displays can be drawn over
+             one another; the settings move a displaced display out of the
+             way, and the effect separates them again when it reads a file
+             that was edited by hand. Bottom left is left free by default for
+             the interactive panel, which takes the fourth corner. -->
+        <entry name="OsdAnnouncementPosition" type="Int"><default>0</default><min>0</min><max>3</max></entry>
+        <entry name="OsdStatisticsPosition" type="Int"><default>1</default><min>0</min><max>3</max></entry>
+        <entry name="OsdDeveloperPosition" type="Int"><default>3</default><min>0</min><max>3</max></entry>
         <entry name="OsdTimeout" type="Int"><default>3</default><min>1</min><max>60</max></entry>
     </group>
 </kcfg>

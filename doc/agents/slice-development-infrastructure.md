@@ -602,10 +602,23 @@ scale 3 the screen is 1280 x 720 logical while a block that covered a quarter
 of an unscaled screen now covers three quarters of it. The heads-up block
 carries a further 1.6x emphasis.
 
-Estimated from font metrics, not yet measured: the long developer lines run
-about 110 characters, so that block and the heads-up each want roughly 900 of
-the 1280 available logical pixels. Measuring the real figures is the first
-implementation task.
+Measured on 2026-09-20, replacing an earlier font-metric estimate of roughly
+900 logical pixels for both large blocks. With a synthetic snapshot on a
+1280 x 720 logical output, against a 576 x 296 quarter: the announcement wants
+356 x 44 and the heads-up 450 x 72, both of which already fit, while the
+developer dump wants 753 x 198 and is laid out at 576 x 155 to fit. The
+estimate was therefore high, and the heads-up does not have to shrink on this
+screen at all.
+
+That also means the reported overlap is not reproduced by this snapshot on its
+own: 356 at the left and 450 at the right of a 1280-wide output do not meet.
+The real announcement carries a window caption and the real developer dump a
+real build string and an X11 resize line, and the session font on the
+acceptance machine is not necessarily the one this measurement used; any of
+those moves the two top blocks into each other. The bound does not depend on
+knowing which of them did, which is the point of bounding rather than
+resolving collisions, but the exact starting configuration is not established
+and remains worth reading off the television during acceptance.
 
 Before this package, the announcement and the developer dump had fixed corners
 and only the heads-up corner was a setting, and a switch above the four display
@@ -703,9 +716,185 @@ configuration file can still start a session with the display out of the way
 without the four choices being lost; nothing in the page writes it any more.
 The handbook's settings table and the configuration test were updated with it.
 
-Nothing else below has been implemented, and nothing here has been built or
-tested yet. Measurement, the budget, the fitting, the clipping, the three
-position settings and their mutual exclusion all remain open.
+Everything above is now implemented.
+
+`UpscaleCornerLayout` gained `budget()`, the quarter of the output a corner
+owns inset by the margin on all four sides. The margin is clamped once in the
+constructor to at most an eighth of the output's shorter side, because two
+margins come off each axis of a quarter and an output smaller than four of
+them would otherwise have a negative amount of room and show nothing; on any
+real output it is the margin as given. `place()` and `budget()` share that one
+value, so they cannot disagree.
+
+`UpscaleOverlay` lays its text out lazily, at the first question that needs an
+answer, rather than in `setText()`. That was necessary because the budget is
+known only to whoever is painting an output while the text is built earlier,
+and rasterising in both places would lay the same text out twice for every
+snapshot. It also keeps the previous contract for callers that never set a
+budget, which is what `render_test.cpp` does: laying out eagerly in `fit()`
+alone broke three of its assertions, and the lazy form fixed them without
+touching that test. `fit()` renders once at the requested size, once more at
+the largest fraction that fits when it does not, and crops whatever still
+exceeds the budget after the readable-size floor.
+
+A default-constructed budget means no bound; a budget of no size means no
+room. `QSizeF::isEmpty()` cannot tell those apart and `isValid()` can, which
+matters on an output with no room for its margins.
+
+The three corners are settings: `OsdAnnouncementPosition`,
+`OsdStatisticsPosition` and `OsdDeveloperPosition`, replacing `OsdPosition`
+without migration. `upscaleTakeCorner()` applies a chosen corner and moves
+whoever held it; `upscaleSeparateCorners()` repairs a hand-edited file. Both
+the settings page and `UpscaleDisplay::reconfigure()` use them, so neither a
+page nor a configuration file can leave two displays sharing a corner.
+
+Note for anyone extending the painted tests: `paintOn()` stretches the output
+rectangle across the whole readback framebuffer, so when the two differ a
+probe has to be stated in the output's coordinates and scaled. The existing
+probes only agreed with logical pixels because the block under test started at
+the origin.
+
+Both oversized files were split to satisfy the file-size rule, which the work
+had pushed past 400 code lines. `addDisplayControls`, `positionControls` and
+`takeCorner` moved from `upscale_config.cpp` (419 -> 356) into the new
+`displaycontrols.cpp`; `cornersAreKeptApart` and `blocksStayInTheirQuarter`
+moved from `display_test.cpp` (495 -> 390) into the new `placement_test.cpp`,
+registered as the test `upscale-placement`. Those two cases were chosen over
+the painted `blocksKeepTheirOwnCorners` because neither needs OpenGL: they
+assert placed rectangles and laid-out sizes, so the rules that stop two blocks
+meeting are now checked with no GL context, no software rasteriser and no
+offscreen platform, in environments where the painted tests cannot run.
+
+Neither split file has headroom: 390 and 356 against a limit of 400. The next
+control or test case breaks the rule again, which is one more reason for the
+table-driven settings editor the
+[application profiles](slice-application-profiles.md) package now carries.
+
+Verified on 2026-09-20, every result observed rather than reasoned about:
+
+| Check | Result |
+| --- | --- |
+| Native suite | 18 of 18 |
+| Trixie, GCC, warnings as errors | builds, 18 of 18 |
+| Trixie, Clang, warnings as errors | builds, 18 of 18 |
+| Neon (KWin master), GCC | builds, 13 of 13 |
+| Neon (KWin master), Clang | builds, 13 of 13 |
+| pre-commit, default stage | passed |
+| pre-commit, pre-push stage | passed |
+| clang-tidy | passed, no diagnostics |
+| Plugin metadata schema | passed |
+
+clang-tidy covers the new `displaycontrols.cpp`: it is one of the 153 entries
+in the generated compilation database, checked rather than assumed, because a
+source that never reaches `compile_commands.json` is silently not analysed.
+
+Two of the failures seen on the way there were not defects and are recorded
+above: the Clang build that could not find the new configuration entries, and
+a pre-push stage that reported two hooks modifying files. Both came from other
+sessions writing to the shared checkout during a run.
+
+Real-device acceptance on the television is open, and is also where the
+starting configuration above should be read off. Nothing in this package has
+been seen on screen yet.
+
+## The metadata the settings show
+
+Asked for by Jens on 2026-09-20, while looking at the effect in System
+Settings. This closes part of the metadata item in
+[approach step 3](#approach), which asked for name, authors, website, licence
+and base version; authors and the description are done, website is not, and no
+version is declared because that would be a second hand-maintained number.
+
+`src/plugins/upscale/metadata.json` now declares `KPlugin.Authors` with
+`Jens Köhler <kwin-effect-upscale@koehler-speyer.de>`, following the one KWin
+effect that declares an author at all, `outputlocator`, which uses the same
+`{Name, Email}` form. The name carries the umlaut although the SPDX headers
+spell it `Jens Koehler`; the headers are a machine-read licence field and this
+is what a person reads in the settings. The description is Jens's own wording:
+"Render games at a lower resolution and upscale them to the display's native
+resolution for better performance." The file validates against KDE's
+`kpluginmetadata.schema.json` through `tools/check-plugin-metadata.py`.
+
+### A build and a commit in one working copy corrupt each other
+
+Observed on 2026-09-20, and recorded because the symptom looks exactly like a
+flaky build and would otherwise cost the next person an hour.
+
+Several agent sessions share one working copy. A container build was running
+while another session attempted a commit, and the Trixie Clang build failed
+with `no member named osdStatisticsPosition in KWin::UpscaleConfig`, while the
+GCC build of the same tree minutes earlier had passed. Nothing was wrong with
+the code.
+
+The cause is that `pre-commit` stashes the unstaged working tree while it runs
+its hooks and restores it afterwards. During that window the checkout holds
+`HEAD` content. The build read `upscaleconfig.kcfg` inside it and generated a
+`upscaleconfig.h` without the entries the sources had already been changed to
+use. The evidence is the timestamps: the generated header in the Clang build
+directory is from 22:09:18 and names the old `osdPosition`, the one in the GCC
+build directory is from 22:07:25 and names the new entries, and the source
+`upscaleconfig.kcfg` has an mtime of 22:10:23 — later than the build that read
+it. A file cannot be read after it was written unless something put an older
+version there in between.
+
+The hazard is symmetric and is not about git: anything that stashes does it,
+including a plain `pre-commit run --all-files`, and the session running it does
+not have to be the one committing. The convention agreed between the sessions
+is that whoever is about to run something that stashes says so first, and
+nobody writes to the checkout until that session reports it has finished.
+
+Diagnosing this wrongly is easy. Two hypotheses were checked and disproved
+first: a generated `upscaleconfig.h` left in the source tree, where the
+include path would have found it (there is none, and the kcfg outputs are not
+tracked), and a race between the header generation and the compile in a fresh
+build directory, which would have produced "file not found" rather than a
+header with the wrong contents.
+
+### A metadata change did not reach the binary
+
+Found on 2026-09-20 while checking that the author had actually been embedded,
+and worth recording because nothing about it is visible from the source.
+
+Editing `metadata.json` regenerated `metadata.json.stripped` and `main.moc`
+and relinked the module, but did not recompile `main.cpp`, so the linked
+binary kept the previous metadata. Reproduced deliberately with a marker
+string: absent from the module after one build, present after a second build
+with no source change at all.
+
+The cause is that `AUTOGEN_TARGET_DEPENDS`, which is all upstream KWin's
+`kwin_strip_builtin_effect_metadata` sets, makes the moc run again but leaves
+the compile attached to the autogen step as an order-only dependency. Ninja
+decides the translation unit is up to date before the moc output changes under
+it. Ninja's own dependency database does record `main.moc` as a dependency of
+`main.cpp.o`, which is why the following build repairs it.
+
+A clean build was never affected, because everything is compiled anyway, so no
+published package carried wrong metadata. Every incremental build did, which is
+every build made while working on it.
+
+Fixed in `cmake/KWinBuiltinEffectShim.cmake`, which is ours and outside the
+upstreamable plugin folder, by naming the stripped file as an `OBJECT_DEPENDS`
+of the target's sources. One build is now enough; verified by rebuilding once
+and finding both the author and the new description in the module and the old
+description gone. The shim records this as its fifth documented divergence
+from upstream.
+
+Upstream KWin has the same pattern and presumably the same behaviour. That is
+not this repository's to fix, and the plugin folder stays unchanged either way,
+but it is worth mentioning if any of this is ever submitted.
+
+### Progress and remaining work
+
+Implemented and verified: the metadata declares the author and the new
+description, validates against the KDE schema, and reaches the binary in one
+build. The native suite passes 17 of 17 with the change in place, and the
+Debug build is installed on wzpc.
+
+Open: the website field, and reading the result on the television — that the
+settings list shows the author and the new description is still unconfirmed by
+eye, because KWin has to be restarted before the settings read the new module.
+The full check list above covers this work as well; it was gated together with
+the placement change.
 
 ## Absorbed topics
 

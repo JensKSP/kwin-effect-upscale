@@ -240,6 +240,32 @@ target_link_libraries(
 )
 add_test(NAME upscale-headsup COMMAND upscale_headsup_test)
 
+set(placement_test_sources
+    placement_test.cpp
+    ../src/plugins/upscale/application.cpp
+    ../src/plugins/upscale/overlay.cpp
+    ../src/plugins/upscale/placement.cpp
+    ../src/plugins/upscale/snapshot.cpp
+    ../src/plugins/upscale/snapshot_metrics.cpp
+    ../src/plugins/upscale/eligibility.cpp
+    ../src/plugins/upscale/refusaltext.cpp
+)
+kconfig_add_kcfg_files(placement_test_sources ../src/plugins/upscale/upscaleconfig.kcfgc)
+add_executable(upscale_placement_test ${placement_test_sources})
+target_include_directories(upscale_placement_test PRIVATE ../src/plugins/upscale)
+target_compile_definitions(
+    upscale_placement_test
+    PRIVATE -DTRANSLATION_DOMAIN="kwin_effect_upscale"
+)
+target_link_libraries(
+    upscale_placement_test
+    PRIVATE kwin Qt6::Test KF6::ConfigGui KF6::I18n Libdrm::Libdrm
+)
+# No OpenGL context and no rasteriser: this one asserts geometry, so it needs
+# only a platform that can measure a font.
+add_test(NAME upscale-placement COMMAND upscale_placement_test)
+set_tests_properties(upscale-placement PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 set(display_test_sources
     display_test.cpp
     ../src/plugins/upscale/application.cpp
@@ -281,6 +307,7 @@ if(KWIN_BUILD_KCMS)
         ../src/plugins/upscale/placement.cpp
         ../src/plugins/upscale/supportinformation.cpp
         ../src/plugins/upscale/upscale_config.cpp
+        ../src/plugins/upscale/displaycontrols.cpp
         ../src/plugins/upscale/resolutionchoice.cpp
     )
     kconfig_add_kcfg_files(settings_module_SOURCES ../src/plugins/upscale/upscaleconfig.kcfgc)

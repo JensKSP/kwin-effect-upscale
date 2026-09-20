@@ -152,7 +152,9 @@ void UpscaleConfigTest::displayDefaults()
     QCheckBox *statistics = module.widget()->findChild<QCheckBox *>(QStringLiteral("osdStatistics"));
     QCheckBox *developer = module.widget()->findChild<QCheckBox *>(QStringLiteral("osdDeveloper"));
     QSpinBox *timeout = module.widget()->findChild<QSpinBox *>(QStringLiteral("osdTimeout"));
-    QComboBox *position = module.widget()->findChild<QComboBox *>(QStringLiteral("osdPosition"));
+    QComboBox *announcementPosition = module.widget()->findChild<QComboBox *>(QStringLiteral("osdAnnouncementPosition"));
+    QComboBox *position = module.widget()->findChild<QComboBox *>(QStringLiteral("osdStatisticsPosition"));
+    QComboBox *developerPosition = module.widget()->findChild<QComboBox *>(QStringLiteral("osdDeveloperPosition"));
     QLabel *build = module.widget()->findChild<QLabel *>(QStringLiteral("build"));
     QVERIFY(build);
     // Built without the generated identity, as an upstream copy inside KWin
@@ -164,7 +166,9 @@ void UpscaleConfigTest::displayDefaults()
     QVERIFY(statistics);
     QVERIFY(developer);
     QVERIFY(timeout);
+    QVERIFY(announcementPosition);
     QVERIFY(position);
+    QVERIFY(developerPosition);
     // The announcement is on in both build types; the persistent views follow
     // the build configuration of this binary and nothing else.
     QVERIFY(detection->isChecked());
@@ -175,11 +179,33 @@ void UpscaleConfigTest::displayDefaults()
     // out, so a mode stays available whatever the other three are set to.
     QVERIFY(statistics->isEnabled());
     QVERIFY(developer->isEnabled());
-    // The corner belongs to the view it moves: there is nothing to place
-    // while that view is off, and the other two blocks have fixed corners.
+    // Each display starts in its own corner, leaving the fourth free for the
+    // interactive panel, and a corner is worth choosing only while the display
+    // that would occupy it is switched on.
+    QCOMPARE(announcementPosition->currentIndex(), int(KWin::UpscaleCorner::TopLeft));
     QCOMPARE(position->currentIndex(), int(KWin::UpscaleCorner::TopRight));
+    QCOMPARE(developerPosition->currentIndex(), int(KWin::UpscaleCorner::BottomRight));
     statistics->setChecked(false);
     QVERIFY(!position->isEnabled());
+    statistics->setChecked(true);
+
+    // Choosing a corner another display holds moves that display to the next
+    // free one. The announcement takes the heads-up's corner; the heads-up
+    // steps on to the free corner rather than swapping into the vacated one.
+    announcementPosition->setCurrentIndex(int(KWin::UpscaleCorner::TopRight));
+    QCOMPARE(announcementPosition->currentIndex(), int(KWin::UpscaleCorner::TopRight));
+    QCOMPARE(position->currentIndex(), int(KWin::UpscaleCorner::BottomLeft));
+    QCOMPARE(developerPosition->currentIndex(), int(KWin::UpscaleCorner::BottomRight));
+
+    // Whatever is chosen, the three never name the same corner.
+    for (int corner = 0; corner < KWin::upscaleCornerCount; ++corner) {
+        developerPosition->setCurrentIndex(corner);
+        QCOMPARE(developerPosition->currentIndex(), corner);
+        QVERIFY2(announcementPosition->currentIndex() != position->currentIndex()
+                     && position->currentIndex() != developerPosition->currentIndex()
+                     && announcementPosition->currentIndex() != developerPosition->currentIndex(),
+                 "two displays were left holding the same corner");
+    }
     statistics->setChecked(true);
     QVERIFY(position->isEnabled());
 
@@ -203,7 +229,7 @@ void UpscaleConfigTest::displayDefaults()
     position->setCurrentIndex(int(KWin::UpscaleCorner::BottomLeft));
     QVERIFY(module.needsSave());
     module.save();
-    QCOMPARE(stored().readEntry("OsdPosition", -1), int(KWin::UpscaleCorner::BottomLeft));
+    QCOMPARE(stored().readEntry("OsdStatisticsPosition", -1), int(KWin::UpscaleCorner::BottomLeft));
     module.load();
     QCOMPARE(position->currentIndex(), int(KWin::UpscaleCorner::BottomLeft));
     module.defaults();

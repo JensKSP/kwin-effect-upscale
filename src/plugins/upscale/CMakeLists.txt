@@ -49,6 +49,7 @@ target_link_libraries(upscale PRIVATE
 if (KWIN_BUILD_KCMS)
     set(kwin_upscale_config_SRCS
         upscale_config.cpp
+        displaycontrols.cpp
         resolutionchoice.cpp
         application.cpp
         applicationeditor.cpp

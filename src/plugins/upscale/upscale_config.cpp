@@ -66,7 +66,9 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     , m_osdSummary(new QCheckBox(i18n("Include a short summary in the announcement"), widget()))
     , m_osdStatistics(new QCheckBox(i18n("Show the frame rate on screen"), widget()))
     , m_osdDeveloper(new QCheckBox(i18n("Add developer information"), widget()))
-    , m_osdPosition(new QComboBox(widget()))
+    , m_osdAnnouncementPosition(new QComboBox(widget()))
+    , m_osdStatisticsPosition(new QComboBox(widget()))
+    , m_osdDeveloperPosition(new QComboBox(widget()))
     , m_osdTimeout(new QSpinBox(widget()))
     , m_build(new QLabel(widget()))
     , m_status(new QLabel(widget()))
@@ -161,48 +163,6 @@ void UpscaleEffectConfig::connectControls()
     });
     connect(m_strength, &QSlider::valueChanged, this, [this]() {
         updatePreview();
-        setNeedsSave(true);
-    });
-}
-
-void UpscaleEffectConfig::addDisplayControls(QFormLayout *layout)
-{
-    m_osdDetection->setObjectName(QStringLiteral("osdDetection"));
-    m_osdSummary->setObjectName(QStringLiteral("osdSummary"));
-    m_osdStatistics->setObjectName(QStringLiteral("osdStatistics"));
-    m_osdDeveloper->setObjectName(QStringLiteral("osdDeveloper"));
-    m_osdPosition->setObjectName(QStringLiteral("osdPosition"));
-    m_osdTimeout->setObjectName(QStringLiteral("osdTimeout"));
-    // The order is the stored one in upscaleconfig.kcfg.
-    m_osdPosition->addItems({i18n("Top left"), i18n("Top right"), i18n("Bottom left"), i18n("Bottom right")});
-    m_osdTimeout->setRange(1, 60);
-    m_osdTimeout->setSuffix(i18n(" s"));
-    layout->addRow(m_osdDetection);
-    layout->addRow(m_osdSummary);
-    layout->addRow(i18n("Announcement timeout:"), m_osdTimeout);
-    m_osdStatistics->setToolTip(i18n("Keeps the frame rate the screen actually presented on screen while a game is "
-                                     "running, with the slowest frames beside the average, because an average alone "
-                                     "hides stutter."));
-    layout->addRow(m_osdStatistics);
-    // Only the view that stays on screen during play is worth moving. The
-    // announcement appears in the top left and the developer information in
-    // the bottom right, so that three different things are never one block.
-    m_osdPosition->setToolTip(i18n("Where the frame rate is shown on the game's screen."));
-    layout->addRow(i18n("Frame rate position:"), m_osdPosition);
-    layout->addRow(m_osdDeveloper);
-    // A Debug build shows statistics and developer information unless the
-    // user has said otherwise; a release build shows only the announcement.
-    // The defaults live in upscaleconfig.kcfg, not here.
-    for (QCheckBox *box : {m_osdDetection, m_osdSummary, m_osdStatistics, m_osdDeveloper}) {
-        connect(box, &QCheckBox::toggled, this, [this]() {
-            updatePreview();
-            setNeedsSave(true);
-        });
-    }
-    connect(m_osdTimeout, &QSpinBox::valueChanged, this, [this]() {
-        setNeedsSave(true);
-    });
-    connect(m_osdPosition, &QComboBox::currentIndexChanged, this, [this]() {
         setNeedsSave(true);
     });
 }
@@ -313,8 +273,13 @@ void UpscaleEffectConfig::updatePreview()
     // Each of the four displays is its own switch, so a control is enabled by
     // the display it belongs to and by nothing above it. Turning all four off
     // is what leaves nothing on screen; there is no separate way to say it.
-    m_osdTimeout->setEnabled(m_osdDetection->isChecked() || m_osdSummary->isChecked());
-    m_osdPosition->setEnabled(m_osdStatistics->isChecked());
+    // A corner is worth choosing only while the display that would occupy it
+    // is switched on. Each box follows its own display and nothing else.
+    const bool announcing = m_osdDetection->isChecked() || m_osdSummary->isChecked();
+    m_osdTimeout->setEnabled(announcing);
+    m_osdAnnouncementPosition->setEnabled(announcing);
+    m_osdStatisticsPosition->setEnabled(m_osdStatistics->isChecked());
+    m_osdDeveloperPosition->setEnabled(m_osdDeveloper->isChecked());
 }
 
 void UpscaleEffectConfig::showSettings()
@@ -329,7 +294,20 @@ void UpscaleEffectConfig::showSettings()
     m_osdSummary->setChecked(UpscaleConfig::osdSummary());
     m_osdStatistics->setChecked(UpscaleConfig::osdStatistics());
     m_osdDeveloper->setChecked(UpscaleConfig::osdDeveloper());
-    m_osdPosition->setCurrentIndex(int(upscaleCorner(UpscaleConfig::osdPosition())));
+    // Separated on the way in for the same reason the effect separates them:
+    // a file edited by hand can name one corner twice, and the page must not
+    // show two displays sharing one.
+    std::array<UpscaleCorner, 3> corners{
+        upscaleCorner(UpscaleConfig::osdAnnouncementPosition()),
+        upscaleCorner(UpscaleConfig::osdStatisticsPosition()),
+        upscaleCorner(UpscaleConfig::osdDeveloperPosition()),
+    };
+    upscaleSeparateCorners(corners);
+    const std::array<QComboBox *, 3> positions = positionControls();
+    for (std::size_t entry = 0; entry < positions.size(); ++entry) {
+        const QSignalBlocker blocker(positions[entry]);
+        positions[entry]->setCurrentIndex(int(corners[entry]));
+    }
     m_osdTimeout->setValue(UpscaleConfig::osdTimeout());
     m_unknown->setChecked(UpscaleConfig::unknownApplications());
     updatePreview();
@@ -347,7 +325,9 @@ void UpscaleEffectConfig::applySettings()
     UpscaleConfig::setOsdSummary(m_osdSummary->isChecked());
     UpscaleConfig::setOsdStatistics(m_osdStatistics->isChecked());
     UpscaleConfig::setOsdDeveloper(m_osdDeveloper->isChecked());
-    UpscaleConfig::setOsdPosition(m_osdPosition->currentIndex());
+    UpscaleConfig::setOsdAnnouncementPosition(m_osdAnnouncementPosition->currentIndex());
+    UpscaleConfig::setOsdStatisticsPosition(m_osdStatisticsPosition->currentIndex());
+    UpscaleConfig::setOsdDeveloperPosition(m_osdDeveloperPosition->currentIndex());
     UpscaleConfig::setOsdTimeout(m_osdTimeout->value());
     UpscaleConfig::setUnknownApplications(m_unknown->isChecked());
     // A value equal to the current default is stored as no entry at all, so a

@@ -78,6 +78,38 @@ static QImage renderText(const QString &text, double scale)
     return image;
 }
 
+// Lay the text out at the size it asked for, and again smaller when that does
+// not fit the quarter of the screen it was given.
+//
+// One retry is enough. Text metrics follow the font size closely but not
+// exactly — hinting and integer pixel sizes move the result by a fraction of a
+// character — so a second pass would chase a bound it has already very nearly
+// reached. The crop below is what makes the bound exact, and it removes a few
+// pixels rather than a word.
+//
+// The smallest readable font size is a floor inside renderText(), so a block
+// on an output with almost no room stops shrinking while it can still be read
+// and is cropped instead. Losing the end of a line beats losing the line.
+static QImage renderFitted(const QString &text, double factor, double scale, const QSizeF &budget)
+{
+    QImage image = renderText(text, factor);
+    if (image.isNull() || !budget.isValid()) {
+        return image;
+    }
+    const QSizeF logical = QSizeF(image.size()) / scale;
+    if (logical.width() > budget.width() || logical.height() > budget.height()) {
+        const double fit = std::min(budget.width() / logical.width(), budget.height() / logical.height());
+        image = renderText(text, factor * fit);
+    }
+    // The budget is in the output's coordinates and the image in destination
+    // pixels, which is what the block is measured and drawn in.
+    const QSize allowed(int(std::floor(budget.width() * scale)), int(std::floor(budget.height() * scale)));
+    if (image.width() > allowed.width() || image.height() > allowed.height()) {
+        image = image.copy(QRect(QPoint(), image.size().boundedTo(allowed)));
+    }
+    return image;
+}
+
 void UpscaleOverlay::setText(const QString &text, double scale, double emphasis)
 {
     if (m_text == text && m_scale == scale && m_emphasis == emphasis) {
@@ -86,39 +118,65 @@ void UpscaleOverlay::setText(const QString &text, double scale, double emphasis)
     m_text = text;
     m_scale = scale;
     m_emphasis = emphasis;
-    // The emphasis enlarges what is drawn; the logical size this reports still
-    // divides by the screen's own scale, so placement stays in the output's
-    // coordinates and a larger block simply occupies more of them.
-    m_image = text.isEmpty() ? QImage() : renderText(text, scale * emphasis);
+    // What was laid out described the old text. Laying the new one out waits
+    // for fit(), which is where the room it has to fit into is known.
+    m_fitted = false;
+    m_image = QImage();
+    m_texture.reset();
+}
+
+void UpscaleOverlay::fit(const QSizeF &budget)
+{
+    if (m_fitted && m_budget == budget) {
+        return;
+    }
+    m_budget = budget;
+    m_fitted = false;
     // The texture belongs to the old image. Uploading happens in the paint
     // pass, where a current OpenGL context is guaranteed.
     m_texture.reset();
 }
 
+void UpscaleOverlay::layOut() const
+{
+    if (m_fitted) {
+        return;
+    }
+    m_fitted = true;
+    // The emphasis enlarges what is drawn; the logical size this reports still
+    // divides by the screen's own scale, so placement stays in the output's
+    // coordinates and a larger block simply occupies more of them.
+    m_image = m_text.isEmpty() ? QImage() : renderFitted(m_text, m_scale * m_emphasis, m_scale, m_budget);
+}
+
 QSizeF UpscaleOverlay::size() const
 {
+    layOut();
     return m_image.isNull() ? QSizeF() : QSizeF(m_image.size()) / m_scale;
 }
 
 QString UpscaleOverlay::text() const
 {
-    return m_image.isNull() ? QString() : m_text;
+    return m_text;
 }
 
 bool UpscaleOverlay::isEmpty() const
 {
-    return m_image.isNull();
+    return m_text.isEmpty();
 }
 
 void UpscaleOverlay::release()
 {
     m_text.clear();
+    m_budget = QSizeF();
+    m_fitted = false;
     m_image = QImage();
     m_texture.reset();
 }
 
 bool UpscaleOverlay::paint(const RenderTarget &target, const RenderViewport &viewport, const QPointF &position)
 {
+    layOut();
     if (m_image.isNull()) {
         return false;
     }

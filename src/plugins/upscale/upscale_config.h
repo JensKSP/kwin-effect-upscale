@@ -8,6 +8,9 @@
 
 #include <KCModule>
 
+#include <array>
+#include <cstddef>
+
 class QCheckBox;
 class QComboBox;
 class QFormLayout;
@@ -38,6 +41,10 @@ private:
     void showSettings();
     void applySettings();
     void addDisplayControls(QFormLayout *layout);
+    /** The three position boxes, in the order the stored corners are kept. */
+    std::array<QComboBox *, 3> positionControls();
+    /** Applies a corner the user just chose, moving whoever held it. */
+    void takeCorner(std::size_t display);
     void addThresholdControl(QFormLayout *layout);
     void addApplicationControls(QFormLayout *layout);
     void resetApplications();
@@ -61,7 +68,9 @@ private:
     QCheckBox *m_osdSummary;
     QCheckBox *m_osdStatistics;
     QCheckBox *m_osdDeveloper;
-    QComboBox *m_osdPosition;
+    QComboBox *m_osdAnnouncementPosition;
+    QComboBox *m_osdStatisticsPosition;
+    QComboBox *m_osdDeveloperPosition;
     QSpinBox *m_osdTimeout;
     QCheckBox *m_unknown;
     UpscaleApplicationEditor *m_editor;

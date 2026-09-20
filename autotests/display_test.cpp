@@ -23,6 +23,8 @@
 #include <QTemporaryDir>
 #include <QTest>
 
+#include <array>
+
 using namespace KWin;
 
 class UpscaleDisplayTest : public QObject
@@ -219,7 +221,9 @@ void UpscaleDisplayTest::blocksKeepTheirOwnCorners()
     UpscaleConfig::setOsdSummary(false);
     UpscaleConfig::setOsdStatistics(true);
     UpscaleConfig::setOsdDeveloper(true);
-    UpscaleConfig::setOsdPosition(int(UpscaleCorner::TopRight));
+    UpscaleConfig::setOsdAnnouncementPosition(int(UpscaleCorner::TopLeft));
+    UpscaleConfig::setOsdStatisticsPosition(int(UpscaleCorner::TopRight));
+    UpscaleConfig::setOsdDeveloperPosition(int(UpscaleCorner::BottomRight));
     UpscaleConfig::setOsdTimeout(60);
     UpscaleDisplay display;
     display.reconfigure();
@@ -265,7 +269,7 @@ void UpscaleDisplayTest::blocksKeepTheirOwnCorners()
     UpscaleConfig::setOsdSummary(false);
 
     // Moving the measurements moves nothing else.
-    UpscaleConfig::setOsdPosition(int(UpscaleCorner::BottomLeft));
+    UpscaleConfig::setOsdStatisticsPosition(int(UpscaleCorner::BottomLeft));
     display.reconfigure();
     image = shown();
     QVERIFY2(plate(image, 40, size.height() - 40), "the measurements did not follow the chosen corner");
@@ -286,37 +290,38 @@ void UpscaleDisplayTest::blocksKeepTheirOwnCorners()
     // dump beside it, at the same text length.
     UpscaleConfig::setOsdStatistics(true);
     UpscaleConfig::setOsdDeveloper(false);
-    UpscaleConfig::setOsdPosition(int(UpscaleCorner::TopLeft));
+    UpscaleConfig::setOsdStatisticsPosition(int(UpscaleCorner::TopLeft));
+    UpscaleConfig::setOsdAnnouncementPosition(int(UpscaleCorner::BottomLeft));
     display.reconfigure();
     display.update(state, nullptr);
     const QString glance = display.text();
     QVERIFY2(glance.contains(QStringLiteral("FPS")), qPrintable(glance));
     QVERIFY2(glance.count(QLatin1Char('\n')) <= 1, qPrintable(glance));
 
-    // Sent to the same corner, they stack rather than overdraw. The chosen
-    // view keeps the corner, and there is background between the two plates.
+    // A configuration naming one corner twice is separated on the way in, so
+    // the two blocks end up in different corners rather than on top of each
+    // other. The developer dump is the later entry and is the one that moves.
     UpscaleConfig::setOsdDeveloper(true);
     UpscaleConfig::setOsdStatistics(true);
-    UpscaleConfig::setOsdPosition(int(UpscaleCorner::BottomRight));
+    UpscaleConfig::setOsdAnnouncementPosition(int(UpscaleCorner::TopLeft));
+    UpscaleConfig::setOsdStatisticsPosition(int(UpscaleCorner::BottomRight));
+    UpscaleConfig::setOsdDeveloperPosition(int(UpscaleCorner::BottomRight));
     display.reconfigure();
     image = shown();
-    const int column = size.width() - 40;
-    int row = size.height() - 33;
-    QVERIFY(plate(image, column, row));
-    while (row > 0 && plate(image, column, row)) {
-        --row;
-    }
-    const int gap = row;
-    while (row > 0 && !plate(image, column, row)) {
-        --row;
-    }
-    QVERIFY2(gap - row >= 24, "the two blocks were drawn without a gap between them");
-    QVERIFY2(plate(image, column, row), "the second block is not stacked above the first");
+    QVERIFY2(plate(image, size.width() - 40, size.height() - 40),
+             "the measurements did not keep the corner they were given");
+    QVERIFY2(plate(image, size.width() - 40, 40),
+             "the developer dump was not moved off the corner the measurements hold");
+    QVERIFY2(!plate(image, 40, size.height() - 40), "a block was drawn in the corner left free");
+    // The announcement is switched off here, so its corner stays empty: what
+    // the separation moved is the block that had nowhere else to be.
+    QVERIFY2(!plate(image, 40, 40), "a block was drawn in the announcement's corner");
 
     // The screen's configured scale factor sizes the text with it, so the
     // same state covers about four times the area at twice the scale.
     UpscaleConfig::setOsdDeveloper(false);
-    UpscaleConfig::setOsdPosition(int(UpscaleCorner::TopLeft));
+    UpscaleConfig::setOsdStatisticsPosition(int(UpscaleCorner::TopLeft));
+    UpscaleConfig::setOsdAnnouncementPosition(int(UpscaleCorner::BottomLeft));
     display.reconfigure();
     const auto covered = [&](const QImage &drawn) {
         int count = 0;
@@ -332,14 +337,24 @@ void UpscaleDisplayTest::blocksKeepTheirOwnCorners()
     state.outputScale = 2;
     QVERIFY2(covered(shown()) > 3 * unscaled, "the screen's scale factor did not size the text");
 
-    // An output smaller than the block keeps its beginning on the screen,
-    // because a plate placed off the top left edge has no readable part left.
+    // An output far smaller than the text it carries still confines the block
+    // to its own quarter. The margin shrinks with the output there, because a
+    // margin that consumed the whole quarter would leave nothing to draw.
     const UpscaleRectF small{QPointF(), QSizeF(80, 48)};
-    UpscaleConfig::setOsdPosition(int(UpscaleCorner::BottomRight));
+    state.outputScale = 1;
+    UpscaleConfig::setOsdStatisticsPosition(int(UpscaleCorner::BottomRight));
     display.reconfigure();
     display.update(state, nullptr);
     image = paintOn(display, size, small);
-    QVERIFY2(plate(image, 4, 4), "a block larger than its output was placed off it");
+    // This viewport stretches the 80 x 48 output across the whole readback,
+    // so a probe has to be stated in the output's own coordinates and scaled.
+    const auto onSmall = [&](double x, double y) {
+        return plate(image, int(x * size.width() / small.size().width()),
+                     int(y * size.height() / small.size().height()));
+    };
+    QVERIFY2(onSmall(60, 36), "a block on a tiny output was not drawn in its corner");
+    QVERIFY2(!onSmall(4, 4), "a block reached the quarter opposite the one it was given");
+    QVERIFY2(!onSmall(40, 24), "a block crossed the centre of a tiny output");
     display.hide();
     QCOMPARE(glGetError(), GLenum(GL_NO_ERROR));
 }

@@ -1008,29 +1008,50 @@ read than it was alone:
 
 | Display | What it is for | Where it goes |
 | --- | --- | --- |
-| Timed announcement | The selected or recognized application and its short summary. It goes away on its own and reappears whenever there is something new to say. | Top left. |
+| Timed announcement | The selected or recognized application and its short summary. It goes away on its own and reappears whenever there is something new to say. | The corner the user chooses, top left by default. |
 | [Heads-up display](#the-heads-up-display) | The few figures a player watches while playing: frames per second, frame time, 1% low, and what the picture is being drawn at. Large text. | The corner the user chooses, top right by default. |
-| Developer information | The diagnostic dump: build, selection, configuration, geometry, processing, colour. | Bottom right. |
-| Interactive panel | Settings changed during play, opened and closed by a configurable key combination. Not implemented; specified in [in-game controls](#in-game-controls-and-applying-settings). | Its own placement, decided with that feature. |
+| Developer information | The diagnostic dump: build, selection, configuration, geometry, processing, colour. | The corner the user chooses, bottom right by default. |
+| Interactive panel | Settings changed during play, opened and closed by a configurable key combination. Not implemented; specified in [in-game controls](#in-game-controls-and-applying-settings). | The corner the three passive displays leave free. |
 
 Each display is switched on and off on its own, and switching one on never
-moves, extends or replaces another. Only the persistent view's corner is a
-setting: it is the one a player keeps on screen next to a game, so it is the
-one that has to be movable away from a heads-up display, a score or a
-killfeed. The other corners are fixed, which is what keeps the three
-recognisable at a glance.
+moves, extends or replaces another. Each has a corner of its own to choose,
+because each is the one a player might need to move away from a score, a
+killfeed or a subtitle, and which one that is depends on the game.
 
-Two displays sent to the same corner stack away from it, in the order above,
-with the same margin between them as to the screen edge; they never overdraw
-each other. A display wider or taller than the output it is drawn on keeps its
-beginning on the screen rather than starting outside it, because the part that
-would be lost is the part that names what is being read.
+**No two displays share a corner.** Choosing a corner another display holds
+moves that display to the next free corner, counting forward from the
+contested one and wrapping. It is deliberately not a swap: a person moving one
+display is saying where that display goes, and a second one jumping into the
+place just vacated reads as the screen arguing back. Three displays and four
+corners means there is always somewhere to go, and the corner left over is
+where the interactive panel appears.
+
+**Each display is confined to its own quarter of the output**, inset by the
+same margin that keeps text off the edge of a television, so that neighbouring
+quarters stand two margins apart. A display too large for its quarter is laid
+out smaller until it fits, down to the smallest readable font size; whatever
+still falls outside is cropped. The quarter is therefore a bound and not a
+preference, and two displays cannot overlap whatever the output's scale factor
+does to the ratio between the text and the screen.
+
+That ratio is the reason the bound exists. The blocks are drawn at the
+destination pixels the output scale asks for, so their size in the
+coordinates placement works in stays roughly constant while a scale factor
+shrinks the output's logical size. A block that took a quarter of an unscaled
+1:1 screen wants three quarters of the same screen configured at scale 3, and
+before the bound existed the displays ran into each other there. Measured on
+2026-09-20 with a synthetic snapshot on a 1280 x 720 logical output, which is
+a 3840 x 2160 television at scale 3: the announcement wanted 356 x 44 and the
+heads-up 450 x 72, both inside the 576 x 296 quarter, while the developer dump
+wanted 753 x 198 and was laid out at 576 x 155 to fit. A longer window caption
+or a larger session font moves the first two past each other as well.
 
 Implemented: the three passive displays are separate blocks in separate
-corners, with the persistent view's corner stored as **Frame rate position**
-and offered in the settings page. Enabling developer information no longer
-extends or enables the persistent view; the two are independent. The
-interactive panel does not exist yet.
+corners, each corner stored and offered in the settings page as **Announcement
+position**, **Frame rate position** and **Developer information position**,
+kept distinct, and each block bounded by its quarter. Enabling developer
+information no longer extends or enables the persistent view; the two are
+independent. The interactive panel does not exist yet.
 
 ### In-game controls and applying settings
 
