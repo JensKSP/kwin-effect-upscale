@@ -534,6 +534,14 @@ its own FSR implementation, allowing the same scene to be compared with this
 effect. Veloren is a useful native Wayland plus Vulkan candidate and also has
 an internal render scale.
 
+Left 4 Dead 2 is the native Source engine title this effect's X11 path was
+developed against, launched normally from Steam through pressure-vessel. Its
+window identifies itself as `hl2_linux`, which is the engine binary rather than
+the game, so the profile the package ships covers every native Source title.
+Source takes its fullscreen size from the window manager and never asks
+Xwayland for a mode, which is the case the effect has to present and map
+pointer input for itself.
+
 Project Zomboid is not open source, but it has been useful for observing an
 X11/Xwayland game path. Its LWJGL 2 compatibility layer pins GLFW to X11 unless
 the system property `zomboid.wayland=1` is set, even though the bundled GLFW
