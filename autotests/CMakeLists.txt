@@ -112,7 +112,10 @@ if(KWin_VERSION VERSION_LESS 6.7)
             ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-integration-test.py
             $<TARGET_FILE:upscale_x11_integration_test> --x11
     )
-    set_tests_properties(upscale-x11-integration PROPERTIES TIMEOUT 300 RUN_SERIAL TRUE)
+    # Eight fullscreen transitions, each waiting on a client that commits a
+    # buffer every three seconds on the slowest machine this runs on, need
+    # more headroom than one session of the other test does.
+    set_tests_properties(upscale-x11-integration PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
     if(UPSCALE_SANITIZER)
         set_tests_properties(
             upscale-integration

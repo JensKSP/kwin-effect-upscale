@@ -285,12 +285,18 @@ void UpscaleX11IntegrationTest::repeatedFullscreenTransitions()
     // frame is still small. The blocked native configure must not prevent
     // KWin from updating that logical frame to cover the output.
     for (int transition = 0; transition < 8; ++transition) {
+        // Bounded like the other round trips here, and for a sharper reason:
+        // each of these waits on the client having committed a buffer, and
+        // the nightly's arm64 runner presents at 4.5 frames a second - 3.1
+        // seconds for one frame, against a validation window of three. The
+        // 5 s default was not a bound on the negotiation, it was a bet that
+        // the machine draws often.
         target.fullscreen(true);
-        QTRY_VERIFY_WITH_TIMEOUT(target.isFullscreen(), 10000);
-        QTRY_VERIFY2(status().contains(QStringLiteral("as its X11 window size")), qPrintable(status()));
-        QTRY_VERIFY2(status().contains(QStringLiteral("QSize(1920, 1080) QSizeF(3840, 2160)")), qPrintable(status()));
-        QTRY_VERIFY2(status().contains(QStringLiteral("frame QRectF(0,0 3840x2160)")), qPrintable(status()));
-        QTRY_COMPARE(target.geometry().size(), reduced);
+        QTRY_VERIFY_WITH_TIMEOUT(target.isFullscreen(), 30000);
+        QTRY_VERIFY2_WITH_TIMEOUT(status().contains(QStringLiteral("as its X11 window size")), qPrintable(status()), 30000);
+        QTRY_VERIFY2_WITH_TIMEOUT(status().contains(QStringLiteral("QSize(1920, 1080) QSizeF(3840, 2160)")), qPrintable(status()), 30000);
+        QTRY_VERIFY2_WITH_TIMEOUT(status().contains(QStringLiteral("frame QRectF(0,0 3840x2160)")), qPrintable(status()), 30000);
+        QTRY_COMPARE_WITH_TIMEOUT(target.geometry().size(), reduced, 30000);
         target.fullscreen(false);
         QTRY_VERIFY(!target.isFullscreen());
     }
