@@ -15,3 +15,9 @@ globs:
 ignores:
   - "LICENSES/**"
   - "build/**"
+  # A pre-commit cache can land here rather than under build/, and the hook
+  # repositories inside it carry their own Markdown and their own
+  # markdownlint configuration. Linting someone else's fixtures fails on a
+  # config file this project never wrote, which reads as our documents being
+  # broken. Ignored for the same reason build/ is: it is not ours.
+  - ".cache/**"
