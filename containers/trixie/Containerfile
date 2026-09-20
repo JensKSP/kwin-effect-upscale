@@ -26,6 +26,7 @@ RUN test -n "$DEPENDENCY_EPOCH" && apt-get update && apt-get install --no-instal
         python3 \
         reuse \
         lintian \
+        shellcheck \
         llvm \
         devscripts \
         equivs \
@@ -40,6 +41,12 @@ RUN test -n "$DEPENDENCY_EPOCH" && apt-get update && apt-get install --no-instal
 # on a missing header that names neither the image nor the dependency.
 RUN sha256sum /tmp/upscale-debian-control > /etc/upscale-dependency-stamp
 
+# actionlint runs shellcheck over every `run:` block, but only when the binary
+# is there: without it, it checks the YAML and silently skips the shell. That
+# is how a comment placed between two continued lines of a `gh attestation
+# verify` command passed the container's lint while failing the same hook on a
+# developer's machine. CI runs its checks in this image, so a check that is
+# weaker here is weaker in CI.
 # curl fetches the pinned CodeQL command line for the security analysis, which
 # is published as a release archive rather than a distribution package.
 #
