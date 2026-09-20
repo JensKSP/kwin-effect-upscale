@@ -734,9 +734,12 @@ git tag -a v0.1.0 -m 'kwin-effect-upscale 0.1.0'
 git push origin v0.1.0
 ```
 
-The release workflow builds packages for both architectures and both supported
-distributions, creates the source tarball and publishes them as a GitHub
-release with generated notes.
+The release workflow builds every package in the table above - Debian Trixie
+and Kubuntu 26.04 on amd64 and arm64, Fedora and openSUSE Tumbleweed on x86_64
+and aarch64, and Arch on x86_64 - each with its debug symbols and the source
+package its own distribution expects. It creates the project's source tarball,
+checksums and attests the lot, and publishes it as a GitHub release whose notes
+name the file to download first.
 
 `nightly` is one rolling pre-release rebuilt from `master` whenever `master`
 moves. Its tag is deleted and recreated each time, so it is not a stable URL

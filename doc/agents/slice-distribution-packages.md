@@ -547,7 +547,7 @@ Supplied input: 3840 x 2160     frame QRectF(0,0 3840x2160)
 The client never supplied the reduced buffer, so the effect refused - correctly.
 `upscale-x11-integration` starts a nested `kwin_wayland` with Xwayland and
 drives a real client through it, and whether that client answers inside the
-effect's three second validation window is a property of the machine doing the
+effect's three-second validation window is a property of the machine doing the
 build. It could not be reproduced here in four attempts, including at the four
 cores the runner has.
 
@@ -580,3 +580,25 @@ fixed here, and moving it out of the package build does not fix it.
   five of their jobs passed in the same nightly.
 - Real-device acceptance on Fedora, openSUSE and Arch, which no acceptance host
   provides. The full-acceptance gate stays open and this slice stays with it.
+
+### The whole nightly is green, 2026-09-20
+
+Run `35512724768` on `8a78876` finished `success`, every job: all five
+distribution-package jobs, all four Debian and Kubuntu package jobs, the source
+archive, both neon compilers, FreeBSD, the quality gate - and `publish`, which
+is the one that matters here, because it runs `prepare-release.py` and so
+`validate_assets` over the complete candidate. The inventory therefore accepted
+the full set: binary packages per architecture, debug symbols, and one source
+package per distribution.
+
+Two jobs failed on the first attempt of that run and passed on re-run with no
+change in between: the source archive build with ninja's `manifest 'build.ninja'
+still dirty after 100 tries, perhaps system time is not set`, and `resolute
+arm64` with "The two clean package builds differ". Both are recorded as
+transient rather than fixed, because nothing was changed to make them pass.
+
+The second of those deserves a note: a reproducibility check that fails once and
+passes on a re-run is either flaky itself or catching real nondeterminism, and
+neither is comfortable. It had never been reached on `resolute arm64` before,
+because that job used to fail earlier, in the test step. Worth watching now that
+it can run.
