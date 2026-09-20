@@ -2785,12 +2785,18 @@ Clean distribution containers exercise installation, reinstallation, loading
 the installed effect and configuration factories with all symbols resolved,
 removal and purge. The container holds an interpreter and the package and
 nothing else, which is what makes an undeclared runtime dependency fail there
-and nowhere else. On Debian the two session tests additionally run against the
-installed effect, in a job of their own; they are not registered with CTest in
-a package build, where competing with three other builds made their waits
-describe the machine instead of the plugin. FreeBSD is the one target tested in
-the machine that built it, because there is no second clean FreeBSD to install
-into. Loading a factory does not construct an effect in a real KWin session. An
+and nowhere else. FreeBSD is the one target tested in the machine that built
+it, because there is no second clean FreeBSD to install into.
+
+The suite itself cannot run against an installed effect, and not for a reason
+this pipeline can arrange away: the effect declares itself unsupported without
+OpenGL, and KWin's virtual backend has no DRM device to provide it, so a
+nested session composites with QPainter and refuses to load the plugin. That is
+why the session tests drive a module built beside them, and why they belong to
+the pull request checks - where they run on both architectures - rather than to
+the test stage. What the test stage establishes about a package is that it
+installs, that both its plugins load with every symbol resolved, and that it
+reinstalls and removes cleanly. Loading a factory does not construct an effect in a real KWin session. An
 upgrade from an older release and actual GPU rendering remain separate
 acceptance cases.
 

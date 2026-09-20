@@ -52,13 +52,13 @@ runs:
         path: build/artifacts/*
         if-no-files-found: error
 
-    # The binaries that test the package rather than the tree. They are built
-    # by the package build, so the test stage installs and runs them instead of
-    # compiling anything a second time.
+    # The probe that tests the package rather than the tree: it loads both
+    # installed plugins and resolves every symbol. It is built by the package
+    # build, because the clean container the test stage uses has no compiler.
     - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: package-tests-${{ inputs.target }}-${{ inputs.architecture }}
-        path: build/packages/first/source/build/bin/upscale_*_test
+        path: build/packages/first/source/build/bin/upscale_package_test
         if-no-files-found: ignore
         retention-days: 14
 

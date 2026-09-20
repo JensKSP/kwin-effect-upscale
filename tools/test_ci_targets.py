@@ -26,11 +26,6 @@ class CiTargetsTest(unittest.TestCase):
         twice = {entry.identifier for entry in TARGETS if entry.reproducible}
         self.assertEqual(twice, {"trixie"})
 
-    def test_only_debian_runs_the_suite_on_its_package(self) -> None:
-        """Everything else receives the load test, which needs no session."""
-        suite = {entry.identifier for entry in TARGETS if entry.suite}
-        self.assertEqual(suite, {"trixie"})
-
     def test_architecture_names_follow_the_packaging_family(self) -> None:
         """A release inventory that expects amd64 from an RPM finds nothing."""
         self.assertEqual(native_architecture("trixie", "arm64"), "arm64")

@@ -23,9 +23,15 @@ include /usr/share/dpkg/pkg-info.mk
 #
 # Skipped by the empty override below and not by DEB_BUILD_OPTIONS=nocheck,
 # which debhelper answers with -DBUILD_TESTING:BOOL=OFF. That drops autotests/
-# from the build altogether, and the test stage runs those binaries against the
-# installed effect: a clean container has no compiler, and compiling them a
-# second time is what this arrangement exists to avoid.
+# from the build altogether, and the test stage needs one binary out of it: the
+# probe that loads the installed plugins in a clean container, which has no
+# compiler to build it with.
+#
+# The suite itself runs in the pull request checks, on both architectures,
+# against the build tree. It cannot run against an installed effect anywhere a
+# package is built: the effect declares itself unsupported without OpenGL, and
+# KWin's virtual backend has no DRM device to provide it, which is why the
+# session tests drive a module built beside them instead.
 #
 # UPSCALE_SESSION_TESTS stays off so that the two tests needing a compositor
 # session are not registered with CTest. They start a nested kwin_wayland with

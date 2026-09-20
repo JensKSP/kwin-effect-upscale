@@ -23,12 +23,6 @@ inputs:
   bootstrap:
     description: Command that installs an interpreter in the clean image
     required: true
-  session:
-    description: Packages a nested compositor session needs, when the suite runs
-    default: ''
-  suite:
-    description: Whether to run the session tests against the installed effect
-    default: 'false'
 runs:
   using: composite
   steps:
@@ -79,30 +73,6 @@ runs:
               set -- "$@" --probe "$PROBE"
             fi
             python3 -B tools/test-package.py "$@"
-          '
-
-    # The suite, against the effect the package installed rather than a copy
-    # built beside it. It runs here and not in the package build, where four
-    # parallel builds made the waits in a nested session describe the machine
-    # instead of the plugin, and where it would have run once per clean build.
-    - name: Run the session tests on the installed effect
-      if: inputs.suite == 'true'
-      shell: bash
-      env:
-        IMAGE: ${{ inputs.image }}
-        SESSION: ${{ inputs.session }}
-        PACKAGE: ${{ steps.select.outputs.package }}
-      run: |
-        docker run --rm -v "$GITHUB_WORKSPACE:/src" -w /src \
-          -e DEBIAN_FRONTEND=noninteractive -e SESSION -e PACKAGE \
-          "$IMAGE" sh -ec '
-            apt-get update >/dev/null
-            apt-get install --no-install-recommends -y python3 $SESSION >/dev/null
-            apt-get install --no-install-recommends -y "./$PACKAGE"
-            python3 -B tools/run-integration-test.py \
-              build/tests/upscale_integration_test --installed
-            python3 -B tools/run-integration-test.py \
-              build/tests/upscale_x11_integration_test --x11 --installed
           '
 
     - name: Make reports readable

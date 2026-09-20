@@ -109,10 +109,9 @@ cannot close that gate.
    the FreeBSD virtual-machine jobs, which cannot share the container steps.
 4. Callers updated: `ci.yml` passes one target, `nightly.yml` and `release.yml`
    pass all of them, and `publish` waits for the test stage.
-5. Debian builds with `nocheck`; the suite moves to the test stage and runs
-   against the installed plugin, which also gives the session tests a job of
-   their own instead of the four-way parallel package build that made them
-   unreliable.
+5. No test runs in a package build; the installed package is tested in a clean
+   container of its distribution. The suite stays in the pull request checks:
+   see the finding below.
 6. FreeBSD packaging: a `pkg create` manifest template under
    `packaging/freebsd/`, filled from `debian/control`, installed and probed in
    the same VM.
@@ -193,6 +192,30 @@ it was missing.
   later assignment always won and `QT_PLUGIN_PATH` was dropped on every run,
   including the check jobs that need it to find their own driver module. The
   compositor path is now `system_compositor`.
+
+### Finding: the suite cannot test an installed effect
+
+The test stage first ran the two session tests against the installed effect.
+It cannot: `UpscaleEffect::supported()` requires OpenGL, KWin's virtual backend
+needs a DRM device for it and a container has none, so the nested session
+composites with QPainter and `isEffectSupported("upscale")` is false.
+Established by asking a nested session over D-Bus, where `upscale` is listed
+among the known effects, reports `supported: false` and fails to load, while
+`upscale_test_driver` in the same session reports `supported: true`. That
+module exists for exactly this reason, as its own comment says.
+
+Two attempts before that were wrong for smaller reasons and are recorded so
+they are not tried again: the tests name the effect `upscale_test_driver`, not
+`upscale`, so pointing them at an installed package finds nothing; and
+`DEB_BUILD_OPTIONS=nocheck` makes debhelper pass `-DBUILD_TESTING:BOOL=OFF`,
+which drops `autotests/` from the package build entirely, so the probe the
+clean-container test needs was never built.
+
+What the test stage does establish is that the package installs into a clean
+container of its distribution, that both plugins load with every symbol
+resolved, and that it reinstalls, removes and purges. The suite keeps running
+in the pull request checks on both architectures, where `run-render-tests.py`
+drives it through CTest.
 
 ### Not verified
 

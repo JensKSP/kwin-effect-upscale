@@ -65,5 +65,3 @@ jobs:
           image: ${{ matrix.image }}
           architecture: ${{ matrix.architecture }}
           bootstrap: ${{ matrix.bootstrap }}
-          session: ${{ matrix.session }}
-          suite: ${{ matrix.suite }}

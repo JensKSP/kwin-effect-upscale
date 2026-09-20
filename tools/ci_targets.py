@@ -41,10 +41,6 @@ class Target:
     # one target exercising the build information and the packaging flags is
     # what that costs. Every other target is built once.
     reproducible: bool = False
-    # Whether the installed package is tested with the whole suite or with the
-    # load test alone. The suite needs a session, so it needs a distribution
-    # whose KWin the effect is built against and a host that has been accepted.
-    suite: bool = False
     # The FreeBSD release the virtual machine runs. Empty for the container
     # targets, which name a base image instead.
     release: str = ""
@@ -71,9 +67,7 @@ TARGETS = (
         image="docker.io/library/debian:trixie",
         architectures=ARCHITECTURES,
         reproducible=True,
-        suite=True,
         bootstrap="apt-get update && apt-get install --no-install-recommends -y python3",
-        session="kwin-wayland xwayland libgl1-mesa-dri libqt6test6 dbus-daemon",
     ),
     Target(
         identifier="resolute",
@@ -207,9 +201,7 @@ def matrix(
             "architecture": architecture,
             "runner": runner(architecture),
             "reproducible": entry.reproducible,
-            "suite": entry.suite,
             "bootstrap": entry.bootstrap,
-            "session": entry.session,
         }
         for entry in chosen
         if not (container_only and not entry.container)

@@ -30,14 +30,13 @@ def main() -> int:
     binary = Path(sys.argv[1]).resolve()
     build = binary.parent.parent
     x11 = "--x11" in sys.argv[2:]
-    # Test the effect the package installed, not a copy built beside the test.
-    # The package stage passes this; a check job builds its own driver module
-    # and points Qt at it instead.
-    installed = "--installed" in sys.argv[2:]
     with tempfile.TemporaryDirectory(prefix="integration-", dir=build) as directory:
         runtime = Path(directory)
         config = runtime / "config"
         config.mkdir()
+        # upscaleEnabled=false keeps an effect installed on this machine from
+        # loading itself beside the module this test drives, so that what the
+        # session runs is the copy built here and nothing else.
         (config / "kwinrc").write_text(
             "[Plugins]\nupscaleEnabled=false\n"
             "[Effect-upscale]\nEnabled=true\nSharpening=false\nMinimumPixels=0\n"
@@ -67,13 +66,7 @@ def main() -> int:
             QT_FORCE_STDERR_LOGGING="1",
         )
         environment.pop("QT_QPA_PLATFORM", None)
-        if installed:
-            # Qt's own plugin path finds the installed effect. Setting
-            # QT_PLUGIN_PATH here would shadow it with a build tree, which is
-            # exactly what this run is not testing.
-            environment.pop("QT_PLUGIN_PATH", None)
-        else:
-            environment["QT_PLUGIN_PATH"] = str(build / "bin")
+        environment["QT_PLUGIN_PATH"] = str(build / "bin")
         command = [
             str(compositor),
             "--virtual",
