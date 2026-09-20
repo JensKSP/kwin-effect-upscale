@@ -8,11 +8,7 @@ SPDX-License-Identifier: GPL-2.0-or-later
 > [!WARNING]
 > **Working alpha — it works, it is not finished.** The effect upscales real
 > games on a physical display, and a game given a smaller render target draws
-> up to 87% more frames a second ([Measured](#measured)). Image quality has
-> not been judged, HDR and VRR are unverified, television acceptance is open,
-> and on KWin 6.6 a settings change can leave a game at the wrong resolution
-> for up to twenty seconds. Passing CI and available packages do not make it
-> finished.
+> up to 87% more frames a second ([Measured](#measured)).
 
 [![CI](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/ci.yml/badge.svg)](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/ci.yml)
 [![Nightly](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/nightly.yml/badge.svg)](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/nightly.yml)
@@ -91,6 +87,49 @@ necessarily mean lower power consumption.
 This effect aims to upscale the finished game image, including text and menus.
 An upscaler built into a game can work on the 3D scene separately and keep the
 interface at full resolution.
+
+## How the game is made to render smaller
+
+A compositor receives finished frames. By the time KWin has a game's image, the
+game has already paid for every pixel in it, so enlarging a 4K frame would cost
+more work rather than less. For upscaling to save anything, the game has to
+draw a smaller image in the first place - and games do not offer a way to be
+asked. **So this effect arranges for the game to believe a smaller image is the
+right one.** That is worth understanding before installing it, because it is
+the part that can surprise you, and the part that decides whether the effect
+helps your game at all.
+
+How it does that depends on how the game talks to the desktop:
+
+- **A native Wayland game** is told that the screen it is on has a different
+  mode. It sees a 2560 x 1440 or 1920 x 1080 screen where the display is really
+  3840 x 2160, chooses that resolution as any game would, and renders into it.
+  Only the connection belonging to that game is told this; every other window
+  keeps the real screen.
+- **A game running through Xwayland** cannot be told that, because all X11
+  applications share one connection to the display. Its window is resized
+  instead, and the effect presents the result at full screen size itself.
+
+The game decides what to do with what it is told, and that is the whole
+limitation. One that follows the advertised mode renders smaller and gains the
+frame rate under [Measured](#measured). One that ignores it, picks its own
+resolution, or renders through a path that never asks the screen, simply
+carries on at full size - and then this effect has nothing to upscale and
+changes nothing. Neither outcome is a fault to be fixed by trying harder; it is
+a property of the game.
+
+Two consequences follow for anyone using it:
+
+- **A game may report a resolution you did not choose.** Its settings will show
+  the size it was offered, because from inside the game that is the truth.
+- **Nothing is asked of an application that is not in the list.** The effect
+  ships a small set of applications it knows about, and the settings let you
+  add your own. Everything else is left alone entirely.
+
+Upscaling itself is separate from all of this: the effect enlarges any smaller
+fullscreen image it is given, whether it asked for that size or the game chose
+it. Asking is what makes the saving possible; upscaling is what keeps the
+result looking like the screen it fills.
 
 ## Technical details
 
