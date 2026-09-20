@@ -158,9 +158,23 @@ message(STATUS "KWin effect callbacks return bool: ${UPSCALE_KWIN_PAINT_RETURNS_
 
 # Build the configuration page the way KWin does when its KCMs are enabled.
 option(KWIN_BUILD_KCMS "Build the effect configuration page" ON)
+
 if(KWIN_BUILD_KCMS)
     find_package(KF6KCMUtils ${KF_MIN_VERSION} REQUIRED)
 endif()
+
+# The two integration cases each start a nested kwin_wayland with Xwayland and
+# drive a real client through it. Whether that client answers inside the
+# effect's three-second validation window is a property of the machine, so they
+# belong where a machine is chosen - the pull request checks, which run the
+# whole suite on both architectures - and not in a distribution package build,
+# which runs on whatever the builder has. debian/rules turns this off for
+# exactly that reason; everywhere else it stays on.
+#
+# Declared here rather than beside the tests: a cache entry created inside a
+# subdirectory makes CMake regenerate, and ninja then re-runs cmake looking for
+# a settled manifest.
+option(UPSCALE_SESSION_TESTS "Register the tests that need a compositor session" ON)
 
 include(KWinBuiltinEffectShim)
 include(UpscaleInstrumentation)
