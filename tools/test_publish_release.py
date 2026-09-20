@@ -186,6 +186,7 @@ class InstallationGuideTest(unittest.TestCase):
             f"kwin-effect-upscale-{version}-1.src.rpm",
             f"kwin-effect-upscale-{version}-1-x86_64.pkg.tar.zst",
             f"kwin-effect-upscale-debug-{version}-1-x86_64.pkg.tar.zst",
+            f"kwin-effect-upscale-{version}-amd64.pkg",
             f"kwin-effect-upscale-{version}-1.src.tar.gz",
         ]
 
@@ -204,10 +205,24 @@ class InstallationGuideTest(unittest.TestCase):
     def test_every_installable_package_is_offered_once(self) -> None:
         """One row per distribution and architecture, and no companion files."""
         rows = [line for line in self.guide().splitlines() if line.startswith("| ")][2:]
-        self.assertEqual(len(rows), 9)
+        self.assertEqual(len(rows), 10)
         for row in rows:
             for companion in ("-dbgsym_", "-debuginfo-", "-debug-", ".src.", ".dsc", ".buildinfo"):
                 self.assertNotIn(companion, row)
+
+    def test_each_package_manager_gets_its_own_command(self) -> None:
+        """One line per manager, naming a package that manager can install."""
+        block = self.guide().split("```bash\n", 1)[1].split("```", 1)[0]
+        self.assertEqual(
+            block.splitlines(),
+            [
+                f"sudo apt install ./kwin-effect-upscale_{self.version}.trixie_amd64.deb",
+                f"sudo dnf install ./kwin-effect-upscale-{self.version}-1.fc43.x86_64.rpm",
+                f"sudo zypper install ./kwin-effect-upscale-{self.version}-1.x86_64.rpm",
+                f"sudo pacman -U ./kwin-effect-upscale-{self.version}-1-x86_64.pkg.tar.zst",
+                f"sudo pkg add ./kwin-effect-upscale-{self.version}-amd64.pkg",
+            ],
+        )
 
     def test_the_rest_is_folded_away_and_nothing_is_lost(self) -> None:
         """Every asset appears exactly once, in the table or under the fold."""

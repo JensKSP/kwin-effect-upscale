@@ -122,13 +122,13 @@ a game the way they always have, and it works.
    package and is finished. The effect is enabled by default, and the shipped
    defaults are chosen so that this is safe: the global preset is Automatic,
    which defers to the application profiles, so a program the package does not
-   recognize is untouched; outputs at or below Full HD are below the pixel
-   threshold and bypass the effect entirely; and the effect blocks direct
-   scanout only while it actually has eligible content, never merely by being
-   loaded. Nothing else: no configuration file to write, no environment
-   variable to set, no external tool to install, no per-game preparation. The
-   application profiles ship inside the package and are updated by it; a user's
-   own entries are an option they may take, never a step they must take.
+   recognize is untouched; outputs at or below the Full HD pixel threshold
+   bypass the effect entirely; and the effect blocks direct scanout only while
+   it actually has eligible content, never merely by being loaded. Nothing
+   else: no configuration file to write, no environment variable to set, no
+   external tool to install, no per-game preparation. The application profiles
+   ship inside the package and are updated by it; a user's own entries are an
+   option they may take, never a step they must take.
 
    Choosing a global preset, writing a profile for a game the package does not
    know, and switching on the diagnostic display are power-user features. Each
@@ -397,7 +397,7 @@ absolute pointer mapping, relative motion, confinement, locking, popups and
 separate overlays. Keep this input and surface-tree work explicit rather than
 assuming a different draw rectangle alone implements the feature. Rendering,
 HDR/VRR and real-game acceptance are tracked in the
-[geometry slice](agents/slice-scaling-geometry.md).
+[rendering slice](agents/slice-fsr1-hdr-vrr.md#aspect-ratio-and-integer-scaling).
 
 ## Processing modes
 
@@ -579,6 +579,35 @@ validation. These are separate compatibility boundaries: the presence of
 `core/region.h` does not imply `core/renderdevice.h`. The compatibility layer
 keeps these differences out of the scaling and colour logic, and tests exercise
 both stable versions and the tracked development version.
+
+### Which release of each distribution
+
+**Packages target the latest stable release of every distribution and operating
+system they are built for**, and nothing older. A KWin effect is a compositor
+plugin built against the KWin of the session that loads it, so a package is
+only valid for the release it was built on; there is no single binary that
+covers two of them. Building for a release that is out of support therefore
+ships something nobody can update, and carrying a back catalogue of releases
+multiplies the matrix without reaching a user who is not already covered.
+
+| Family | What the target is | Today |
+| --- | --- | --- |
+| Debian | the current stable release | Trixie |
+| Ubuntu | the current release; an interim one is supported for nine months | Kubuntu 26.04 LTS |
+| Fedora | the current release | 43 |
+| openSUSE | Tumbleweed, which rolls and is current by construction | Tumbleweed |
+| Arch | rolling, current by construction | rolling |
+| FreeBSD | the current production release | 15.0 |
+
+When a distribution publishes a new stable release, the target moves to it and
+the previous one is dropped rather than kept beside it. The release is named in
+one place, `tools/ci_targets.py`, which supplies both the CI matrix and the
+container base images, so moving a target is one edit and not a search.
+
+Debian Trixie carries a second role that the others do not: its KWin is the
+minimum supported version in the table above. Moving that target therefore
+moves the minimum, which is a decision about the code and not only about
+packaging.
 
 ## Configuration
 
@@ -1641,7 +1670,7 @@ submission is text a person read and chose to paste. And the installed file
 carries no personal data, because it is system configuration that reaches
 everyone who installs the package. The submission route, the acceptance rule and
 the open decision about shipping entries we could not verify ourselves are in the
-[application submissions slice](agents/slice-application-submissions.md).
+[application profiles slice](agents/slice-application-profiles.md#submitted-applications-and-the-list-we-maintain).
 
 ### Application launch configuration and method discovery
 
@@ -2717,20 +2746,53 @@ CPU allocations must also reflect the resources actually available to the job.
 
 CI's final `Quality gate` requires every supported-platform check to succeed.
 Both tagged releases and nightly publication depend on these checks for their
-own commit. Nightly also builds and runs the available tests against neon with
-GCC and Clang, independently of publication. Container dependencies refresh
+own commit. Nightly also builds against neon with GCC and Clang, independently
+of publication; it compiles and does not test, because what that job answers is
+whether the effect still builds against a KWin nobody here controls. Container dependencies refresh
 daily; action commits and Python checker versions are pinned. Dependabot proposes
 action updates weekly. Distribution package versions remain the distributions'
 responsibility rather than a second list of project build dependencies.
 
-Packaging builds twice in separate source directories with the commit timestamp
-as `SOURCE_DATE_EPOCH` and a deterministic changelog entry. Main and debug
-packages must compare byte for byte. The first build's `.buildinfo` and `.changes`
-records accompany the deliverables. Clean distribution containers exercise
-installation, reinstallation, loading the installed effect and configuration
-factories with all symbols resolved, removal and purge. Loading a factory does
-not construct an effect in a real KWin session. An upgrade from an older release
-and actual GPU rendering remain separate acceptance cases.
+### Build, test, release
+
+The pipeline has three stages, and a pull request, the nightly and a release
+differ only in the target list they pass to them. `tools/ci_targets.py` is the
+only list of targets; the workflows read their matrix from it, so a target is
+added, renamed or moved to a new release in one place.
+
+| Stage | Workflow | What it does |
+| --- | --- | --- |
+| Build | `build-packages.yml` | one job per package, and the source archive. No test runs here. |
+| Test | `test-packages.yml` | installs each package in a clean container of its distribution and tests it there |
+| Release | `release-assets.yml` | checksums, attests and publishes what the test stage passed |
+
+Jobs are named `<Verb> <Target> <Object>`, with the calling job supplying the
+stage: `Build / Debian Trixie amd64 Package`, `Test / Fedora arm64 Package`.
+The verb says what the job leaves behind — `Build` an artefact, `Test` a
+verdict on one, `Run` a check that leaves nothing, `Release` what ships.
+
+**Each package is built once.** Debian alone is built twice, in separate source
+directories with the commit timestamp as `SOURCE_DATE_EPOCH` and a
+deterministic changelog entry, and its main and debug packages must compare
+byte for byte. That comparison is the reproducibility test: what it finds — a
+wall-clock timestamp, a build path, a directory order — is a property of the
+sources rather than of the distribution, so one target carries it for all of
+them. The first build's `.buildinfo` and `.changes` records accompany the
+deliverables.
+
+**Each package is tested once, after it is built, as the thing that ships.**
+Clean distribution containers exercise installation, reinstallation, loading
+the installed effect and configuration factories with all symbols resolved,
+removal and purge. The container holds an interpreter and the package and
+nothing else, which is what makes an undeclared runtime dependency fail there
+and nowhere else. On Debian the two session tests additionally run against the
+installed effect, in a job of their own; they are not registered with CTest in
+a package build, where competing with three other builds made their waits
+describe the machine instead of the plugin. FreeBSD is the one target tested in
+the machine that built it, because there is no second clean FreeBSD to install
+into. Loading a factory does not construct an effect in a real KWin session. An
+upgrade from an older release and actual GPU rendering remain separate
+acceptance cases.
 
 The source archive is extracted, configured, built, tested and staged without
 Git metadata. Publication accepts the complete four-platform Debian package
@@ -2740,7 +2802,9 @@ binary package per architecture it is built for together with exactly one
 source package. Each distribution therefore ships what its own packaging
 expects: the binary, its debug symbols and the source the binary came from. Two
 binaries of one distribution for the same architecture are refused, because
-which of them a user would install would then be decided by nothing. Those three are matched by
+which of them a user would install would then be decided by nothing, and a
+missing one is refused as well, so a release cannot ship whichever
+architectures happened to succeed. Those three are matched by
 shape rather than enumerated, because Fedora stamps `%{?dist}` into the name
 and Arch writes `x86_64` where Debian writes `amd64`; their debug subpackages
 are accepted but not required, since which of them a distribution emits is that
@@ -2865,7 +2929,7 @@ gh attestation verify ./package.deb --repo JensKSP/kwin-effect-upscale
 ```
 
 For a candidate tied to a specific commit, also pass `--source-digest COMMIT` and
-`--signer-workflow JensKSP/kwin-effect-upscale/.github/workflows/publish.yml`.
+`--signer-workflow JensKSP/kwin-effect-upscale/.github/workflows/release-assets.yml`.
 `SHA256SUMS` verifies the release artifacts listed in that manifest.
 `provenance.sigstore.json` contains the signing bundle and is verified separately;
 it is not included in the checksum manifest. Attestations identify the build's origin; acceptance

@@ -53,8 +53,14 @@ def hook(name: str, stage: str = "manual") -> None:
     run("pre-commit", "run", name, "--all-files", "--hook-stage", stage)
 
 
-def check(mode: str) -> None:
-    """Run one CI job, retaining its separate build directory and reports."""
+def check(mode: str, *, build_only: bool = False) -> None:
+    """Run one CI job, retaining its separate build directory and reports.
+
+    build_only stops after the compiler. It is what a platform that is built
+    but not tested receives: KWin master, where a break is upstream's and the
+    question is whether the effect still compiles against it. Tests run on the
+    supported target, where a failure is this repository's to answer for.
+    """
     build = Path("build") / mode
     build.mkdir(parents=True, exist_ok=True)
     os.environ["UPSCALE_BUILD_DIR"] = str(build.resolve())
@@ -78,6 +84,8 @@ def check(mode: str) -> None:
     run("cmake", "-S", ".", "-B", str(build), "-G", "Ninja", *definitions)
     # Ninja schedules the build; CMAKE_BUILD_PARALLEL_LEVEL remains an override.
     run("cmake", "--build", str(build))
+    if build_only:
+        return
     if mode == "tidy":
         run(
             "run-clang-tidy",
@@ -106,6 +114,11 @@ def main() -> None:
     selectable = (*modes, "docs", "codeql", "all")
     parser.add_argument("mode", choices=selectable, default="all", nargs="?")
     parser.add_argument("--base", default=os.environ.get("UPSCALE_CHECK_BASE", ""))
+    parser.add_argument(
+        "--build-only",
+        action="store_true",
+        help="compile and stop, for a platform that is built but not tested",
+    )
     arguments = parser.parse_args()
     root = Path(__file__).resolve().parent.parent
     os.chdir(root)
@@ -140,7 +153,7 @@ def main() -> None:
             run("pre-commit", "run", *selection, "--show-diff-on-failure")
             run("pre-commit", "run", *selection, "--hook-stage", "pre-push")
         else:
-            check(mode)
+            check(mode, build_only=arguments.build_only)
 
 
 if __name__ == "__main__":

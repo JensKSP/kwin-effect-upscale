@@ -307,6 +307,31 @@ composition no longer does so.
 
 ## Trying it
 
+### Downloads
+
+One row per distribution, and the package a person installs. These file names
+never change: they carry neither the version nor the distribution's release, so
+a bookmark keeps working across both. The release itself also carries the
+versioned packages, debug symbols, source packages and build records, which is
+what the longer list further down describes.
+
+| Distribution | Architecture | Latest release | Nightly |
+| --- | --- | --- | --- |
+| Debian Trixie | amd64 | [.deb](https://github.com/JensKSP/kwin-effect-upscale/releases/latest/download/kwin-effect-upscale-debian-amd64.deb) | [.deb](https://github.com/JensKSP/kwin-effect-upscale/releases/download/nightly/kwin-effect-upscale-debian-amd64.deb) |
+| Debian Trixie | arm64 | [.deb](https://github.com/JensKSP/kwin-effect-upscale/releases/latest/download/kwin-effect-upscale-debian-arm64.deb) | [.deb](https://github.com/JensKSP/kwin-effect-upscale/releases/download/nightly/kwin-effect-upscale-debian-arm64.deb) |
+| Kubuntu 26.04 LTS | amd64 | [.deb](https://github.com/JensKSP/kwin-effect-upscale/releases/latest/download/kwin-effect-upscale-kubuntu-amd64.deb) | [.deb](https://github.com/JensKSP/kwin-effect-upscale/releases/download/nightly/kwin-effect-upscale-kubuntu-amd64.deb) |
+| Kubuntu 26.04 LTS | arm64 | [.deb](https://github.com/JensKSP/kwin-effect-upscale/releases/latest/download/kwin-effect-upscale-kubuntu-arm64.deb) | [.deb](https://github.com/JensKSP/kwin-effect-upscale/releases/download/nightly/kwin-effect-upscale-kubuntu-arm64.deb) |
+| Fedora | x86_64 | [.rpm](https://github.com/JensKSP/kwin-effect-upscale/releases/latest/download/kwin-effect-upscale-fedora-x86_64.rpm) | [.rpm](https://github.com/JensKSP/kwin-effect-upscale/releases/download/nightly/kwin-effect-upscale-fedora-x86_64.rpm) |
+| Fedora | aarch64 | [.rpm](https://github.com/JensKSP/kwin-effect-upscale/releases/latest/download/kwin-effect-upscale-fedora-aarch64.rpm) | [.rpm](https://github.com/JensKSP/kwin-effect-upscale/releases/download/nightly/kwin-effect-upscale-fedora-aarch64.rpm) |
+| openSUSE Tumbleweed | x86_64 | [.rpm](https://github.com/JensKSP/kwin-effect-upscale/releases/latest/download/kwin-effect-upscale-opensuse-x86_64.rpm) | [.rpm](https://github.com/JensKSP/kwin-effect-upscale/releases/download/nightly/kwin-effect-upscale-opensuse-x86_64.rpm) |
+| openSUSE Tumbleweed | aarch64 | [.rpm](https://github.com/JensKSP/kwin-effect-upscale/releases/latest/download/kwin-effect-upscale-opensuse-aarch64.rpm) | [.rpm](https://github.com/JensKSP/kwin-effect-upscale/releases/download/nightly/kwin-effect-upscale-opensuse-aarch64.rpm) |
+| Arch | x86_64 | [.pkg.tar.zst](https://github.com/JensKSP/kwin-effect-upscale/releases/latest/download/kwin-effect-upscale-arch-x86_64.pkg.tar.zst) | [.pkg.tar.zst](https://github.com/JensKSP/kwin-effect-upscale/releases/download/nightly/kwin-effect-upscale-arch-x86_64.pkg.tar.zst) |
+| FreeBSD | amd64 | [.pkg](https://github.com/JensKSP/kwin-effect-upscale/releases/latest/download/kwin-effect-upscale-freebsd-amd64.pkg) | [.pkg](https://github.com/JensKSP/kwin-effect-upscale/releases/download/nightly/kwin-effect-upscale-freebsd-amd64.pkg) |
+
+> [!NOTE]
+> There is no tagged release yet, so only the nightly column resolves today.
+> The release column starts working with the first `v0.1.0` tag.
+
 ### Packages
 
 These are development artifacts, not a stable release. The alpha warning at
@@ -321,6 +346,7 @@ Packages are built for:
 | Fedora | x86_64, aarch64 | `.rpm` | `-debuginfo`, `-debugsource` | `.src.rpm` |
 | openSUSE Tumbleweed | x86_64, aarch64 | `.rpm` | `-debuginfo`, `-debugsource` | `.src.rpm` |
 | Arch | x86_64 | `.pkg.tar.zst` | `-debug` | `.src.tar.gz` |
+| FreeBSD | amd64 | `.pkg` | - | - |
 
 Each distribution gets what its own packaging expects: the binary, its debug
 symbols, and the source the binary was built from. Arch is x86_64 alone because
@@ -331,8 +357,9 @@ with its own repositories, not an architecture of this one.
 > **Only Debian Trixie is tested on real hardware.** That is the one
 > distribution with an acceptance machine behind it, so it is the only one
 > where the effect has been run against a physical display and a real game.
-> Every other package is built and checked in a container — it compiles, it
-> installs, and its plugin loads — which is not the same as having been used.
+> Every other package is built and checked in a clean container of its own
+> distribution, FreeBSD's in a virtual machine — it compiles, it installs, and
+> its plugin loads — which is not the same as having been used.
 > Treat the others as untested builds until that changes.
 
 Pick the package matching your distribution because a KWin effect is built
@@ -350,6 +377,7 @@ sudo apt install ./kwin-effect-upscale_<version>.<distribution>_<architecture>.d
 sudo dnf install ./kwin-effect-upscale-<version>-1.fc43.x86_64.rpm
 sudo zypper install ./kwin-effect-upscale-<version>-1.x86_64.rpm
 sudo pacman -U ./kwin-effect-upscale-<version>-1-x86_64.pkg.tar.zst
+sudo pkg add ./kwin-effect-upscale-<version>-amd64.pkg
 ```
 
 Each package depends on the exact KWin it was built against, so it refuses

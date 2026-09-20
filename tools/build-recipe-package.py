@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Build one distribution's package inside its maintained container.
+"""Build one distribution's package from its recipe under packaging/.
 
-    build-distribution-packages.py <distribution> <version>
+    build-recipe-package.py <distribution> <version>
 
 Fills the recipe template for that distribution from `debian/control`, builds
 from a source archive of the checkout, and leaves the package in
@@ -13,6 +13,7 @@ needs that distribution's package manager and its KWin development files.
 
 import argparse
 import os
+import platform
 import shutil
 import subprocess
 import tarfile
@@ -25,12 +26,13 @@ from release_assets import validate_version
 NAME = "kwin-effect-upscale"
 # "kwin 6.7.5-1": the name pacman was asked about, and the version wanted.
 PACMAN_QUERY_FIELDS = 2
-# Distributions whose packages this builds. FreeBSD is a portability check with
-# no package, and Debian has its own debian/ directory and dpkg-buildpackage.
+# Targets whose package is built from a recipe under packaging/. Debian is not
+# here: it has its own debian/ directory and dpkg-buildpackage.
 RECIPES = {
     "fedora": Path("packaging/rpm/kwin-effect-upscale.spec.in"),
     "opensuse": Path("packaging/rpm/kwin-effect-upscale.spec.in"),
     "arch": Path("packaging/arch/PKGBUILD.in"),
+    "freebsd": Path("packaging/freebsd/manifest.ucl.in"),
 }
 
 
@@ -41,6 +43,7 @@ def installed_kwin_version(distribution: str) -> str:
         "opensuse": ("rpm", "-q", "--queryformat", "%{VERSION}-%{RELEASE}", "kwin6"),
         # Not --quiet, which prints the name and omits the version.
         "arch": ("pacman", "-Q", "kwin"),
+        "freebsd": ("pkg", "query", "%v", "plasma6-kwin"),
     }
     output = subprocess.check_output(queries[distribution], text=True).strip()
     if distribution == "arch":
@@ -80,9 +83,17 @@ def recipe(root: Path, distribution: str, version: str, kwin: str) -> str:
         ("@MAKEDEPENDS@", rendered),
         ("@VERSION@", version),
         ("@KWIN_VERSION@", kwin),
+        ("@KWIN_ORIGIN@", kwin_origin(distribution)),
     ):
         text = text.replace(placeholder, value)
     return text
+
+
+def kwin_origin(distribution: str) -> str:
+    """Read the ports origin pkg records for a dependency; FreeBSD alone has one."""
+    if distribution != "freebsd":
+        return ""
+    return subprocess.check_output(["pkg", "query", "%o", "plasma6-kwin"], text=True).strip()
 
 
 def build_rpm(root: Path, work: Path, distribution: str, version: str, kwin: str) -> list[Path]:
@@ -134,6 +145,83 @@ def build_arch(root: Path, version: str, kwin: str) -> list[Path]:
     return sorted([*work.glob("*.pkg.tar.zst"), *work.glob("*.src.tar.gz")])
 
 
+def build_pkg(root: Path, work: Path, version: str, kwin: str) -> list[Path]:
+    """Build a FreeBSD package with pkg create from a staged installation.
+
+    pkg create wants three things that no other target here needs: a manifest
+    describing the package, a packing list of the files it contains, and a
+    staging directory holding them. The list is generated from the staging
+    directory rather than written by hand, because a file installed but not
+    listed is silently left out of the package.
+    """
+    if work.exists():
+        shutil.rmtree(work)
+    stage = work / "stage"
+    stage.mkdir(parents=True)
+    build = work / "build"
+    subprocess.run(
+        [
+            "cmake",
+            "-S",
+            str(root),
+            "-B",
+            str(build),
+            "-G",
+            "Ninja",
+            "-DCMAKE_INSTALL_PREFIX=/usr/local",
+            "-DCMAKE_BUILD_TYPE=RelWithDebInfo",
+            # Warnings are not errors for whoever is building the package; the
+            # check jobs are where a warning is the author's to answer for.
+            "-DCMAKE_COMPILE_WARNING_AS_ERROR=OFF",
+            "-DBUILD_TESTING=OFF",
+            f"-DUPSCALE_PACKAGE_VERSION={version}",
+        ],
+        check=True,
+    )
+    subprocess.run(["cmake", "--build", str(build)], check=True)
+    subprocess.run(
+        ["cmake", "--install", str(build)],
+        check=True,
+        env={**os.environ, "DESTDIR": str(stage)},
+    )
+
+    prefix = stage / "usr" / "local"
+    listed = sorted(path for path in prefix.rglob("*") if path.is_file())
+    if not listed:
+        message = "The staged installation is empty; nothing would be packaged"
+        raise ValueError(message)
+    plist = work / "pkg-plist"
+    plist.write_text("".join(f"{path.relative_to(prefix)}\n" for path in listed))
+    manifest = work / "+MANIFEST"
+    manifest.write_text(recipe(root, "freebsd", version, kwin))
+    subprocess.run(
+        [
+            "pkg",
+            "create",
+            "-M",
+            str(manifest),
+            "-p",
+            str(plist),
+            "-r",
+            str(prefix),
+            "-o",
+            str(work),
+        ],
+        check=True,
+    )
+    created = sorted(work.glob("*.pkg"))
+    if len(created) != 1:
+        message = f"pkg create produced {[path.name for path in created]}, expected one package"
+        raise ValueError(message)
+    # pkg names a package after its manifest, because a pkg repository is per
+    # architecture and has no need to say so. Release assets all sit in one
+    # place, so the architecture goes into the name here as it does everywhere
+    # else. The file name is not part of what pkg add reads.
+    named = created[0].with_name(f"{NAME}-{version}-{platform.machine()}.pkg")
+    created[0].rename(named)
+    return [named]
+
+
 def main() -> None:
     """Build one distribution's package and collect it under build/artifacts."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -148,6 +236,8 @@ def main() -> None:
 
     if arguments.distribution == "arch":
         packages = build_arch(root, version, kwin)
+    elif arguments.distribution == "freebsd":
+        packages = build_pkg(root, root / "build" / "packages" / "freebsd", version, kwin)
     else:
         work = root / "build" / "packages" / arguments.distribution
         if work.exists():
@@ -155,7 +245,7 @@ def main() -> None:
         work.mkdir(parents=True)
         packages = build_rpm(root, work, arguments.distribution, version, kwin)
     if not packages:
-        message = f"rpmbuild or makepkg produced no package for {arguments.distribution}"
+        message = f"the build produced no package for {arguments.distribution}"
         raise ValueError(message)
 
     artifacts = root / "build" / "artifacts"

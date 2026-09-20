@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: None
 # SPDX-License-Identifier: CC0-1.0
-name: Container checks
-description: Build the maintained environment and run the local check entry point
+name: Run checks
+description: Run one check group from tools/run-checks.py in its container image
 inputs:
   mode:
     description: Check group selected by tools/run-checks.py
@@ -15,10 +15,13 @@ inputs:
   fuzz-seconds:
     description: Time budget for the fuzzing job
     default: '60'
+  build-only:
+    description: Compile and stop, for a platform that is built but not tested
+    default: 'false'
 runs:
   using: composite
   steps:
-    - uses: ./.github/actions/environment
+    - uses: ./.github/actions/build-container-image
       with:
         environment: ${{ inputs.environment }}
     - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -36,16 +39,21 @@ runs:
         CHECK_MODE: ${{ inputs.mode }}
         UPSCALE_CHECK_BASE: ${{ inputs.base }}
         UPSCALE_FUZZ_SECONDS: ${{ inputs.fuzz-seconds }}
+        BUILD_ONLY: ${{ inputs.build-only }}
       run: |
         options=()
         if [ "$CHECK_MODE" = thread ]; then
           options+=(--security-opt seccomp=unconfined)
         fi
+        arguments=("$CHECK_MODE")
+        if [ "$BUILD_ONLY" = true ]; then
+          arguments+=(--build-only)
+        fi
         mkdir -p build
         docker run --rm "${options[@]}" \
           -v "$GITHUB_WORKSPACE:/src" -w /src \
           -e UPSCALE_FUZZ_SECONDS -e UPSCALE_CHECK_BASE -e GITHUB_REF_NAME -e GITHUB_HEAD_REF \
-          upscale-check:local python3 -B tools/run-checks.py "$CHECK_MODE" \
+          upscale-check:local python3 -B tools/run-checks.py "${arguments[@]}" \
           2>&1 | tee "build/$CHECK_MODE.log"
     - name: Make reports and caches readable by the runner
       if: always()

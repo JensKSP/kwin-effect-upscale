@@ -27,7 +27,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ./.github/actions/check
+      - uses: ./.github/actions/run-checks
         with:
           mode: ${{ matrix.check }}
           fuzz-seconds: ${{ inputs.fuzz-seconds || 60 }}

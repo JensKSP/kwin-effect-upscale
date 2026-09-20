@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   commits:
-    name: Commit messages
+    name: Check Commit Messages
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -54,7 +54,7 @@ jobs:
           python3 -B tools/ci_scope.py >> "$GITHUB_OUTPUT"
 
   checks:
-    name: Trixie (${{ matrix.mode }})
+    name: Run Trixie Checks (${{ matrix.mode }})
     needs: commits
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -67,7 +67,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: ./.github/actions/check
+      - uses: ./.github/actions/run-checks
         with:
           mode: ${{ matrix.mode }}
           base: ${{ github.event.pull_request.base.sha || github.event.before }}
@@ -76,7 +76,7 @@ jobs:
   # One GCC build with warnings as errors, not the whole mode matrix: the
   # architecture is what is being checked here, not the toolchain.
   arm64:
-    name: Trixie arm64 (gcc)
+    name: Run Trixie arm64 Checks (gcc)
     needs: commits
     if: needs.commits.outputs.build == 'true'
     runs-on: ubuntu-24.04-arm
@@ -86,31 +86,45 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: ./.github/actions/check
+      - uses: ./.github/actions/run-checks
         with:
           mode: gcc
           base: ${{ github.event.pull_request.base.sha || github.event.before }}
 
   instrumentation:
+    name: Run
     needs: commits
     if: needs.commits.outputs.build == 'true'
-    uses: ./.github/workflows/instrumentation.yml
+    uses: ./.github/workflows/run-instrumented-tests.yml
     with:
       fuzz-seconds: ${{ inputs.fuzz-seconds || 60 }}
 
-  package-smoke:
+  # The same two stages the nightly and a release run, with one target in
+  # them. A pull request that cannot build and install a package has broken
+  # the packaging, and finding that out here costs one target rather than ten.
+  package:
+    name: Build
     needs: commits
     if: github.event_name == 'pull_request' && needs.commits.outputs.packaging == 'true'
-    uses: ./.github/workflows/package.yml
+    uses: ./.github/workflows/build-packages.yml
     with:
       version: ${{ needs.commits.outputs.version }}
-      channel: check
-      smoke: true
+      targets: trixie
+      architectures: amd64
+      source-archive: false
+
+  package-test:
+    name: Test
+    needs: package
+    uses: ./.github/workflows/test-packages.yml
+    with:
+      targets: trixie
+      architectures: amd64
 
   quality:
     name: Quality gate
     if: always()
-    needs: [commits, checks, arm64, instrumentation, package-smoke]
+    needs: [commits, checks, arm64, instrumentation, package, package-test]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

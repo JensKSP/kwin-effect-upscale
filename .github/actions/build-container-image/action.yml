@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: None
 # SPDX-License-Identifier: CC0-1.0
-name: Build environment
-description: Build a maintained container with a daily dependency refresh
+name: Build container image
+description: Build one maintained container image with a daily dependency refresh
 inputs:
   environment:
     description: Directory under containers

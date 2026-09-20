@@ -36,27 +36,26 @@ jobs:
       - id: check
         run: python3 -B tools/release-version.py release >> "$GITHUB_OUTPUT"
 
-  package:
+  build:
     name: Build
     needs: version
-    uses: ./.github/workflows/package.yml
+    uses: ./.github/workflows/build-packages.yml
     with:
       version: ${{ needs.version.outputs.version }}
-      channel: release
 
-  distribution-packages:
-    needs: version
-    uses: ./.github/workflows/distribution-packages.yml
-    with:
-      version: ${{ needs.version.outputs.version }}
+  test:
+    name: Test
+    needs: build
+    uses: ./.github/workflows/test-packages.yml
 
   publish:
-    needs: [version, quality, package, distribution-packages]
+    name: Release
+    needs: [version, quality, test]
     permissions:
       contents: write
       id-token: write
       attestations: write
-    uses: ./.github/workflows/publish.yml
+    uses: ./.github/workflows/release-assets.yml
     with:
       version: ${{ needs.version.outputs.version }}
       channel: release

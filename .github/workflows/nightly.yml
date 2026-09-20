@@ -25,13 +25,6 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # A second operating system and a second libc catch the assumptions a Linux
-  # build never questions. Every nightly runs it, manual or scheduled: like
-  # kwin-master below it reports rather than gates, so it costs the packages
-  # nothing and a break is known within a day instead of by the next Monday.
-  portability:
-    uses: ./.github/workflows/portability.yml
-
   quality:
     uses: ./.github/workflows/ci.yml
     with:
@@ -75,7 +68,7 @@ jobs:
   # is still caught within a day. It does not gate the packages: a nightly of
   # the supported platforms is worth publishing even when master has moved on.
   kwin-master:
-    name: KDE neon unstable (${{ matrix.compiler }})
+    name: Build on KDE neon unstable (${{ matrix.compiler }})
     runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:
@@ -86,39 +79,42 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ./.github/actions/check
+      - uses: ./.github/actions/run-checks
         with:
           environment: neon-unstable
           mode: ${{ matrix.compiler }}
+          # Built, not tested: the supported target is where a failing test
+          # is this repository's to answer for.
+          build-only: true
 
-  package:
+  # Every target: Debian, Kubuntu, Fedora, openSUSE, Arch and FreeBSD, on every
+  # architecture each is built for. Nightly and nowhere earlier for most of
+  # them - their KWin is well ahead of the supported minimum and three of them
+  # roll, so a break is not the author of whatever was pushed to answer for.
+  # Unlike kwin-master above this does gate publication, because a release
+  # that silently lost a distribution is worse than one that is late.
+  build:
     name: Build
     needs: version
     if: needs.version.outputs.build == 'true'
-    uses: ./.github/workflows/package.yml
-    with:
-      version: ${{ needs.version.outputs.version }}
-      channel: nightly
-
-  # Fedora, openSUSE and Arch. Nightly and nowhere earlier: their KWin is well
-  # ahead of the supported minimum and two of them roll, so a break is not the
-  # author of whatever was pushed to answer for. Unlike kwin-master above this
-  # does gate publication, because a release that silently lost a distribution
-  # is worse than one that is late.
-  distribution-packages:
-    needs: version
-    if: needs.version.outputs.build == 'true'
-    uses: ./.github/workflows/distribution-packages.yml
+    uses: ./.github/workflows/build-packages.yml
     with:
       version: ${{ needs.version.outputs.version }}
 
+  test:
+    name: Test
+    needs: build
+    uses: ./.github/workflows/test-packages.yml
+
+  # Nothing is published that was not installed and tested first.
   publish:
-    needs: [version, quality, package, distribution-packages]
+    name: Release
+    needs: [version, quality, test]
     permissions:
       contents: write
       id-token: write
       attestations: write
-    uses: ./.github/workflows/publish.yml
+    uses: ./.github/workflows/release-assets.yml
     with:
       version: ${{ needs.version.outputs.version }}
       channel: nightly

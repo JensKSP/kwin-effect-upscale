@@ -30,6 +30,10 @@ def main() -> int:
     binary = Path(sys.argv[1]).resolve()
     build = binary.parent.parent
     x11 = "--x11" in sys.argv[2:]
+    # Test the effect the package installed, not a copy built beside the test.
+    # The package stage passes this; a check job builds its own driver module
+    # and points Qt at it instead.
+    installed = "--installed" in sys.argv[2:]
     with tempfile.TemporaryDirectory(prefix="integration-", dir=build) as directory:
         runtime = Path(directory)
         config = runtime / "config"
@@ -43,18 +47,19 @@ def main() -> int:
         # ignore LD_PRELOAD. A private executable copy permits instrumentation
         # without changing the system binary or attaching to a real session.
         compositor = runtime / "kwin_wayland"
-        installed = shutil.which("kwin_wayland")
-        if not installed:
+        # Not named after the flag above: this is where the compositor lives,
+        # and the flag says which effect it is to load.
+        system_compositor = shutil.which("kwin_wayland")
+        if not system_compositor:
             print("kwin_wayland is required for integration tests")
             return 1
-        shutil.copyfile(installed, compositor)
+        shutil.copyfile(system_compositor, compositor)
         compositor.chmod(0o700)
         environment = dict(os.environ)
         environment.update(
             XDG_RUNTIME_DIR=str(runtime),
             XDG_CONFIG_HOME=str(config),
             XDG_CACHE_HOME=str(runtime / "cache"),
-            QT_PLUGIN_PATH=str(build / "bin"),
             KWIN_COMPOSE="Q",
             LIBGL_ALWAYS_SOFTWARE="1",
             LC_ALL="C.UTF-8",
@@ -62,6 +67,13 @@ def main() -> int:
             QT_FORCE_STDERR_LOGGING="1",
         )
         environment.pop("QT_QPA_PLATFORM", None)
+        if installed:
+            # Qt's own plugin path finds the installed effect. Setting
+            # QT_PLUGIN_PATH here would shadow it with a build tree, which is
+            # exactly what this run is not testing.
+            environment.pop("QT_PLUGIN_PATH", None)
+        else:
+            environment["QT_PLUGIN_PATH"] = str(build / "bin")
         command = [
             str(compositor),
             "--virtual",
