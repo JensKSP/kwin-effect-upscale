@@ -1511,6 +1511,28 @@ This does not change what the game can show. It commits 59.8 buffers a second
 in its menu and on its course alike, at every preset, so it is frame-limited
 and reports headroom rather than cost whatever resolution it renders at.
 
+### What a reload with control off looks like, 2026-09-20
+
+The nightly's resolute job failed the lifecycle case a second after the effect
+was reloaded with `ResolutionControl` false, and the assertion now carries the
+effect's own status, which named the state rather than a rectangle:
+
+    status: Desired: Select 1920 x 1080 in the game
+    Supplied input: 1920 x 1080   Destination: 3840 x 2160   FSR 1
+    metrics: scaling=1 selected=1 supplied=1920x1080 windowsystem=x11
+
+So at that moment the window is still the size the previous request left it,
+and the loaded effect is upscaling that buffer. That is not control acting
+while disabled: upscaling a small buffer is the effect's other job, and
+resolution control governs only whether it asks an application for one. The
+window returns to its native size shortly afterwards, on this machine within a
+second and on the slower one within the test's bound.
+
+Worth knowing for the product, not only the test: between an effect being
+loaded and a client returning to its own size, a user sees an upscaled image
+they did not ask for. It is brief, and nothing here establishes how brief on a
+machine under load.
+
 ## Remaining work on the X11 production integration
 
 ### Production X11 integration

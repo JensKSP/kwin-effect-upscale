@@ -162,8 +162,17 @@ void UpscaleX11IntegrationTest::lifecycle()
     // configuration this effect has just read. Either something acts while
     // disabled or KWin re-applies Xwayland's emulated mode, and the effect's
     // own status names which - so the status is what a failure reports.
-    QTest::qWait(1000);
-    QVERIFY2(target.geometry() == QRect(position, native), qPrintable(status()));
+    // What holds here is eventual, not immediate. Observed on the nightly's
+    // resolute job, 2026-09-20, with the effect's own status attached to the
+    // failure: a second after the reload the window is still at the size the
+    // previous request left it, and the effect - which is loaded, with
+    // resolution control off - is upscaling that buffer, because upscaling a
+    // small buffer is its other job and not something control governs. The
+    // window returns to its native size after that, well inside this bound
+    // here and on the slower machine alike. Requiring it within a fixed wait
+    // was requiring the transient to be over, which is a property of the
+    // machine rather than of the effect.
+    QTRY_VERIFY2_WITH_TIMEOUT(target.geometry() == QRect(position, native), qPrintable(status()), 30000);
 }
 
 void UpscaleX11IntegrationTest::presentsWithoutEmulation()
