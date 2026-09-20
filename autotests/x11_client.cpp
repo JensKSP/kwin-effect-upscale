@@ -245,12 +245,21 @@ void X11Client::dispatch()
             const QSize size(configure->width, configure->height);
             if (size != m_size) {
                 m_size = size;
+                // Commit the resized buffer first, before anything that can
+                // block. mode() is several synchronous RandR round trips, and
+                // what the effect validates is the buffer: on a slow runner
+                // those round trips outlast the validation window, so it sees
+                // the size from before the resize and refuses the request as
+                // "the application supplied a 3840 x 2160 buffer where
+                // 1920 x 1080 was requested". Painting again afterwards is
+                // what a client does once its emulated mode is established.
+                paint(size);
                 if (m_ignoredResizes > 0) {
                     --m_ignoredResizes;
                 } else if (m_cooperative) {
                     mode(size);
+                    paint(size);
                 }
-                paint(size);
             }
         } else if (type == XCB_EXPOSE) {
             paint(m_size);

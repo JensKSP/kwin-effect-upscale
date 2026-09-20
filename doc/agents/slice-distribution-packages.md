@@ -460,6 +460,33 @@ it, and adding a second geometry request there puts one into a path whose whole
 subject is the window manager resizing this window. The call is now guarded by
 `if (!full)`. `upscale-x11-integration` passes natively, 13 of 13.
 
+### Why resolute arm64 refused the request, 2026-09-20
+
+The narrowing above did not fix it, and the next run said why. The status the
+effect reported was not a timeout:
+
+```text
+Desired: Select 1920 x 1080 in the game; request failed: The application
+supplied a 3840 x 2160 buffer where 1920 x 1080 was requested.
+Supplied input: 3840 x 2160
+```
+
+The test client did not follow the resize. On a `ConfigureNotify` it called
+`mode()` and only then `paint()`. `mode()` is several synchronous RandR round
+trips — screen resources, CRTC info, set CRTC config, each with a reply — and
+on a runner presenting 4.5 frames a second those outlast the effect's
+validation window. The effect looks at the buffer, sees the size from before
+the resize, and refuses.
+
+The buffer is now committed first and painted again after the mode is
+established. That is what the two failing cases were waiting for, and it
+explains both of them: `lifecycle(primary-fullscreen)` never reached
+2560 x 1440, and `repeatedFullscreenTransitions()` never saw the reduced
+supplied size.
+
+Verified on amd64 only, 13 of 13. The runner this reasoning is about is one
+this machine cannot emulate.
+
 ### Remaining work
 
 - Confirming that the X11 integration test stops failing intermittently in the
