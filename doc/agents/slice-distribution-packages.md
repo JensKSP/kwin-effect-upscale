@@ -487,6 +487,45 @@ supplied size.
 Verified on amd64 only, 13 of 13. The runner this reasoning is about is one
 this machine cannot emulate.
 
+### Blocker: the Kubuntu package job, and it is not this branch's, 2026-09-20
+
+Four verify-only nightlies, and the pattern is not a regression:
+
+| Head | resolute amd64 | resolute arm64 |
+| --- | --- | --- |
+| `5ec1501` | passed | failed |
+| `1482287` | failed | failed |
+| `b5302ce` | passed | failed |
+| `8d63e5d` | failed | failed |
+
+amd64 alternates on code that barely changed between those heads, which is
+flakiness rather than a commit to blame. arm64 failed in all four, and it had
+already failed that morning on `master`, in run `35498145241`, before this
+branch existed.
+
+Every failure is `upscale-x11-integration` inside the package build, never the
+packaging itself, and only on Kubuntu 26.04, whose KWin is 6.6. Debian Trixie,
+the supported minimum, passes on both architectures in every run. So does every
+one of the five distribution-package jobs.
+
+Raising timeouts is not the lever: both failing assertions already allow 30 s,
+and the effect's own status says the request was **refused**, not missed - "the
+application supplied a 3840 x 2160 buffer where 1920 x 1080 was requested".
+Committing the buffer before the RandR round trips halved the run, from 146 s
+to 58 s on arm64, and did not make it reliable.
+
+What is left is a genuine interaction between KWin 6.6's documented
+retry-once-then-refuse negotiation and a runner presenting 4.5 frames a second.
+Making it pass by widening the effect's retry bounds would be changing product
+behaviour to suit a slow CI machine, which is the wrong direction. Disabling
+the test in the package build would remove the only place the X11 path meets
+KWin 6.6 at all. Neither is a call to make quietly, so it is recorded here.
+
+**Consequence for the nightly release.** `publish` needs `package`, so while
+the Kubuntu job fails the nightly cannot produce a complete candidate, and the
+release inventory would refuse one anyway. The three new distributions are not
+the obstacle; they have passed in every run since they existed.
+
 ### Remaining work
 
 - Confirming that the X11 integration test stops failing intermittently in the
