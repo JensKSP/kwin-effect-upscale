@@ -255,6 +255,53 @@ neon images needed `libxcb-randr0-dev`, `libxcb-composite0-dev`,
 `libxcb-res0-dev`, `libxcb-shm0-dev` and `libxcb-sync-dev` installed into the
 throwaway container; they predate those build dependencies and need rebuilding.
 
+### The arm64 check found an X11 placement race, 2026-09-20
+
+The new arm64 pull request job failed on its second run, in
+`upscale-x11-integration`:
+
+```text
+FAIL!  : lifecycle(secondary-borderless) Compared values are not the same
+Actual   (target.geometry())      : QRect(0,0 3840x2160)
+Expected (QRect(position, native)): QRect(3840,0 3840x2160)
+```
+
+Not a regression from this branch. `origin/master` was fetched and has not
+moved, and that test had never run on arm64 before, so the job found something
+that was already there.
+
+What the four cases show together:
+
+- `primary-borderless` expects `(0, 0)`, which is also where a window lands
+  when its requested position is ignored, so it cannot detect this at all.
+- Both fullscreen cases pass because they re-place the window after mapping,
+  through `_NET_WM_FULLSCREEN_MONITORS`, and wait for `isFullscreen()`.
+- `secondary-borderless` is the only case that depends on the window manager
+  honouring the requested position at map time, and the only one that failed.
+
+So the window manager placed the window by policy rather than by the client's
+request. `tools/run-integration-test.py` already records why arm64 is where
+this shows: that runner presents 4.5 frames a second, and a run taking 55 s
+here needed more than 160 there.
+
+The client left two ways for that to happen, both now closed:
+
+- `atom()` is a round trip, and it sat between creating the window and setting
+  `WM_NORMAL_HINTS`. That left a window the window manager could already see
+  whose hints were not set yet. The atom is interned before the window exists.
+- The hints set `USPosition` alone. ICCCM lets a window manager honour either
+  that or `PPosition`, so both are set now.
+
+And the client no longer depends on being placed correctly in the first place:
+once mapped it configures its own position, which is what an application that
+cares which screen it is on does rather than trusting the placement it was
+given.
+
+**Verified on amd64 only.** `upscale-x11-integration` passes natively here, as
+it did before, so this is not a regression. Whether it fixes arm64 is decided
+by the job in CI, because this machine has no aarch64 emulation registered and
+cannot run that session locally.
+
 ### Remaining work
 
 - Packaging recipes, containers, build and install-test tooling, release
