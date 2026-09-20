@@ -395,6 +395,33 @@ left an arm64 `debian:trixie` in the image cache, and the package image then
 failed to build with `Exec format error`. `--platform linux/amd64 --pull` is
 what fixes it.
 
+### The nightly's second arm64 failure, 2026-09-20
+
+`Build / resolute arm64` failed in the nightly, in "Build, test and compare two
+clean builds". It had already failed the same way on master that morning,
+before this branch touched anything, and the run that showed it was on a head
+that already carried the placement fix above. So it is a second, separate
+case.
+
+The log names it: `dh_auto_test` returned 8, CTest reported
+`upscale-x11-integration` failed, and inside it
+`repeatedFullscreenTransitions()` at the supplied-buffer check, with
+`Totals: 12 passed, 1 failed ... 156293ms` against 47 s on Trixie arm64.
+
+Three waits in that test were still on QTest's 5 s default while three others
+in the same loop had been raised to 30 s, with a comment right above them
+explaining that the arm64 runner presents 4.5 frames a second. The one that
+mattered is `QTRY_VERIFY(!target.isFullscreen())` at the end of the loop body:
+leaving fullscreen is a round trip like the others, and when it had not
+finished within 5 s the next iteration asked a still-fullscreen window for a
+reduced buffer, which then failed at the size check three lines earlier rather
+than where the timeout actually expired. All three now carry the same bound for
+the same stated reason.
+
+**Verified on amd64 only:** `upscale-x11-integration` passes natively here, 13
+of 13, as it did before. Whether it fixes the nightly is for the nightly to
+say; this machine has no aarch64 emulation.
+
 ### Remaining work
 
 - A hosted run. Everything above was observed locally, in containers; the

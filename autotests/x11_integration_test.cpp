@@ -278,7 +278,7 @@ void UpscaleX11IntegrationTest::repeatedFullscreenTransitions()
     X11Client target;
     const QSize reduced(1920, 1080);
     QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(QPoint(0, 0), reduced), false));
-    QTRY_COMPARE(target.geometry().size(), reduced);
+    QTRY_COMPARE_WITH_TIMEOUT(target.geometry().size(), reduced, 30000);
     QVERIFY(target.mode(reduced));
     configure(true);
     // A new emulated-mode window can request fullscreen while its logical
@@ -298,14 +298,19 @@ void UpscaleX11IntegrationTest::repeatedFullscreenTransitions()
         QTRY_VERIFY2_WITH_TIMEOUT(status().contains(QStringLiteral("frame QRectF(0,0 3840x2160)")), qPrintable(status()), 30000);
         QTRY_COMPARE_WITH_TIMEOUT(target.geometry().size(), reduced, 30000);
         target.fullscreen(false);
-        QTRY_VERIFY(!target.isFullscreen());
+        // The same bound as the waits above, and for the same reason. Left at
+        // the 5 s default this one decided the next iteration: leaving
+        // fullscreen is a round trip too, and when it had not finished the
+        // loop asked a still-fullscreen window for a reduced buffer and failed
+        // on the size check three lines up rather than here.
+        QTRY_VERIFY_WITH_TIMEOUT(!target.isFullscreen(), 30000);
     }
     target.fullscreen(true);
     QTRY_VERIFY_WITH_TIMEOUT(target.isFullscreen(), 10000);
     QTest::qWait(3500);
     QVERIFY2(!status().contains(QStringLiteral("did not supply")), qPrintable(status()));
     QVERIFY2(!status().contains(QStringLiteral("repeatedly replaced")), qPrintable(status()));
-    QTRY_VERIFY(status().contains(QStringLiteral("captured: upscale-x11-test")));
+    QTRY_VERIFY_WITH_TIMEOUT(status().contains(QStringLiteral("captured: upscale-x11-test")), 30000);
 }
 
 void UpscaleX11IntegrationTest::respectsPrimaryOutputRestriction()
