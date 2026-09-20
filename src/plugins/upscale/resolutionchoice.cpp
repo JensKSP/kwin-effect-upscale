@@ -34,8 +34,8 @@ static QString resolutionLabel(const QSize &size)
 // without the spaces around them.
 static QSize parseResolution(const QString &text)
 {
-    static const QRegularExpression pattern(QStringLiteral("^\\s*(\\d{1,6})\\s*[x×X]\\s*(\\d{1,6})\\s*$"));
-    const QRegularExpressionMatch match = pattern.match(text);
+    static const QRegularExpression s_pattern(QStringLiteral("^\\s*(\\d{1,6})\\s*[x×X]\\s*(\\d{1,6})\\s*$"));
+    const QRegularExpressionMatch match = s_pattern.match(text);
     if (!match.hasMatch()) {
         return {};
     }
@@ -99,8 +99,8 @@ int upscaleResolutionPixels(const QComboBox *box, int fallback)
     }
     // Whatever else the field holds, including the pixel count shown for a
     // threshold no resolution matches.
-    static const QRegularExpression count(QStringLiteral("^\\s*(\\d{1,9})"));
-    const QRegularExpressionMatch match = count.match(box->currentText());
+    static const QRegularExpression s_count(QStringLiteral("^\\s*(\\d{1,9})"));
+    const QRegularExpressionMatch match = s_count.match(box->currentText());
     return match.hasMatch() ? match.captured(1).toInt() : fallback;
 }
 
