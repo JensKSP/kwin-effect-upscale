@@ -49,11 +49,12 @@ def build(root: Path, destination: Path, version: str, epoch: int) -> list[Path]
         package_changelog(version, commit, epoch, maintainer) + changelog.read_text()
     )
     # dpkg-buildpackage selects native parallelism and respects DEB_BUILD_OPTIONS.
-    # nocheck because the suite runs on the installed package in the test stage,
-    # where it has a job to itself: running it here would run it once per clean
-    # build, against a tree rather than against what the package ships.
-    options = " ".join(filter(None, (os.environ.get("DEB_BUILD_OPTIONS", ""), "nocheck")))
-    environment = {**os.environ, "SOURCE_DATE_EPOCH": str(epoch), "DEB_BUILD_OPTIONS": options}
+    # The suite is skipped through an empty override_dh_auto_test in debian/rules
+    # rather than through DEB_BUILD_OPTIONS=nocheck: debhelper answers nocheck
+    # with -DBUILD_TESTING:BOOL=OFF, which drops autotests/ from the build
+    # entirely, and the test stage needs those binaries to run against the
+    # installed package.
+    environment = {**os.environ, "SOURCE_DATE_EPOCH": str(epoch)}
     # -F builds the source package as well, -b the binaries alone. The source
     # package describes the tree and not the machine, so building it on both
     # architectures would produce the same two files twice under one name. It

@@ -16,15 +16,16 @@ include /usr/share/dpkg/pkg-info.mk
 # Warnings are errors for developers, not for whoever is building the package on
 # an architecture or compiler version nobody here has tried.
 #
-# No test runs during the package build. tools/build-deb-package.py exports
-# DEB_BUILD_OPTIONS=nocheck, because the suite runs once afterwards against the
-# package this build produced, installed into a clean container. A test that
+# No test runs during the package build: the suite runs once afterwards against
+# the package this build produced, installed into a clean container. A test that
 # passes here and a package that does not work are the same bug found a stage
 # too early.
 #
-# The test binaries are still compiled and linked here, and the test stage runs
-# those rather than compiling its own: a clean container has no compiler, and
-# building them twice is what this arrangement exists to avoid.
+# Skipped by the empty override below and not by DEB_BUILD_OPTIONS=nocheck,
+# which debhelper answers with -DBUILD_TESTING:BOOL=OFF. That drops autotests/
+# from the build altogether, and the test stage runs those binaries against the
+# installed effect: a clean container has no compiler, and compiling them a
+# second time is what this arrangement exists to avoid.
 #
 # UPSCALE_SESSION_TESTS stays off so that the two tests needing a compositor
 # session are not registered with CTest. They start a nested kwin_wayland with
@@ -33,6 +34,9 @@ include /usr/share/dpkg/pkg-info.mk
 # machine: beside three other builds it does not, and the failure then describes
 # the builder rather than the plugin. The test stage runs them by name, alone,
 # against the installed effect, which is the machine they need.
+# Built here, run in the test stage. See above.
+override_dh_auto_test:
+
 override_dh_auto_configure:
 	dh_auto_configure -- \
 		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
