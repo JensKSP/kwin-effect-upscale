@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: None
 # SPDX-License-Identifier: CC0-1.0
 
-name: Publish verified artifacts
+name: Release assets
 
 on:
   workflow_call:
@@ -54,9 +54,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # --signer-workflow names the workflow that signed it, which is this
+          # file: renaming it renames the signer, and a stale name here fails
+          # every release. The comment sits above the command because one
+          # between continued lines would end it and leave the flag behind as
+          # a command of its own.
           gh attestation verify build/release/SHA256SUMS --repo "$GITHUB_REPOSITORY" \
             --source-digest "$GITHUB_SHA" \
-            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/publish.yml"
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release-assets.yml"
       - name: Publish through a draft
         if: inputs.publish
         env:

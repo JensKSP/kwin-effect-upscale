@@ -18,7 +18,8 @@ def passed(results: dict[str, dict[str, object]]) -> bool:
     for flag, job in (
         ("build", "instrumentation"),
         ("build", "arm64"),
-        ("packaging", "package-smoke"),
+        ("packaging", "package"),
+        ("packaging", "package-test"),
     ):
         if outputs.get(flag) not in ("true", "false"):
             return False

@@ -3,13 +3,17 @@
 """Exercise release validation with real Debian archives and corrupted inventories."""
 
 import hashlib
+import re
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
+import ci_targets
 from release_assets import (
     ARCHITECTURES,
+    DISTRIBUTION_ARCHITECTURES,
+    DISTRIBUTION_PACKAGE_PATTERNS,
     DISTRIBUTIONS,
     package_changelog,
     validate_assets,
@@ -66,7 +70,7 @@ class ReleaseAssetsTest(unittest.TestCase):
             (self.assets / name).write_bytes(b"package")
 
     def distribution_assets(self) -> list[str]:
-        """Return the Fedora, openSUSE and Arch names a nightly candidate carries."""
+        """Return the names a nightly candidate carries beside the Debian ones."""
         return [
             f"kwin-effect-upscale-{self.version}-1.fc43.x86_64.rpm",
             f"kwin-effect-upscale-{self.version}-1.fc43.aarch64.rpm",
@@ -80,6 +84,7 @@ class ReleaseAssetsTest(unittest.TestCase):
             f"kwin-effect-upscale-{self.version}-1-x86_64.pkg.tar.zst",
             f"kwin-effect-upscale-debug-{self.version}-1-x86_64.pkg.tar.zst",
             f"kwin-effect-upscale-{self.version}-1.src.tar.gz",
+            f"kwin-effect-upscale-{self.version}-amd64.pkg",
         ]
 
     def test_every_distribution_needs_a_source_package(self) -> None:
@@ -102,24 +107,46 @@ class ReleaseAssetsTest(unittest.TestCase):
             validate_assets(self.assets, self.version)
         self.assertIn("per architecture", str(failure.exception))
 
+    def test_every_architecture_must_be_present(self) -> None:
+        """A distribution built for two must ship both, not whichever succeeded."""
+        for distribution, name in (
+            ("fedora", f"kwin-effect-upscale-{self.version}-1.fc43.aarch64.rpm"),
+            ("opensuse", f"kwin-effect-upscale-{self.version}-1.aarch64.rpm"),
+        ):
+            with self.subTest(missing=distribution):
+                (self.assets / name).rename(self.root / name)
+                with self.assertRaises(ValueError) as failure:
+                    validate_assets(self.assets, self.version)
+                self.assertIn(f"No {distribution} aarch64 package", str(failure.exception))
+                (self.root / name).rename(self.assets / name)
+
+    def test_matched_and_required_architectures_agree(self) -> None:
+        """The name pattern and the requirement must not name different sets.
+
+        Both say which architectures a distribution has. If one gains an entry
+        the other does not, the release either requires a package no job builds
+        or accepts a distribution silently short of one.
+        """
+        for distribution, pattern in DISTRIBUTION_PACKAGE_PATTERNS.items():
+            with self.subTest(distribution=distribution):
+                group = re.search(r"\(\?P<arch>([^)]*)\)", pattern)
+                if group is None:
+                    self.fail(f"The {distribution} pattern names no architecture group")
+                self.assertEqual(
+                    set(group[1].split("|")),
+                    DISTRIBUTION_ARCHITECTURES[distribution],
+                )
+
     def binaries_of(self, distribution: str) -> list[str]:
-        """Return one distribution's binary packages, debug and source aside."""
-        marks = {"fedora": ".fc43.", "opensuse": "-1.", "arch": ".pkg.tar.zst"}
-        names = []
-        for name in self.distribution_assets():
-            if "debug" in name or ".src." in name:
-                continue
-            if distribution == "opensuse" and ".fc43." in name:
-                continue
-            if distribution == "opensuse" and name.endswith(".pkg.tar.zst"):
-                continue
-            if marks[distribution] in name:
-                names.append(name)
-        return names
+        """Return one distribution's binary packages, by the pattern that admits them."""
+        expression = DISTRIBUTION_PACKAGE_PATTERNS[distribution].format(
+            version=re.escape(self.version)
+        )
+        return [name for name in self.distribution_assets() if re.fullmatch(expression, name)]
 
     def test_every_distribution_must_be_present(self) -> None:
         """A candidate that silently lost one of them must not publish."""
-        for distribution in ("fedora", "opensuse", "arch"):
+        for distribution in DISTRIBUTION_PACKAGE_PATTERNS:
             names = self.binaries_of(distribution)
             self.assertNotEqual(names, [])
             with self.subTest(missing=distribution):
@@ -150,8 +177,13 @@ class ReleaseAssetsTest(unittest.TestCase):
         self.assertIn("unexpected assets", str(failure.exception))
 
     def test_manifest_covers_every_deliverable(self) -> None:
-        """Checksums cover binaries, symbols, build records and source."""
+        """Checksums cover binaries, symbols, build records, source and aliases."""
         expected = {path.name.replace("~", ".") for path in self.assets.iterdir()}
+        expected.update(
+            ci_targets.download_name(entry.identifier, architecture)
+            for entry in ci_targets.TARGETS
+            for architecture in entry.architectures
+        )
         write_manifest(self.assets, self.version)
         entries = (self.assets / "SHA256SUMS").read_text().splitlines()
         self.assertEqual({line.split("  ")[1] for line in entries}, expected)
@@ -160,6 +192,23 @@ class ReleaseAssetsTest(unittest.TestCase):
             self.assertEqual(
                 checksum, hashlib.sha256((self.assets / name).read_bytes()).hexdigest()
             )
+
+    def test_every_target_gets_one_stable_download_name(self) -> None:
+        """The README links to these names, so a missing one is a broken link."""
+        write_manifest(self.assets, self.version)
+        names = {path.name for path in self.assets.iterdir()}
+        for entry in ci_targets.TARGETS:
+            for architecture in entry.architectures:
+                alias = ci_targets.download_name(entry.identifier, architecture)
+                with self.subTest(alias=alias):
+                    self.assertIn(alias, names)
+
+    def test_a_stable_name_is_a_copy_of_the_package_it_names(self) -> None:
+        """A link that downloads something other than that package is worse than none."""
+        write_manifest(self.assets, self.version)
+        alias = self.assets / ci_targets.download_name("trixie", "amd64")
+        package = self.assets / f"kwin-effect-upscale_{self.version}.trixie_amd64.deb"
+        self.assertEqual(alias.read_bytes(), package.read_bytes())
 
     def test_public_names_preserve_package_versions_and_build_records(self) -> None:
         """Hosted filenames must survive upload without changing any payload."""

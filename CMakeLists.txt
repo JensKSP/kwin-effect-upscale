@@ -116,10 +116,20 @@ set(CMAKE_REQUIRED_LIBRARIES
 )
 set(CMAKE_REQUIRED_QUIET ON)
 
+# Both probes answer from KWin's installed headers, and nothing in this tree
+# changes when those are replaced. Their results are cache entries, so a KWin
+# upgraded under an existing build directory would be answered from the cache
+# and the build would select the API the previous KWin had - the wrong-API
+# build this probe exists to prevent. Two of the distributions packaged here
+# roll, so that upgrade is the normal case rather than an unusual one. Discard
+# the previous answer and ask again on every configure; the cost is two
+# try_compile runs, paid once per configure and not per build.
+
 # A probe that answers "no" because it could not compile at all would pick an
 # API silently and wrongly, which is the failure this replaces. So establish
 # first that the probe can compile KWin's effect header, and refuse to guess
 # when it cannot.
+unset(UPSCALE_KWIN_EFFECT_HEADER_USABLE CACHE)
 check_cxx_source_compiles(
     "#include \"effect/effect.h\"
     int main() { return 0; }"
@@ -136,6 +146,7 @@ endif()
 
 # Only the return type is in question now, and the header above compiles, so a
 # failure here means the callbacks return void rather than that the probe broke.
+unset(UPSCALE_KWIN_PAINT_RETURNS_BOOL CACHE)
 check_cxx_source_compiles(
     "#include \"effect/effect.h\"
     bool probe(KWin::Effect &effect, const KWin::RenderTarget &target,

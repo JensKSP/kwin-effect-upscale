@@ -55,15 +55,27 @@ not imply that already implemented diagnostics or resolution control are absent.
 
 | Topic | Working document |
 | --- | --- |
-| Development infrastructure: About, logging and diagnostic OSD | [Development infrastructure](slice-development-infrastructure.md) |
-| FSR rendering, HDR/VRR and acceptance | [FSR rendering](slice-fsr1-hdr-vrr.md) |
-| Application matching and setting overrides | [Application profiles](slice-application-profiles.md) |
-| Submitted applications and the list we maintain | [Application submissions](slice-application-submissions.md) |
+| About and logging, the on-screen displays passive and interactive, and the languages the texts ship in | [What the effect says](slice-development-infrastructure.md) |
+| FSR rendering, aspect ratio and integer scaling, HDR/VRR and acceptance | [FSR rendering](slice-fsr1-hdr-vrr.md) |
+| Application matching, setting overrides and submitted applications | [The applications we know about](slice-application-profiles.md) |
 | Obtaining original smaller game buffers | [Resolution control](slice-resolution-control.md) |
-| Superseded managed-launch proposal | [Application launching](slice-application-launching.md) |
-| Interactive in-game controls and comparison | [Game controls](slice-game-overlay.md) |
-| Aspect ratio and integer scaling | [Scaling geometry](slice-scaling-geometry.md) |
-| Shipping the effect in the user's language | [Translations](slice-translations.md) |
 | Validated package and release publication | [Build and release pipeline](slice-build-release-pipeline.md) |
-| Packages for Fedora, openSUSE and Arch | [Distribution packages](slice-distribution-packages.md) |
+| How the pipeline is composed, named and paid for | [Pipeline modules](slice-pipeline-modules.md) |
 | GitHub contribution, security and maintenance workflow | [GitHub project workflow](slice-github-project-workflow.md) |
+
+Six documents were closed on 2026-09-20. Distribution packages was deleted on
+Jens's instruction with its implementation complete and verified in containers
+for all three distributions on both architectures. Its full-acceptance gate,
+real-device acceptance on Fedora, openSUSE and Arch, has no acceptance host and
+was outstanding at deletion; it is recorded permanently in the
+[README](../../README.md#packages), which names only Debian Trixie as tested on
+real hardware and the rest as untested container builds, in the release notes
+the publisher generates, and in the handbook's
+[distributions beyond Debian](../upscaling.md#distributions-beyond-debian).
+
+The other five were merged away. The managed-launch proposal was
+deleted: nothing in it was open, and the decision that superseded it lives in
+the handbook. Interactive controls, translations, scaling geometry and
+application submissions were specified but never started, and each continued a
+topic another document already owned, so each moved into that document with its
+gates and open items intact. Merging closed nothing.

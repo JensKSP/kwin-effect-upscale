@@ -1,0 +1,171 @@
+# SPDX-FileCopyrightText: None
+# SPDX-License-Identifier: CC0-1.0
+
+# The build stage: one job per package, and nothing else. Which packages exist
+# is tools/ci_targets.py's to say, so a pull request, the nightly and a release
+# call this same workflow and differ only in the target list they pass.
+#
+# Nothing is tested here. The packages go to the test stage as artifacts, which
+# installs and tests them; that is why no target is built twice except Debian,
+# where the second build exists to be compared with the first.
+
+name: Build packages
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      targets:
+        description: Comma separated target identifiers; empty means every target
+        type: string
+        default: ''
+      architectures:
+        description: Comma separated architectures; empty means all a target is built for
+        type: string
+        default: ''
+      source-archive:
+        description: Build the project's own source archive beside the packages
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  targets:
+    name: Select targets
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      containers: ${{ steps.select.outputs.containers }}
+      machines: ${{ steps.select.outputs.machines }}
+      virtual-machines: ${{ steps.select.outputs.virtual-machines }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: select
+        env:
+          TARGETS: ${{ inputs.targets }}
+          ARCHITECTURES: ${{ inputs.architectures }}
+        run: |
+          # Not named "select": that is a shell keyword, and a function using it
+          # cannot be parsed.
+          matrix_for() {
+            python3 -B tools/ci_targets.py \
+              --targets "$TARGETS" --architectures "$ARCHITECTURES" "$@"
+          }
+          echo "containers=$(matrix_for)" >> "$GITHUB_OUTPUT"
+          machines=$(matrix_for --only-virtual-machines)
+          echo "machines=$machines" >> "$GITHUB_OUTPUT"
+          # A matrix with no entries is an error rather than an empty stage, so
+          # the job below is gated on this instead of on the list itself.
+          if [ "$machines" = '{"include":[]}' ]; then
+            echo "virtual-machines=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "virtual-machines=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  package:
+    name: ${{ matrix.label }} ${{ matrix.architecture }} Package
+    needs: targets
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.targets.outputs.containers) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/build-package
+        with:
+          target: ${{ matrix.target }}
+          version: ${{ inputs.version }}
+          container: ${{ matrix.container }}
+          image: ${{ matrix.image }}
+          architecture: ${{ matrix.architecture }}
+          family: ${{ matrix.family }}
+
+  # FreeBSD builds in a virtual machine, which shares no step with a container
+  # job, and it tests in that same machine: there is no second clean FreeBSD to
+  # install into, so splitting this across the two stages would buy nothing and
+  # cost a second boot. It is the one target whose test lives in the build job.
+  virtual-machine-package:
+    name: ${{ matrix.label }} ${{ matrix.architecture }} Package
+    needs: targets
+    if: needs.targets.outputs.virtual-machines == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.targets.outputs.machines) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: vmactions/freebsd-vm@4469451fe39bee80be4066836c5170362e9349f3 # v1
+        env:
+          TARGET: ${{ matrix.target }}
+          VERSION: ${{ inputs.version }}
+        with:
+          release: ${{ matrix.release }}
+          envs: 'TARGET VERSION'
+          copyback: true
+          prepare: pkg install -y python3 git
+          run: |
+            set -eu
+            pkg install -y $(python3 -B tools/distribution-packages.py "$TARGET")
+            python3 -B tools/build-package.py "$TARGET" "$VERSION"
+            # The same clean-environment check the container targets get, in
+            # the machine that built it: the package is installed, both plugins
+            # are loaded, and it is reinstalled and removed again.
+            python3 -B tools/test-package.py "$TARGET" build/artifacts
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: deliverable-${{ matrix.target }}-${{ matrix.architecture }}
+          path: build/artifacts/*
+          if-no-files-found: error
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: reports-build-${{ matrix.target }}-${{ matrix.architecture }}
+          path: |
+            build/packages/*/+MANIFEST
+            build/packages/*/build/CMakeFiles/CMakeConfigureLog.yaml
+          if-no-files-found: ignore
+          retention-days: 14
+
+  archive:
+    name: Source Archive
+    if: inputs.source-archive
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/build-container-image
+      - name: Create, extract, build and test the source archive
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/src" -w /src \
+            -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/src \
+            upscale-check:local python3 -B tools/build-source.py "$VERSION"
+      - name: Make artifacts readable
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" build
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: deliverable-source
+          path: build/artifacts/*.tar.gz
+          if-no-files-found: error
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: reports-source
+          path: build/extracted/*/build/Testing/
+          if-no-files-found: ignore

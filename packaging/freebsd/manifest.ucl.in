@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# A template, not a manifest. The placeholders are filled in by
+# tools/build-recipe-package.py, which then hands this to pkg create together
+# with a packing list generated from the staged installation.
+#
+# This is not a port: a port lives in the FreeBSD ports tree and is that tree's
+# to maintain. This builds the same binary package pkg installs, from this
+# repository, so that a FreeBSD user has something to install at all.
+name: kwin-effect-upscale
+version: "@VERSION@"
+origin: x11-wm/kwin-effect-upscale
+comment: "KWin effect that upscales fullscreen windows"
+maintainer: kwin-effect-upscale@koehler-speyer.de
+www: https://github.com/JensKSP/kwin-effect-upscale
+prefix: /usr/local
+licenselogic: single
+licenses: [GPLv2+]
+desc: <<EOD
+A KWin effect for windows that render below the resolution of the output they
+cover, for example a game or a video player running at a lower resolution on a
+high resolution screen or television. The effect scales such a window up on the
+GPU instead of leaving the scaling to the display.
+
+The effect is enabled by default and is switched off in the Desktop Effects
+configuration module.
+EOD
+# KWin's effect ABI is private and its API version is not a compatibility
+# promise, so the package is only loadable by the exact KWin it was built
+# against. Pinning it makes a KWin upgrade refuse to install this package
+# rather than leave the compositor loading a plugin built for another ABI.
+deps: {
+    plasma6-kwin: {origin: "@KWIN_ORIGIN@", version: "@KWIN_VERSION@"}
+}

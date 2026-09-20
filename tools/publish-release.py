@@ -12,6 +12,7 @@ import tempfile
 import time
 from pathlib import Path
 
+import ci_targets
 from release_assets import digest, validate_version
 
 
@@ -88,11 +89,28 @@ INSTALLATION = (
     ("!.x86_64.rpm", "openSUSE Tumbleweed", "64-bit PC (x86_64)", "sudo zypper install ./{name}"),
     ("!.aarch64.rpm", "openSUSE Tumbleweed", "ARM64 (aarch64)", "sudo zypper install ./{name}"),
     ("x86_64.pkg.tar.zst", "Arch", "64-bit PC (x86_64)", "sudo pacman -U ./{name}"),
+    # Last, and matched on "amd64.pkg" alone: FreeBSD names its package after
+    # the manifest, with no distribution stamp and no debug companion.
+    ("amd64.pkg", "FreeBSD", "64-bit PC (amd64)", "sudo pkg add ./{name}"),
+)
+
+
+# The stable download names, which are copies of packages already in the table.
+# Matched by name rather than by shape: an Arch or FreeBSD alias ends exactly as
+# the package it copies does, so a shape cannot tell them apart, and the table
+# would offer the same package twice. The README links to these; the release
+# notes name the versioned file, which says what it is.
+ALIASES = frozenset(
+    ci_targets.download_name(entry.identifier, architecture)
+    for entry in ci_targets.TARGETS
+    for architecture in entry.architectures
 )
 
 
 def wanted(name: str, shape: str) -> bool:
-    """Match one installable package, never its debug or source companion."""
+    """Match one installable package, never its debug, source or stable copy."""
+    if name in ALIASES:
+        return False
     if any(part in name for part in ("-debuginfo-", "-debugsource-", "-debug-", "-dbgsym_")):
         return False
     if name.endswith((".src.rpm", ".src.tar.gz", ".dsc", ".tar.xz", ".buildinfo", ".changes")):
@@ -128,14 +146,17 @@ def installation_guide(repository: str, tag: str, names: list[str]) -> str:
         "| --- | --- | --- |",
     ]
     listed: set[str] = set()
-    install: list[str] = []
+    # One command per package manager, keyed by the command itself so the four
+    # Debian rows contribute one apt line between them, and in the order the
+    # table lists them. Keeping only the first command of all would print apt
+    # to a reader who came for the Fedora or Arch package.
+    install: dict[str, str] = {}
     for shape, system, architecture, command in INSTALLATION:
         found = sorted(name for name in names if wanted(name, shape))
         for name in found:
             listed.add(name)
             rows.append(f"| {system} | {architecture} | [{name}]({base}/{name}) |")
-            if not install:
-                install.append(command.format(name=name))
+            install.setdefault(command, command.format(name=name))
     if len(rows) == GUIDE_HEADER_LINES:
         return ""
     rows.extend(
@@ -144,7 +165,7 @@ def installation_guide(repository: str, tag: str, names: list[str]) -> str:
             "Install a downloaded package with your own package manager:",
             "",
             "```bash",
-            *install,
+            *install.values(),
             "```",
             "",
         )
@@ -161,7 +182,10 @@ def installation_guide(repository: str, tag: str, names: list[str]) -> str:
             (
                 "",
                 "<details>",
-                "<summary>Debug symbols, source packages, build records and checksums</summary>",
+                (
+                    "<summary>Stable download names, debug symbols, source"
+                    " packages, build records and checksums</summary>"
+                ),
                 "",
             )
         )

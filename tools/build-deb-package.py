@@ -1,7 +1,14 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Build and compare release packages inside containers/package."""
+"""Build one Debian-family package set inside containers/package.
+
+    build-deb-package.py <distribution> <version>
+
+Debian is built twice from separate clean sources and compared byte for
+byte; every other target is built once. The test suite does not run here:
+it runs once afterwards, against the installed package.
+"""
 
 import argparse
 import os
@@ -9,6 +16,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import ci_targets
 from release_assets import DISTRIBUTIONS, digest, package_changelog, validate_version
 
 EXPECTED_PACKAGE_COUNT = 2
@@ -41,6 +49,11 @@ def build(root: Path, destination: Path, version: str, epoch: int) -> list[Path]
         package_changelog(version, commit, epoch, maintainer) + changelog.read_text()
     )
     # dpkg-buildpackage selects native parallelism and respects DEB_BUILD_OPTIONS.
+    # The suite is skipped through an empty override_dh_auto_test in debian/rules
+    # rather than through DEB_BUILD_OPTIONS=nocheck: debhelper answers nocheck
+    # with -DBUILD_TESTING:BOOL=OFF, which drops autotests/ from the build
+    # entirely, and the test stage needs those binaries to run against the
+    # installed package.
     environment = {**os.environ, "SOURCE_DATE_EPOCH": str(epoch)}
     # -F builds the source package as well, -b the binaries alone. The source
     # package describes the tree and not the machine, so building it on both
@@ -78,26 +91,39 @@ def build(root: Path, destination: Path, version: str, epoch: int) -> list[Path]
     return packages
 
 
+def publish(root: Path) -> None:
+    """Stage the first build's deliverables, whether or not a second ran."""
+    artifacts = root / "build/artifacts"
+    artifacts.mkdir(parents=True, exist_ok=True)
+    for pattern in ("*.deb", "*.ddeb", "*.buildinfo", "*.changes", "*.dsc", "*.tar.xz"):
+        for path in (root / "build/packages/first").glob(pattern):
+            shutil.copy2(path, artifacts / path.name)
+
+
 def main() -> None:
-    """Build twice and publish the first artifacts only after comparison."""
+    """Build once, and for a reproducible target compare a second clean build."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("version", type=validate_version)
     parser.add_argument("distribution", choices=DISTRIBUTIONS)
+    parser.add_argument("version", type=validate_version)
     arguments = parser.parse_args()
     root = Path.cwd()
     os.environ["PRE_COMMIT_HOME"] = str(root / "build/pre-commit")
     epoch = int(output("git", "show", "-s", "--format=%ct", "HEAD", cwd=root))
     version = f"{arguments.version}~{arguments.distribution}"
     first = build(root, root / "build/packages/first", version, epoch)
+    # One target carries the reproducibility comparison for all of them: it
+    # finds nondeterminism in the build, which is a property of the sources and
+    # not of the distribution, and a second build of every target would pay for
+    # the same answer five more times.
+    if not ci_targets.target(arguments.distribution).reproducible:
+        publish(root)
+        print(f"{arguments.distribution}: one clean build, as this target is not compared.")
+        return
     second = build(root, root / "build/packages/second", version, epoch)
     if {p.name: digest(p) for p in first} != {p.name: digest(p) for p in second}:
         message = "The two clean package builds differ; retain both builds for diagnosis"
         raise ValueError(message)
-    artifacts = root / "build/artifacts"
-    artifacts.mkdir(parents=True, exist_ok=True)
-    for pattern in ("*.deb", "*.ddeb", "*.buildinfo", "*.changes", "*.dsc", "*.tar.xz"):
-        for path in (root / "build/packages/first").glob(pattern):
-            shutil.copy2(path, artifacts / path.name)
+    publish(root)
     print("Both clean builds produced identical packages.")
 
 

@@ -11,14 +11,14 @@ updates:
       actions:
         patterns: ['*']
   - package-ecosystem: github-actions
-    directory: /.github/actions/environment
+    directory: /.github/actions/build-container-image
     schedule:
       interval: weekly
     groups:
       actions:
         patterns: ['*']
   - package-ecosystem: github-actions
-    directory: /.github/actions/check
+    directory: /.github/actions/run-checks
     schedule:
       interval: weekly
     groups:

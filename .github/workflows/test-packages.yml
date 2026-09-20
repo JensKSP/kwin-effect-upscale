@@ -1,0 +1,67 @@
+# SPDX-FileCopyrightText: None
+# SPDX-License-Identifier: CC0-1.0
+
+# The test stage: install what the build stage produced and test that, in a
+# clean environment of the distribution that has nothing but an interpreter.
+# Nothing is compiled here - the test binaries come from the build stage as an
+# artifact - so a package is built once and tested once.
+#
+# FreeBSD is absent on purpose: its package is tested in the virtual machine
+# that built it, because there is no second clean FreeBSD to install into.
+
+name: Test packages
+
+on:
+  workflow_call:
+    inputs:
+      targets:
+        description: Comma separated target identifiers; empty means every target
+        type: string
+        default: ''
+      architectures:
+        description: Comma separated architectures; empty means all a target is built for
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  targets:
+    name: Select targets
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      containers: ${{ steps.select.outputs.containers }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: select
+        env:
+          TARGETS: ${{ inputs.targets }}
+          ARCHITECTURES: ${{ inputs.architectures }}
+        run: |
+          containers=$(python3 -B tools/ci_targets.py \
+            --targets "$TARGETS" --architectures "$ARCHITECTURES")
+          echo "containers=$containers" >> "$GITHUB_OUTPUT"
+
+  test:
+    name: ${{ matrix.label }} ${{ matrix.architecture }} Package
+    needs: targets
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.targets.outputs.containers) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/test-package
+        with:
+          target: ${{ matrix.target }}
+          family: ${{ matrix.family }}
+          image: ${{ matrix.image }}
+          architecture: ${{ matrix.architecture }}
+          bootstrap: ${{ matrix.bootstrap }}

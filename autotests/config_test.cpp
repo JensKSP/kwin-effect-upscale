@@ -148,7 +148,6 @@ void UpscaleConfigTest::displayDefaults()
     QWidget host;
     KWin::UpscaleEffectConfig module(&host, KPluginMetaData());
     module.defaults();
-    QCheckBox *osd = module.widget()->findChild<QCheckBox *>(QStringLiteral("osd"));
     QCheckBox *detection = module.widget()->findChild<QCheckBox *>(QStringLiteral("osdDetection"));
     QCheckBox *statistics = module.widget()->findChild<QCheckBox *>(QStringLiteral("osdStatistics"));
     QCheckBox *developer = module.widget()->findChild<QCheckBox *>(QStringLiteral("osdDeveloper"));
@@ -159,7 +158,8 @@ void UpscaleConfigTest::displayDefaults()
     // Built without the generated identity, as an upstream copy inside KWin
     // would be, the page still says something rather than showing a blank row.
     QVERIFY(!build->text().isEmpty());
-    QVERIFY(osd);
+    QVERIFY2(!module.widget()->findChild<QCheckBox *>(QStringLiteral("osd")),
+             "the settings page still offers a switch above the four displays");
     QVERIFY(detection);
     QVERIFY(statistics);
     QVERIFY(developer);
@@ -167,17 +167,14 @@ void UpscaleConfigTest::displayDefaults()
     QVERIFY(position);
     // The announcement is on in both build types; the persistent views follow
     // the build configuration of this binary and nothing else.
-    QVERIFY(osd->isChecked());
     QVERIFY(detection->isChecked());
     QCOMPARE(timeout->value(), 3);
     QCOMPARE(statistics->isChecked(), KWin::upscaleDebugBuild);
     QCOMPARE(developer->isChecked(), KWin::upscaleDebugBuild);
-    // The master switch hides every mode without changing what they are set to.
-    osd->setChecked(false);
-    QVERIFY(!statistics->isEnabled());
-    QVERIFY(statistics->isChecked() == KWin::upscaleDebugBuild);
-    osd->setChecked(true);
+    // Each display is its own switch now: nothing above them can grey one
+    // out, so a mode stays available whatever the other three are set to.
     QVERIFY(statistics->isEnabled());
+    QVERIFY(developer->isEnabled());
     // The corner belongs to the view it moves: there is nothing to place
     // while that view is off, and the other two blocks have fixed corners.
     QCOMPARE(position->currentIndex(), int(KWin::UpscaleCorner::TopRight));

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
 # A template, not a PKGBUILD. The placeholders below are filled in by
-# tools/build-distribution-packages.py, and the build dependencies come from
+# tools/build-recipe-package.py, and the build dependencies come from
 # debian/control, which is the repository's only list of them.
 #
 # Maintainer: Jens Koehler <kwin-effect-upscale@koehler-speyer.de>

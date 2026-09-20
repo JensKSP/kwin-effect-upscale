@@ -31,6 +31,9 @@ UpscaleDisplay::~UpscaleDisplay() = default;
 
 void UpscaleDisplay::reconfigure()
 {
+    // On unless a configuration file says otherwise. The settings page
+    // stopped offering this, so in practice it is the four choices below
+    // that decide whether anything is drawn.
     m_enabled = UpscaleConfig::osd();
     m_detection = UpscaleConfig::osdDetection();
     m_summary = UpscaleConfig::osdSummary();

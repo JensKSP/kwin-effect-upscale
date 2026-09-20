@@ -34,6 +34,9 @@ def main() -> int:
         runtime = Path(directory)
         config = runtime / "config"
         config.mkdir()
+        # upscaleEnabled=false keeps an effect installed on this machine from
+        # loading itself beside the module this test drives, so that what the
+        # session runs is the copy built here and nothing else.
         (config / "kwinrc").write_text(
             "[Plugins]\nupscaleEnabled=false\n"
             "[Effect-upscale]\nEnabled=true\nSharpening=false\nMinimumPixels=0\n"
@@ -43,18 +46,19 @@ def main() -> int:
         # ignore LD_PRELOAD. A private executable copy permits instrumentation
         # without changing the system binary or attaching to a real session.
         compositor = runtime / "kwin_wayland"
-        installed = shutil.which("kwin_wayland")
-        if not installed:
+        # Not named after the flag above: this is where the compositor lives,
+        # and the flag says which effect it is to load.
+        system_compositor = shutil.which("kwin_wayland")
+        if not system_compositor:
             print("kwin_wayland is required for integration tests")
             return 1
-        shutil.copyfile(installed, compositor)
+        shutil.copyfile(system_compositor, compositor)
         compositor.chmod(0o700)
         environment = dict(os.environ)
         environment.update(
             XDG_RUNTIME_DIR=str(runtime),
             XDG_CONFIG_HOME=str(config),
             XDG_CACHE_HOME=str(runtime / "cache"),
-            QT_PLUGIN_PATH=str(build / "bin"),
             KWIN_COMPOSE="Q",
             LIBGL_ALWAYS_SOFTWARE="1",
             LC_ALL="C.UTF-8",
@@ -62,6 +66,7 @@ def main() -> int:
             QT_FORCE_STDERR_LOGGING="1",
         )
         environment.pop("QT_QPA_PLATFORM", None)
+        environment["QT_PLUGIN_PATH"] = str(build / "bin")
         command = [
             str(compositor),
             "--virtual",

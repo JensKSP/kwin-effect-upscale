@@ -3,7 +3,7 @@ SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de
 SPDX-License-Identifier: GPL-2.0-or-later
 -->
 
-# Slice: development infrastructure and diagnostics
+# Slice: what the effect says, and in which language
 
 ## Status and remaining work
 
@@ -14,6 +14,10 @@ sequence is therefore historical, not the next unimplemented capability.
 
 This package remains open for the full About/build identity and notices inventory,
 transition logging, session-font handling and its remaining native acceptance.
+It also carries two topics merged into it on 2026-09-20, neither of them started:
+the interactive half of the same on-screen surface, and shipping every text in
+the user's language. Both are recorded under
+[absorbed topics](#absorbed-topics) with their own gates and open items.
 Current presentation statistics remain observable even with the OSD hidden;
 overlay drawing and its own client/repaint sampling stop when hidden.
 Rendering, resolution-control and pipeline acceptance retain their own owners.
@@ -66,8 +70,9 @@ the permanent specification for identity and notices;
 [developer information](../upscaling.md#developer-information) define diagnostics.
 
 The optional full in-game About dialog does not block this package. Interactive
-game-setting controls, comparison and restart actions remain in the later
-[game controls slice](slice-game-overlay.md). Game-profile implementation,
+game-setting controls, comparison and the language the texts ship in are owned
+here as well, under [absorbed topics](#absorbed-topics); they have their own
+end states and do not gate the diagnostics work above. Game-profile implementation,
 process management, resolution negotiation, new scalers/geometry, rendering
 algorithm changes and release-workflow redesign are excluded. Observe existing
 behaviour rather than extending it to populate future diagnostic fields. Do
@@ -85,8 +90,8 @@ interface. This slice does not depend on future profiles or launch helpers:
 label the current selected fullscreen client accurately, without claiming a
 profile match or verified game identity. Show unavailable capabilities honestly.
 The [profiles](slice-application-profiles.md) package later supplies recognized
-game/profile events and per-profile overrides to the existing OSD; the controls
-package later extends the same surface. Test those interfaces with controlled
+game/profile events and per-profile overrides to the existing OSD; the
+interactive controls below extend the same surface. Test those interfaces with controlled
 states now; integrated profile/launch acceptance stays with their owning slices.
 
 ## Approach
@@ -574,3 +579,329 @@ PR #14 review follow-up: resetting presentation measurements with a null output
 now clears old samples even after the QPointer was cleared by output destruction.
 Presented-frame text uses plural-aware translation. The targeted tests and
 combined-candidate checks are being rerun before publication.
+
+## Placing the passive displays
+
+Opened 2026-09-20 from Jens's observation on the acceptance television. This
+continues the passive-display topic this package already owns; it is recorded
+here rather than as a slice of its own.
+
+### Start state
+
+Observed on 2026-09-20 with the nightly package installed on wzpc: on a
+3840 x 2160 television configured at scale 3, the three passive displays
+overlap each other.
+
+The cause is in `UpscaleCornerLayout::place()`, which stacks only blocks that
+were sent to the *same* corner and bounds no block's width. Two blocks in
+adjacent corners therefore collide as soon as their widths sum past the logical
+screen width. A scale factor makes that certain rather than unlikely: the
+blocks are rasterised at `scale x emphasis` destination pixels, so their
+logical size stays roughly constant while the logical screen shrinks. At
+scale 3 the screen is 1280 x 720 logical while a block that covered a quarter
+of an unscaled screen now covers three quarters of it. The heads-up block
+carries a further 1.6x emphasis.
+
+Estimated from font metrics, not yet measured: the long developer lines run
+about 110 characters, so that block and the heads-up each want roughly 900 of
+the 1280 available logical pixels. Measuring the real figures is the first
+implementation task.
+
+Before this package, the announcement and the developer dump had fixed corners
+and only the heads-up corner was a setting, and a switch above the four display
+choices duplicated what "all four off" already said.
+
+### End state
+
+Complete when the three passive displays cannot overlap by construction, at any
+output scale, and each one's corner is the user's to choose:
+
+- Each display is confined to its own quarter of the output, inset by the
+  television margin. A block too large for that quarter is laid out smaller
+  until it fits; when the readable-size floor is reached first, what remains
+  outside the quarter is clipped away. No configuration and no output scale
+  produces two blocks over one another.
+- All three displays have a position setting. The three corners are always
+  distinct: choosing a corner another display holds moves that display to the
+  next free corner. The fourth corner stays free for the interactive panel.
+- The settings page offers no switch above the four display choices.
+
+### Scope and boundaries
+
+In scope: the passive blocks' placement and sizing, the three position
+settings and their mutual exclusion, the removal of the master switch, and the
+handbook rules that describe all of it.
+
+Excluded: what the blocks say, the sampling behind the figures, the interactive
+panel's own placement (it takes the corner this package leaves free, and is
+specified with that feature), and per-application overrides of any of these.
+
+### Supported scope and full acceptance
+
+Supported scope, which this package closes and releases against: the container
+runtime tests paint all three blocks at representative scale factors and assert
+the quarter invariant and the mutual exclusion directly. This gate needs no
+hardware and is what the package closes on.
+
+Full acceptance, which keeps the requirement open: reading the three blocks on
+the acceptance television at scale 3 on wzpc, confirming that none overlaps and
+that each remains legible from the seating position after being laid out
+smaller.
+
+### Approach
+
+1. Measure the real block sizes first, in the container, painting at
+   1280 x 720 logical with scale 3. Replace the estimate above with the
+   observed figures before designing around them.
+2. Give `UpscaleCornerLayout` a per-corner budget: the quarter of the output
+   belonging to that corner, inset by the margin on all four sides, so two
+   adjacent blocks are separated by twice the margin. Keep the existing
+   stacking of blocks sharing a corner, as a safety net for a hand-edited
+   configuration, with the second block drawing on what the first left.
+3. Fit each block to its budget before placing it. The fitting factor is
+   `min(1, budget width / block width, budget height / block height)` applied
+   to `scale x emphasis`, with the existing 11-pixel device floor still in
+   force. Rasterisation moves to the point where the budget is known so that a
+   block is never drawn twice for one text.
+4. Crop whatever still exceeds the budget after the floor. The quarter is then
+   an invariant rather than an intention.
+5. Add `OsdAnnouncementPosition` and `OsdDeveloperPosition`, and rename
+   `OsdPosition` to `OsdStatisticsPosition` so the three read alike. A stored
+   `OsdPosition` is not migrated; the only release carrying it is the rolling
+   nightly and the value is a cosmetic preference. Defaults: announcement top
+   left, heads-up top right, developer bottom right, bottom left free.
+6. Enforce distinct corners in two places. The settings page moves the
+   displaced display as the user changes a box, so the move is visible. The
+   effect re-distributes duplicates when it reads the configuration, so a
+   hand-edited file cannot put two blocks in one corner either. The displaced
+   display takes the next free corner scanning forward from the contested one
+   in settings order, wrapping; it is deliberately not a swap.
+
+### Acceptance criteria
+
+- Painting all three blocks at scale 1, 2 and 3 on one output leaves every
+  block inside its own quarter, and no two blocks share a pixel.
+- A block whose text cannot fit its quarter at the readable-size floor is
+  clipped to the quarter rather than drawn over its neighbour.
+- Choosing a corner another display holds moves that display to the next free
+  corner, in the settings page and when the effect reads the configuration.
+  The three corners are distinct after every such change.
+- The settings page has no master switch, and each of the four display choices
+  is enabled independently of the other three.
+- Both hook stages, GCC and Clang in both containers with warnings as errors,
+  the runtime tests, clang-tidy and metadata validation all pass.
+- Real-device acceptance on the television at scale 3 remains open until read
+  there.
+
+### Progress and remaining work
+
+The master switch is removed from the settings page, its member and wiring are
+gone from `UpscaleEffectConfig`, and the four choices are each enabled by the
+display they belong to. The `Osd` key stays in `upscaleconfig.kcfg` with its
+`true` default and is still read by `UpscaleDisplay::reconfigure()`, so a
+configuration file can still start a session with the display out of the way
+without the four choices being lost; nothing in the page writes it any more.
+The handbook's settings table and the configuration test were updated with it.
+
+Nothing else below has been implemented, and nothing here has been built or
+tested yet. Measurement, the budget, the fitting, the clipping, the three
+position settings and their mutual exclusion all remain open.
+
+## Absorbed topics
+
+Two packages that were specified but never started were merged into this
+document on 2026-09-20, because each one continues a topic this package already
+owns rather than opening a new one. Interactive controls extend the same
+on-screen surface as the passive displays, and the languages the texts ship in
+follow the texts themselves. Nothing was closed by the merge: every open item,
+gate and acceptance criterion below is carried over unchanged.
+
+## Interactive in-game controls
+
+### Start state
+
+At the start of implementation, the passive surface described above has
+provided the shared passive OSD, timed detection/basic summaries, statistics,
+developer information and diagnostic state. Interactive controls, comparison
+remain specified but not implemented. Managed restart was superseded by the
+2026-09-19 plugin-only requirement and is excluded.
+
+### End state
+
+The existing overlay offers an on-demand settings panel that distinguishes
+live and pending changes, explains when a normal new launch is needed, and permits a
+temporary visual comparison without altering saved settings or supplied input.
+Required automated and real-game/TV acceptance has passed.
+
+### Scope and boundaries
+
+Own interactive settings actions, input/focus handling, comparison and the
+presentation of pending settings. Reuse the diagnostic surface and state
+described earlier in this document and the profile/resolution contracts.
+Do not reimplement passive statistics, build defaults, detection or logging.
+Future filters, geometry modes and display-specific overrides do not expand
+this package's completion gate. Optional full About access may reuse the
+shared identity/notices, but it is not required to close this package.
+
+#### Dependencies
+
+The passive surface comes first, within this same package.
+[Profiles](slice-application-profiles.md)
+provide matching and resolved settings;
+[resolution control](slice-resolution-control.md) supplies live capabilities
+and actual results. UI checks may use controlled states, but closing this slice
+requires integrated live/pending-setting behaviour and real-game input acceptance.
+
+### Approach
+
+1. Extend the existing overlay with an interactive mode, sharing configuration
+   and diagnostic state with the settings module and passive views.
+2. Apply verified live changes and show pending ones without automatic restarts.
+   Keep global edits, explicit profile overrides and Use global distinct.
+3. Report settings that apply on the next normal launch. The effect does not
+   launch, close or restart processes.
+4. Add temporary comparison at unchanged input/destination geometry; verify
+   input, focus and pointer restoration, cleanup and HDR/VRR interactions.
+
+The permanent handbook defines [in-game controls](../upscaling.md#in-game-controls-and-applying-settings)
+and [restart behaviour](../upscaling.md#restarting-a-game-with-pending-settings).
+A window match cannot reconstruct a launch, and launch management is excluded.
+Saving settings never restarts a running game. These are requirements, not observed behaviour.
+
+### Acceptance criteria
+
+Planned checks, not observed results:
+
+- Apply live changes without restarting; cover mixed live/pending changes,
+  reverting pending values, profile inheritance and explicit save scope.
+  Ordinary Apply never restarts a game. Disabled/ineligible games retain
+  controls; closing the panel restores focus and pointer state.
+- Interactive edits update the existing diagnostic snapshot and timed basic
+  summary consistently. Detection/statistics/developer visibility and configured
+  preferences survive opening and closing the panel. Passive content remains
+  outside capture and takes no input after the panel closes.
+- Comparison preserves saved settings and supplied resolution while switching
+  paths; if split view is provided, both halves use the same source frame.
+- Explain bind-time changes without claiming they changed the running client.
+  No control may start a launch wrapper or relaunch the game.
+- Run repository checks and relevant rendering/configuration/integration tests
+  with GCC and Clang on both container targets. On wzpc, verify legibility,
+  live/pending settings, game input and HDR/VRR during and after interaction.
+
+### Progress and remaining work
+
+- [x] Specify live controls, pending restart settings and comparison.
+- [x] Assign the passive OSD, metrics and developer defaults to the passive
+  surface above so this topic has one completion gate.
+- [ ] Integrate interactive controls with profiles and diagnostic state.
+- [ ] Implement comparison and pending-setting presentation.
+- [ ] Complete required checks and real-session acceptance.
+
+Overlay/restart documentation validation, 2026-09-18: `pre-commit run --all-files`
+and the complete pre-push stage passed in Trixie on an isolated copy under
+`build/overlay-geometry-check`, containing the committed source and updated
+documents. Local documentation links and heading anchors resolved. No overlay
+or restart implementation or runtime acceptance was performed.
+This recorded documentation result predates the split into work packages,
+and the 2026-09-20 merge of that split back into this document.
+
+## Shipping the texts in every language
+
+### Start state
+
+The code already calls KI18n for every user-visible string, and the build
+defines the translation domain `kwin_effect_upscale` for the effect and for the
+settings module. Nothing else exists: there is no message template, no
+catalogue directory, no catalogue installation, and no translated plugin
+metadata, so every user sees English regardless of their session language.
+
+Several strings are also composed rather than written as whole sentences. A
+refusal reason is a clause that appears inside three different frames — the
+settings status, the timed summary and the developer view — and carries no
+`i18nc` context saying so. A translator cannot see the finished sentence, and a
+language that orders it differently cannot produce a correct one.
+
+### End state
+
+A user who installs the package sees the effect in their own language.
+English, German, French and Spanish are shipped and complete for every
+user-visible string, the effects list shows a translated name and description,
+and a further language is added with a catalogue and translated plugin metadata.
+Composed strings carry the context a translator needs. The
+[handbook's language requirements](../upscaling.md#language-and-translations)
+are the permanent specification.
+
+### Supported scope and full acceptance
+
+**Supported scope.** The four languages above, complete for the settings page,
+the on-screen display and the status texts, verified in a session for each one.
+This is what the package can be released with.
+
+**Full acceptance.** Additional languages as they are contributed, review of
+each translation by someone who speaks it, and the layout checks repeated on
+the television for the display's longer strings.
+
+### Scope and boundaries
+
+Own the extraction template, the catalogue layout and installation, the
+translated plugin metadata, the packaging of compiled catalogues, and the
+`i18nc` context for composed strings. Own the language acceptance runs.
+
+Do not change what the texts say: rewording belongs to the package that owns
+the text. Do not add a language selector; the session's language decides.
+Right-to-left layout is not required yet and must not be claimed. Machine or
+agent-produced translations are a starting point for review, never a claim that
+a language has been checked by someone who speaks it.
+
+#### Dependencies
+
+The display and status texts this topic translates are owned by this same
+document, which is why the two were merged: a text and its `i18nc` context are
+now written once, by one owner, instead of being translated twice. The
+[build and release pipeline](slice-build-release-pipeline.md) owns the package
+contents that the compiled catalogues become part of.
+
+### Approach
+
+1. Add `Messages.sh` in KDE's form and generate the template, covering the
+   effect, the settings module and any string in the plugin folder.
+2. Give every composed string `i18nc` context that names the frames it appears
+   in, and split any string whose grammar cannot survive reordering.
+3. Create `po/` with catalogues for German, French and Spanish, install them
+   with `ki18n_install(po)`, and confirm the packages carry the result.
+4. Add translated `Name` and `Description` entries to the plugin metadata, and
+   check that the effects list shows them.
+5. Run each language in a session and record what was observed.
+
+### Acceptance criteria
+
+Planned checks, not observed results:
+
+- The template is regenerated from the current sources and contains every
+  user-visible string, including the refusal reasons and the developer view.
+- Each shipped catalogue is complete; an incomplete one fails the check rather
+  than silently falling back to English in the middle of a sentence.
+- The settings page and the display are read in each language in a session.
+  German strings, which are the longest, do not break the settings layout or
+  push the display off the output, at desktop scale 1 and at a scaled desktop.
+- The effects list shows the translated name and description with the plugin
+  not loaded.
+- An installed package supplies the catalogues; a source archive build produces
+  them as well. Removing the settings module does not remove the effect's own
+  translations.
+- Pixel counts stay ungrouped in every language, and dates and decimals follow
+  the locale.
+- Repository checks and both container builds pass with the catalogues in the
+  build.
+
+### Progress and remaining work
+
+- [x] Record the language requirements in the handbook, as requested on
+  2026-09-18: KDE conventions, the four required languages, composed-string
+  context, and the locale exception for pixel counts.
+- [ ] Add the template, the catalogue layout and the installation.
+- [ ] Give composed strings their context and split what cannot be reordered.
+- [ ] Translate German, French and Spanish, and have each read by someone who
+  speaks it.
+- [ ] Translate the plugin metadata.
+- [ ] Run and record the per-language session acceptance.

@@ -81,10 +81,10 @@ only when working on that platform:
 podman build --build-arg DEPENDENCY_EPOCH="$(date -u +%Y-%m-%d)" \
     -t upscale-package:fedora -f containers/fedora/Containerfile .
 podman run --rm -v "$PWD:/src" -w /src upscale-package:fedora \
-    python3 -B tools/build-distribution-packages.py fedora "$(python3 -B tools/release-version.py snapshot | sed -n 's/^version=//p')"
+    python3 -B tools/build-package.py fedora "$(python3 -B tools/release-version.py snapshot | sed -n 's/^version=//p')"
 ```
 
-The package lands in `build/artifacts/`. `tools/test-installed-distribution-package.py`
+The package lands in `build/artifacts/`. `tools/test-package.py`
 installs it in a clean container of that distribution, loads the plugin,
 reinstalls and removes it, which is what the nightly does with it.
 

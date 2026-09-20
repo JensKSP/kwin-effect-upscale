@@ -1,0 +1,85 @@
+# SPDX-FileCopyrightText: None
+# SPDX-License-Identifier: CC0-1.0
+name: Build package
+description: Build one target's package in its maintained container image
+
+# One job's worth of work and no policy: which targets exist, which of them is
+# built twice and what each is called is tools/ci_targets.py's to say. This
+# action receives one row of that table and builds it.
+inputs:
+  target:
+    description: Target identifier from tools/ci_targets.py
+    required: true
+  version:
+    description: Package version to build
+    required: true
+  container:
+    description: Directory under containers/ holding the build image
+    required: true
+  image:
+    description: Base image the build container is built from
+    required: true
+  architecture:
+    description: Architecture this runner builds for
+    required: true
+  family:
+    description: Packaging family, which decides whether a probe is built
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/build-container-image
+      with:
+        environment: ${{ inputs.container }}
+        base-image: ${{ inputs.image }}
+
+    - name: Build the package
+      shell: bash
+      env:
+        TARGET: ${{ inputs.target }}
+        VERSION: ${{ inputs.version }}
+      run: |
+        docker run --rm -v "$GITHUB_WORKSPACE:/src" -w /src \
+          -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/src \
+          -e GITHUB_REF_NAME upscale-check:local \
+          python3 -B tools/build-package.py "$TARGET" "$VERSION"
+
+    - name: Make artifacts readable
+      if: always()
+      shell: bash
+      run: sudo chown -R "$(id -u):$(id -g)" build
+
+    - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: deliverable-${{ inputs.target }}-${{ inputs.architecture }}
+        path: build/artifacts/*
+        if-no-files-found: error
+
+    # The probe that tests the package rather than the tree: it loads both
+    # installed plugins and resolves every symbol. It is built by the package
+    # build, because the clean container the test stage uses has no compiler.
+    #
+    # Only the Debian family builds it, and there it is not optional: the test
+    # stage downloads it by name, so a build that quietly produced none would
+    # fail a stage later, where the message is about a missing artifact rather
+    # than about the build that did not make it. That is exactly how a
+    # BUILD_TESTING that had been switched off went unnoticed.
+    - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      if: inputs.family == 'deb'
+      with:
+        name: package-tests-${{ inputs.target }}-${{ inputs.architecture }}
+        path: build/packages/first/source/build/bin/upscale_package_test
+        if-no-files-found: error
+        retention-days: 14
+
+    - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      if: always()
+      with:
+        name: reports-build-${{ inputs.target }}-${{ inputs.architecture }}
+        path: |
+          build/packages/*/build.log
+          build/packages/*/source/build/CMakeFiles/CMakeConfigureLog.yaml
+          build/packages/*/SPECS/*.spec
+          build/packages/*/+MANIFEST
+        if-no-files-found: ignore
+        retention-days: 14
