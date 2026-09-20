@@ -329,8 +329,7 @@ what the longer list further down describes.
 | FreeBSD | amd64 | [.pkg](https://github.com/JensKSP/kwin-effect-upscale/releases/latest/download/kwin-effect-upscale-freebsd-amd64.pkg) | [.pkg](https://github.com/JensKSP/kwin-effect-upscale/releases/download/nightly/kwin-effect-upscale-freebsd-amd64.pkg) |
 
 > [!NOTE]
-> There is no tagged release yet, so only the nightly column resolves today.
-> The release column starts working with the first `v0.1.0` tag.
+> Until the first `v0.1.0` tag is published, only the nightly column resolves.
 
 ### Packages
 

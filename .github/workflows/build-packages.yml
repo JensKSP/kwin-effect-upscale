@@ -87,6 +87,7 @@ jobs:
           container: ${{ matrix.container }}
           image: ${{ matrix.image }}
           architecture: ${{ matrix.architecture }}
+          family: ${{ matrix.family }}
 
   # FreeBSD builds in a virtual machine, which shares no step with a container
   # job, and it tests in that same machine: there is no second clean FreeBSD to

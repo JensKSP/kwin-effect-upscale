@@ -22,6 +22,9 @@ inputs:
   architecture:
     description: Architecture this runner builds for
     required: true
+  family:
+    description: Packaging family, which decides whether a probe is built
+    required: true
 runs:
   using: composite
   steps:
@@ -55,11 +58,18 @@ runs:
     # The probe that tests the package rather than the tree: it loads both
     # installed plugins and resolves every symbol. It is built by the package
     # build, because the clean container the test stage uses has no compiler.
+    #
+    # Only the Debian family builds it, and there it is not optional: the test
+    # stage downloads it by name, so a build that quietly produced none would
+    # fail a stage later, where the message is about a missing artifact rather
+    # than about the build that did not make it. That is exactly how a
+    # BUILD_TESTING that had been switched off went unnoticed.
     - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      if: inputs.family == 'deb'
       with:
         name: package-tests-${{ inputs.target }}-${{ inputs.architecture }}
         path: build/packages/first/source/build/bin/upscale_package_test
-        if-no-files-found: ignore
+        if-no-files-found: error
         retention-days: 14
 
     - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

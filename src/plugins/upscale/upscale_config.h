@@ -57,7 +57,6 @@ private:
     QCheckBox *m_sharpening;
     QSlider *m_strength;
     QLabel *m_strengthLabel;
-    QCheckBox *m_osd;
     QCheckBox *m_osdDetection;
     QCheckBox *m_osdSummary;
     QCheckBox *m_osdStatistics;

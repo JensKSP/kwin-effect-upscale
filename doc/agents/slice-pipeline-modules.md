@@ -238,5 +238,15 @@ Nothing below has run, and none of it may be reported as tested.
 
 ## Remaining work
 
+- **FreeBSD is tested in the machine that built it**, which has that target's
+  build dependencies installed. An undeclared runtime dependency can therefore
+  stay available and a broken package pass. The container targets do not have
+  this weakness: their test runs in a clean image holding an interpreter and
+  the package. Closing it means emptying the machine before the test - delete
+  every package, reinstall an interpreter, install the built package and let
+  pkg resolve its declared dependencies from the repository - or a jail. Not
+  done here: the FreeBSD path has never executed at all, and an unverifiable
+  step added to an unverified path is two failures to tell apart. Raised in
+  review of this slice.
 - Run a verify-only nightly and record what each stage cost and what failed.
 - The two open decisions above.

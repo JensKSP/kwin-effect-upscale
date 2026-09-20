@@ -17,6 +17,12 @@ SPDX-License-Identifier: GPL-2.0-or-later
         <entry name="Strength" type="Int"><default>50</default><min>0</min><max>100</max></entry>
         <entry name="ResolutionControl" type="Bool"><default>true</default></entry>
         <entry name="UnknownApplications" type="Bool"><default>false</default></entry>
+        <!-- Kept on, and no longer offered in the settings: the four
+             displays below each switch themselves, and all four off already
+             means nothing is drawn, so a switch above them only said the
+             same thing twice. It remains readable here so that a session
+             can still be started with the display out of the way without
+             the four choices being lost. -->
         <entry name="Osd" type="Bool"><default>true</default></entry>
         <entry name="OsdDetection" type="Bool"><default>true</default></entry>
         <entry name="OsdSummary" type="Bool"><default>true</default></entry>

@@ -62,7 +62,6 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     , m_sharpening(new QCheckBox(i18n("Enable RCAS sharpening"), widget()))
     , m_strength(new QSlider(Qt::Horizontal, widget()))
     , m_strengthLabel(new QLabel(widget()))
-    , m_osd(new QCheckBox(i18n("Show the on-screen display"), widget()))
     , m_osdDetection(new QCheckBox(i18n("Announce the selected application"), widget()))
     , m_osdSummary(new QCheckBox(i18n("Include a short summary in the announcement"), widget()))
     , m_osdStatistics(new QCheckBox(i18n("Show the frame rate on screen"), widget()))
@@ -168,7 +167,6 @@ void UpscaleEffectConfig::connectControls()
 
 void UpscaleEffectConfig::addDisplayControls(QFormLayout *layout)
 {
-    m_osd->setObjectName(QStringLiteral("osd"));
     m_osdDetection->setObjectName(QStringLiteral("osdDetection"));
     m_osdSummary->setObjectName(QStringLiteral("osdSummary"));
     m_osdStatistics->setObjectName(QStringLiteral("osdStatistics"));
@@ -179,7 +177,6 @@ void UpscaleEffectConfig::addDisplayControls(QFormLayout *layout)
     m_osdPosition->addItems({i18n("Top left"), i18n("Top right"), i18n("Bottom left"), i18n("Bottom right")});
     m_osdTimeout->setRange(1, 60);
     m_osdTimeout->setSuffix(i18n(" s"));
-    layout->addRow(m_osd);
     layout->addRow(m_osdDetection);
     layout->addRow(m_osdSummary);
     layout->addRow(i18n("Announcement timeout:"), m_osdTimeout);
@@ -196,7 +193,7 @@ void UpscaleEffectConfig::addDisplayControls(QFormLayout *layout)
     // A Debug build shows statistics and developer information unless the
     // user has said otherwise; a release build shows only the announcement.
     // The defaults live in upscaleconfig.kcfg, not here.
-    for (QCheckBox *box : {m_osd, m_osdDetection, m_osdSummary, m_osdStatistics, m_osdDeveloper}) {
+    for (QCheckBox *box : {m_osdDetection, m_osdSummary, m_osdStatistics, m_osdDeveloper}) {
         connect(box, &QCheckBox::toggled, this, [this]() {
             updatePreview();
             setNeedsSave(true);
@@ -313,13 +310,11 @@ void UpscaleEffectConfig::updatePreview()
     }
     m_strength->setEnabled(m_sharpening->isChecked());
     m_strengthLabel->setText(i18n("%1% (0% bypasses sharpening)", m_strength->value()));
-    // Switching the display off hides every mode without changing what those
-    // modes are set to, so their controls stay readable but inactive.
-    for (QCheckBox *control : {m_osdDetection, m_osdSummary, m_osdStatistics, m_osdDeveloper}) {
-        control->setEnabled(m_osd->isChecked());
-    }
-    m_osdTimeout->setEnabled(m_osd->isChecked() && (m_osdDetection->isChecked() || m_osdSummary->isChecked()));
-    m_osdPosition->setEnabled(m_osd->isChecked() && m_osdStatistics->isChecked());
+    // Each of the four displays is its own switch, so a control is enabled by
+    // the display it belongs to and by nothing above it. Turning all four off
+    // is what leaves nothing on screen; there is no separate way to say it.
+    m_osdTimeout->setEnabled(m_osdDetection->isChecked() || m_osdSummary->isChecked());
+    m_osdPosition->setEnabled(m_osdStatistics->isChecked());
 }
 
 void UpscaleEffectConfig::showSettings()
@@ -330,7 +325,6 @@ void UpscaleEffectConfig::showSettings()
     upscaleSelectResolution(m_minimumPixels, UpscaleConfig::minimumPixels());
     m_sharpening->setChecked(UpscaleConfig::sharpening());
     m_strength->setValue(UpscaleConfig::strength());
-    m_osd->setChecked(UpscaleConfig::osd());
     m_osdDetection->setChecked(UpscaleConfig::osdDetection());
     m_osdSummary->setChecked(UpscaleConfig::osdSummary());
     m_osdStatistics->setChecked(UpscaleConfig::osdStatistics());
@@ -349,7 +343,6 @@ void UpscaleEffectConfig::applySettings()
     UpscaleConfig::setMinimumPixels(upscaleResolutionPixels(m_minimumPixels, UpscaleConfig::minimumPixels()));
     UpscaleConfig::setSharpening(m_sharpening->isChecked());
     UpscaleConfig::setStrength(m_strength->value());
-    UpscaleConfig::setOsd(m_osd->isChecked());
     UpscaleConfig::setOsdDetection(m_osdDetection->isChecked());
     UpscaleConfig::setOsdSummary(m_osdSummary->isChecked());
     UpscaleConfig::setOsdStatistics(m_osdStatistics->isChecked());
