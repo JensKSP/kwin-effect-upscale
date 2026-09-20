@@ -1933,10 +1933,18 @@ so that another session's concurrent edits could not affect them:
 case fails there in about 210 ms with `kwin_xwl: /tmp/.X11-unix does not exist`
 before any test logic runs. That is an image to rebuild, not a code failure.
 
-### The arm64 nightly refuses a slow machine, and a validation-window fix did not cure it
+### The arm64 package job refuses a slow machine, and a validation-window fix did not cure it
 
-The nightly's `resolute arm64` package job fails one X11 integration case per
-run, and never the same one: `repeatedFullscreenTransitions` on 2026-09-19,
+Where the evidence in this section comes from, because the two are not
+interchangeable: the failures below were seen in **hosted** runs of the package
+job, one scheduled nightly on `master` and the rest manual verify-only
+dispatches of `nightly.yml` on the packaging branch. Everything under
+**Reproduction** and **What was tried and rejected** is **local**, in a
+container on a developer's machine, and is evidence about the mechanism rather
+than about the pipeline.
+
+The hosted `resolute arm64` package job fails one X11 integration case per run,
+and never the same one: `repeatedFullscreenTransitions` on 2026-09-19,
 `lifecycle(primary-fullscreen)` on 2026-09-20, and `repeatedFullscreenTransitions`
 again on the re-run of that same commit. The suite's runtime moved with it -
 88.6 s, 61.1 s, then 156.2 s for the identical thirteen cases - which is the
@@ -2002,9 +2010,9 @@ and paints again after the emulated mode is established, which is what a client
 does anyway. Nothing in the plugin changed: the validation window, the retry and
 the replacement counter are untouched.
 
-**Observed.** Ubuntu 26.04 with KWin 6.6.6, the image built from
-`containers/package`: before the change the suite failed two cases, after it
-thirteen of thirteen pass. Repeated under the documented `--cpus=1`
+**Observed, locally.** Ubuntu 26.04 with KWin 6.6.6, the image built from
+`containers/package` on a developer's machine, not a hosted runner: before the
+change the suite failed two cases, after it thirteen of thirteen pass. Repeated under the documented `--cpus=1`
 reproduction, which is the constraint that reproduces the nightly: thirteen of
 thirteen pass. Debian Trixie with KWin 6.3.6 natively: thirteen of thirteen
 pass, as before, so ordinary hardware is not regressed - which is where the
@@ -2015,3 +2023,8 @@ This supersedes the timeout raise that was tried first. Raising the bound from
 to "33250 ms would have been sufficient": the same 3250 ms - the validation
 window plus the reschedule - measured from whenever the wait gave up. A bound
 was never going to reach it.
+
+**Hosted confirmation is outstanding.** No run of the package job has yet
+carried this change. Until one has, the cure is established on the mechanism
+and on a local reproduction of it, and not on the pipeline that reported the
+failure.
