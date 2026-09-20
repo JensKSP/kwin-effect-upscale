@@ -451,6 +451,15 @@ remaining intermittency goes with it is for the nightly to say. If it does not,
 the honest next step is to treat this test's sensitivity to slow, shared
 runners as its own problem rather than chasing one case per run.
 
+### The self-placement belongs to borderless windows alone, 2026-09-20
+
+The client asserting its own position after mapping is right for a borderless
+window and wrong for a fullscreen one. A fullscreen window is placed through
+`_NET_WM_FULLSCREEN_MONITORS`, which names the output directly and never needed
+it, and adding a second geometry request there puts one into a path whose whole
+subject is the window manager resizing this window. The call is now guarded by
+`if (!full)`. `upscale-x11-integration` passes natively, 13 of 13.
+
 ### Remaining work
 
 - Confirming that the X11 integration test stops failing intermittently in the
