@@ -5,10 +5,19 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 # kwin-effect-upscale
 
+**KWin-native game upscaling for KDE Plasma — designed for launching games
+normally, including from Steam, without wrapping them in gamescope.**
+
 > [!WARNING]
-> **Working alpha — it works, it is not finished.** The effect upscales real
-> games on a physical display, and a game given a smaller render target draws
-> up to 87% more frames a second ([Measured](#measured)).
+> **Working alpha — it works, it is not finished.** The effect can make a game
+> render at a lower resolution and upscale the result to the physical display.
+> On real hardware, SuperTuxKart produced up to **87% more frames per second**
+> with a smaller render target while KWin still presented the result on the same
+> 3840 x 2160 display. See [Measured](#measured).
+>
+> Image quality, HDR, VRR and broad game compatibility still require more
+> real-world testing. The effect is disabled by default and its settings may
+> still change.
 
 [![CI](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/ci.yml/badge.svg)](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/ci.yml)
 [![Nightly](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/nightly.yml/badge.svg)](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/nightly.yml)
@@ -16,349 +25,340 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 ## TL;DR
 
-- **Goal:** upscale smaller fullscreen game buffers inside KWin using FSR 1,
-  with optional RCAS sharpening.
-- **Current state: working alpha.** FSR 1 processing, editable application
-  profiles and targeted Wayland/X11 resolution requests are implemented, and
-  the whole path has now been measured end to end on a physical display: a
-  game asked for a smaller buffer, rendered into it, and had it upscaled to
-  the screen. See [Measured](#measured).
-- **Next:** image-quality judgement, HDR and VRR acceptance, and broader client
-  compatibility.
-
-- **For now:** alpha means it works and is worth trying, not that it is
-  finished. It is disabled by default and the settings are still moving.
-
-## Our vision
-
-**Install the package and enjoy your games.** That is the experience we want
-upscaling on KDE to offer: one integrated solution that takes care of the whole
-journey, from obtaining a suitable rendering resolution for a normally started
-game to presenting it clearly and smoothly on your display.
-
-The goal is a KDE plugin with simple settings, familiar desktop behavior and a
-useful on-screen display. A comprehensive, maintained library of well-known
-games should provide tested settings suited to the game, hardware and display,
-so good results come from sensible defaults rather than repeated trial and
-error. Advanced controls should be available when wanted, without becoming
-homework for everyone else.
-
-Installation and updates should be equally straightforward. The distribution's
-package manager should handle dependencies and compatible versions, with no
-hand-edited configuration files, manual dependency hunting or fragile setup
-recipes. Ideally, installing the matching Debian package is the only setup a
-user needs to perform.
-
-**This is our destination, not the current state.** A small editable catalogue
-and cooperative resolution-control paths exist. Broad game compatibility and
-full real-hardware acceptance remain work to be done.
+This project brings game upscaling to KDE: games can render at a lower
+resolution for better performance while still filling your display at its
+native resolution, such as 4K — similar to the upscaling experience Windows
+gamers are used to, but integrated directly into KWin.
 
 ## Why this project?
 
 KDE Plasma is my desktop of choice, and I also use my PC for gaming with Steam.
-My gaming setup relies on gamescope to upscale games to 4K, but running another
-Wayland compositor for that purpose has always felt unnecessary to me. That
-prompted me to explore whether KWin could handle the upscaling itself.
+A common solution for game upscaling on Linux is to run the game through
+[gamescope](https://github.com/ValveSoftware/gamescope). Gamescope is an
+excellent project and an important technical reference for this one, but using
+it for scaling also means putting another compositor into the game path.
 
-This effect grew out of that idea: let games render at a lower resolution and
-have KWin bring the image up to the screen's resolution, making this part of
-the desktop I already enjoy using. I hope it will prove useful to others who
-want the same flexibility when gaming on KDE Plasma.
+That raised a simple question:
 
-## Why upscale?
+> **If KWin is already compositing the desktop, why can't KWin upscale the game
+> itself?**
 
-A 4K screen has four times as many pixels as a 1080p screen. Drawing a game at
-that resolution can be too much work for a graphics card to keep gameplay
-smooth. Lowering the game's resolution can improve the frame rate, but the
-image still needs to fill the screen. Simply stretching it can leave it looking
-blurry, with less detail and rougher edges.
+`kwin-effect-upscale` explores that idea.
 
-Upscaling offers a compromise: the game draws a smaller image, then a shader
-(a small program running on the graphics card) enlarges it while trying to keep
-edges and details clear. This can look better than basic stretching, though it
-cannot recover all the detail of a game drawn at full 4K. The extra processing
-adds some GPU work, but usually costs much less than rendering the game at 4K.
+Instead of wrapping a game in another compositor, the game stays on the normal
+Plasma desktop. KWin identifies configured applications, tries to obtain a
+smaller game buffer where possible, then scales that image to the physical
+output.
 
-The saving is mainly in the GPU work needed for each frame. If the CPU is what
-limits the game's frame rate, lowering the resolution may do little to help.
-A higher frame rate can also keep the GPU fully busy, so upscaling does not
-necessarily mean lower power consumption.
+The point is not to reimplement gamescope feature for feature. The goal is a
+KDE-native gaming path where spatial upscaling feels like part of the desktop
+rather than a separate launch environment.
 
-This effect aims to upscale the finished game image, including text and menus.
-An upscaler built into a game can work on the 3D scene separately and keep the
-interface at full resolution.
+## The experience we want
 
-## How the game is made to render smaller
+Eventually the normal workflow should be:
 
-A compositor receives finished frames. By the time KWin has a game's image, the
-game has already paid for every pixel in it, so enlarging a 4K frame would cost
-more work rather than less. For upscaling to save anything, the game has to
-draw a smaller image in the first place - and games do not offer a way to be
-asked. **So this effect arranges for the game to believe a smaller image is the
-right one.** That is worth understanding before installing it, because it is
-the part that can surprise you, and the part that decides whether the effect
-helps your game at all.
+1. Install the matching package.
+2. Enable **Upscale** in KDE System Settings.
+3. Select a global preset or configure a game.
+4. Start the game normally — including directly from Steam.
+5. Play.
 
-How it does that depends on how the game talks to the desktop:
+The effect should take care of the rest.
 
-- **A native Wayland game** is told that the screen it is on has a different
-  mode. It sees a 2560 x 1440 or 1920 x 1080 screen where the display is really
-  3840 x 2160, chooses that resolution as any game would, and renders into it.
-  Only the connection belonging to that game is told this; every other window
-  keeps the real screen.
-- **A game running through Xwayland** cannot be told that, because all X11
-  applications share one connection to the display. Its window is resized
-  instead, and the effect presents the result at full screen size itself.
+A maintained catalogue of well-known games should eventually provide tested
+settings for common combinations of game, hardware and display. Advanced
+controls should remain available without turning basic use into a setup
+exercise.
 
-The game decides what to do with what it is told, and that is the whole
-limitation. One that follows the advertised mode renders smaller, and whether
-that buys anything depends on what was limiting it: SuperTuxKart gains the
-frame rate under [Measured](#measured), while Extreme Tux Racer follows the
-same request and stays at its own 60 frames a second, because a game already
-at its limit has nothing to win. One that ignores it, picks its own
-resolution, or renders through a path that never asks the screen, simply
-carries on at full size - and then this effect has nothing to upscale and
-changes nothing. Neither outcome is a fault to be fixed by trying harder; it is
-a property of the game.
+Installation and updates should be equally ordinary. The distribution package
+manager should handle dependencies and compatible versions, without hand-edited
+configuration files, manual dependency hunting or fragile launch recipes.
 
-Two consequences follow for anyone using it:
+**This is the destination, not the current state.** The alpha already has
+editable application profiles and working resolution-control paths, but broad
+game compatibility and full real-device acceptance remain work to be done.
 
-- **A game may report a resolution you did not choose.** Its settings will show
-  the size it was offered, because from inside the game that is the truth.
-- **Nothing is asked of an application that is not in the list.** The effect
-  ships a small set of applications it knows about, and the settings let you
-  add your own. Everything else is left alone entirely.
+## What upscaling buys you
 
-Upscaling itself is separate from all of this: the effect enlarges any smaller
-fullscreen image it is given, whether it asked for that size or the game chose
-it. Asking is what makes the saving possible; upscaling is what keeps the
-result looking like the screen it fills.
+A 3840 x 2160 display contains four times as many pixels as 1920 x 1080.
+Rendering all of those pixels can become the limiting factor for a GPU.
 
-## Technical details
+If a game instead renders a smaller image, it may be able to produce frames
+faster. The image still has to fill the physical display, so it must be scaled
+back up. Basic stretching can look soft; a spatial upscaler tries to preserve
+edges and useful detail while enlarging the frame.
 
-The permanent [developer handbook](doc/upscaling.md) describes requirements,
-specification and design, including implemented behaviour and open acceptance.
+This project currently implements:
 
-HDR and variable refresh rate (VRR) support are requirements for the effect,
-including their combined use while upscaling. They are part of the acceptance
-criteria for the first usable implementation; real-device acceptance remains
-open as described below.
+- **FSR 1 / EASU** for spatial upscaling;
+- optional **RCAS** sharpening.
 
-This is not an official KDE project.
+Upscaling is not free, but the extra GPU work can be much smaller than
+rendering the game at the display's native resolution.
 
-## Inspiration and references
+It also cannot help every game. If the game is limited by the CPU, an internal
+frame cap, simulation work or something else unrelated to pixel rendering,
+lowering the render resolution may produce little or no frame-rate gain.
 
-The design draws on existing free software and published shader implementations:
+Because this effect works on the game's finished image, it scales the whole
+frame, including menus, text and HUD elements. An upscaler integrated directly
+into a game can instead upscale only the 3D scene and draw its user interface at
+native resolution.
 
-- [gamescope](https://github.com/ValveSoftware/gamescope) demonstrates scaling
-  the game image in the compositor, with separate handling of overlays,
-  sharpening and output colour management. Its FSR, NIS, SGSR and pixel-filter
-  paths are references for this effect.
-- [AMD FidelityFX Super Resolution 1](https://github.com/GPUOpen-Effects/FidelityFX-FSR)
-  provides the EASU upscaler and RCAS sharpening pass.
-  [AMD FidelityFX CAS](https://github.com/GPUOpen-Effects/FidelityFX-CAS)
-  offers another approach to adaptive sharpening, with optional upscaling.
-- [NVIDIA Image Scaling](https://github.com/NVIDIAGameWorks/NVIDIAImageScaling)
-  combines spatial upscaling and adaptive sharpening and documents their
-  requirements for SDR and HDR input.
-- [Snapdragon Game Super Resolution 1](https://github.com/SnapdragonGameStudios/snapdragon-gsr/tree/main/sgsr/v1)
-  provides a spatial filter that combines upscaling and sharpening in one
-  shader pass, including a GLSL reference implementation.
-- [libplacebo](https://github.com/haasn/libplacebo) provides references for
-  bicubic and Lanczos filters, including EWA variants and anti-ringing.
-- [KWin's own effects](https://invent.kde.org/plasma/kwin/-/tree/master/src/plugins)
-  guide the plugin structure and integration. The zoom effect's
-  [xBRZ shader](https://invent.kde.org/plasma/kwin/-/blob/master/src/plugins/zoom/shaders/upscaler.frag)
-  is also a reference for enlarging pixel graphics.
+## The important part: making the game render smaller
 
-We also considered [Anime4K](https://github.com/bloc97/Anime4K),
-[FSRCNNX](https://github.com/igv/FSRCNN-TensorFlow) and
-[RAVU](https://github.com/bjin/mpv-prescalers) as further spatial alternatives.
-These references describe the work studied so far. The effect implements FSR 1
-with optional RCAS; incorporated third-party code retains its own copyright
-and licence notices.
+Upscaling a game after it has already rendered a full-resolution frame does not
+save rendering work. By the time KWin receives a 3840 x 2160 frame, the game
+has already paid the cost of drawing those pixels.
 
-## State
+For this effect to improve performance, two separate things have to happen:
 
-**Working alpha.** FSR 1 and optional RCAS are implemented, and the effect has
-been measured doing its job on a physical display: SuperTuxKart was asked for a
-smaller buffer, supplied it, and the effect upscaled it to a 3840 x 2160 screen
-while the game's own frame rate nearly doubled. The numbers are under
-[Measured](#measured). What alpha still means here: image quality has not been
-judged, HDR and VRR are unverified, and only a handful of applications have
-been tried.
+1. the game has to produce a smaller image;
+2. KWin has to upscale that image to the physical display.
 
-The controls distinguish requested resolution from the actual supplied buffer.
-Profiles support resolution requests for cooperating Wayland and Xwayland
-clients, including Extreme Tux Racer on the primary display. Selected borderless
-windows qualify when their content exactly covers one output. Virtual sessions
-verify resolution changes and isolation; physical input, image quality, HDR and
-VRR remain unverified, and performance is measured only as the frame rates
-under [Measured](#measured) - not image quality at speed, not power, and not on
-a television. The effect is disabled by default.
-Application rules apply independently on each display. By default, outputs at
-or below 2,073,600 physical pixels (Full HD) bypass upscaling; the settings offer
-a global threshold and per-application overrides. A Native application rule
-also bypasses upscaling when a global scaling preset is selected.
+The second step is the easy part. The first one depends on how the game talks
+to the desktop.
+
+### Native Wayland games
+
+For a configured native Wayland application, the effect can advertise a
+different output mode to that application's Wayland connection.
+
+For example, a game running on a physical 3840 x 2160 display can be presented
+with a 2560 x 1440 or 1920 x 1080 mode. Other applications continue to see the
+real display mode.
+
+If the game follows the advertised mode, it renders the smaller image and KWin
+can upscale it.
+
+### Games running through Xwayland
+
+X11 applications cannot be given isolated output modes in the same way because
+they share one X11 display connection.
+
+For configured Xwayland games, the effect instead resizes the game window to
+the requested rendering size and presents the result at fullscreen size.
+
+### The game still has the final say
+
+The effect can provide a different rendering environment, but it cannot force a
+game's renderer to behave in a particular way.
+
+A game may:
+
+- follow the requested size;
+- select another resolution;
+- use its own internal render scale;
+- impose its own frame-rate limit;
+- ignore the request entirely.
+
+If it continues rendering at the native output size, there is nothing useful
+for this effect to upscale.
+
+That is why compatibility has to be established game by game.
+
+Two consequences are worth knowing:
+
+- **A game may report a resolution you did not manually choose.** Its settings
+  show the mode it was offered, because from the game's point of view that is
+  the display mode.
+- **Applications that are not configured are left alone.** The effect ships a
+  small set of known applications and allows additional profiles to be added.
+
+Upscaling itself remains separate from resolution control: the effect can
+enlarge a smaller fullscreen image whether that size was requested by the
+effect or chosen by the application itself.
+
+## Steam and game compatibility
+
+**Steam is a primary target for this project.** The intended user experience is
+that games can be started normally from Steam rather than through a special
+upscaling wrapper.
+
+There is an important complication: Steam does not define the display path the
+game will actually use. Depending on the game and its runtime, it may reach
+KWin as a native Wayland client or through Xwayland, and bundled libraries can
+change which backends are available.
+
+In particular, many Steam titles ship their own SDL rather than using the SDL
+provided by the Linux distribution. That means a backend switch that works for
+a distribution package is not automatically available to a Steam build of the
+same software.
+
+For the current alpha, compatibility therefore means testing the actual game
+and confirming two things:
+
+1. whether the game really renders at the requested size;
+2. whether it reaches KWin through the display path we expect.
+
+Broad Steam and Proton coverage is still future work. A maintained game
+catalogue is part of the long-term plan so that users should not have to reason
+about Wayland, Xwayland, SDL or individual engine behaviour themselves.
+
+## Current state
+
+**Working alpha.** FSR 1 and optional RCAS are implemented, and the complete
+path has been measured on a physical display. SuperTuxKart was asked for a
+smaller buffer, supplied it, and the effect upscaled it to a 3840 x 2160 output
+while the game's own frame production increased substantially.
+
+Implemented today:
+
+- FSR 1 / EASU upscaling;
+- optional RCAS sharpening;
+- global scaling presets;
+- editable application profiles;
+- targeted native Wayland resolution requests;
+- Xwayland resolution handling;
+- requested-resolution versus supplied-buffer tracking;
+- selected borderless-window handling when content exactly covers one output;
+- per-display application rules;
+- configurable global output threshold and per-application overrides;
+- a Native application rule that bypasses upscaling when the global Native
+  preset is selected.
+
+By default, outputs at or below 2,073,600 physical pixels (Full HD) bypass
+upscaling.
+
+Verified so far:
+
+- a native Wayland application can be given a smaller rendering target;
+- KWin receives the smaller image;
+- the effect upscales it to a physical 3840 x 2160 display;
+- the Xwayland path works end to end with Extreme Tux Racer;
+- virtual sessions verify resolution changes and client isolation.
+
+Still requiring broader real-world acceptance:
+
+- image quality;
+- HDR;
+- VRR;
+- HDR and VRR together;
+- physical input behaviour;
+- more GPUs and displays;
+- televisions;
+- more native Wayland games;
+- more Xwayland games;
+- Steam titles;
+- Proton/Wine titles.
+
+Performance numbers below measure frame production, not image quality, power
+consumption or representative performance across games.
+
 The [developer handbook](doc/upscaling.md#supported-scope-and-full-acceptance)
-defines the acceptance still required.
+defines the remaining acceptance criteria in detail.
 
 ## Measured
 
-SuperTuxKart on an NVIDIA workstation, 3840 x 2160 at 240 Hz, Wayland, KWin
-6.3.6, effect build `0.1.0+git20260920.5666b9422b`, machine otherwise idle at a
-load of 0.23. Each row is 30 samples taken over 60 seconds, after a 10-second
+SuperTuxKart was tested on an NVIDIA workstation with a 3840 x 2160 output at
+240 Hz, Wayland, KWin 6.3.6 and effect build
+`0.1.0+git20260920.5666b9422b`. The machine was otherwise idle at a load of
+0.23. Each row contains 30 samples taken over 60 seconds after a 10-second
 warm-up.
 
 | Preset | Game renders at | Upscaled | Game's own frames | Presented |
-| --- | --- | --- | --- | --- |
+| --- | --- | --- | ---: | ---: |
 | native | 3840 x 2160 | no | 491.8/s | 236.8/s |
 | quality | 2560 x 1440 | yes | 834.7/s | 237.1/s |
 | performance | 1920 x 1080 | yes | 919.1/s | 237.3/s |
 
-Read **Game's own frames**, not **Presented**. The presented rate is pinned at
-the screen in all three runs, so it says nothing about the resolution; what
-changed is how fast the game itself could produce frames, which is what a
-smaller render target buys. At `performance` SuperTuxKart drew 1.87 times as
-many frames as at native while still filling the same 4K screen.
+Read **Game's own frames**, not **Presented**. The presented rate is pinned near
+the display refresh rate in all three runs. What changes is how quickly the
+game itself can produce frames.
 
-Three runs, taken hours apart on different builds, agree to within a few per
-cent: 492.6 / 833.3 / 949.4, then 489.6 / 835.2 / 917.6, then the table above.
-That is what makes it worth printing, and it is still one machine, one game and
-one session rather than a promise about yours.
+At `performance`, SuperTuxKart produced **1.87 times as many frames** as at
+native resolution while KWin still filled the same 4K display.
 
-The returns fall off, and that is worth reading rather than glossing over.
-`quality` renders 44% of the pixels and gains 70%; `performance` renders 25% of
-them - little more than half as many again - and gains only 87%. Cutting the
-pixels further bought almost nothing, so below about 1440p something other than
-the pixel count is what limits this game on this machine. A game whose frame
-rate is set by its own work on the processor is exactly the case where
-upscaling has least to offer, and no amount of it will help.
+Three runs taken hours apart on different builds agreed within a few per cent:
 
-That headroom is the point where it exists: it is what a game spends on higher
-settings, or on staying above a refresh rate it would otherwise miss. Nothing
-here measures how the result looks.
+- 492.6 / 833.3 / 949.4;
+- 489.6 / 835.2 / 917.6;
+- 491.8 / 834.7 / 919.1.
 
-Extreme Tux Racer has now been measured at all three presets, and it shows the
-other half of the picture. The effect asked it for each size and it supplied
-them - 3840 x 2160, then 2560 x 1440, then 1920 x 1080, upscaled to the screen
-at the latter two - so the X11 path works end to end through Xwayland, where
-the effect resizes the window and presents the result itself. Its frame rate
-was 59.8/s in every one of those runs, because the game is frame-limited to 60
-and reaches its limit at any resolution. A game already at its cap has nothing
-to gain here, and the measurement says so rather than reporting a percentage
-nobody can act on.
+That makes the result useful as evidence that the mechanism works on this
+machine. It is still one game, one machine and one test environment rather than
+a promise about another system.
 
-One cost is in neither table: the effect blocks direct scanout whenever it is
-active, so a game that would otherwise bypass composition no longer does.
+The returns also diminish. `quality` renders about 44% of the native pixel
+count and gains about 70%; `performance` renders 25% of the native pixel count
+and gains about 87%. Cutting the pixel count almost in half again therefore
+buys relatively little additional frame production on this machine. Below that
+point, something other than pixel rendering is becoming the limiting factor.
 
-## Packages
+Extreme Tux Racer shows the other side of the same result. It supplied all
+three requested sizes — 3840 x 2160, 2560 x 1440 and 1920 x 1080 — and the
+latter two were upscaled to the physical display through the Xwayland path. Its
+frame rate remained 59.8/s in every run because the game is limited to 60 FPS.
+A game already at its own cap has nothing to gain from reducing rendering work.
 
-These are development artifacts, not a usable release. The warning above also
-applies to packaged builds.
+One additional cost is not represented in either measurement: while the effect
+is active, it blocks direct scanout, so a game that could otherwise bypass
+composition no longer does so.
 
-Packages are built for amd64 and arm64, for Debian Trixie and for Kubuntu
-26.04 LTS. Pick the one matching the distribution you run, because a KWin effect is
-built against the KWin it is loaded into.
+## Trying it
+
+### Packages
+
+These are development artifacts, not a stable release. The alpha warning at
+the top of this document also applies to packaged builds.
+
+Packages are built for two distributions on two architectures:
+
+| Distribution | Filename suffix | Architectures |
+| --- | --- | --- |
+| Debian Trixie | `trixie` | amd64, arm64 |
+| Kubuntu 26.04 LTS | `resolute` | amd64, arm64 |
+
+Pick the package matching your distribution because a KWin effect is built
+against the KWin version it is loaded into.
 
 - **Releases:** <https://github.com/JensKSP/kwin-effect-upscale/releases/latest>
-- **Nightly**, rebuilt from master whenever master moves:
-  <https://github.com/JensKSP/kwin-effect-upscale/releases/tag/nightly>
+- **Nightly:** <https://github.com/JensKSP/kwin-effect-upscale/releases/tag/nightly>
+
+The nightly release is rebuilt from `master` whenever `master` moves.
+
+Install a downloaded package with:
 
 ```bash
 sudo apt install ./kwin-effect-upscale_<version>.<distribution>_<architecture>.deb
 ```
 
-Every release also carries the source tarball with its SHA-256 checksum, and a
-debug symbol package next to each binary one.
+Every release also carries the source tarball with its SHA-256 checksum and a
+debug-symbol package next to each binary package.
 
-The package version separates the distribution with a tilde, as Debian does, but
-a release asset cannot carry one: GitHub rewrites it to a dot when the file is
-uploaded. `0.1.0+git20260917.3d2d99e6a0.trixie_amd64.deb` therefore installs as
-version `0.1.0+git20260917.3d2d99e6a0~trixie`.
-
-### Which build am I running?
-
-The plugin names itself when KWin loads it, so a journal always says exactly
-which build was in the session:
+Release assets are covered by a keyless GitHub build attestation, so a download
+can be traced back to the workflow and commit that produced it:
 
 ```bash
-journalctl --user -b -u plasma-kwin_wayland -g upscale | head -1
-# upscale 0.1.0+git20260917.ed8f450b4e (branch master), built 2026-09-17T20:50:02Z, Qt 6.8.2
+gh attestation verify ./kwin-effect-upscale_<version>.<distribution>_<architecture>.deb \
+    --repo JensKSP/kwin-effect-upscale
 ```
 
-A version with no `+git` suffix is a release; anything else names the commit it
-was built from, and `-dirty` means a development build had uncommitted changes.
-Packaged builds report the complete package version, including the distribution
-suffix. Nightly source archives retain their snapshot version without Git.
+`SHA256SUMS` lists every asset in the release. `provenance.sigstore.json` holds
+the signing bundle and is verified separately, so it is not itself listed there.
 
-## Requirements
-
-The effect is built against the KWin installed on the machine and loaded into
-it, so the development files have to belong to the KWin that is actually run.
-
-The build requires C++23, CMake 3.24, Qt 6.8, KDE Frameworks/ECM 6.13 and
-the development files for the KWin being targeted. `debian/control` is the
-authoritative build-dependency list, including tools and test dependencies.
-After getting the source, install those dependencies on Debian/Kubuntu using
-`mk-build-deps` (provided by the distribution’s `devscripts` package, with
-`equivs` for building its dependency package):
-
-```bash
-sudo mk-build-deps --install --remove debian/control
-```
-
-The maintained containers install from the same file. Rebuild a cached image
-after changing dependencies; its installed packages do not update themselves.
-
-Other distributions ship the same pieces under their own names: the CMake
-package names to look for are `ECM`, `Qt6`, `KF6` and `KWin`.
-
-## Getting the source
-
-```bash
-git clone https://github.com/JensKSP/kwin-effect-upscale.git
-cd kwin-effect-upscale
-```
-
-## Building
-
-```bash
-cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-```
-
-Ninja uses its native parallelism. Set `CMAKE_BUILD_PARALLEL_LEVEL` when a
-machine needs a lower job limit.
-
-In-source builds are refused; `-B build` is the way. Without
-`-DCMAKE_BUILD_TYPE` the project configures a debug build, which is not what
-you want for playing games. The declared build dependencies include Ninja.
-
-## Installing
-
-```bash
-sudo cmake --install build
-```
-
-That installs the effect and, with `KWIN_BUILD_KCMS=ON` (the default), its
-configuration module:
+The package version uses a tilde before the distribution suffix, as Debian
+expects, but GitHub release assets cannot preserve that tilde. For example,
 
 ```text
-<prefix>/lib/<multiarch>/qt6/plugins/kwin/effects/plugins/upscale.so
-<prefix>/lib/<multiarch>/qt6/plugins/kwin/effects/configs/kwin_upscale_config.so
+0.1.0+git20260917.3d2d99e6a0.trixie_amd64.deb
 ```
 
-The install prefix defaults to the one KDE Frameworks uses, which is `/usr` on
-Debian and is where Qt, and therefore KWin, looks for plugins. **If you install
-under a different prefix, KWin will not find the plugin** unless the session
-that starts `kwin_wayland` has `QT_PLUGIN_PATH` pointing at
-`<prefix>/lib/<multiarch>/qt6/plugins`.
+installs as:
 
-## Enabling the effect
+```text
+0.1.0+git20260917.3d2d99e6a0~trixie
+```
 
-The effect ships disabled. In System Settings, open *Desktop Effects* and tick
-*Upscale* under *Appearance*. From a shell in the running session:
+### Enable the effect
+
+The effect ships disabled.
+
+In **System Settings**, open **Desktop Effects** and enable **Upscale** under
+**Appearance**.
+
+From a shell in the running Plasma session, the equivalent commands are:
 
 ```bash
 kwriteconfig6 --file kwinrc --group Plugins --key upscaleEnabled true
@@ -366,120 +366,138 @@ qdbus6 org.kde.KWin /Effects org.kde.kwin.Effects.loadEffect upscale
 qdbus6 org.kde.KWin /Effects org.kde.kwin.Effects.isEffectLoaded upscale
 ```
 
-A freshly installed plugin is normally picked up straight away; if
-`isEffectLoaded` stays `false`, log out and back in.
+A freshly installed plugin is normally picked up immediately. If
+`isEffectLoaded` remains `false`, log out and back in.
 
-## Uninstalling
+### Which build am I running?
+
+The plugin identifies itself when KWin loads it, so the journal records the
+exact build used in the current session:
+
+```bash
+journalctl --user -b -u plasma-kwin_wayland -g upscale | head -1
+# upscale 0.1.0+git20260917.ed8f450b4e (branch master), built 2026-09-17T20:50:02Z, Qt 6.8.2
+```
+
+A version without a `+git` suffix is a release. Other versions identify the Git
+commit they were built from, and `-dirty` means a development build contained
+uncommitted changes. Packaged builds report the complete package version,
+including the distribution suffix. Nightly source archives retain their
+snapshot version without Git.
+
+## Building from source
+
+### Requirements
+
+The effect is built against the KWin installed on the machine and loaded into
+it, so the development files must belong to the KWin version that will actually
+run the plugin.
+
+The build requires:
+
+- C++23;
+- CMake 3.24;
+- Qt 6.8;
+- KDE Frameworks / ECM 6.13;
+- development files for the target KWin.
+
+`debian/control` is the authoritative build-dependency list, including build,
+tool and test dependencies.
+
+On Debian and Kubuntu, install them with `mk-build-deps` from `devscripts`
+(using `equivs` to create the dependency package):
+
+```bash
+sudo mk-build-deps --install --remove debian/control
+```
+
+The maintained containers install dependencies from the same file. Rebuild a
+cached image after changing dependencies; installed packages in an existing
+image do not update themselves.
+
+Other distributions provide the same components under their own package names.
+The CMake package names to look for are `ECM`, `Qt6`, `KF6` and `KWin`.
+
+### Get the source
+
+```bash
+git clone https://github.com/JensKSP/kwin-effect-upscale.git
+cd kwin-effect-upscale
+```
+
+### Build
+
+```bash
+cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+```
+
+Ninja uses its native parallelism. Set `CMAKE_BUILD_PARALLEL_LEVEL` if a machine
+needs a lower job limit.
+
+In-source builds are refused. Without `-DCMAKE_BUILD_TYPE`, the project
+configures a debug build, which is not what you want for playing games.
+
+### Install
+
+```bash
+sudo cmake --install build
+```
+
+With `KWIN_BUILD_KCMS=ON` (the default), this installs the effect and its
+configuration module:
+
+```text
+<prefix>/lib/<multiarch>/qt6/plugins/kwin/effects/plugins/upscale.so
+<prefix>/lib/<multiarch>/qt6/plugins/kwin/effects/configs/kwin_upscale_config.so
+<sysconfdir>/xdg/kwinupscalerc
+```
+
+`kwinupscalerc` holds the effect's own defaults and lands in KDE's
+configuration directory, which is `/etc/xdg` for the default `/usr` prefix. A
+user's own changes go to a file of the same name in their configuration
+directory, which KConfig layers over this one.
+
+The install prefix defaults to the one KDE Frameworks uses. On Debian that is
+`/usr`, which is also where Qt and KWin look for plugins.
+
+If you install to another prefix, KWin will not find the plugin unless the
+session that starts `kwin_wayland` has `QT_PLUGIN_PATH` pointing at:
+
+```text
+<prefix>/lib/<multiarch>/qt6/plugins
+```
+
+### Uninstall a source build
 
 ```bash
 sudo xargs rm -v < build/install_manifest.txt
 ```
 
-## Notes for packagers
+## Technical details
 
-- Warnings are errors by default. Turn that off for a distribution build with
-  `-DCMAKE_COMPILE_WARNING_AS_ERROR=OFF`.
-- `DESTDIR` is honoured: `DESTDIR=/tmp/stage cmake --install build`.
-- The plugin declares KWin's effect API version, so it has to be **rebuilt
-  after a KWin upgrade**.
-- Debian packages depend on the exact `kwin-common` version they were built
-  against, so a KWin upgrade requires a matching rebuild of this package.
-- `debian/` is in the tree and builds a single binary package with
-  `dpkg-buildpackage -b`. The source format is native, so no orig tarball is
-  needed.
-- Build dependencies live in `debian/control` and nowhere else; CI installs them
-  from it with `mk-build-deps`.
-- The build honours `SOURCE_DATE_EPOCH`, which debhelper sets from the changelog,
-  so packaged builds stay reproducible. Nothing in the build reads the wall clock
-  any other way.
+The permanent [developer handbook](doc/upscaling.md) contains the project
+requirements, specification and design, including implemented behaviour and
+open acceptance criteria.
 
-## Notes for contributors
+HDR and variable refresh rate are project requirements, including using both at
+the same time while upscaling. Real-device acceptance for those paths remains
+open.
 
-Contributions are welcome: bug reports, testing on different setups,
-documentation improvements and code. Feel free to open an issue or a pull
-request on GitHub. The [contributor guide](CONTRIBUTING.md) explains reporting,
-maintained build environments, checks and submission expectations.
+This is an independent project and **not an official KDE project**.
 
-We use Codex and Claude to help write code for this project. We aim to keep
-"AI slop" out: unnecessary abstractions, boilerplate and changes we cannot
-explain or verify. The standard is readable code that fits KWin's conventions,
-with human review and checks for correctness. Responsibility stays with us.
+## Applications used for development and testing
 
-Documentation under `doc/` is permanent and written for humans. For each major
-slice, coding agents keep one temporary working document under
-[`doc/agents/`](doc/agents/): one topic with defined start and end states,
-scope, dependencies and acceptance criteria, then progress, findings, test
-results and remaining tasks in the same file. Once implementation is complete
-and all required tests pass, including real-device acceptance where required,
-we remove that working document and update its links. Before removal, lasting
-requirements and design conclusions go into the permanent documentation and
-implementation explanations into source comments. The source code, including
-comments and tests, together with human documentation is the single source of
-truth. The `AGENTS.md` instruction files remain permanently.
+A useful test application can run fullscreen, can render below the physical
+output resolution, and lets us identify which display path it takes.
 
-Pre-commit defines every repository check. Install both hooks and run both stages:
+Debian's SDL2 provides a Wayland backend, so applications linked against the
+system SDL2 can often be sent through either backend using `SDL_VIDEODRIVER`.
+Applications that bundle their own SDL2 — as many Steam titles do — remain
+limited by the backends in that bundled copy.
 
-```bash
-pipx install pre-commit==4.6.2
-pre-commit install --hook-type pre-commit --hook-type pre-push
-pre-commit run --all-files
-pre-commit run --all-files --hook-stage pre-push
-```
-
-Inside the maintained container, `python3 -B tools/run-checks.py lint` runs both
-stages with one command, exactly as CI does.
-
-Linters run when you commit and look at what changed; the whole-tree checks and
-the regression tests run when you push. CI runs both over everything, adds a
-build with GCC and with Clang, clang-tidy, the metadata schema, coverage,
-sanitizers, and package/source smoke checks. Nightly adds the full package
-matrix and the separate KWin-master compatibility builds. Documentation-only
-changes take the checked, reduced path described in the contributor guide.
-
-That covers KDE's coding style via `clang-format` and KWin's own
-`.clang-format`, CMake formatting and static checks, Markdown linting, spelling
-in documentation and comments, REUSE compliance and a limit on how large a
-source file may grow. CI runs both stages, because a hook can be skipped.
-The CMake linter also checks the plugin folder, with its formatting rules
-disabled to preserve KWin's style. Gersemi formats only the surrounding project.
-
-The checking and packaging tools under `tools/` are predominantly Python. `ruff` lints and formats it with every rule switched on, and
-`mypy --strict` type checks it, so an annotation is both required and true.
-
-The file budget allows 400 code lines, with warnings above 300. Comments and
-blank lines are excluded; multiline strings such as embedded shaders count.
-Files that cannot be read or measured fail the check. Regression tests for
-these checks and the build metadata run through the pre-push stage.
-Install the hook to enforce the checks on ordinary commits; require the CI
-check in branch protection to enforce them when merging.
-
-`clang-tidy` needs a configured Clang build. In the maintained container, the
-following configures it, runs analysis and validates plugin metadata:
-
-```bash
-python3 -B tools/run-checks.py tidy
-```
-
-CI builds Debian Trixie, the minimum supported environment (KWin 6.3.6), with
-GCC and with Clang and with warnings as errors. The nightly additionally builds
-against KDE neon unstable, which tracks KWin master. Both environments are
-defined under `containers/` so the same build can be reproduced locally.
-Both images verify CMake, Ninja, GCC and Clang during image creation. Ninja
-is installed from the shared `debian/control` dependencies. Rebuild images
-after changing these dependencies; an existing local image does not update
-when a Containerfile changes.
-
-### Applications for testing
-
-An application is useful here when it goes fullscreen, when the resolution it
-renders at can be put below the output's, and when we can choose which display
-path it takes. Debian's SDL2 carries the Wayland backend, so a game linked
-against the system library can be sent down either path with
-`SDL_VIDEODRIVER`; a game that bundles its own SDL2, as most Steam titles do,
-stays on whatever that copy was built with.
-
-Extreme Tux Racer is already used for resolution requests. The rest are
-candidates to evaluate, not results.
+Extreme Tux Racer is already used for resolution-request testing. The other
+entries below are candidates and test tools, not compatibility claims.
 
 | Application | Where it comes from | Display path | Graphics API |
 | --- | --- | --- | --- |
@@ -492,33 +510,166 @@ candidates to evaluate, not results.
 | Unvanquished | own launcher, or Flathub | Wayland without a switch (SDL 3) | OpenGL |
 | Veloren | Airshipper, or Flathub | Wayland without a switch (winit) | Vulkan, through wgpu |
 
-SuperTuxKart takes both the mode and the resolution on the command line, which
-states the case this effect exists for in one line:
+SuperTuxKart accepts both display backend and resolution on the command line,
+which makes the intended test case easy to express:
 
 ```bash
 SDL_VIDEODRIVER=wayland supertuxkart --fullscreen --screensize=1280x720
 ```
 
-0 A.D. is the most interesting of them. Since Alpha 27 it renders through
-Vulkan and upscales with its own FSR implementation, so the same scene can be
-held against ours. Veloren is the only candidate that is a native Wayland
-client and a Vulkan client at once, and it carries a render scale of its own.
+0 A.D. is interesting because Alpha 27 can render through Vulkan and includes
+its own FSR implementation, allowing the same scene to be compared with this
+effect. Veloren is a useful native Wayland plus Vulkan candidate and also has
+an internal render scale.
 
-Project Zomboid is not open source, and it is the one case measured so far. Its
-LWJGL 2 compatibility layer pins GLFW to X11 unless the system property
-`zomboid.wayland=1` is set, although the GLFW it ships carries both backends.
-Without the property, a session had `libX11` and `libGLX` mapped and no
-`libwayland-client`, and its log shows the XRandR mode request that Xwayland
-then emulates.
+Project Zomboid is not open source, but it has been useful for observing an
+X11/Xwayland game path. Its LWJGL 2 compatibility layer pins GLFW to X11 unless
+the system property `zomboid.wayland=1` is set, even though the bundled GLFW
+contains both backends. In the observed X11 session, the process mapped
+`libX11` and `libGLX`, not `libwayland-client`, and its log showed the XRandR
+mode request that Xwayland then emulated.
 
-What stays unchecked for every candidate is whether it reaches the compositor
-on the path we intended. Two observations settle it: whether the process has
-`libwayland-client` mapped, and whether a window for it appears in Xwayland's
-window tree.
+For any candidate, the display path still has to be verified rather than
+assumed. Two useful observations are whether the process has
+`libwayland-client` mapped and whether its window appears in Xwayland's window
+tree.
+
+## Inspiration and references
+
+The design draws on existing free software and published shader
+implementations:
+
+- [gamescope](https://github.com/ValveSoftware/gamescope) demonstrates
+  compositor-level game scaling with separate handling of overlays, sharpening
+  and output colour management. Its FSR, NIS, SGSR and pixel-filter paths are
+  important references for this effect.
+- [AMD FidelityFX Super Resolution 1](https://github.com/GPUOpen-Effects/FidelityFX-FSR)
+  provides the EASU upscaler and RCAS sharpening pass.
+- [AMD FidelityFX CAS](https://github.com/GPUOpen-Effects/FidelityFX-CAS)
+  provides another approach to adaptive sharpening with optional upscaling.
+- [NVIDIA Image Scaling](https://github.com/NVIDIAGameWorks/NVIDIAImageScaling)
+  combines spatial upscaling and adaptive sharpening and documents requirements
+  for SDR and HDR input.
+- [Snapdragon Game Super Resolution 1](https://github.com/SnapdragonGameStudios/snapdragon-gsr/tree/main/sgsr/v1)
+  provides a spatial filter that combines upscaling and sharpening in one
+  shader pass, including a GLSL reference implementation.
+- [libplacebo](https://github.com/haasn/libplacebo) provides references for
+  bicubic and Lanczos filters, including EWA variants and anti-ringing.
+- [KWin's own effects](https://invent.kde.org/plasma/kwin/-/tree/master/src/plugins)
+  guide the plugin structure and integration. The zoom effect's
+  [xBRZ shader](https://invent.kde.org/plasma/kwin/-/blob/master/src/plugins/zoom/shaders/upscaler.frag)
+  is also a reference for enlarging pixel graphics.
+
+[Anime4K](https://github.com/bloc97/Anime4K),
+[FSRCNNX](https://github.com/igv/FSRCNN-TensorFlow) and
+[RAVU](https://github.com/bjin/mpv-prescalers) have also been considered as
+additional spatial alternatives.
+
+The current effect implements FSR 1 with optional RCAS. Incorporated
+third-party code retains its own copyright and licence notices.
+
+## Notes for packagers
+
+- Warnings are errors by default. Disable that for a distribution build with
+  `-DCMAKE_COMPILE_WARNING_AS_ERROR=OFF`.
+- `DESTDIR` is honoured: `DESTDIR=/tmp/stage cmake --install build`.
+- The plugin declares KWin's effect API version, so it must be **rebuilt after a
+  KWin upgrade**.
+- Debian packages depend on the exact `kwin-common` version they were built
+  against, so a KWin upgrade requires a matching rebuild of this package.
+- `debian/` is part of the tree and builds a single binary package with
+  `dpkg-buildpackage -b`.
+- The source format is native, so no orig tarball is required.
+- Build dependencies live in `debian/control`; CI installs them from that file
+  with `mk-build-deps`.
+- The build honours `SOURCE_DATE_EPOCH`, which debhelper sets from the changelog,
+  so packaged builds remain reproducible. No other part of the build reads the
+  wall clock.
+
+## Notes for contributors
+
+Contributions are welcome: bug reports, testing on different setups,
+documentation improvements and code. Feel free to open an issue or pull request
+on GitHub.
+
+The [contributor guide](CONTRIBUTING.md) describes reporting, maintained build
+environments, checks and submission expectations.
+
+We use Codex and Claude to help write code for this project. We aim to keep
+"AI slop" out: unnecessary abstractions, boilerplate and changes we cannot
+explain or verify. The standard is readable code that fits KWin's conventions,
+with human review and checks for correctness. Responsibility remains with us.
+
+Documentation under `doc/` is permanent and written for humans. For each major
+implementation slice, coding agents keep one temporary working document under
+[`doc/agents/`](doc/agents/) with the topic's start state, target state, scope,
+dependencies, acceptance criteria, progress, findings, test results and
+remaining work.
+
+Once the implementation is complete and all required tests pass — including
+real-device acceptance where required — the temporary document is removed.
+Lasting requirements and design conclusions belong in permanent documentation;
+implementation explanations belong in source comments. Source code, comments,
+tests and human documentation together are the source of truth. `AGENTS.md`
+instruction files remain permanent.
+
+### Repository checks
+
+Pre-commit defines the repository checks. Install both hooks and run both
+stages:
+
+```bash
+pipx install pre-commit==4.6.2
+pre-commit install --hook-type pre-commit --hook-type pre-push
+pre-commit run --all-files
+pre-commit run --all-files --hook-stage pre-push
+```
+
+Inside the maintained container, this runs both stages exactly as CI does:
+
+```bash
+python3 -B tools/run-checks.py lint
+```
+
+The commit-stage checks focus on changed files. Pre-push runs whole-tree checks
+and regression tests. CI runs both over the repository and adds GCC and Clang
+builds, clang-tidy, metadata-schema checks, coverage, sanitizers and package
+and source smoke tests. Nightly additionally runs the full package matrix and
+separate KWin-master compatibility builds. Documentation-only changes use the
+reduced checked path described in the contributor guide.
+
+The checks cover KDE coding style through `clang-format` and KWin's own
+`.clang-format`, CMake formatting and static checks, Markdown linting, spelling
+in documentation and comments, REUSE compliance and source-file size limits.
+The CMake linter also checks the plugin folder, with formatting rules disabled
+there to preserve KWin's style. Gersemi formats only the surrounding project.
+
+Tools under `tools/` are predominantly Python. `ruff` lints and formats them
+with all rules enabled, and `mypy --strict` checks their typing.
+
+The source-file budget permits 400 code lines, with warnings above 300.
+Comments and blank lines are excluded; multiline strings such as embedded
+shaders count. Unreadable or unmeasurable files fail the check. Regression
+tests for these rules and the build metadata run in the pre-push stage.
+
+`clang-tidy` requires a configured Clang build. In the maintained container:
+
+```bash
+python3 -B tools/run-checks.py tidy
+```
+
+CI builds Debian Trixie, the minimum supported environment using KWin 6.3.6,
+with both GCC and Clang and with warnings treated as errors. Nightly also builds
+against KDE neon unstable, which tracks KWin master. Both environments live
+under `containers/` so the same builds can be reproduced locally.
+
+Both images verify CMake, Ninja, GCC and Clang during creation. Ninja comes from
+the shared `debian/control` dependencies. Rebuild images after dependency or
+Containerfile changes; an existing local image does not update itself.
 
 ## Releasing
 
-A release is a tag, and nothing else is done by hand:
+A release is created from a tag; nothing else is performed manually:
 
 ```bash
 # the tag, project(VERSION) and debian/changelog must agree, or CI stops
@@ -526,26 +677,28 @@ git tag -a v0.1.0 -m 'kwin-effect-upscale 0.1.0'
 git push origin v0.1.0
 ```
 
-The workflow builds the packages for both architectures and both distributions,
-builds the source tarball, and publishes them as a GitHub release with generated
-notes. `nightly` is one rolling pre-release rebuilt from master whenever master
-moves; its tag is deleted and recreated each time, so it is not a stable URL for
-a fixed build.
+The release workflow builds packages for both architectures and both supported
+distributions, creates the source tarball and publishes them as a GitHub
+release with generated notes.
 
-## Layout
+`nightly` is one rolling pre-release rebuilt from `master` whenever `master`
+moves. Its tag is deleted and recreated each time, so it is not a stable URL
+for a fixed build.
+
+## Repository layout
 
 ```text
 src/plugins/upscale/     the effect, laid out exactly as KWin lays out its own
 cmake/                   stand-ins for KWin's in-tree build macros
 containers/              build environments: Trixie minimum, KDE neon unstable
-tools/                   checks that run in the pre-commit hook and in CI
+tools/                   checks that run in pre-commit and CI
 doc/                     permanent human documentation: what the effect does and why
-doc/agents/              temporary slice documents for coding agents
+doc/agents/              temporary implementation documents for coding agents
 ```
 
-`src/plugins/upscale/` is meant to be copyable into KWin's own `src/plugins/`
-unchanged. Everything that is specific to building this outside KWin lives
-outside that folder.
+`src/plugins/upscale/` is intended to remain copyable into KWin's own
+`src/plugins/` unchanged. Everything specific to building this effect outside
+KWin lives elsewhere in the repository.
 
 ## Licence
 
