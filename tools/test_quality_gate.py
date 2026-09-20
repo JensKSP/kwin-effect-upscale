@@ -17,6 +17,7 @@ def results(*, build: bool, packaging: bool) -> dict[str, dict[str, object]]:
         },
         "checks": {"result": "success"},
         "instrumentation": {"result": "success" if build else "skipped"},
+        "arm64": {"result": "success" if build else "skipped"},
         "package-smoke": {"result": "success" if packaging else "skipped"},
     }
 

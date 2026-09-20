@@ -172,6 +172,60 @@ corrected:
 All names for all four distributions now resolve in their own repositories.
 Resolving is not installing and not building.
 
+### The effect does not build against KWin 6.7, 2026-09-20
+
+**This blocks every target in this slice.** Fedora 43, openSUSE Tumbleweed and
+Arch all ship KWin 6.7.5, and the effect does not compile against it. Observed
+in a Fedora 43 container with `kwin-devel-6.7.5-1.fc43`: configure succeeds,
+the build fails.
+
+```text
+compatibility.h:209: error: void value not ignored as it ought to be
+upscale.h:48: error: conflicting return type specified for
+    'virtual KWin::UpscalePaintResult KWin::UpscaleEffect::paintScreen(...)'
+upscale.cpp:95: error: 'class KWin::RenderView' has no member named 'renderDevice'
+upscale.cpp:473: error: could not convert ... from 'void' to 'bool'
+```
+
+The cause is the same one the pipeline slice recorded for Kubuntu 26.04: one
+API boundary is taken to imply another. `UPSCALE_RENDER_DEVICE_API` is keyed on
+`__has_include("core/renderdevice.h")` and then used to select a `bool`
+returning paint API. Those two things do not arrive together. Read from the
+installed headers of each environment:
+
+| KWin | `core/region.h` | `core/renderdevice.h` | `paintScreen` returns |
+| --- | --- | --- | --- |
+| 6.3.6, Trixie | no | no | `void`, with `QRegion` and `Output *` |
+| 6.7.5, Fedora | yes | yes | **`void`**, with `Region` and `LogicalOutput *` |
+| master, neon unstable | yes | yes | `bool` |
+
+KWin 6.7 is therefore an intermediate state the shim has no case for: it has
+`core/renderdevice.h`, so the shim selects the `bool` API, but its effect
+callbacks still return `void` and its `RenderView` has no `renderDevice()`.
+
+**Proposed fix:** stop inferring the paint API from a header and derive it from
+KWin's own declaration, so the compiler answers the question instead of a
+heuristic:
+
+```cpp
+using UpscalePaintResult = decltype(std::declval<Effect &>().paintScreen(
+    std::declval<const RenderTarget &>(), std::declval<const RenderViewport &>(),
+    0, std::declval<const UpscaleRegion &>(), std::declval<UpscaleOutput *>()));
+```
+
+with the `renderDevice()` and `renderItem()` call sites guarded by a `requires`
+expression on the member rather than by the same macro. That removes the class
+of bug rather than adding a fourth special case to it.
+
+This is a change to the effect's compatibility layer, not to packaging, and it
+has to be verified against all four KWin versions above before it can be
+trusted. Whether it belongs in this slice or its own is an open question for
+Jens; it is recorded here because this slice cannot proceed without it.
+
 ### Remaining work
 
-Everything after the dependency translation. No package has been built yet.
+- KWin 6.7 compatibility, above. Blocks everything else here.
+- Packaging recipes, containers, build and install-test tooling, release
+  inventory entries and the nightly wiring for all three distributions.
+
+No package has been built for any of the three distributions.

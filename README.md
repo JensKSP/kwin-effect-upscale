@@ -645,8 +645,8 @@ python3 -B tools/run-checks.py lint
 
 The commit-stage checks focus on changed files. Pre-push runs whole-tree checks
 and regression tests. CI runs both over the repository and adds GCC and Clang
-builds, clang-tidy, metadata-schema checks, coverage, sanitizers and package
-and source smoke tests. Nightly additionally runs the full package matrix and
+builds, an arm64 build, clang-tidy, metadata-schema checks, coverage,
+sanitizers and package and source smoke tests. Nightly additionally runs the full package matrix and
 separate KWin-master compatibility builds. Documentation-only changes use the
 reduced checked path described in the contributor guide.
 

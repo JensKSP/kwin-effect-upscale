@@ -13,7 +13,13 @@ def passed(results: dict[str, dict[str, object]]) -> bool:
     outputs = results["commits"].get("outputs")
     if not isinstance(outputs, dict):
         return False
-    for flag, job in (("build", "instrumentation"), ("packaging", "package-smoke")):
+    # arm64 follows the build flag: a documentation-only change has nothing to
+    # compile on either architecture, and anything else has to compile on both.
+    for flag, job in (
+        ("build", "instrumentation"),
+        ("build", "arm64"),
+        ("packaging", "package-smoke"),
+    ):
         if outputs.get(flag) not in ("true", "false"):
             return False
         expected = "success" if outputs[flag] == "true" else "skipped"
