@@ -60,7 +60,8 @@ container definitions to reproduce CI; a native installation is needed only
 for testing in a real desktop session. From a regular repository checkout:
 
 ```sh
-podman build --pull -t upscale-check:trixie -f containers/trixie/Containerfile .
+podman build --pull --build-arg DEPENDENCY_EPOCH="$(date -u +%Y-%m-%d)" \
+    -t upscale-check:trixie -f containers/trixie/Containerfile .
 podman run --rm -v "$PWD:/src" -w /src upscale-check:trixie \
     python3 -B tools/run-checks.py lint
 podman run --rm -v "$PWD:/src" -w /src upscale-check:trixie \
@@ -70,7 +71,15 @@ podman run --rm -v "$PWD:/src" -w /src upscale-check:trixie \
 ```
 
 Docker can run the same commands in place of Podman. Build outputs and check
-caches stay under `build/`. For KWin master compatibility, build the
+caches stay under `build/`.
+
+`DEPENDENCY_EPOCH` invalidates the layer that installs packages, so passing
+today's date refreshes them from an otherwise unchanged Containerfile; CI
+passes the same value. The image also records the `debian/control` it installed
+in `/etc/upscale-dependency-stamp`, and `tools/run-checks.py` stops with a
+rebuild instruction when that no longer matches the checkout. A cached image
+that predates a build dependency otherwise fails much later, in a configure
+step, as a missing header that names neither the image nor the dependency. For KWin master compatibility, build the
 `containers/neon-unstable/Containerfile` image and run both compiler modes there
 as well. The handbook describes the [complete check matrix and native resource
 limits](doc/upscaling.md#build-and-release-pipeline), including the extra container

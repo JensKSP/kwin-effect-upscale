@@ -423,9 +423,19 @@ On Debian and Kubuntu, install them with `mk-build-deps` from `devscripts`
 sudo mk-build-deps --install --remove debian/control
 ```
 
-The maintained containers install dependencies from the same file. Rebuild a
-cached image after changing dependencies; installed packages in an existing
-image do not update themselves.
+The maintained containers install dependencies from the same file. A cached
+image does not update itself, so each one records the `debian/control` it was
+built from and the checks refuse to run when the two have diverged, naming the
+rebuild rather than failing later on a missing header:
+
+```bash
+podman build --pull --build-arg DEPENDENCY_EPOCH="$(date -u +%Y-%m-%d)" \
+    -t upscale-check:trixie -f containers/trixie/Containerfile .
+```
+
+`DEPENDENCY_EPOCH` is what refreshes the installed packages: it invalidates the
+layer that runs `apt-get`, so passing today's date picks up current packages
+from an otherwise unchanged Containerfile. CI passes the same value.
 
 Other distributions provide the same components under their own package names.
 The CMake package names to look for are `ECM`, `Qt6`, `KF6` and `KWin`.
@@ -684,8 +694,10 @@ against KDE neon unstable, which tracks KWin master. Both environments live
 under `containers/` so the same builds can be reproduced locally.
 
 Both images verify CMake, Ninja, GCC and Clang during creation. Ninja comes from
-the shared `debian/control` dependencies. Rebuild images after dependency or
-Containerfile changes; an existing local image does not update itself.
+the shared `debian/control` dependencies. An existing local image does not
+update itself, so each records the `debian/control` it installed and the checks
+stop with a rebuild instruction when it no longer matches the tree. Dependabot
+watches the base images and the pinned actions; it does not rebuild anything.
 
 ## Releasing
 
