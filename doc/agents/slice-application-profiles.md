@@ -19,6 +19,13 @@ remain open, along with full real-session acceptance. The early model below is
 a proposal; the later layered-configuration and editor records describe what
 was implemented.
 
+The settings model itself was reworked on 2026-09-20, before implementation:
+see [what a setting is, and where it lives](#what-a-setting-is-and-where-it-lives-2026-09-20).
+Every preference now has one global value and an optional per-game override,
+the global defaults are a profile with no identity, and the single `Method`
+field becomes one slot per presentation. That section supersedes the sparse
+model proposed below and is what the remaining work implements.
+
 ## Historical start state
 
 The effect initially had global settings only. Matching, profile storage and the profile
@@ -27,17 +34,72 @@ window detection and the sparse setting model below.
 
 ## End state
 
-Users can create, inspect, edit, delete and reorder application profiles, match
-the correct game across supported window backends, and override selected
-settings while all other values follow globals. Editable known-application
-templates have observed identities and justified defaults. Persistence,
-matching, editor and real-session acceptance have passed.
+A person can make this plugin behave the way they want for one game without
+learning anything about how it works. Concretely, all of the following hold:
+
+- **Every preference has one global value and an optional per-game override.**
+  A key present in a profile is that game's answer, a key absent follows the
+  global, and that is the only rule there is: no sentinel values, no
+  value-dependent precedence, and no setting that exists in one layer only.
+- **The global defaults are a profile with no identity**, disabled by default,
+  which still supplies the values other profiles inherit while disabled.
+- **`Enabled` means the same thing on every profile**: this profile acts, or
+  this game is left alone.
+- **Each profile answers per presentation** - Wayland and X11, fullscreen,
+  borderless and windowed - with `Auto`, a method its protocol can carry, or
+  `Off`, and `Auto` is the default because an absent key means nobody measured
+  that presentation yet.
+- **The settings page is two switches and a set of preferences.** Methods live
+  in a profile's details, and a person who does not open them never meets one.
+- **The editor offers Use global on every inheritable item**, reorders
+  profiles, clears a profile's overrides, and never turns a displayed
+  inherited value into a stored override.
+- **An existing installation survives the upgrade**: the stored `Automatic`
+  preset, the `-1` threshold, `UnknownApplications` and the single `Method`
+  field are each read once into the new form, and no old key is reinterpreted
+  as a new one.
+- The shipped catalogue carries what was measured about a program and not what
+  somebody would prefer, so the global resolution reaches the games we ship.
+
+Matching, layered storage, the editor and the catalogue are already
+implemented and keep working throughout; this end state is about what a
+setting *is*, not about rediscovering how a window is recognised.
+
+## Supported scope and full acceptance
+
+Stated per the handbook's
+[two gates](../upscaling.md#supported-scope-and-full-acceptance).
+
+**Supported scope**, which authorises a release: the model above implemented
+and verified on the minimum supported KWin, with every preference resolving
+through one path, the migration exercised from a configuration written by the
+previous release, and the editor driven by its own test rather than the class
+behind it. `Auto` is inside this scope on X11, where the window exists before
+anything is asked of it and a failed resize is reversible. **`Auto` on native
+Wayland is explicitly outside it** until
+[resolution control](slice-resolution-control.md#a-reversible-wayland-lever-for-auto-2026-09-20)
+has measured the fractional-scale lever; until then a Wayland slot set to
+`Auto` makes no request, and the settings page and the release note both say
+so. A profile that names a measured method keeps working either way, which is
+what makes that exclusion shippable rather than a hole.
+
+**Full acceptance**, which authorises calling the requirement met: the above,
+plus `Auto` working on native Wayland, plus real-session acceptance on the
+television - per-game overrides surviving a restart, a game left alone by a
+disabled profile, the global resolution reaching a shipped game, and the six
+slots exercised across real applications on both window backends.
 
 ## Scope and boundaries
 
-Own identity selection, matching priority, sparse overrides, storage, the
-configuration editor and known-application templates. Share resolved identity
-and settings with consumers; do not give each consumer a different matcher.
+Own what a setting is and how one is resolved, identity selection, matching
+priority, per-game overrides, storage, the configuration editor and the shipped
+catalogue. Share one resolved settings value with every consumer; do not give
+each consumer a different matcher or a different idea of what the setting says.
+
+Own `Auto` as a stored value and as the X11 mechanism. Do **not** own what a
+method can achieve: whether `Auto` can work on native Wayland, and the lever it
+would use, belong to [resolution control](slice-resolution-control.md), and
+this package ships the six slots whichever way that measurement goes.
 
 The [development infrastructure](slice-development-infrastructure.md) owns the
 passive OSD and detection-message lifecycle. This profile package supplies real
@@ -59,8 +121,28 @@ its rendering and the consumers' process implementations are outside this packag
 
 ## Approach
 
-Implement the identity and sparse-persistence model below, then the editor and
-runtime invalidation. Validate application templates from observed windows.
+The identity, storage, matching and editor described below are implemented. The
+remaining work is the settings model of 2026-09-20, in an order where each step
+leaves the plugin working:
+
+1. **The item table and one resolution path.** Declare every setting once with
+   its kind, scope and split, and resolve a complete value for a window from
+   the global profile plus the profile that claimed it. Replace the static
+   `UpscaleConfig::` reads scattered through the plugin, `effectiveResolution
+   Preset()` and the `-1` threshold sentinel with that one path.
+2. **The migration**, written at the same time as the keys it reads, so no
+   release ever reinterprets an old value as a new one.
+3. **The six method slots**, with the existing single `Method` translated into
+   the presentation it was measured under.
+4. **The editor**, built from the table rather than hand-written per item -
+   which it has to be, because `upscale_config.cpp` is already over the
+   file-size limit at 419 code lines and thirteen inheritable items plus six
+   slots cannot be added to it by hand.
+5. **The catalogue**, dropping the shipped resolution that pins SuperTuxKart
+   and keeping the benchmarks' explicit `Native`.
+6. **The handbook**, which records the model as implemented rather than planned.
+
+Validate application templates from observed windows.
 Test globals and overrides through the actual rendering decision, and record
 remaining cases in this document until acceptance is complete.
 
@@ -175,6 +257,13 @@ active shipped defaults, and matching permits an instance-only constraint.
   lock screens and other existing exclusions still bypass the effect.
 
 ### Sparse values and persistence
+
+Superseded on 2026-09-20 by
+[what a setting is, and where it lives](#what-a-setting-is-and-where-it-lives-2026-09-20),
+which keeps the `std::optional` representation and the presence rules below and
+replaces the list of settings the layer covers, the treatment of `Enabled` and
+the single method field. Retained because the KConfig findings under it were
+measured rather than assumed.
 
 Keep global values in the existing `Effect-upscale` group and generated
 `UpscaleConfig`. Use nested `KConfigGroup` groups for profiles with stable UUIDs,
@@ -409,9 +498,18 @@ not being listed: the first asks for nothing, the second follows the setting.
 
 ### Still open
 
-Sparse per-setting overrides, profile ordering in the interface and the notes'
-translation, which needs the localized-entry extraction KDE uses for `.desktop`
-files, all remain part of this slice.
+The settings model of 2026-09-20 in full: the item table, per-game overrides for
+every preference, the six method slots, the editor's **Use global** controls and
+the migration off `Automatic`, the `-1` sentinel and the single method field.
+Profile ordering in the interface and the notes' translation, which needs the
+localized-entry extraction KDE uses for `.desktop` files, remain part of this
+slice as well.
+
+One question in that section is open rather than decided: what an upgrade does
+with a stored global `Enabled=false`, which has no successor switch. Auto's own
+Wayland mechanism is no longer in doubt as a design but is unmeasured as
+behaviour; it and its bench belong to
+[resolution control](slice-resolution-control.md#a-reversible-wayland-lever-for-auto-2026-09-20).
 
 How the shipped list grows beyond the applications one machine can run is
 tracked separately below, under
@@ -419,6 +517,395 @@ tracked separately below, under
 producing a submittable report, the route people send it by and the rule for
 accepting one. That topic builds on the storage, matching and editor implemented
 here and must not hold this part of the package open.
+
+## What a setting is, and where it lives, 2026-09-20
+
+Jens asked why the settings are split the way they are, and said that all of
+them can be defined as a global default and per game. The split had no rule
+behind it. Seventeen entries were global because they were written first, and
+fourteen fields were per application because the catalogue needed them. Exactly
+two settings existed in both layers, and each used a different idiom, neither of
+which was an override:
+
+| Where | What it did |
+| --- | --- |
+| `minimumPixels` | `-1` meant inherit and `0` meant no threshold: a sentinel inside the value space |
+| `preset` | `effectiveResolutionPreset()` was a negotiation rather than an override. A global `Automatic` deferred to the profile, a profile `Native` overruled an explicit global, and otherwise the global won. Which layer won depended on both values |
+| `Preset=Custom` in a profile | read the *global* percentage, because the percentage existed only globally. A per-game custom percentage could not be expressed at all |
+| `Enabled` | globally "upscale at all", in a profile "take part in matching": one word for two concepts, and the per-game form of the global one did not exist |
+| `Method` | one value per profile, although each method acts on one protocol only. SuperTuxKart's `AdvertisedMode` is a measurement of that game under native Wayland; the same game through Xwayland silently asks for nothing |
+
+### The rule
+
+A setting is one of two things, and that decides everything else about it.
+
+**Something that describes the game.** Its identity, and the facts measured
+about it: which request it follows in each of the ways it can run, and whether
+its own mode selection refuses secondary outputs. None of this can be inherited,
+because a measurement of one program says nothing about another. Whether a
+profile acts at all belongs here too: that is the profile's own participation,
+not a value anything else can supply.
+
+**Something that describes what the user wants.** The resolution, the
+sharpening, the output threshold, whether the effect may ask at all, and every
+on-screen display choice. Each has one global value and an optional per-game
+override. A key present in a profile is that game's answer; a key absent follows
+the global. No sentinels, no negotiation, no exceptions.
+
+The global defaults are therefore a profile with no identity, and **global-only
+turned out to be empty**. Its one candidate, `UnknownApplications`, dissolved as
+soon as that was written down: it is the global profile's method. Should a
+setting ever be found that genuinely cannot be said per game, it becomes one
+more row in the table below rather than a special case in the code that reads it.
+
+### The table
+
+Each item declares three things about itself, and the editor, the storage and
+the resolver read them from there. Adding a setting is one row. Discovering
+later that an item needs a different shape is an edit to that row plus a note
+about what was already stored, not a sweep through the plugin. That is what
+makes developing as we go affordable; the state this section replaces is what
+happens when each item's shape is written into every place that reads it.
+
+| Axis | Values | Decides |
+| --- | --- | --- |
+| Kind | identity, fact, participation, preference | whether it can be inherited at all |
+| Scope | profile only, global only, both | where it can be stored |
+| Split | one value, one per presentation | whether it has the six slots below |
+
+| Item | Kind | Scope | Split |
+| --- | --- | --- | --- |
+| Window class, instance, program | identity | profile only | one |
+| Name, note, measured version, order | identity | profile only | one |
+| Enabled | participation | every profile, never inherited | one |
+| Method | fact | profile only | six presentations |
+| Primary output only | fact | profile only | the X11 presentations |
+| Resolution: preset and percentage | preference | both | one |
+| Minimum output pixels | preference | both | one |
+| Sharpening: switch and strength | preference | both | one |
+| Resolution control | preference | both | one |
+| Display: four switches, timeout, three corners | preference | both | one |
+| Scaler and processing mode, once they exist | preference | both | one |
+
+Two items are a pair of keys that travel together. A preset keeps its exact
+ratio rather than the rounded percentage label, so Quality is 1/1.5 and not 67%,
+and the resolution cannot collapse into a single number; but the two keys must
+not inherit independently either, which is the defect recorded above. Setting a
+profile's resolution writes both keys, and **Use global** clears both. The
+sharpening switch and its strength have the same shape, with the rule that
+turning sharpening off keeps the strength for later.
+
+### Three ways to say "do less", which stay distinct
+
+| | Enlarge a smaller buffer the game committed by itself | Ask the game for a smaller buffer | Display |
+| --- | --- | --- | --- |
+| Enabled off | no | no | no |
+| Resolution Native | no | no | yes |
+| Resolution control off | yes | no | yes |
+
+The third row is the case with no risk attached: a game set to 1080p in its own
+menu on a 4K screen is enlarged by FSR without the effect ever saying anything
+to it. Native additionally bypasses processing, with the proposed
+sharpen-at-native mode as the explicit exception.
+
+`Method` and `Resolution control` overlap, because both can express "ask for
+nothing", and they must not be merged: setting a measured method to `Off` in
+order to express a preference destroys the measurement.
+
+### Disabling a profile means leaving that game alone
+
+Decided by Jens on 2026-09-20, changing what the field means. A disabled profile
+still matches, and its answer is that the effect does nothing for that window:
+no request, no enlargement, no display. The global profile does not pick it up
+either. `Enabled` then means the same thing on every profile, and it becomes the
+per-game off switch that did not exist before.
+
+A shipped entry is replaced by ordering rather than by disabling it: the user's
+own entry takes a lower `Order` and claims the window first. This changes
+behaviour for anyone who disabled a shipped entry so that their own would match,
+and belongs in the release notes. Previously the window fell through to the next
+profile; now the disabled entry claims it and stops.
+
+### The global profile is off by default
+
+Decided by Jens on 2026-09-20, for safety: only games that were identified, and
+whose behaviour was therefore confirmed, act on installation. That is also why
+the catalogue ships with the package and its entries are enabled.
+
+Its switch does not stop it supplying defaults. Participation and inheritance
+are separate: a disabled global profile still hands its resolution, sharpening,
+threshold and display choices to every profile that keeps them global. The
+settings page therefore has to label it **Also upscale applications that are not
+in the list**, never "Enable upscaling", or the switch reads as though turning
+it off should stop the shipped games working.
+
+Two consequences, recorded rather than argued:
+
+- It closes the harmless half as well. The global profile's methods are all
+  `Off`, so nothing is said to an unmeasured program in any case;
+  `Enabled=false` additionally declines to enlarge a smaller buffer such a
+  program committed on its own. That case cannot break a window, and it is one
+  switch away.
+- When it is switched on it reaches fullscreen and borderless windows alike,
+  decided by Jens on 2026-09-20. Borderless eligibility currently requires a
+  profile, which `upscalePresentation()` explains as keeping ordinary desktop
+  windows out of that path. With the global profile off by default, that path
+  stays unreachable until the user asks for it. It never reaches windowed
+  applications: see below.
+
+### One method is six
+
+Decided by Jens on 2026-09-20. A game can run in six ways, and the request that
+works is a property of the way it is running, not only of the program. Each of
+the methods acts on one protocol: the three advertisements act on `wl_output`,
+which an Xwayland game never sees, and the resize acts on an X11 window.
+
+These six are deliberately called presentations and not modes: `AdvertisedMode`
+already means a display mode.
+
+| Presentation | Choices | Measured so far |
+| --- | --- | --- |
+| Wayland fullscreen | Auto · advertised mode · advertised scale · advertised mode and scale · Off | SuperTuxKart on OpenGL, glmark2, vkmark |
+| Wayland borderless | the same five | nothing |
+| Wayland windowed | Auto · Off | no method exists; see below |
+| X11 fullscreen | Auto · resize window · Off | Extreme Tux Racer, hl2_linux |
+| X11 borderless | Auto · resize window · Off | SuperTux 0.6.3 traced; no shipped entry |
+| X11 windowed | Auto · Off | no method exists; see below |
+
+**Auto is the default, so an unmeasured presentation and `Auto` are the same
+thing: an absent key.** No further state is needed to express "nobody has run
+this game that way yet". `Auto` still differs from `Off`: Auto means work it out
+safely, Off means the question was asked and the answer is that asking is
+pointless or harmful here. That keeps the distinction the catalogue header
+already draws, that an entry asking for nothing still records that the question
+was asked.
+
+**These are the only settings with no Use global.** Every other setting has one,
+because every other setting is a preference; a method is a measurement of one
+program and has nothing to inherit. `X11PrimaryOutputOnly` stops being a
+property of the profile and becomes a property of the X11 presentations.
+
+**On the global profile the same six slots default to `Off` rather than `Auto`.**
+For a game in the catalogue somebody measured it, so Auto has ground to stand
+on; for a program nobody has ever run it has none. Switching on "also upscale
+applications that are not in the list" therefore enlarges the buffers such
+programs commit by themselves and does not begin experimenting on them until a
+slot is set to Auto deliberately. This preserves the line the previous
+`UnknownApplications` setting drew.
+
+**The editor offers only what the current screen can do**, with a reason for the
+rest, as the handbook already requires. On an unscaled output the two
+scale-based choices can say nothing at all: see the collapse below.
+
+### Windowed, and why it is two slots with nothing in them
+
+Jens asked on 2026-09-20 why windowed applications are untouched, since the
+image could be enlarged to fit the window. The drawing side already works that
+way - the scaler's destination is `window->frameGeometry()`, not the screen - so
+nothing new is needed to enlarge into a window. What is missing is a way to
+obtain a smaller buffer while the window keeps its size, and the two protocols
+differ:
+
+- **X11 windowed is plausible with machinery that exists.** The fullscreen path
+  already shrinks the client, presents it at the frame size and maps pointer
+  input itself. The new part is holding the frame while the client shrinks;
+  under fullscreen the fullscreen state does that, and for a window it would
+  have to be done deliberately.
+- **Wayland windowed has no path today.** There the window is the surface:
+  shrink it and the window shrinks. Keeping it visually the same size means
+  presenting a surface larger than the client believes it is, breaking its own
+  pointer coordinates and hit testing unless it uses a viewport. That is the
+  case the handbook's
+  [borderless section](../upscaling.md#borderless-windows-at-the-size-of-the-screen)
+  excludes.
+
+One constraint holds for both, and is the reason the slots are safe to add
+before either has a method: **a windowed presentation is only ever acted on
+through a profile somebody deliberately made, never through the global
+unlisted-applications row.** Fullscreen and borderless-covering-one-output are
+rare enough to be a filter in themselves. "A window" is every window on the
+desktop, and Auto must never be loose on that.
+
+### The methods stay, and Auto is a new one
+
+Decided by Jens on 2026-09-20, after the source review below. The three
+advertisements and the X11 resize stay exactly as they are, and `Auto` is not a
+chooser among them. It is a method of its own with its own mechanism, and on
+Wayland that mechanism is not an advertisement at all.
+
+| Slot | What Auto does |
+| --- | --- |
+| Wayland fullscreen, Wayland borderless | Say nothing at bind. Once the window exists and the presentation is known, ask that one surface for a fractional scale equal to the wish, watch the following commits, and put it back where it did not work |
+| X11 fullscreen, X11 borderless | Resize, verify coverage and pointer mapping, put it back where it did not work |
+| Wayland windowed, X11 windowed | Nothing. Auto is never loose on ordinary windows |
+
+**Auto never makes a blind advertisement.** A mode sent at bind cannot be taken
+back, and the review below shows it harms two classes of client. The one
+exception is evidence rather than a guess: where the profile has already
+measured `AdvertisedMode` on its other Wayland slot, the program is known to be
+a mode-list client, whose borderless form is configure-sized and unharmed, so
+the bind-time advertisement may be made for both slots.
+
+**Auto and the measured methods reach different clients, which is why both
+exist.** The fractional hint reaches GLFW, SDL 3, Godot and Wine. It does not
+reach SDL 2, which never implemented the protocol, or Qt, which clamps the
+value to 1.0. SDL 2 is a large share of Linux games and includes SuperTuxKart,
+so a measured advertisement is the only thing that moves those - and it also
+starts the game at the right size instead of changing it after the first frame.
+Auto failing is therefore not a dead end but the case a catalogue entry exists
+for, and Auto reports it rather than falling back to something unsafe.
+
+### What a Wayland client actually reads, source review 2026-09-20
+
+Read in the upstream sources of SDL 2, SDL 3, GLFW, QtWayland, Godot,
+`winewayland.drv` and SuperTuxKart 1.4, and in KWin 6.3.6 and master under
+`build/upstream/`. **Nothing here was run.** These are statements about code,
+and each needs the bench in
+[resolution control](slice-resolution-control.md#a-reversible-wayland-lever-for-auto-2026-09-20)
+before it is treated as behaviour.
+
+There are four classes of client, not three, and which one a program belongs to
+decides whether a falsified mode helps, does nothing, or does damage.
+
+| Class | Who | A falsified `wl_output.mode` |
+| --- | --- | --- |
+| A. Configure-sized fullscreen | What most games call borderless or windowed fullscreen: SDL 2 `FULLSCREEN_DESKTOP`, SDL 3 non-exclusive, GLFW with a monitor, Qt `showFullScreen()`, both of Godot's fullscreen modes. All ask the compositor for fullscreen and take the size from the configure | **Inert.** Neither helps nor harms |
+| B. Mode-list | SDL 2 and SDL 3 exclusive fullscreen. Picks the closest entry from the display's mode list and viewports it to the configure size | **Correct.** This is the class `AdvertisedMode` was measured on |
+| C. Plain window sized from "the screen" | GLFW undecorated at `glfwGetVideoMode()`, Godot borderless at `screen_get_size()`. Both read `wl_output.mode` because neither binds `xdg_output` | **Harmful, and not undoable.** Qt and SDL 3 take the screen size from `xdg_output`, which we do not falsify, so they are safe here |
+| D. Mode pixels with a declared scale | Wine's `winewayland.drv`, and vkmark. Takes the display and its mode list from `wl_output.mode` but never stretches back to the configure size | **Harmful:** an undersized surface inside a fullscreen state. Needs mode plus a scale equal to the ratio, which at scale 1 only a fractional scale can express |
+
+Two beliefs recorded earlier in this repository are corrected by that review:
+
+- **The SuperTuxKart OpenGL against Vulkan result was not the renderer.**
+  `CIrrDeviceSDL.cpp` uses `SDL_WINDOW_FULLSCREEN_DESKTOP` on the Vulkan path
+  and `SDL_WINDOW_FULLSCREEN` on the OpenGL one, so the difference was class A
+  against class B - a window flag, not a graphics API. This matters because the
+  class **is** observable to a compositor at the first commit: a class B surface
+  carries a viewport whose destination differs from its buffer size, and a class
+  A surface does not. The earlier conclusion that nothing visible to us decides
+  the outcome was wrong.
+- **The advertisement as implemented is incoherent, and SDL 2 believes it by
+  accident.** `xdg_output` still reports the output's true size while
+  `wl_output.mode` reports the falsified one. SDL 2 processes only the
+  *n*-th `done` it was waiting for and ignores later ones, and because
+  `announce()` runs synchronously inside `OutputInterface::bound`, ours is
+  always the one it processes. Had the `xdg_output` done arrived first, SDL 2
+  would have derived a scale factor from the disagreement instead. SDL 3
+  processes both and ends up with a mode list containing the true and the
+  falsified size together. This is a defect in shipped code independent of
+  everything else here, and it belongs to
+  [resolution control](slice-resolution-control.md).
+
+### Why Auto does not use the advertisements
+
+The three advertisements are not layers over one another. Each is a different
+statement, correct for one class and wrong for the others, so there is no
+"apply them all" that covers everybody:
+
+| Told | Class B, mode-list | Scale-driven | Class D, mode pixels with own scale |
+| --- | --- | --- | --- |
+| Mode only | correct | nothing happens | undersized surface |
+| Scale only | window moves off the screen | correct | window stretches past the edges |
+| Both | window moves off the screen | wrong size | correct |
+
+That is why the unlisted-application fallback already chose the mode alone,
+with the reason recorded in `application.cpp`: a scale told to a program that
+reads it differently moves its window off the screen, which is not something to
+do to an application nobody measured.
+
+On the hardware this effect exists for, the choice collapses anyway. A
+`wl_output` scale is a whole number and there is none below one, so
+`reachableScale()` returns zero on an unscaled output and `advertisementFor()`
+declines every method except the advertised mode. Everything at once already is
+the advertised mode there. This is exactly the gap the fractional scale closes,
+because its value is a fraction with no lower bound of one.
+
+### Detecting the presentation
+
+The protocol is certain in both phases. After a window appears
+`isWaylandClient()` and `isX11Client()` answer it directly. Before one exists it
+is certain by construction: an X11 game never binds the compositor's
+`wl_output`, because it reaches the compositor through Xwayland, whose
+connection carries Xwayland's own executable path and therefore cannot match a
+game profile.
+
+Fullscreen against borderless is already decided in `upscalePresentation()`.
+Three caveats, each already stated in the code: fullscreen is a state and not a
+size, so the presentation is read once the window has settled; a window the
+effect itself made smaller keeps that state, so the presentation is never
+re-derived from geometry the effect changed; and a game can change presentation
+during a run, so it is a property of the moment rather than of the launch.
+
+What cannot be known at bind is the presentation, because the client has no
+window then, and no ordering or binding signature predicts it: every toolkit
+binds every global it knows regardless of intent. A toolkit fingerprint is
+possible from the resources a client has bound - a client with no
+`zxdg_output_v1` is GLFW or Godot, a client with
+`wp_fractional_scale_manager_v1` is not SDL 2 - and the class, not the
+presentation, is what predicts harm. That is a refinement to consider once Auto
+works, not a prerequisite.
+
+### What Auto stores
+
+Jens decided on 2026-09-20 that an Auto which works has nothing to write down.
+Nothing is persisted and nothing is learned across sessions. Within one session
+Auto may remember what it observed, which helps a game relaunched while someone
+is tuning it. Nothing is ever written into the user's own profile layer on the
+effect's initiative, so that what was measured and what the user chose never
+become indistinguishable.
+
+### What an existing installation loses
+
+| Stored today | Becomes | Note |
+| --- | --- | --- |
+| `Preset=0`, Automatic | the enum loses `Automatic`; absence means inherit | The key is renamed so that an old value is never read as a new one, and translated once: `Automatic` and `Native` both become `Native`, the rest keep their meaning |
+| `MinimumPixels=-1` in a profile | an absent key | `0` still disables the threshold |
+| `UnknownApplications` | the global profile's Wayland fullscreen and borderless slots: advertised mode where it was on, `Off` where it was off | |
+| `Method` in a profile | the slot for the presentation it was measured under | Each shipped entry names one; a user entry is translated the same way and the rest stay absent, which is Auto |
+| `Enabled=false` globally | **undecided** | See below |
+| A disabled shipped entry | claims the window and does nothing | Previously it fell through to the next profile |
+
+The global master switch has no successor. With a switch on every profile and a
+catalogue that ships enabled, nothing stops the effect single-handedly except
+KWin's own Desktop Effects entry, so a user who had turned the page's switch off
+would find the shipped games enlarged after the upgrade. The proposal is that
+the migration writes `Enabled=false` into every profile as well, which honours
+the intent exactly and is visible in the editor afterwards. **Jens has not
+decided this**, and it is the one open question in this section besides the
+Wayland measurement above.
+
+### Storage
+
+The global profile stays in `kwinrc`, group `Effect-upscale`, through the
+generated `UpscaleConfig`, so that System Settings' Defaults button and KWin's
+own reconfiguration keep working. Profiles stay in `kwinupscalerc` with the
+shipped file under the user's, as measured on 2026-09-18 above. Two files for
+one concept is the price of KWin's conventions, and it is worth paying.
+
+The layering brings one wrinkle: a key in the *shipped* file is present, and
+under the rule above a present key overrides the global. That is why the
+catalogue carries facts and not taste. It ships the methods it measured and the
+primary-output flag. It does not ship a resolution, except `Native` for glmark2
+and vkmark, where not silently reducing a benchmark is a statement about what
+the program is for rather than a preference. `Quality` comes off SuperTuxKart,
+and the global default resolution becomes `Quality`, so that a fresh install
+still enlarges a known game and a changed global reaches it.
+
+### The editor
+
+Every inheritable item offers **Use global**, showing the value it would follow,
+or an explicit value, so a switch has three positions. Displaying an inherited
+control must not turn it into a stored override when another field changes.
+Clearing a profile's overrides stays separate from restoring the shipped
+catalogue and from the page's own Defaults: those are three different things.
+The six presentations are six controls on a profile, each offering only the
+methods its protocol can carry and only those the current screen can act on.
+
+`upscale_config.cpp` is already over the file-size limit at 419 code lines, so
+the table-driven form has to shrink the page rather than grow it. An editor that
+hand-writes a control, a read and a write per item cannot take thirteen
+inheritable items and six method slots; one that builds its controls from the
+table can.
 
 ## Acceptance criteria
 
@@ -429,8 +916,23 @@ Planned checks, not observed results:
 - Persistence tests: absent/false/zero, explicit values equal to globals,
   round trips, clear override, deletion, invalid values and future format
   handling. Changing globals updates only inherited fields after reload.
+- Resolution tests for the 2026-09-20 model: every preference resolved from
+  global plus override, a present key winning over the global including where
+  the two are equal, resolution and percentage travelling together, sharpening
+  and strength travelling together, a disabled profile claiming its window and
+  doing nothing, and the global profile supplying defaults while disabled.
+- Method slot tests: a method stored under the presentation it was measured
+  under, an absent slot resolving to Auto, Auto distinguished from Off, slots
+  offering only the methods their protocol carries, and the global profile's
+  slots defaulting to Off.
+- Migration tests: a stored `Automatic`, a `-1` threshold, an
+  `UnknownApplications` entry and a single `Method` field each read once into
+  the new form, with old keys never reinterpreted as new ones.
 - Editor tests: create/read/update/delete, reorder, detection cancellation and
   errors, Apply/Reset, inherited controls, and dependent preset/sharpening values.
+  An inherited control must not become a stored override when another field
+  changes, and clearing overrides stays separate from restoring the catalogue
+  and from the page's Defaults.
 - Runtime tests on both container targets: native Wayland and Xwayland identity,
   late class changes, restarts/title changes, switching between applications,
   globals disabled with a per-app enable, and per-app disable. Confirm status
@@ -447,7 +949,17 @@ Planned checks, not observed results:
 - [x] Observe the catalogue identities of both test games and ship them.
 - [ ] Validate the recommended values on real applications in a real session.
 - [x] Implement catalogue model, layered persistence, editor and preset/pixel policy.
-- [ ] Implement general sparse effect/OSD overrides and editor reordering.
+- [x] Specify the settings model: item table, inheritance, method slots, 2026-09-20.
+- [ ] Implement the item table and resolution, replacing the static
+      `UpscaleConfig` reads, `effectiveResolutionPreset()` and the `-1` sentinel.
+- [ ] Implement the six method slots and their migration from the single field.
+- [ ] Implement Auto as its own method per protocol, once
+      [resolution control](slice-resolution-control.md#a-reversible-wayland-lever-for-auto-2026-09-20)
+      has measured the Wayland lever.
+- [ ] Implement the editor's **Use global** controls and profile reordering.
+- [ ] Update the handbook's settings page, per-application overrides and
+      resolution-control sections to the implemented model.
+- [ ] Decide what an upgrade does with a stored global `Enabled=false`.
 - [ ] Run acceptance tests, both compiler/container builds and TV checks.
 
 Observed documentation validation, 2026-09-18: `pre-commit run --all-files`
@@ -702,13 +1214,18 @@ before the list passes a hundred entries rather than assuming either way.
 
 ### Keeping the list honest
 
-An entry goes stale when a game changes its identity or its renderer.
-SuperTuxKart already shows the second case: its OpenGL renderer follows the
-advertised mode and its Vulkan renderer does not, so the same name and the same
-version can mean two different answers. The effect cannot detect this — it does
-not know the game's version and has no business asking — so the only route back
-is a person noticing and saying so, through the same form, with a report
-attached. `MeasuredVersion` is what makes their report comparable to ours.
+An entry goes stale when a game changes its identity, or when the same game
+asks for its window in a different way. SuperTuxKart shows the second case: its
+OpenGL path follows the advertised mode and its Vulkan path does not. The source
+review of 2026-09-20 found the reason to be the window flag rather than the
+graphics API - `SDL_WINDOW_FULLSCREEN` against `SDL_WINDOW_FULLSCREEN_DESKTOP` -
+which is why one program needs an answer per presentation rather than one
+answer. It also means the same name and the same version can still mean two
+different answers, because a game can change which flag it uses between
+releases. The effect cannot detect that across launches — it does not know the
+game's version and has no business asking — so the only route back is a person
+noticing and saying so, through the same form, with a report attached.
+`MeasuredVersion` is what makes their report comparable to ours.
 
 A refuted entry is corrected or removed in a package, and the release note says
 which. Removing an entry the user never touched simply stops it applying;

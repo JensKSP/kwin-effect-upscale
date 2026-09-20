@@ -1221,6 +1221,24 @@ own emulation, which never changes the real root size either.
 
 ## Remaining work
 
+### Auto, and the lever it would use
+
+The settings model in
+[application profiles](slice-application-profiles.md#the-methods-stay-and-auto-is-a-new-one)
+gives every presentation slot an `Auto` value, and Auto is a method of its own
+rather than a choice among the existing ones. Its X11 half is the resize this
+slice already implements, with verification and a revert. Its Wayland half is
+the fractional scale described under
+[a reversible Wayland lever](#a-reversible-wayland-lever-for-auto-2026-09-20),
+and none of it is measured yet.
+
+In order: confirm that `Window::setNextTargetScale()` is reachable from an
+effect on v6.3.6 without patching KWin, because the route is closed for the
+supported target if it is not; run the seven-item bench; then implement the
+ladder if the bench supports it. The incoherent advertisement that review found
+— a falsified `wl_output.mode` beside a truthful `xdg_output` — is a defect in
+shipped code and is fixed on its own schedule, not as part of Auto.
+
 ### A game that never exits
 
 Asked for by Jens on 2026-09-19. A game can disappear without warning —
@@ -1570,6 +1588,144 @@ rather than fixes:
 Jens's call. Nothing here should be widened further in the meantime: four
 rounds of larger numbers each moved the failure to a different line, and the
 timeout that was actually ending the runs was the harness's own.
+
+### A reversible Wayland lever for Auto, 2026-09-20
+
+Jens asked whether the effect can work out by itself which request a native
+Wayland game needs. The answer that came back is that it cannot do so with the
+advertisements - a falsified `wl_output.mode` is sent before the client has a
+window and cannot be taken back - but that a different lever exists which is
+sent *after* the window, aimed at one surface, and reversible.
+
+Everything in this section was **read, not run**: the upstream sources of SDL 2,
+SDL 3, GLFW, QtWayland, Godot, `winewayland.drv` and SuperTuxKart 1.4, and KWin
+6.3.6 and master under `build/upstream/`, on 2026-09-20. The bench at the end is
+what turns it into evidence. The client classification it rests on is recorded
+with the settings model in
+[application profiles](slice-application-profiles.md#what-a-wayland-client-actually-reads-source-review-2026-09-20).
+
+#### Waiting and then advertising does not work
+
+The first idea was to say nothing at bind, wait for the window, and only then
+send the mode for the presentation we can now see. The sources say a running
+client does not act on it:
+
+| Toolkit | A `wl_output.mode` after the window exists |
+| --- | --- |
+| SDL 2 | Ignored. It processes only the `done` it was waiting for during initialisation and the counter saturates; even reprocessed, setting the desktop mode is a copy and no window geometry is recomputed |
+| SDL 3 | The display is rebuilt and the application receives `SDL_EVENT_DISPLAY_DESKTOP_MODE_CHANGED`, but nothing re-runs the fullscreen update for windows already on that display. A game that does not handle the event itself does not change, and games rarely do |
+| GLFW | `glfwGetVideoMode()` returns the new value; no callback and no window change |
+| Qt | Irrelevant while `xdg_output` is present, which is how it takes screen geometry |
+| Godot | Screen data updated, windows untouched |
+| Wine | Every `done` re-registers the Windows display devices, so the game sees `WM_DISPLAYCHANGE`. Whether it resizes is the game's business, and if it does the result is class D's undersized surface unless the scale half is sent too |
+
+#### The lever: a fractional scale below one
+
+`wp_fractional_scale_v1.preferred_scale` is "the numerator of a fraction with a
+denominator of 120" and the protocol states no lower bound, unlike
+`wl_surface.preferred_buffer_scale`, which must be greater than zero and which
+KWin sends as `ceil(scale)`. So a fraction below one is expressible where an
+integer scale is not, which is exactly the gap on a 4K television at scale 1.
+
+KWin already has the whole path. `SurfaceInterface::setPreferredBufferScale`
+sends `round(scale * 120)`, driven by `Window::setNextTargetScale()`, and a
+change schedules a new configure that carries the scale. An effect can reach the
+window through `EffectWindow::window()`, which `eligibility.cpp` already does.
+
+Three things to settle before building on it, in this order:
+
+1. **Whether `setNextTargetScale()` is reachable from an effect in v6.3.6**, the
+   minimum supported target, without patching KWin. If it is not public there,
+   this route is closed for the supported target whatever master does, and
+   `compatibility.h` is where any difference between the two would be handled.
+2. **Re-assertion.** KWin re-applies the output's own scale in
+   `updateNextTargetScale()` whenever the window changes output or the output's
+   scale changes, so an override has to be re-asserted on
+   `nextTargetScaleChanged` or it is silently undone.
+3. **Rounding.** KWin uses the same value in `snapToPixels()` for configure
+   sizes. It is exact for 1/2 and 2/3, so Performance and Quality are clean;
+   1/1.3 and 1/1.7 introduce sub-pixel rounding that has to be measured against
+   the aspect-ratio tolerance the scaler already applies.
+
+Which clients act on it, from the same source reading:
+
+| Acts on a preferred fractional scale | Does not |
+| --- | --- |
+| GLFW, by resizing the framebuffer; on by default in 3.4 | Qt, which clamps the value to 1.0 |
+| SDL 3, but only for a window with high pixel density or scale-to-display | SDL 2, which never implemented the protocol |
+| Godot, which updates the window state | |
+| Wine, which remaps the window - but only coherently if the mode half was falsified as well | |
+
+The handbook's earlier note that a fractional scale hint failed was measured on
+SDL 2, which cannot honour it, and the Qt result is explained by the clamp.
+Neither says anything about the lever itself.
+
+#### The ladder Auto would follow
+
+For a profiled program on an unscaled output, with the slot on Auto:
+
+1. **At bind, say nothing** - unless the profile already measured
+   `AdvertisedMode` on its other Wayland slot, which is evidence that the
+   program is a mode-list client whose borderless form is configure-sized and
+   unharmed. A Wine executable never gets the mode from Auto, because Wine is
+   class D and because it cannot be identified at bind at all: the connection
+   belongs to the Wine loader and the game's name arrives later as the
+   window's `app_id`.
+2. **At the first commit**, with window, presentation and identity known and
+   `upscalePresentation()` true, ask for the fractional scale equal to the wish
+   and re-assert it on `nextTargetScaleChanged`. Then watch the next commits:
+   - the buffer shrank and the surface still covers its output: success, and
+     remember it for this session only;
+   - the buffer is unchanged after a couple of configures: the client ignores
+     the hint, so set 1.0 back and report that no method reached it;
+   - the surface stopped covering: revert at once and report.
+3. **Windowed presentations: never.**
+
+#### Two other levers, and why they are not it
+
+`ClientConnection::setScaleOverride()` already scales `xdg_output` size and
+position, surface sizes, input and opaque regions, pointer and constraint
+coordinates per client - but not `xdg_toplevel` configure sizes and not
+`wl_output.mode`, because Xwayland needs neither. For an xdg-shell client the
+result is therefore incoherent, and making it coherent is a change to KWin
+rather than something an effect can do.
+
+`xdg_toplevel.configure_bounds` steers only the initial floating size, which is
+irrelevant to fullscreen and borderless and marginal for a windowed slot.
+Viewporter is client-side; fifo, commit-timing and presentation-time carry no
+size at all.
+
+#### A defect this review found in shipped code
+
+The advertisement is incoherent: `wl_output.mode` is falsified while
+`xdg_output` continues to report the output's true size. SDL 2 believes the
+falsified value only because `announce()` runs synchronously inside
+`OutputInterface::bound`, so ours is the `done` it happens to process; had the
+`xdg_output` one arrived first it would have derived a scale factor from the
+disagreement instead. SDL 3 processes both and ends up with a mode list holding
+the true and the falsified size together, which makes what its exclusive-mode
+matcher picks unpredictable without running it. This is independent of Auto and
+wants fixing on its own.
+
+#### The bench that settles all of it
+
+Each application is run three ways - mode at bind, fractional scale after the
+window, and both - with a late-mode negative control, recording the advertised
+size, the committed buffer, whether the surface still covers its output, and
+whether a pointer hit test still lands where it looks:
+
+1. A GLFW 3.4 program fullscreen with a monitor, and undecorated at video-mode
+   size: class A against class C, in one toolkit.
+2. SDL 3 `testsprite --fullscreen`, with and without high pixel density, and
+   with an exclusive mode, which also resolves the ambiguous mode list above.
+3. SuperTuxKart 1.4 on OpenGL and on Vulkan, which is class B against class A in
+   one program and tests the window-flag explanation directly.
+4. A Godot 4.3 or later export with `--display-driver wayland`, fullscreen.
+5. Wine 10 with `winewayland` and a DXVK sample, borderless and exclusive. Note
+   that `ChangeDisplaySettings` fails there unless `EmulateModeset` is set.
+6. vkmark with the mode plus a *fractional* scale in place of the integer one,
+   to confirm the scale-1 gap actually closes for class D.
+7. A Qt Quick fullscreen sample as the negative control for the clamp.
 
 ## Remaining work on the X11 production integration
 
