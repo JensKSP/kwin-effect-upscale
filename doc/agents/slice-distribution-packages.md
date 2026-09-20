@@ -422,9 +422,39 @@ the same stated reason.
 of 13, as it did before. Whether it fixes the nightly is for the nightly to
 say; this machine has no aarch64 emulation.
 
+### The X11 integration test fails intermittently under load, 2026-09-20
+
+Three different cases of `upscale-x11-integration` have now failed across three
+package jobs, each on a different runner, and never the same one twice:
+
+| Run | Job | Case |
+| --- | --- | --- |
+| pull request | Trixie arm64 | `lifecycle(secondary-borderless)` |
+| nightly | resolute arm64 | `repeatedFullscreenTransitions()` |
+| nightly | resolute amd64 | `lifecycle(primary-fullscreen)` |
+
+The third is the one that matters for attribution: `resolute amd64` had passed
+in the previous nightly **with** the client placement change already in it, so
+that change alone does not explain it. The window stayed at 3840 × 2160 instead
+of reaching 2560 × 1440 within thirty seconds, against a measured 8.3 s for the
+retry path on KWin 6.6.
+
+**Not diagnosed, and not claimed to be.** What is done is to narrow the earlier
+placement change to the case it was written for. A fullscreen window is placed
+through `_NET_WM_FULLSCREEN_MONITORS`, which names the output directly; it
+never needed the client to assert a position, and doing so put a second
+geometry request into a path whose whole subject is the window manager resizing
+that window. Both new failures are on fullscreen paths.
+
+That is a narrowing, not a fix with a demonstrated mechanism. Whether the
+remaining intermittency goes with it is for the nightly to say. If it does not,
+the honest next step is to treat this test's sensitivity to slow, shared
+runners as its own problem rather than chasing one case per run.
+
 ### Remaining work
 
-- A hosted run. Everything above was observed locally, in containers; the
-  nightly has not yet built these three.
+- Confirming that the X11 integration test stops failing intermittently in the
+  Debian package jobs. The distribution packages themselves are unaffected: all
+  five of their jobs passed in the same nightly.
 - Real-device acceptance on Fedora, openSUSE and Arch, which no acceptance host
   provides. The full-acceptance gate stays open and this slice stays with it.

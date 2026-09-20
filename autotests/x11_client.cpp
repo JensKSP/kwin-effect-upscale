@@ -82,14 +82,22 @@ bool X11Client::show(const QByteArray &identity, const QRect &geometry, bool ful
     const uint32_t foreground = 0xff0000;
     xcb_create_gc(m_connection, m_context, m_window, XCB_GC_FOREGROUND, &foreground);
     xcb_map_window(m_connection, m_window);
-    // A managed window is placed by the window manager, and a client that
-    // cares which screen it is on says so again once it is mapped rather than
-    // trusting the placement it was given. Without this the test depends on
-    // the window manager having read the hints above before it decided, which
-    // is a race the client can simply not have.
-    const uint32_t position[] = {uint32_t(geometry.x()), uint32_t(geometry.y())};
-    xcb_configure_window(m_connection, m_window,
-                         XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, position);
+    // A managed window is placed by the window manager, and a borderless client
+    // that cares which screen it is on says so again once it is mapped rather
+    // than trusting the placement it was given. Without this the test depends
+    // on the window manager having read the hints above before it decided,
+    // which is a race the client can simply not have.
+    //
+    // Only borderless. A fullscreen window is placed through
+    // _NET_WM_FULLSCREEN_MONITORS below, which names the output directly and
+    // never needed this; asserting a position on top of that puts a second
+    // geometry request into a path whose whole subject is the window manager
+    // resizing this window.
+    if (!full) {
+        const uint32_t position[] = {uint32_t(geometry.x()), uint32_t(geometry.y())};
+        xcb_configure_window(m_connection, m_window,
+                             XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, position);
+    }
     paint(m_size);
     xcb_flush(m_connection);
     return true;
