@@ -3,7 +3,7 @@ SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de
 SPDX-License-Identifier: GPL-2.0-or-later
 -->
 
-# Slice: development infrastructure and diagnostics
+# Slice: what the effect says, and in which language
 
 ## Status and remaining work
 
@@ -14,6 +14,10 @@ sequence is therefore historical, not the next unimplemented capability.
 
 This package remains open for the full About/build identity and notices inventory,
 transition logging, session-font handling and its remaining native acceptance.
+It also carries two topics merged into it on 2026-09-20, neither of them started:
+the interactive half of the same on-screen surface, and shipping every text in
+the user's language. Both are recorded under
+[absorbed topics](#absorbed-topics) with their own gates and open items.
 Current presentation statistics remain observable even with the OSD hidden;
 overlay drawing and its own client/repaint sampling stop when hidden.
 Rendering, resolution-control and pipeline acceptance retain their own owners.
@@ -66,8 +70,9 @@ the permanent specification for identity and notices;
 [developer information](../upscaling.md#developer-information) define diagnostics.
 
 The optional full in-game About dialog does not block this package. Interactive
-game-setting controls, comparison and restart actions remain in the later
-[game controls slice](slice-game-overlay.md). Game-profile implementation,
+game-setting controls, comparison and the language the texts ship in are owned
+here as well, under [absorbed topics](#absorbed-topics); they have their own
+end states and do not gate the diagnostics work above. Game-profile implementation,
 process management, resolution negotiation, new scalers/geometry, rendering
 algorithm changes and release-workflow redesign are excluded. Observe existing
 behaviour rather than extending it to populate future diagnostic fields. Do
@@ -85,8 +90,8 @@ interface. This slice does not depend on future profiles or launch helpers:
 label the current selected fullscreen client accurately, without claiming a
 profile match or verified game identity. Show unavailable capabilities honestly.
 The [profiles](slice-application-profiles.md) package later supplies recognized
-game/profile events and per-profile overrides to the existing OSD; the controls
-package later extends the same surface. Test those interfaces with controlled
+game/profile events and per-profile overrides to the existing OSD; the
+interactive controls below extend the same surface. Test those interfaces with controlled
 states now; integrated profile/launch acceptance stays with their owning slices.
 
 ## Approach
@@ -574,3 +579,202 @@ PR #14 review follow-up: resetting presentation measurements with a null output
 now clears old samples even after the QPointer was cleared by output destruction.
 Presented-frame text uses plural-aware translation. The targeted tests and
 combined-candidate checks are being rerun before publication.
+
+## Absorbed topics
+
+Two packages that were specified but never started were merged into this
+document on 2026-09-20, because each one continues a topic this package already
+owns rather than opening a new one. Interactive controls extend the same
+on-screen surface as the passive displays, and the languages the texts ship in
+follow the texts themselves. Nothing was closed by the merge: every open item,
+gate and acceptance criterion below is carried over unchanged.
+
+## Interactive in-game controls
+
+### Start state
+
+At the start of implementation, the passive surface described above has
+provided the shared passive OSD, timed detection/basic summaries, statistics,
+developer information and diagnostic state. Interactive controls, comparison
+remain specified but not implemented. Managed restart was superseded by the
+2026-09-19 plugin-only requirement and is excluded.
+
+### End state
+
+The existing overlay offers an on-demand settings panel that distinguishes
+live and pending changes, explains when a normal new launch is needed, and permits a
+temporary visual comparison without altering saved settings or supplied input.
+Required automated and real-game/TV acceptance has passed.
+
+### Scope and boundaries
+
+Own interactive settings actions, input/focus handling, comparison and the
+presentation of pending settings. Reuse the diagnostic surface and state
+described earlier in this document and the profile/resolution contracts.
+Do not reimplement passive statistics, build defaults, detection or logging.
+Future filters, geometry modes and display-specific overrides do not expand
+this package's completion gate. Optional full About access may reuse the
+shared identity/notices, but it is not required to close this package.
+
+#### Dependencies
+
+The passive surface comes first, within this same package.
+[Profiles](slice-application-profiles.md)
+provide matching and resolved settings;
+[resolution control](slice-resolution-control.md) supplies live capabilities
+and actual results. UI checks may use controlled states, but closing this slice
+requires integrated live/pending-setting behaviour and real-game input acceptance.
+
+### Approach
+
+1. Extend the existing overlay with an interactive mode, sharing configuration
+   and diagnostic state with the settings module and passive views.
+2. Apply verified live changes and show pending ones without automatic restarts.
+   Keep global edits, explicit profile overrides and Use global distinct.
+3. Report settings that apply on the next normal launch. The effect does not
+   launch, close or restart processes.
+4. Add temporary comparison at unchanged input/destination geometry; verify
+   input, focus and pointer restoration, cleanup and HDR/VRR interactions.
+
+The permanent handbook defines [in-game controls](../upscaling.md#in-game-controls-and-applying-settings)
+and [restart behaviour](../upscaling.md#restarting-a-game-with-pending-settings).
+A window match cannot reconstruct a launch, and launch management is excluded.
+Saving settings never restarts a running game. These are requirements, not observed behaviour.
+
+### Acceptance criteria
+
+Planned checks, not observed results:
+
+- Apply live changes without restarting; cover mixed live/pending changes,
+  reverting pending values, profile inheritance and explicit save scope.
+  Ordinary Apply never restarts a game. Disabled/ineligible games retain
+  controls; closing the panel restores focus and pointer state.
+- Interactive edits update the existing diagnostic snapshot and timed basic
+  summary consistently. Detection/statistics/developer visibility and configured
+  preferences survive opening and closing the panel. Passive content remains
+  outside capture and takes no input after the panel closes.
+- Comparison preserves saved settings and supplied resolution while switching
+  paths; if split view is provided, both halves use the same source frame.
+- Explain bind-time changes without claiming they changed the running client.
+  No control may start a launch wrapper or relaunch the game.
+- Run repository checks and relevant rendering/configuration/integration tests
+  with GCC and Clang on both container targets. On wzpc, verify legibility,
+  live/pending settings, game input and HDR/VRR during and after interaction.
+
+### Progress and remaining work
+
+- [x] Specify live controls, pending restart settings and comparison.
+- [x] Assign the passive OSD, metrics and developer defaults to the passive
+  surface above so this topic has one completion gate.
+- [ ] Integrate interactive controls with profiles and diagnostic state.
+- [ ] Implement comparison and pending-setting presentation.
+- [ ] Complete required checks and real-session acceptance.
+
+Overlay/restart documentation validation, 2026-09-18: `pre-commit run --all-files`
+and the complete pre-push stage passed in Trixie on an isolated copy under
+`build/overlay-geometry-check`, containing the committed source and updated
+documents. Local documentation links and heading anchors resolved. No overlay
+or restart implementation or runtime acceptance was performed.
+This recorded documentation result predates the split into work packages,
+and the 2026-09-20 merge of that split back into this document.
+
+## Shipping the texts in every language
+
+### Start state
+
+The code already calls KI18n for every user-visible string, and the build
+defines the translation domain `kwin_effect_upscale` for the effect and for the
+settings module. Nothing else exists: there is no message template, no
+catalogue directory, no catalogue installation, and no translated plugin
+metadata, so every user sees English regardless of their session language.
+
+Several strings are also composed rather than written as whole sentences. A
+refusal reason is a clause that appears inside three different frames — the
+settings status, the timed summary and the developer view — and carries no
+`i18nc` context saying so. A translator cannot see the finished sentence, and a
+language that orders it differently cannot produce a correct one.
+
+### End state
+
+A user who installs the package sees the effect in their own language.
+English, German, French and Spanish are shipped and complete for every
+user-visible string, the effects list shows a translated name and description,
+and a further language is added with a catalogue and translated plugin metadata.
+Composed strings carry the context a translator needs. The
+[handbook's language requirements](../upscaling.md#language-and-translations)
+are the permanent specification.
+
+### Supported scope and full acceptance
+
+**Supported scope.** The four languages above, complete for the settings page,
+the on-screen display and the status texts, verified in a session for each one.
+This is what the package can be released with.
+
+**Full acceptance.** Additional languages as they are contributed, review of
+each translation by someone who speaks it, and the layout checks repeated on
+the television for the display's longer strings.
+
+### Scope and boundaries
+
+Own the extraction template, the catalogue layout and installation, the
+translated plugin metadata, the packaging of compiled catalogues, and the
+`i18nc` context for composed strings. Own the language acceptance runs.
+
+Do not change what the texts say: rewording belongs to the package that owns
+the text. Do not add a language selector; the session's language decides.
+Right-to-left layout is not required yet and must not be claimed. Machine or
+agent-produced translations are a starting point for review, never a claim that
+a language has been checked by someone who speaks it.
+
+#### Dependencies
+
+The display and status texts this topic translates are owned by this same
+document, which is why the two were merged: a text and its `i18nc` context are
+now written once, by one owner, instead of being translated twice. The
+[build and release pipeline](slice-build-release-pipeline.md) owns the package
+contents that the compiled catalogues become part of.
+
+### Approach
+
+1. Add `Messages.sh` in KDE's form and generate the template, covering the
+   effect, the settings module and any string in the plugin folder.
+2. Give every composed string `i18nc` context that names the frames it appears
+   in, and split any string whose grammar cannot survive reordering.
+3. Create `po/` with catalogues for German, French and Spanish, install them
+   with `ki18n_install(po)`, and confirm the packages carry the result.
+4. Add translated `Name` and `Description` entries to the plugin metadata, and
+   check that the effects list shows them.
+5. Run each language in a session and record what was observed.
+
+### Acceptance criteria
+
+Planned checks, not observed results:
+
+- The template is regenerated from the current sources and contains every
+  user-visible string, including the refusal reasons and the developer view.
+- Each shipped catalogue is complete; an incomplete one fails the check rather
+  than silently falling back to English in the middle of a sentence.
+- The settings page and the display are read in each language in a session.
+  German strings, which are the longest, do not break the settings layout or
+  push the display off the output, at desktop scale 1 and at a scaled desktop.
+- The effects list shows the translated name and description with the plugin
+  not loaded.
+- An installed package supplies the catalogues; a source archive build produces
+  them as well. Removing the settings module does not remove the effect's own
+  translations.
+- Pixel counts stay ungrouped in every language, and dates and decimals follow
+  the locale.
+- Repository checks and both container builds pass with the catalogues in the
+  build.
+
+### Progress and remaining work
+
+- [x] Record the language requirements in the handbook, as requested on
+  2026-09-18: KDE conventions, the four required languages, composed-string
+  context, and the locale exception for pixel counts.
+- [ ] Add the template, the catalogue layout and the installation.
+- [ ] Give composed strings their context and split what cannot be reordered.
+- [ ] Translate German, French and Spanish, and have each read by someone who
+  speaks it.
+- [ ] Translate the plugin metadata.
+- [ ] Run and record the per-language session acceptance.

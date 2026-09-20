@@ -73,7 +73,8 @@ Implement the verified method capabilities and result reporting
 needed by callers. Keep KWin unpatched and retain the 6.3.6 target.
 
 Application matching belongs to [profiles](slice-application-profiles.md).
-The earlier [launching proposal](slice-application-launching.md) is superseded.
+The earlier launching proposal is superseded; see
+[application launch configuration](../upscaling.md#application-launch-configuration-and-method-discovery).
 Image quality and filter performance belong to [rendering](slice-fsr1-hdr-vrr.md).
 Geometry for different aspect ratios and windowed-game presentation are outside
 this package. Their absence does not justify stretching or changing the output.
@@ -832,7 +833,7 @@ prevents a universal claim.
 Borderless window resizing is an additional candidate requested by Jens. It
 can avoid fullscreen mode selection for clients which follow ordinary window
 resizes. Enlarged presentation and input mapping belong with the
-[geometry slice](slice-scaling-geometry.md); obtaining and validating the
+[rendering slice](slice-fsr1-hdr-vrr.md#aspect-ratio-and-integer-scaling); obtaining and validating the
 original smaller buffer remains owned here. The production effect currently
 requires fullscreen coverage and cannot accept that path without integration.
 

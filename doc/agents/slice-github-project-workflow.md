@@ -19,6 +19,10 @@ Neither check gates a pull request.
 Remaining product diagnostics are owned separately by the
 [development infrastructure slice](slice-development-infrastructure.md).
 
+This summary understated the package. The 2026-09-20 readback below found
+section 4, release information and documentation, entirely unstarted: it is the
+bulk of what is left, not a tail. Sections 1 to 3 are close.
+
 ## Historical start state
 
 The repository is public at `JensKSP/kwin-effect-upscale`. Inspection of the
@@ -123,7 +127,8 @@ copy of those working records.
 
 The form for submitting a recognized application is not listed above. Its
 fields, its privacy rule and the rule for accepting a submission belong to
-[application submissions](slice-application-submissions.md); this slice supplies
+[submitted applications](slice-application-profiles.md#submitted-applications-and-the-list-we-maintain);
+this slice supplies
 the form conventions, labels and release-note categories it uses.
 
 ### 2. Security and review controls
@@ -228,6 +233,43 @@ remain identified as optional in the permanent documentation.
 - CodeQL and dependency review are implemented and locally validated.
   Dependency review has passed a hosted run; CodeQL's hosted execution remains
   pending, and neither check gates a pull request. See the phase 2 record below.
+
+### State readback, 2026-09-20
+
+Observed against the live repository and the working tree, not read from the
+rows above. What each check actually returned:
+
+- **Labels (section 1): done.** `gh label list` returns the intended
+  vocabulary, including the `area:` group for build, ci, legal, logging, osd,
+  tests, kwin-api and upscaling, `blocked:kwin-question`, and the type labels
+  the forms default to.
+- **Release milestones (section 1): open.** The milestones API returns an empty
+  list. No milestone exists, so there is no blocker filter for a next release.
+- **Contribution forms (section 1): on the default branch, acceptance open.**
+  Five templates plus `config.yml` and the PR template are present. Whether the
+  forms render and reject an empty required field has still not been observed
+  on GitHub.
+- **CodeQL (section 2): hosted execution still unobserved.**
+  `gh run list --workflow=codeql.yml` returns no runs at all. SARIF upload and
+  Security-tab results therefore remain unverified, as the phase 2 record says.
+  Local execution through `tools/run-codeql.py` is unaffected.
+- **Auto-merge and merged-branch cleanup (section 3): enabled and read back.**
+  Hook update PRs and failure notifications remain.
+- **Section 4: nothing is implemented.** There is no `.github/release.yml`, so
+  generated release notes are not categorised against the labels above. No SBOM
+  is generated anywhere in `tools/` or `.github/`. No Pages workflow exists, so
+  the permanent handbook is not published. `GITHUB_STEP_SUMMARY` appears only in
+  `nightly.yml`, so the platform, compiler, coverage and reproducibility jobs
+  write no summaries.
+
+These are observations of state. No hosted run was dispatched, no milestone or
+label was created, and no setting was changed to produce them.
+
+Dependabot's default-branch scheduled execution is listed both here, under
+action update activation, and in the
+[build and release pipeline](slice-build-release-pipeline.md). One of the two
+has to claim it; verifying it twice is the failure the one-owning-slice rule
+exists to prevent.
 
 ### Phase 1: contribution entry points (preparation history)
 
