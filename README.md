@@ -8,7 +8,7 @@ SPDX-License-Identifier: GPL-2.0-or-later
 > [!WARNING]
 > **Working alpha — it works, it is not finished.** The effect upscales real
 > games on a physical display, and a game given a smaller render target draws
-> up to 93% more frames a second ([Measured](#measured)). Image quality has
+> up to 87% more frames a second ([Measured](#measured)). Image quality has
 > not been judged, HDR and VRR are unverified, television acceptance is open,
 > and on KWin 6.6 a settings change can leave a game at the wrong resolution
 > for up to twenty seconds. Passing CI and available packages do not make it
@@ -164,48 +164,50 @@ defines the acceptance still required.
 ## Measured
 
 SuperTuxKart on an NVIDIA workstation, 3840 x 2160 at 240 Hz, Wayland, KWin
-6.3.6, effect build `0.1.0+git20260919.fc6d1e2ca8`, machine otherwise idle.
-Each row is 30 samples taken over 60 seconds.
+6.3.6, effect build `0.1.0+git20260920.5666b9422b`, machine otherwise idle at a
+load of 0.23. Each row is 30 samples taken over 60 seconds, after a 10-second
+warm-up.
 
 | Preset | Game renders at | Upscaled | Game's own frames | Presented |
 | --- | --- | --- | --- | --- |
-| native | 3840 x 2160 | no | 492.6/s | 237.1/s |
-| quality | 2560 x 1440 | yes | 833.3/s | 237.1/s |
-| performance | 1920 x 1080 | yes | 949.4/s | 237.3/s |
+| native | 3840 x 2160 | no | 491.8/s | 236.8/s |
+| quality | 2560 x 1440 | yes | 834.7/s | 237.1/s |
+| performance | 1920 x 1080 | yes | 919.1/s | 237.3/s |
 
 Read **Game's own frames**, not **Presented**. The presented rate is pinned at
 the screen in all three runs, so it says nothing about the resolution; what
 changed is how fast the game itself could produce frames, which is what a
-smaller render target buys. At `performance` SuperTuxKart drew 1.93 times as many
-frames as at native while still filling the same 4K screen.
+smaller render target buys. At `performance` SuperTuxKart drew 1.87 times as
+many frames as at native while still filling the same 4K screen.
+
+Three runs, taken hours apart on different builds, agree to within a few per
+cent: 492.6 / 833.3 / 949.4, then 489.6 / 835.2 / 917.6, then the table above.
+That is what makes it worth printing, and it is still one machine, one game and
+one session rather than a promise about yours.
 
 The returns fall off, and that is worth reading rather than glossing over.
-`quality` renders 44% of the pixels and gains 69%; `performance` renders 25% of
-them - little more than half as many again - and gains only 93%. Cutting the
+`quality` renders 44% of the pixels and gains 70%; `performance` renders 25% of
+them - little more than half as many again - and gains only 87%. Cutting the
 pixels further bought almost nothing, so below about 1440p something other than
 the pixel count is what limits this game on this machine. A game whose frame
 rate is set by its own work on the processor is exactly the case where
 upscaling has least to offer, and no amount of it will help.
 
 That headroom is the point where it exists: it is what a game spends on higher
-settings, or on staying above a refresh rate it would otherwise miss. These figures are one
-machine, one game and one session. They are not a promise about yours, and
-nothing here yet measures how the result looks.
+settings, or on staying above a refresh rate it would otherwise miss. Nothing
+here measures how the result looks.
 
-Extreme Tux Racer is not in the table, and will not be: it is frame-limited to
-60 frames a second and commits exactly that at every resolution, in its menu
-and on the course alike. What it does establish is the X11 path end to end —
-through Xwayland the effect resizes its window, presents the result itself, and
-the game supplies a 1920 x 1080 buffer for the 3840 x 2160 output. Making it
-report a cost would mean lifting its own frame cap, which it writes only from
-its Configuration screen.
+Extreme Tux Racer has now been measured at all three presets, and it shows the
+other half of the picture. The effect asked it for each size and it supplied
+them - 3840 x 2160, then 2560 x 1440, then 1920 x 1080, upscaled to the screen
+at the latter two - so the X11 path works end to end through Xwayland, where
+the effect resizes the window and presents the result itself. Its frame rate
+was 59.8/s in every one of those runs, because the game is frame-limited to 60
+and reaches its limit at any resolution. A game already at its cap has nothing
+to gain here, and the measurement says so rather than reporting a percentage
+nobody can act on.
 
-A second SuperTuxKart run, taken later on build `0.1.0+git20260920.f82e49eb3a`,
-gave 489.6, 835.2 and 917.6 frames a second for the same three presets. Two
-runs agreeing to within a few per cent is what makes the table above worth
-printing; neither is a promise about another machine.
-
-One cost is not in the table: the effect blocks direct scanout whenever it is
+One cost is in neither table: the effect blocks direct scanout whenever it is
 active, so a game that would otherwise bypass composition no longer does.
 
 ## Packages
