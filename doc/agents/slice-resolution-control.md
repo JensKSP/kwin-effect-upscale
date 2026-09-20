@@ -1841,11 +1841,25 @@ validated 3 s after it is issued; a failed validation restores and reschedules
 250 ms later; that request is validated 3 s later again. About 6.25 s of timers
 plus round trips is what was measured.
 
-Open question, not a test defect and not a nightly blocker: on 6.6.6 the request
-issued after a reconfiguration's restore does not pass validation and only the
-retry recovers it, where 6.3.6 succeeds within the original 500 ms. It
-self-corrects, but it means roughly eight seconds at the wrong resolution after
-a settings change on 6.6. Worth a look of its own; not investigated here.
+Open question, not a test defect: on 6.6.6 the request issued after a
+reconfiguration's restore does not pass validation and only the retry recovers
+it, where 6.3.6 succeeds within the original 500 ms. It self-corrects, but it
+leaves the game at the wrong resolution meanwhile.
+
+**How long that is was measured again on 2026-09-20, and once is not enough to
+know it.** The nightly's resolute jobs failed on both architectures with the
+15 s bound above, and in the same container here QtTest reported that
+`lifecycle(secondary-fullscreen)` needed **18350 ms**. So the wait is not the
+8.1 s of a single retry: it varies between roughly eight and nineteen seconds
+on the same build, which suggests more than one validation failing in a row
+rather than a fixed path. Every bound in that case is now 30 s - chosen to
+cover the worst seen with room, not to make a number pass - and the README
+tells a user up to twenty seconds rather than about eight.
+
+That variability is the part worth investigating: a user changing a preset on
+KWin 6.6 waits an unpredictable time, and a retry path whose length depends on
+how many validations fail is not something to leave undescribed in the
+handbook once it is understood. Not investigated here.
 
 Observed results, both from an isolated copy of the branch head under `build/`
 so that another session's concurrent edits could not affect them:

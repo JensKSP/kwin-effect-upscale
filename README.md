@@ -11,7 +11,7 @@ SPDX-License-Identifier: GPL-2.0-or-later
 > up to 93% more frames a second ([Measured](#measured)). Image quality has
 > not been judged, HDR and VRR are unverified, television acceptance is open,
 > and on KWin 6.6 a settings change can leave a game at the wrong resolution
-> for about eight seconds. Passing CI and available packages do not make it
+> for up to twenty seconds. Passing CI and available packages do not make it
 > finished.
 
 [![CI](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/ci.yml/badge.svg)](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/ci.yml)

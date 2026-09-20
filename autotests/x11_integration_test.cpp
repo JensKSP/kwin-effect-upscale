@@ -102,9 +102,9 @@ void UpscaleX11IntegrationTest::lifecycle()
     // Bounded like every other wait here: each one is a round trip through
     // KWin, Xwayland and the client, and an instrumented build makes those
     // slower without making them wrong.
-    QTRY_COMPARE_WITH_TIMEOUT(target.geometry(), QRect(position, native), 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(target.geometry(), QRect(position, native), 30000);
     configure(true);
-    QTRY_COMPARE_WITH_TIMEOUT(target.geometry(), QRect(position, QSize(1920, 1080)), 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(target.geometry(), QRect(position, QSize(1920, 1080)), 30000);
     QTRY_VERIFY2(status().contains(QStringLiteral("Supplied input: 1920 × 1080")), qPrintable(status()));
     QTRY_VERIFY2(status().contains(QStringLiteral("Destination: 3840 × 2160")), qPrintable(status()));
     // Wait beyond negotiation's deadline: a transient small window does not
@@ -132,7 +132,7 @@ void UpscaleX11IntegrationTest::lifecycle()
     // 6.6.6, where QtTest reported that 8300 ms would have sufficed against
     // the 5000 ms default; KWin 6.3.6 satisfies the request immediately. Wait
     // out the retry rather than the moment 6.3.6 happens to answer in.
-    QTRY_COMPARE_WITH_TIMEOUT(target.geometry(), QRect(position, QSize(2560, 1440)), 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(target.geometry(), QRect(position, QSize(2560, 1440)), 30000);
     QTest::qWait(3500);
     QCOMPARE(target.geometry(), QRect(position, QSize(2560, 1440)));
     QCOMPARE(other.geometry(), otherGeometry);
@@ -144,17 +144,26 @@ void UpscaleX11IntegrationTest::lifecycle()
     // QtTest said so - the instrumented build makes each trip slower while
     // measuring nothing about it. A generous bound costs a passing run
     // nothing, because QTRY returns as soon as the condition holds.
-    QTRY_COMPARE_WITH_TIMEOUT(target.geometry(), QRect(position, native), 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(target.geometry(), QRect(position, native), 30000);
     configure(true);
-    QTRY_COMPARE_WITH_TIMEOUT(target.geometry(), QRect(position, QSize(1920, 1080)), 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(target.geometry(), QRect(position, QSize(1920, 1080)), 30000);
     m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
     QTRY_COMPARE(target.geometry(), QRect(position, native));
     QCOMPARE(other.geometry(), otherGeometry);
     configure(false);
     const QDBusReply<bool> reloaded = m_effects.call(QStringLiteral("loadEffect"), QStringLiteral("upscale_test_driver"));
     QVERIFY(reloaded.isValid() && reloaded.value());
-    QTest::qWait(100);
-    QCOMPARE(target.geometry(), QRect(position, native));
+    // A hundred milliseconds was a guess about how long a freshly loaded
+    // effect takes to look at the windows it finds, and on a slower machine
+    // it is not long enough to distinguish "left alone" from "not yet
+    // touched". Observed on Ubuntu 26.04 / KWin 6.6.6 on 2026-09-20, on both
+    // architectures: the window comes back at the size that was requested
+    // before the unload, although resolution control is off in the
+    // configuration this effect has just read. Either something acts while
+    // disabled or KWin re-applies Xwayland's emulated mode, and the effect's
+    // own status names which - so the status is what a failure reports.
+    QTest::qWait(1000);
+    QVERIFY2(target.geometry() == QRect(position, native), qPrintable(status()));
 }
 
 void UpscaleX11IntegrationTest::presentsWithoutEmulation()
@@ -350,7 +359,7 @@ void UpscaleX11IntegrationTest::independentOutputRules()
     // 6.3.6. Allow the whole retry path rather than a fixed delay, then give
     // the rule its own delay to resize the other window wrongly, which is
     // what this is watching for.
-    QTRY_COMPARE_WITH_TIMEOUT(first.geometry().size(), QSize(1920, 1080), 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(first.geometry().size(), QSize(1920, 1080), 30000);
     QTest::qWait(500);
     QCOMPARE(other.geometry(), QRect(3840, 0, 3840, 2160));
     QCOMPARE(first.geometry().size(), QSize(1920, 1080));
