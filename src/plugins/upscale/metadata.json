@@ -1,8 +1,14 @@
 {
     "X-KDE-ConfigModule": "kwin_upscale_config",
     "KPlugin": {
+        "Authors": [
+            {
+                "Email": "kwin-effect-upscale@koehler-speyer.de",
+                "Name": "Jens Köhler"
+            }
+        ],
         "Category": "Appearance",
-        "Description": "Upscales fullscreen windows that render below the resolution of the output they cover",
+        "Description": "Render games at a lower resolution and upscale them to the display’s native resolution for better performance.",
         "EnabledByDefault": true,
         "License": "GPL",
         "Name": "Upscale"

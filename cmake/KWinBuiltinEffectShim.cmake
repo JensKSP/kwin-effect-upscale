@@ -6,7 +6,8 @@
 # src/plugins/upscale/CMakeLists.txt can stay exactly what KDE would carry
 # inside KWin, with no "if building standalone" branches in it.
 #
-# Three differences to upstream, each forced by building outside the tree:
+# Five differences to upstream. The first four are forced by building outside
+# the tree; the last is a build-correctness fix that upstream needs too:
 #
 #  1. kwin_add_builtin_effect passes STATIC upstream, because builtin effects are
 #     linked into the kwin binary. Out of tree the effect has to be a loadable
@@ -18,6 +19,9 @@
 #  4. The effect is given a translation unit naming the commit it was built
 #     from. KWin has no such thing, so it is injected here rather than listed in
 #     the plugin's own CMakeLists.txt.
+#  5. The stripped metadata is named as an object dependency of the target's
+#     sources, which upstream does not do. See kwin_strip_builtin_effect_metadata
+#     below for what goes wrong without it.
 
 include(KDEInstallDirs)
 include(KDEPackageAppTemplates OPTIONAL)
@@ -42,6 +46,32 @@ function(kwin_strip_builtin_effect_metadata target metadata)
         COMMENT "Preparing ${metadata}.stripped..."
     )
     set_property(TARGET ${target} APPEND PROPERTY AUTOGEN_TARGET_DEPENDS ${stripped_metadata})
+
+    # AUTOGEN_TARGET_DEPENDS alone is not enough, and upstream stops there.
+    # It makes the moc run again, but CMake attaches the autogen step to the
+    # compile as an order-only dependency: ninja has already decided the
+    # translation unit is up to date by the time the moc output changes under
+    # it. The first build after editing metadata.json therefore links a stale
+    # copy of the metadata and a second build silently repairs it. Observed on
+    # 2026-09-20, adding an author: the name reached metadata.json.stripped and
+    # main.moc, and never reached the linked module until it was built twice.
+    #
+    # A clean build is unaffected, because everything is compiled anyway, so
+    # packages were never wrong; incremental builds were, which is every build
+    # a developer makes.
+    #
+    # Naming the file as an object dependency of the sources is what makes one
+    # build enough. It applies to all of them rather than to the one that
+    # carries the plugin declaration, because which one that is belongs to the
+    # plugin and this macro does not get to know it. The cost is recompiling
+    # one plugin whenever its metadata changes, which is rare, against a wrong
+    # binary every time, which was not.
+    get_target_property(sources ${target} SOURCES)
+    foreach(source IN LISTS sources)
+        if(source MATCHES "\\.cpp$")
+            set_property(SOURCE ${source} APPEND PROPERTY OBJECT_DEPENDS ${stripped_metadata})
+        endif()
+    endforeach()
 endfunction()
 
 macro(kwin_add_builtin_effect name)
