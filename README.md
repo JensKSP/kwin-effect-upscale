@@ -6,9 +6,9 @@ SPDX-License-Identifier: GPL-2.0-or-later
 # kwin-effect-upscale
 
 > [!WARNING]
-> **Experimental — not ready for daily use.** Smaller real-game buffers have
-> been processed in a nested GPU session; physical-display acceptance is open.
-> Passing CI and available packages do not make it ready for use.
+> **Working alpha — it works, it is not finished.** The effect upscales real
+> games on a physical display, and a game given a smaller render target draws
+> up to 87% more frames a second ([Measured](#measured)).
 
 [![CI](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/ci.yml/badge.svg)](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/ci.yml)
 [![Nightly](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/nightly.yml/badge.svg)](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/nightly.yml)
@@ -18,14 +18,16 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 - **Goal:** upscale smaller fullscreen game buffers inside KWin using FSR 1,
   with optional RCAS sharpening.
-- **Current state:** FSR 1 processing, editable application profiles and targeted
-  Wayland/X11 resolution requests are implemented. Nested and virtual sessions
-  verify bounded paths, including Tux Racer resolution changes and isolation.
-- **Next:** physical-display image/input, lifecycle, performance, HDR and VRR
-  acceptance; broader client compatibility remains open.
+- **Current state: working alpha.** FSR 1 processing, editable application
+  profiles and targeted Wayland/X11 resolution requests are implemented, and
+  the whole path has now been measured end to end on a physical display: a
+  game asked for a smaller buffer, rendered into it, and had it upscaled to
+  the screen. See [Measured](#measured).
+- **Next:** image-quality judgement, HDR and VRR acceptance, and broader client
+  compatibility.
 
-- **For now:** source and build instructions are for development and debugging.
-  Do not install this expecting working game upscaling.
+- **For now:** alpha means it works and is worth trying, not that it is
+  finished. It is disabled by default and the settings are still moving.
 
 ## Our vision
 
@@ -86,6 +88,52 @@ This effect aims to upscale the finished game image, including text and menus.
 An upscaler built into a game can work on the 3D scene separately and keep the
 interface at full resolution.
 
+## How the game is made to render smaller
+
+A compositor receives finished frames. By the time KWin has a game's image, the
+game has already paid for every pixel in it, so enlarging a 4K frame would cost
+more work rather than less. For upscaling to save anything, the game has to
+draw a smaller image in the first place - and games do not offer a way to be
+asked. **So this effect arranges for the game to believe a smaller image is the
+right one.** That is worth understanding before installing it, because it is
+the part that can surprise you, and the part that decides whether the effect
+helps your game at all.
+
+How it does that depends on how the game talks to the desktop:
+
+- **A native Wayland game** is told that the screen it is on has a different
+  mode. It sees a 2560 x 1440 or 1920 x 1080 screen where the display is really
+  3840 x 2160, chooses that resolution as any game would, and renders into it.
+  Only the connection belonging to that game is told this; every other window
+  keeps the real screen.
+- **A game running through Xwayland** cannot be told that, because all X11
+  applications share one connection to the display. Its window is resized
+  instead, and the effect presents the result at full screen size itself.
+
+The game decides what to do with what it is told, and that is the whole
+limitation. One that follows the advertised mode renders smaller, and whether
+that buys anything depends on what was limiting it: SuperTuxKart gains the
+frame rate under [Measured](#measured), while Extreme Tux Racer follows the
+same request and stays at its own 60 frames a second, because a game already
+at its limit has nothing to win. One that ignores it, picks its own
+resolution, or renders through a path that never asks the screen, simply
+carries on at full size - and then this effect has nothing to upscale and
+changes nothing. Neither outcome is a fault to be fixed by trying harder; it is
+a property of the game.
+
+Two consequences follow for anyone using it:
+
+- **A game may report a resolution you did not choose.** Its settings will show
+  the size it was offered, because from inside the game that is the truth.
+- **Nothing is asked of an application that is not in the list.** The effect
+  ships a small set of applications it knows about, and the settings let you
+  add your own. Everything else is left alone entirely.
+
+Upscaling itself is separate from all of this: the effect enlarges any smaller
+fullscreen image it is given, whether it asked for that size or the game chose
+it. Asking is what makes the saving possible; upscaling is what keeps the
+result looking like the screen it fills.
+
 ## Technical details
 
 The permanent [developer handbook](doc/upscaling.md) describes requirements,
@@ -132,25 +180,77 @@ and licence notices.
 
 ## State
 
-**Experimental; not ready for daily use.** FSR 1 and optional RCAS are
-implemented. The first wzpc test exposed a render-target orientation refusal;
-that defect was fixed and regression-tested. A subsequent nested session using
-the production plugin and a real GPU processed a smaller SuperTuxKart OpenGL
-buffer. This establishes that path, not accepted image quality, performance,
-HDR or VRR on the physical display.
+**Working alpha.** FSR 1 and optional RCAS are implemented, and the effect has
+been measured doing its job on a physical display: SuperTuxKart was asked for a
+smaller buffer, supplied it, and the effect upscaled it to a 3840 x 2160 screen
+while the game's own frame rate nearly doubled. The numbers are under
+[Measured](#measured). What alpha still means here: image quality has not been
+judged, HDR and VRR are unverified, and only a handful of applications have
+been tried.
 
 The controls distinguish requested resolution from the actual supplied buffer.
 Profiles support resolution requests for cooperating Wayland and Xwayland
 clients, including Extreme Tux Racer on the primary display. Selected borderless
 windows qualify when their content exactly covers one output. Virtual sessions
-verify resolution changes and isolation; physical input, image quality,
-performance, HDR and VRR remain unverified. The effect is disabled by default.
+verify resolution changes and isolation; physical input, image quality, HDR and
+VRR remain unverified, and performance is measured only as the frame rates
+under [Measured](#measured) - not image quality at speed, not power, and not on
+a television. The effect is disabled by default.
 Application rules apply independently on each display. By default, outputs at
 or below 2,073,600 physical pixels (Full HD) bypass upscaling; the settings offer
 a global threshold and per-application overrides. A Native application rule
 also bypasses upscaling when a global scaling preset is selected.
 The [developer handbook](doc/upscaling.md#supported-scope-and-full-acceptance)
 defines the acceptance still required.
+
+## Measured
+
+SuperTuxKart on an NVIDIA workstation, 3840 x 2160 at 240 Hz, Wayland, KWin
+6.3.6, effect build `0.1.0+git20260920.5666b9422b`, machine otherwise idle at a
+load of 0.23. Each row is 30 samples taken over 60 seconds, after a 10-second
+warm-up.
+
+| Preset | Game renders at | Upscaled | Game's own frames | Presented |
+| --- | --- | --- | --- | --- |
+| native | 3840 x 2160 | no | 491.8/s | 236.8/s |
+| quality | 2560 x 1440 | yes | 834.7/s | 237.1/s |
+| performance | 1920 x 1080 | yes | 919.1/s | 237.3/s |
+
+Read **Game's own frames**, not **Presented**. The presented rate is pinned at
+the screen in all three runs, so it says nothing about the resolution; what
+changed is how fast the game itself could produce frames, which is what a
+smaller render target buys. At `performance` SuperTuxKart drew 1.87 times as
+many frames as at native while still filling the same 4K screen.
+
+Three runs, taken hours apart on different builds, agree to within a few per
+cent: 492.6 / 833.3 / 949.4, then 489.6 / 835.2 / 917.6, then the table above.
+That is what makes it worth printing, and it is still one machine, one game and
+one session rather than a promise about yours.
+
+The returns fall off, and that is worth reading rather than glossing over.
+`quality` renders 44% of the pixels and gains 70%; `performance` renders 25% of
+them - little more than half as many again - and gains only 87%. Cutting the
+pixels further bought almost nothing, so below about 1440p something other than
+the pixel count is what limits this game on this machine. A game whose frame
+rate is set by its own work on the processor is exactly the case where
+upscaling has least to offer, and no amount of it will help.
+
+That headroom is the point where it exists: it is what a game spends on higher
+settings, or on staying above a refresh rate it would otherwise miss. Nothing
+here measures how the result looks.
+
+Extreme Tux Racer has now been measured at all three presets, and it shows the
+other half of the picture. The effect asked it for each size and it supplied
+them - 3840 x 2160, then 2560 x 1440, then 1920 x 1080, upscaled to the screen
+at the latter two - so the X11 path works end to end through Xwayland, where
+the effect resizes the window and presents the result itself. Its frame rate
+was 59.8/s in every one of those runs, because the game is frame-limited to 60
+and reaches its limit at any resolution. A game already at its cap has nothing
+to gain here, and the measurement says so rather than reporting a percentage
+nobody can act on.
+
+One cost is in neither table: the effect blocks direct scanout whenever it is
+active, so a game that would otherwise bypass composition no longer does.
 
 ## Packages
 
@@ -368,6 +468,53 @@ Both images verify CMake, Ninja, GCC and Clang during image creation. Ninja
 is installed from the shared `debian/control` dependencies. Rebuild images
 after changing these dependencies; an existing local image does not update
 when a Containerfile changes.
+
+### Applications for testing
+
+An application is useful here when it goes fullscreen, when the resolution it
+renders at can be put below the output's, and when we can choose which display
+path it takes. Debian's SDL2 carries the Wayland backend, so a game linked
+against the system library can be sent down either path with
+`SDL_VIDEODRIVER`; a game that bundles its own SDL2, as most Steam titles do,
+stays on whatever that copy was built with.
+
+Extreme Tux Racer is already used for resolution requests. The rest are
+candidates to evaluate, not results.
+
+| Application | Where it comes from | Display path | Graphics API |
+| --- | --- | --- | --- |
+| Extreme Tux Racer | `extremetuxracer` | either, via `SDL_VIDEODRIVER` | OpenGL |
+| SuperTuxKart | `supertuxkart` | either | OpenGL |
+| Taisei | `taisei` | either | OpenGL |
+| 0 A.D. | `0ad` | either | Vulkan or OpenGL |
+| OpenArena on ioquake3 | `openarena`, `ioquake3` | either | OpenGL |
+| Warzone 2100 | `warzone2100` | either | OpenGL |
+| Unvanquished | own launcher, or Flathub | Wayland without a switch (SDL 3) | OpenGL |
+| Veloren | Airshipper, or Flathub | Wayland without a switch (winit) | Vulkan, through wgpu |
+
+SuperTuxKart takes both the mode and the resolution on the command line, which
+states the case this effect exists for in one line:
+
+```bash
+SDL_VIDEODRIVER=wayland supertuxkart --fullscreen --screensize=1280x720
+```
+
+0 A.D. is the most interesting of them. Since Alpha 27 it renders through
+Vulkan and upscales with its own FSR implementation, so the same scene can be
+held against ours. Veloren is the only candidate that is a native Wayland
+client and a Vulkan client at once, and it carries a render scale of its own.
+
+Project Zomboid is not open source, and it is the one case measured so far. Its
+LWJGL 2 compatibility layer pins GLFW to X11 unless the system property
+`zomboid.wayland=1` is set, although the GLFW it ships carries both backends.
+Without the property, a session had `libX11` and `libGLX` mapped and no
+`libwayland-client`, and its log shows the XRandR mode request that Xwayland
+then emulates.
+
+What stays unchecked for every candidate is whether it reaches the compositor
+on the path we intended. Two observations settle it: whether the process has
+`libwayland-client` mapped, and whether a window for it appears in Xwayland's
+window tree.
 
 ## Releasing
 

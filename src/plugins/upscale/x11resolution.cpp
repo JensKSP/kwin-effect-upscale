@@ -11,6 +11,7 @@
 #include "eligibility.h"
 #include "upscaleconfig.h"
 #include "x11geometry.h"
+#include "x11input.h"
 
 #include "effect/effecthandler.h"
 #include "effect/effectwindow.h"
@@ -74,6 +75,7 @@ UpscaleX11Resolution::UpscaleX11Resolution()
     for (EffectWindow *window : effects->stackingOrder()) {
         watch(window);
     }
+    m_input = std::make_unique<UpscaleX11Input>(this);
 #endif
 }
 
@@ -172,6 +174,7 @@ void UpscaleX11Resolution::watch(EffectWindow *effectWindow)
         if (m_waitingForBuffer.remove(window)) {
             schedule(window);
         }
+        present(window);
     });
     schedule(window);
 }
@@ -272,7 +275,20 @@ void UpscaleX11Resolution::apply(X11Window *window)
     if (window->isDeleted()) {
         return;
     }
-    const Request request = upscalePresentation(window->effectWindow()) ? requestFor(window) : Request{};
+    // Fullscreen is a state, not a size, and upscalePresentation() answers the
+    // state. A client holds it while its window is still being sized during
+    // startup - measured on Left 4 Dead 2, 2026-09-19: four resizes between
+    // the output size and its own in the first 1.5 seconds, every one of them
+    // fullscreen - and a window this effect has itself made smaller holds it
+    // as well. Beginning a negotiation there resizes a window that was never
+    // presenting full-screen, which is how this effect shrinks a game instead
+    // of scaling it. A request already in flight is deliberately exempt: its
+    // window is legitimately smaller natively, and validate() owns the
+    // question of whether that request held.
+    const bool negotiating = m_requests.contains(window);
+    const bool presenting = upscalePresentation(window->effectWindow())
+        && (negotiating || upscaleCoversOutput(window->effectWindow()));
+    const Request request = presenting ? requestFor(window) : Request{};
     if (!request.window) {
         restore(window);
         return;
@@ -294,34 +310,6 @@ void UpscaleX11Resolution::apply(X11Window *window)
     if (begin(request)) {
         upscaleX11Configure(window, request.position, request.size);
         qCDebug(KWIN_UPSCALE) << "Requested X11 buffer" << request.size << "from" << request.key;
-    }
-}
-
-void UpscaleX11Resolution::validate(const QString &key, int generation, int revision)
-{
-    if (generation != m_generation || revision != m_validation.value(key) || m_failures.contains(key)) {
-        return;
-    }
-    bool observed = false;
-    for (const Request &request : std::as_const(m_requests)) {
-        if (request.key != key || !request.window || request.window->isDeleted()) {
-            continue;
-        }
-        SurfaceItem *surface = request.window->effectWindow()->windowItem()->surfaceItem();
-        const QSizeF destination(request.window->frameGeometry().width(), request.window->frameGeometry().height());
-        if (!request.window->output() || request.window->frameGeometry() != request.window->output()->geometryF()
-            || !surface || surface->bufferSize() != request.size || surface->destinationSize() != destination
-            || !upscaleX11ModeMatches(request.window, request.position, request.size)) {
-            if (retry(key, generation)) {
-                return;
-            }
-            refuse(key, i18n("The application did not supply the requested fullscreen buffer on this output."));
-            return;
-        }
-        observed = true;
-    }
-    if (observed) {
-        m_attempts.remove(key);
     }
 }
 
@@ -377,6 +365,23 @@ void UpscaleX11Resolution::restore(X11Window *window)
     })) {
         m_requested.remove(request.key);
     }
+    // present() sized the surface item to the frame so that KWin would paint
+    // the whole enlarged image rather than its top-left corner. A client that
+    // resizes to its normal geometry ends that by itself, because a buffer of
+    // another size makes KWin recompute the destination from the surface. A
+    // client that goes on committing the same buffer never does, and would
+    // stay stretched after this effect stopped presenting it - which is the
+    // case on an unload, where the request is withdrawn without the client
+    // having been asked for anything. Hand KWin's own value back instead of
+    // waiting for a size change that may never come.
+    if (request.presentedByEffect && !window->isDeleted()) {
+        WindowItem *item = window->effectWindow() ? window->effectWindow()->windowItem() : nullptr;
+        if (SurfaceItem *surface = item ? item->surfaceItem() : nullptr) {
+            surface->setDestinationSize(window->bufferGeometry().size());
+        }
+    }
+    // The pointer gets KWin's own mapping back now, not at its next move.
+    m_input->refresh();
     if (window->isDeleted() || !kwinApp()->x11Connection()) {
         return;
     }

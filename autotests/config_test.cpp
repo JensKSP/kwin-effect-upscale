@@ -6,6 +6,7 @@
 
 #include "buildtype.h"
 #include "placement.h"
+#include "resolutionchoice.h"
 #include "supportinformation.h"
 #include "upscale_config.h"
 
@@ -73,17 +74,21 @@ void UpscaleConfigTest::presetsAndKeyboard()
     QVERIFY(percentage);
     QVERIFY(preview);
     QCOMPARE(preset->currentIndex(), 0);
-    QSpinBox *minimum = module.widget()->findChild<QSpinBox *>(QStringLiteral("minimumPixels"));
+    // The threshold is stored as a pixel count and offered as a resolution,
+    // because nobody setting one is thinking of 2073600.
+    QComboBox *minimum = module.widget()->findChild<QComboBox *>(QStringLiteral("minimumPixels"));
     QVERIFY(minimum);
-    QCOMPARE(minimum->value(), 2073600);
-    minimum->setValue(0);
+    QCOMPARE(KWin::upscaleResolutionPixels(minimum, -1), 2073600);
+    QVERIFY2(minimum->currentText().contains(QStringLiteral("1920 × 1080")), qPrintable(minimum->currentText()));
+    QVERIFY2(minimum->itemData(0).toInt() == 0, "the first entry is every output");
+    minimum->setCurrentIndex(0);
     QVERIFY(preview->text().contains(QStringLiteral("no resolution request")));
     preset->setCurrentIndex(3);
     QCOMPARE(percentage->value(), 67);
     QVERIFY(preview->text().contains(QStringLiteral("66.7%")));
     const QScreen *screen = QGuiApplication::screens().constFirst();
     const QSize output = screen->geometry().size() * screen->devicePixelRatio();
-    QVERIFY(preview->text().contains(QStringLiteral("%1 × %2").arg(qRound(output.width() / 1.5)).arg(qRound(output.height() / 1.5))));
+    QVERIFY2(preview->text().contains(QStringLiteral("%1 × %2").arg(qRound(output.width() / 1.5)).arg(qRound(output.height() / 1.5))), qPrintable(preview->text()));
     QTest::keyClick(percentage, Qt::Key_Right);
     QCOMPARE(preset->currentIndex(), 6);
     QCOMPARE(percentage->value(), 68);
@@ -112,9 +117,11 @@ void UpscaleConfigTest::saveAndRestore()
     QVERIFY(!sharpening->isChecked());
     QVERIFY(!strength->isEnabled());
     percentage->setValue(73);
-    QSpinBox *minimum = module.widget()->findChild<QSpinBox *>(QStringLiteral("minimumPixels"));
+    QComboBox *minimum = module.widget()->findChild<QComboBox *>(QStringLiteral("minimumPixels"));
     QVERIFY(minimum);
-    minimum->setValue(3686400);
+    // Typed the way a person writes it, with the x on their keyboard.
+    minimum->setCurrentText(QStringLiteral("2560x1440"));
+    QCOMPARE(KWin::upscaleResolutionPixels(minimum, -1), 3686400);
     sharpening->setChecked(true);
     strength->setValue(0);
     module.save();
@@ -128,7 +135,7 @@ void UpscaleConfigTest::saveAndRestore()
     QCOMPARE(preset->currentIndex(), 0);
     QVERIFY(!sharpening->isChecked());
     module.load();
-    QCOMPARE(minimum->value(), 3686400);
+    QCOMPARE(KWin::upscaleResolutionPixels(minimum, -1), 3686400);
     QCOMPARE(preset->currentIndex(), 6);
     QCOMPARE(percentage->value(), 73);
     QVERIFY(sharpening->isChecked());

@@ -1070,14 +1070,32 @@ Configured HDR/VRR settings alone do not prove the corresponding active path.
 
 Implemented: the heads-up display is its own block in the corner the user
 chose, top right unless they moved it, drawn at 1.6 times the session's font
-size. It shows the presented frame rate, the frame time that rate implies, the
-1% low once enough frames have been seen, and one line for the picture: either
+size. It shows the rate the screen presented over the last second, the 1% low
+once enough frames have been seen, the frame time the game itself took, and one
+line for the picture: either
 `FSR 1` with the sharpening state, the resolutions it is drawing between and
 the render scale, or the output resolution named as native when the supplied
 buffer matches it. A bypass with a different or unknown input size shows
 `FSR off` and the observed dimensions. Common resolution names describe exact
 sizes; other sizes retain both pixel dimensions, including ultrawide formats.
-Each timing figure not measured yet reads as a dash. The separately counted client buffer updates and
+Each figure occupies a fixed five columns - four digits and at most one point,
+bounded at 9999 and 0.999 - so that a value crossing 10, 100 or 1000 does not
+move the text beside it, and the window system is set flush to the block's
+right edge for the same reason. The block is drawn in the session's
+fixed-width font, which is what makes a column a character. Each timing figure
+not measured yet reads as a dash.
+
+The rate and the frame time come from different sides on purpose. A screen
+cannot present more often than it refreshes, so above the refresh the presented
+rate and anything derived from it stop answering what a resolution costs:
+measured on 2026-09-19 at 3840 x 2160 on a 240 Hz panel, SuperTuxKart presented
+237/s at native, quality and performance alike while drawing 493, 833 and 949
+frames a second. The rate is therefore the screen's, because that is what a
+player sees, and the frame time is the interval between the buffers the game
+committed, because nothing but the game bounds it. The rate slides over one
+second rather than over the frames the statistics hold, which is 4.3 seconds at
+240 Hz and 17 at 60; the tail measures keep the whole window, which is what
+makes a 99th percentile or a 1% low worth quoting. The separately counted client buffer updates and
 compositor repaints, with their one-second sampling interval and the age of the
 sample, are developer information and appear in that block, where a game that
 stopped supplying frames shows an ageing sample rather than a frozen rate
@@ -1465,6 +1483,46 @@ on a screen that can only halve gets the half, and the status reports the size
 that was actually asked for beside the one that was calculated. Steps the
 scaler would then refuse are never offered.
 
+#### Letting the user choose the resolution in the game
+
+Not every game can be asked. An Xwayland client that ignores resize requests, a
+title behind Proton and a launcher, a renderer that takes its size from nothing
+the compositor controls: for these the effect has no lever, and every method
+above is a request that will not be answered.
+
+The scaler itself needs no cooperation at all. It acts on the buffer a client
+supplied, and none of the eligibility conditions ask which application supplied
+it or why it is small. A fullscreen window presenting fewer pixels than its
+output is scaled whether the effect asked for that size or the person playing
+chose it in the game's own video settings. That gives a game with a resolution
+menu a second route, and it is the only route that reaches every game.
+
+The option is `UserConfigured`. The person selects the resolution once, in the
+game, and the entry records that this is how this game is driven. It is not the
+same statement as `None`. `None` says the question was asked and the program
+followed nothing; `UserConfigured` says the program never needed to follow
+anything, because its own settings already produce the smaller buffer. Neither
+sends a request, and both recognize the game. They differ in what they tell the
+next person who looks at the entry, which is what an entry is for.
+
+What it costs is the single thing the automatic methods exist to avoid: a video
+menu, opened once. What it buys is every game that has one. The effect never
+writes a game's settings, so the value stays the user's, survives a package that
+corrects a method, and is visible where the player expects to find it.
+
+The preset means something different under this method. It is not what the
+effect will request but what the person should select, which is the size the
+settings page already names when it says which resolution to choose in the game.
+When the supplied buffer matches that size the status says so; when it does not,
+the status reports the size actually supplied rather than the one recommended,
+because a recommendation that quietly reports itself as a result would make the
+entry unfalsifiable.
+
+**Status:** specified, not implemented. The scaling half is already what the
+effect does for any smaller buffer, and needs nothing added. The method value,
+its meaning in the editor, and reporting that distinguishes a recommended size
+from a requested one are not written.
+
 #### The recognized applications shipped with this effect
 
 Installing the package is meant to be enough for a game the effect knows, so
@@ -1674,9 +1732,10 @@ or treat the emulation property as a generic game-resolution setter.
 
 **Status:** implemented as the profile method `X11Resize`, with a shipped Tux
 Racer profile and virtual-backend regression coverage on KWin 6.3.6. Real-device
-acceptance remains open. Applications must handle resize requests and establish
-Xwayland's per-client mode emulation; this does not universally force internal
-rendering dimensions.
+acceptance remains open. Applications must handle resize requests; this does
+not universally force internal rendering dimensions. A client that establishes
+Xwayland's per-client mode emulation is enlarged by Xwayland; one that does not
+is enlarged by the effect, which maps pointer input itself (below).
 
 **Deployment rationale and upstream direction.** The immediate goal is useful
 resolution control on existing KDE installations through an ordinary package
@@ -1731,12 +1790,40 @@ another client's mode or editing game settings. The mechanism is a standard
 window resize; calling game-specific functions or automating the game's menus
 is not part of the implementation.
 
-Two independent conditions govern fullscreen presentation. The application's
-connection must have an emulated mode, and its native X geometry must match
-that mode at the output origin. [Xwayland's window implementation](https://gitlab.freedesktop.org/xorg/xserver/-/blob/xwayland-24.1.6/hw/xwayland/xwayland-window.c)
+Two independent conditions govern Xwayland's own fullscreen presentation. The
+application's connection must have an emulated mode, and its native X geometry
+must match that mode at the output origin. [Xwayland's window implementation](https://gitlab.freedesktop.org/xorg/xserver/-/blob/xwayland-24.1.6/hw/xwayland/xwayland-window.c)
 then establishes a viewport from the smaller buffer to the output and adjusts
 its input coordinates. Writing `_XWAYLAND_RANDR_EMU_MONITOR_RECTS` does not
 establish that internal per-client mode: the property reports server state.
+KWin 6.3.6 does not read that property and sizes a fullscreen X window to the
+output regardless, so under KWin the emulation only takes effect while this
+effect holds the window at the emulated size.
+
+The Source engine, and every client that takes its fullscreen size from the
+window manager, never selects a mode: it asks its toolkit for fullscreen at the
+desktop mode and renders its own resolution into whatever window it gets, so
+the request is followed but nothing enlarges the result. For such a client the
+effect presents the window itself. KWin's frame stays at the output; once the
+requested buffer has arrived, the effect sizes the window's surface item to the
+frame, which is what Xwayland's viewport does for an emulated mode and what
+makes KWin paint, damage and clip the window as covering its output — the
+paint region KWin hands an effect is intersected with the item's own rectangle,
+so an enlargement drawn over a smaller item is cut off at the item's edge. The
+scaler then paints the buffer across the frame, and an input event filter
+installed ahead of KWin's forwarding gives the seat a transformation that
+scales pointer coordinates by the requested size over the frame's size in X
+pixels, in addition to KWin's own translation — the same factor Xwayland's
+emulation applies, on absolute positions and relative deltas alike. Where
+KWin's hit test finds nothing under the pointer, because the surface's input
+region is still the client's own size, the filter focuses the surface on the
+seat itself and withdraws that focus when the pointer leaves the frame or KWin
+finds a window of its own on top. KWin's delivery and cursor are untouched;
+the filter delivers and consumes nothing. Whether Xwayland or the effect
+presents a window is decided once, when the requested buffer first arrives,
+from the emulation property, so the two paths never scale twice. Status names
+which of the two is presenting. Touch, tablet, pointer confinement regions and
+the locked-pointer position hint are not mapped.
 
 KWin 6.3.6 normally configures a fullscreen X window to the full output size,
 which can make a resizing application recreate its window repeatedly. An
@@ -1860,12 +1947,11 @@ spanning outputs do not qualify. The existing opacity, surface, aspect-ratio
 and buffer-size checks still apply.
 
 A Wayland client must retain that logical area while supplying a smaller
-buffer, for example through a viewport or a supported scale policy. The X11
-resize controller additionally requires the client's mode emulation to preserve
-full-output presentation and input mapping. A borderless client which only
-shrinks its drawable is restored and reported as unsupported. Extending support
-to such clients still requires a complete placement and input design; a paint
-transform alone does not provide it. The effect does not change a game's own
+buffer, for example through a viewport or a supported scale policy. A resized
+X11 client keeps its full-output presentation and pointer mapping either from
+its own mode emulation or from the effect, as described above; a client that
+shrinks its drawable but supplies a buffer of another size than requested is
+restored and reported. The effect does not change a game's own
 fullscreen/windowed preference.
 
 [SuperTux's SDL event handling](https://github.com/SuperTux/supertux/blob/v0.6.3/src/supertux/screen_manager.cpp)

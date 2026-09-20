@@ -49,6 +49,19 @@ public:
     double averageRate() const;
 
     /**
+     * Frames per second over the last @p milliseconds, rather than over every
+     * frame held.
+     *
+     * The window holds a fixed number of frames, so how long it reaches back
+     * depends on the refresh rate: 1024 frames is 4.3 seconds at 240 Hz and
+     * 17 at 60. A figure read while playing has to answer for now, so it asks
+     * for a span of time and is given the frames that fall inside it. The
+     * tail measures below keep the whole window, which is what makes them
+     * worth quoting.
+     */
+    double recentRate(double milliseconds) const;
+
+    /**
      * The mean of the slowest @p fraction of frames, as a rate.
      *
      * This is the "one per cent low" of a hardware review at fraction 0.01:

@@ -59,7 +59,13 @@ enum class UpscaleControlMethod {
      * edges, and the scale alone stretches it past them.
      */
     AdvertisedModeAndScale,
-    /** Resize a selected X11 client which follows resize events and RandR modes. */
+    /**
+     * Resize a selected X11 client which follows resize events.
+     *
+     * A client that then selects a matching RandR mode on its own connection
+     * is enlarged to the output by Xwayland; any other is enlarged by the
+     * effect, which also maps pointer input to the smaller window.
+     */
     X11Resize,
 };
 

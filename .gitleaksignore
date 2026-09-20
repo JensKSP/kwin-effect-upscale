@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+# Findings this project has looked at and judged not to be secrets. One
+# fingerprint per line, as gitleaks prints it: commit, file, rule and line.
+# A fingerprint is exact, so a real secret added to the same file later is
+# still reported; this is not a rule being switched off.
+
+# A Python KeyError quoted from a failing build's output, inside the record of
+# why that build failed. The generic-api-key rule matches it on entropy alone.
+# Rewording the document cannot clear it, because the history scan reads the
+# commit, and rewriting that commit would mean a force-push of a shared branch.
+c18c1d993a243d7708cea62db8dd1e00d494c5e7:doc/agents/slice-build-release-pipeline.md:generic-api-key:484

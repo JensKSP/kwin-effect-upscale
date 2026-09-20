@@ -30,6 +30,7 @@ PACKAGES = {
     "libwayland-bin": ("wayland",),
     "libxcb-composite0-dev": ("libxcb",),
     "libxcb-randr0-dev": ("libxcb",),
+    "libxcb-res0-dev": ("libxcb",),
     "libxcb-shm0-dev": ("libxcb",),
     "libxcb-sync-dev": ("libxcb",),
     "xwayland": ("xwayland",),
@@ -41,16 +42,28 @@ PACKAGES = {
 }
 
 
-def main() -> None:
-    """Print the translated dependencies for pkg install, rejecting unknown names."""
-    match = re.search(
-        r"Build-Depends:([^\n]*(?:\n[ \t]+[^\n]*)*)", Path("debian/control").read_text()
-    )
+def translate(control: str) -> list[str]:
+    """Return the FreeBSD packages for a debian/control, rejecting unknown names."""
+    match = re.search(r"Build-Depends:([^\n]*(?:\n[ \t]+[^\n]*)*)", control)
     if match is None:
         message = "Missing Build-Depends in debian/control"
         raise ValueError(message)
     dependencies = {entry.split()[0] for entry in match[1].split(",") if entry.strip()}
-    print(" ".join(sorted({package for name in dependencies for package in PACKAGES[name]})))
+    # Naming the file to edit matters more here than elsewhere: this runs
+    # inside the nightly's FreeBSD virtual machine, where nobody is watching.
+    unknown = sorted(dependencies - PACKAGES.keys())
+    if unknown:
+        message = (
+            f"debian/control lists {', '.join(unknown)} without a FreeBSD package name. "
+            "Add the translation to tools/freebsd-packages.py."
+        )
+        raise ValueError(message)
+    return sorted({package for name in dependencies for package in PACKAGES[name]})
+
+
+def main() -> None:
+    """Print the translated dependencies for pkg install."""
+    print(" ".join(translate(Path("debian/control").read_text())))
 
 
 if __name__ == "__main__":

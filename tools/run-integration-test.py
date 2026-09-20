@@ -82,9 +82,19 @@ def main() -> int:
             if x11:
                 isolate_xwayland(runtime, environment)
             command = ["env", f"LD_PRELOAD={preload}", *command]
+        # How long the whole session may take, which is not how long the work
+        # in it takes: every wait inside these tests is a round trip through
+        # KWin, Xwayland and a client, and how fast those are is a property of
+        # the machine. Measured on the nightly's arm64 package job,
+        # 2026-09-20: it presents 4.5 frames a second, one frame every 3.1
+        # seconds, and the run that takes 55 s here needed more than 160
+        # there. At 90 s the session was killed mid-test and the case that
+        # was still waiting got the blame, which is how this looked like a
+        # plugin defect for most of a night.
+        #
         # Instrumentation also observes allocations in the distribution KWin
-        # process; startup and shutdown need more time than an ordinary run.
-        timeout = 270 if preload else 90
+        # process, so its startup and shutdown need more time again.
+        timeout = 900 if preload else 600
         return subprocess.call(
             ["dbus-run-session", "--", *command], env=environment, timeout=timeout
         )

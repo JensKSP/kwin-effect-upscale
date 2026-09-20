@@ -49,7 +49,14 @@ from effect_control import (
 from frame_metrics import Sample, Summary, parse_status, summarize
 from game_output import clear_game_log, game_log, game_reported_rate, game_reported_renderer
 from game_settings import Outcome, prepare, still_holds
-from measurement_report import announce, read_environment, report, write_json, write_markdown
+from measurement_report import (
+    announce,
+    compare,
+    read_environment,
+    report,
+    write_json,
+    write_markdown,
+)
 
 if TYPE_CHECKING:
     # Only ever named in an annotation, and this module postpones those.
@@ -95,9 +102,24 @@ GAMES = {
         program="etr",
         # No demo mode of its own. The menu is keyboard driven, so the run is
         # started by sending keys to the window; the sequence follows the menu,
-        # which moves between versions. Tux then slides the course unattended.
+        # which moves between versions. Read off 0.8.4 on 2026-09-20 by
+        # screenshotting every step: Return leaves the player-and-character
+        # screen, Down selects Practice over Enter an event, Return opens the
+        # course list, a second Return takes the course the list already
+        # highlights and puts Tux at its start gate, and Up pushes him off it.
+        # That second Return is the one a four-key sequence was missing: its Up
+        # moved the highlight inside the course list instead of starting
+        # anything, so every run measured a menu. Practice rather than an
+        # event, because an event depends on what this machine's player has
+        # unlocked. Tux then slides the course unattended.
         window="etr",
-        keys=("Return", "Return", "Return"),
+        keys=("Return", "Down", "Return", "Return", "Up"),
+        # Its window is up in about a second and every screen in the sequence
+        # answers a key immediately, so the long default start only left a
+        # person watching a menu. The keys wait for the window rather than for
+        # a fixed time, so this is how long the game gets to draw its first
+        # screen, not how long the sequence takes.
+        startup=3.0,
     ),
     "left4dead2": Game(
         program="steam",
@@ -163,6 +185,35 @@ def wait_for_window(window: str, seconds: float) -> bool:
     return False
 
 
+def focus_window(window: str) -> str:
+    """Put the keyboard focus on the game's window, or say why it did not.
+
+    Returns what went wrong, or nothing when the window holds the focus.
+    """
+    found = run_command(["xdotool", "search", "--classname", window])
+    identifiers = found.stdout.split()
+    if not identifiers:
+        return f"no {window} window to type into, so the game stayed in its menu"
+    run_command(["xdotool", "windowactivate", "--sync", identifiers[0]])
+    # XTEST types into whatever holds the input focus, so an activation that
+    # quietly failed would send a menu sequence into whatever the person was
+    # last using. The activation's own exit status cannot answer for that
+    # here: on a Wayland session xdotool reports that _NET_ACTIVE_WINDOW
+    # failed and exits non-zero while having activated the window perfectly
+    # well, because that property belongs to an X11 window manager and nothing
+    # maintains it. getwindowfocus asks the X server where it will actually
+    # send key events, and its answer is compared by window id rather than by
+    # name: a class name is not the instance name the search matched, and
+    # Extreme Tux Racer's differ by more than case.
+    focused = run_command(["xdotool", "getwindowfocus"]).stdout.strip()
+    if focused not in identifiers:
+        return (
+            f"{window} did not take the keyboard focus, so no keys were sent; "
+            f"the focus was on window {focused or 'nothing could name'}"
+        )
+    return ""
+
+
 def send_keys(game: str) -> str:
     """Walk a menu-driven game into a running scene, where it needs one.
 
@@ -176,11 +227,23 @@ def send_keys(game: str) -> str:
     window = definition.window
     if not wait_for_window(window, seconds=30):
         return f"no {window} window appeared, so no keys were sent and the game stayed in its menu"
+    # Focus the window once, then type into it as a person would. The keys used
+    # to be delivered with "xdotool key --window", which sends them with
+    # XSendEvent: a toolkit is free to ignore such an event or to handle it
+    # inconsistently, and SFML does the latter. Observed on Extreme Tux Racer
+    # 0.8.4, 2026-09-20: one Down moved the menu selection two entries and the
+    # Return after it did nothing, so every run measured the main menu while
+    # reporting that its keys had been sent. Without --window, xdotool uses the
+    # XTEST extension, which is indistinguishable from real typing; the same
+    # sequence then walks the menu exactly one step per key.
+    failure = focus_window(window)
+    if failure:
+        return failure
     for key in definition.keys:
-        time.sleep(1.5)
-        sent = run_command(
-            ["xdotool", "search", "--classname", window, "key", "--window", "%1", key]
-        )
+        # Long enough for a screen to appear, short enough that nobody watches
+        # a menu for ten seconds before a run begins.
+        time.sleep(0.6)
+        sent = run_command(["xdotool", "key", "--delay", "120", key])
         if sent.returncode != 0:
             # The window closed, or the key never arrived. Either way the game
             # is not where the run needs it, and measuring the menu would look
@@ -253,7 +316,11 @@ def measure(
         # happens once.
         time.sleep(warm_up)
         started = time.monotonic()
-        while time.monotonic() - started < seconds:
+        # A game that never reached its scene is sitting in a menu, and a menu
+        # renders whatever it likes at whatever rate it likes. Sampling it
+        # produces figures that look like a measurement and describe nothing,
+        # which is how three runs tonight reported a main menu as a benchmark.
+        while not driven and time.monotonic() - started < seconds:
             sample = parse_status(status(tool))
             sample.elapsed = round(time.monotonic() - started, 1)
             sample.run_id = run_id
@@ -365,11 +432,6 @@ def write_samples(path: Path, rows: list[tuple[Summary, Sample]]) -> None:
             writer.writerow([*plan, *asdict(sample).values()])
 
 
-def figure(value: float | None, digits: int = 1) -> str:
-    """Format a number, or the dash that says it was never measured."""
-    return "-" if value is None else f"{value:.{digits}f}"
-
-
 def preset_size(preset: str, output_pixels: str) -> str:
     """Name in pixels what a preset asks the game to render.
 
@@ -384,46 +446,6 @@ def preset_size(preset: str, output_pixels: str) -> str:
         return f"{round(int(width) * ratio)}x{round(int(height) * ratio)}"
     except ValueError:
         return preset
-
-
-def compare(summaries: list[Summary]) -> None:
-    """Print the runs beside each other, with the baseline as the reference."""
-    print()
-    header = f"{'preset':<14}{'supplied':<12}{'presented/s':>12}{'frame ms':>10}"
-    print(header + f"{'99th ms':>9}{'1% low/s':>10}{'client/s':>10}{'game/s':>9}{'spread':>8}")
-    print(
-        "-"
-        * len(header + f"{'99th ms':>9}{'1% low/s':>10}{'client/s':>10}{'game/s':>9}{'spread':>8}")
-    )
-    for summary in summaries:
-        print(
-            f"{summary.preset:<14}{summary.supplied or '-':<12}"
-            f"{figure(summary.presented_rate):>12}{figure(summary.frame_time, 2):>10}"
-            f"{figure(summary.presented_percentile):>9}{figure(summary.presented_low):>10}"
-            f"{figure(summary.client_updates):>10}{figure(summary.game_rate):>9}"
-            f"{figure(summary.presented_spread):>8}"
-        )
-    baseline = next((item for item in summaries if item.preset == "native"), None)
-    if not baseline or not baseline.frame_time:
-        return
-    print()
-    for summary in summaries:
-        if summary is baseline or not summary.frame_time:
-            continue
-        change = summary.frame_time - baseline.frame_time
-        percent = 100.0 * change / baseline.frame_time
-        # Both in milliseconds. A spread in frames per second compared against
-        # a difference in milliseconds is not a comparison, and would call a
-        # real change inconclusive or an inconclusive one real depending only
-        # on where the rates happened to sit.
-        spread = (baseline.frame_time_spread or 0) + (summary.frame_time_spread or 0)
-        verdict = "within run-to-run spread" if abs(change) < spread else "outside the spread"
-        print(
-            f"{summary.preset} vs native: frame time {change:+.2f} ms ({percent:+.1f}%), {verdict}"
-        )
-    for summary in summaries:
-        for note in summary.notes:
-            print(f"note ({summary.preset}): {note}")
 
 
 def waiting_seconds(text: str) -> float:

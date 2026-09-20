@@ -60,10 +60,14 @@ if(KWin_VERSION VERSION_LESS 6.7)
         ../src/plugins/upscale/overlay.cpp
         ../src/plugins/upscale/placement.cpp
         ../src/plugins/upscale/snapshot.cpp
+        ../src/plugins/upscale/snapshot_metrics.cpp
         ../src/plugins/upscale/upscale.cpp
         ../src/plugins/upscale/x11geometry.cpp
+        ../src/plugins/upscale/x11input.cpp
         ../src/plugins/upscale/x11resolution.cpp
         ../src/plugins/upscale/x11resolution_events.cpp
+        ../src/plugins/upscale/x11resolution_present.cpp
+        ../src/plugins/upscale/x11resolution_validate.cpp
         ../src/plugins/upscale/upscale.h
         ../src/plugins/upscale/scaler.cpp
         ../src/plugins/upscale/upscale.qrc
@@ -85,7 +89,22 @@ if(KWin_VERSION VERSION_LESS 6.7)
             ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-integration-test.py
             $<TARGET_FILE:upscale_integration_test>
     )
-    set_tests_properties(upscale-integration PROPERTIES TIMEOUT 100)
+    # Each of these starts a KWin session of its own, with Xwayland, software
+    # rendering and a client that has to answer resize requests inside the
+    # plugin's own validation windows. Run beside other tests - a package
+    # build runs four at once - they compete for the cores that decide how
+    # fast those round trips are, and the waits in them stop describing the
+    # plugin and start describing the machine. Observed 2026-09-20 on the
+    # nightly's package jobs: waits satisfied in under a second here needed
+    # 18 and 30 seconds there, on both architectures, while the same tests
+    # passed in the quality jobs that run them alone. RUN_SERIAL is what says
+    # "not beside anything else"; the timeout then covers the whole run of a
+    # session that is merely slow rather than stuck.
+    # The outer bound has to exceed the inner one, or ctest kills the session
+    # before the harness can end it cleanly and say why - which is exactly the
+    # confusion that cost most of a night. run-integration-test.py allows a
+    # session 600 s, and 900 s under instrumentation; these sit above both.
+    set_tests_properties(upscale-integration PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
     add_executable(upscale_x11_integration_test x11_integration_test.cpp x11_client.cpp)
     target_link_libraries(
         upscale_x11_integration_test
@@ -97,13 +116,16 @@ if(KWin_VERSION VERSION_LESS 6.7)
             ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-integration-test.py
             $<TARGET_FILE:upscale_x11_integration_test> --x11
     )
-    set_tests_properties(upscale-x11-integration PROPERTIES TIMEOUT 100)
+    # Eight fullscreen transitions, each waiting on a client that commits a
+    # buffer every three seconds on the slowest machine this runs on, need
+    # more headroom than one session of the other test does.
+    set_tests_properties(upscale-x11-integration PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
     if(UPSCALE_SANITIZER)
         set_tests_properties(
             upscale-integration
             upscale-x11-integration
             PROPERTIES
-                TIMEOUT 300
+                TIMEOUT 1200
                 ENVIRONMENT
                     "UPSCALE_SANITIZER_RUNTIME=${UPSCALE_SANITIZER_RUNTIME};LSAN_OPTIONS=suppressions=${CMAKE_CURRENT_SOURCE_DIR}/lsan.supp:print_suppressions=1"
         )
@@ -179,6 +201,7 @@ set(snapshot_test_sources
     snapshot_test.cpp
     ../src/plugins/upscale/application.cpp
     ../src/plugins/upscale/snapshot.cpp
+    ../src/plugins/upscale/snapshot_metrics.cpp
     ../src/plugins/upscale/eligibility.cpp
     ../src/plugins/upscale/refusaltext.cpp
 )
@@ -192,6 +215,24 @@ target_link_libraries(
 )
 add_test(NAME upscale-snapshot COMMAND upscale_snapshot_test)
 
+set(headsup_test_sources
+    headsup_test.cpp
+    ../src/plugins/upscale/application.cpp
+    ../src/plugins/upscale/snapshot.cpp
+    ../src/plugins/upscale/snapshot_metrics.cpp
+    ../src/plugins/upscale/eligibility.cpp
+    ../src/plugins/upscale/refusaltext.cpp
+)
+kconfig_add_kcfg_files(headsup_test_sources ../src/plugins/upscale/upscaleconfig.kcfgc)
+add_executable(upscale_headsup_test ${headsup_test_sources})
+target_include_directories(upscale_headsup_test PRIVATE ../src/plugins/upscale)
+target_compile_definitions(upscale_headsup_test PRIVATE -DTRANSLATION_DOMAIN="kwin_effect_upscale")
+target_link_libraries(
+    upscale_headsup_test
+    PRIVATE kwin Qt6::Test KF6::ConfigGui KF6::I18n Libdrm::Libdrm
+)
+add_test(NAME upscale-headsup COMMAND upscale_headsup_test)
+
 set(display_test_sources
     display_test.cpp
     ../src/plugins/upscale/application.cpp
@@ -200,6 +241,7 @@ set(display_test_sources
     ../src/plugins/upscale/overlay.cpp
     ../src/plugins/upscale/placement.cpp
     ../src/plugins/upscale/snapshot.cpp
+    ../src/plugins/upscale/snapshot_metrics.cpp
     ../src/plugins/upscale/eligibility.cpp
     ../src/plugins/upscale/refusaltext.cpp
 )
@@ -232,6 +274,7 @@ if(KWIN_BUILD_KCMS)
         ../src/plugins/upscale/placement.cpp
         ../src/plugins/upscale/supportinformation.cpp
         ../src/plugins/upscale/upscale_config.cpp
+        ../src/plugins/upscale/resolutionchoice.cpp
     )
     kconfig_add_kcfg_files(settings_module_SOURCES ../src/plugins/upscale/upscaleconfig.kcfgc)
     # Exercise both the upstream form without project identity and the packaged

@@ -204,10 +204,11 @@ void UpscaleApplicationEditor::rebuildList()
     const int row = m_list->currentRow();
     m_list->clear();
     for (const UpscaleApplication &application : m_applications) {
-        auto *item = new QListWidgetItem(application.shipped
-                                             ? application.name
-                                             : i18nc("An application the user added", "%1 (yours)", application.name),
-                                         m_list);
+        // The name and nothing else. Where an entry came from is answered
+        // where it matters - the note under the fields says "Added by you",
+        // and Delete is only enabled for such an entry - so decorating every
+        // name in the list with it charges the common case for the rare one.
+        auto *item = new QListWidgetItem(application.name, m_list);
         item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
         item->setCheckState(application.enabled ? Qt::Checked : Qt::Unchecked);
     }
@@ -270,8 +271,7 @@ void UpscaleApplicationEditor::applyToSelected()
     application->minimumPixels = m_minimumPixels->value();
     const QScopedValueRollback updating(m_updating, true);
     if (QListWidgetItem *item = m_list->currentItem()) {
-        item->setText(application->shipped ? application->name
-                                           : i18nc("An application the user added", "%1 (yours)", application->name));
+        item->setText(application->name);
         item->setCheckState(application->enabled ? Qt::Checked : Qt::Unchecked);
     }
     Q_EMIT changed();

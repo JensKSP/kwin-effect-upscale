@@ -472,3 +472,47 @@ Master CI run `35336663775` also passed the full path after PR #6 merged.
 Hosted file selection is accepted; subsequent revisions still need their own
 checks and review, and documentation-only master-push selection has local test
 coverage but has not yet been observed on GitHub.
+
+### Nightly package and portability failures, 2026-09-19
+
+The nightly went red at `96e036c` and stayed red at `6bfcc78`, in three jobs.
+The last green nightly was `75d5c96`. All three causes were introduced by work
+that no pull request had built, which is what `6bfcc78` had already begun to
+address by moving those grounds into the nightly.
+
+FreeBSD Clang failed in 50 seconds, before compiling anything, on a bare
+`KeyError` naming the `libxcb-res0-dev` build dependency. That name was
+added to
+`debian/control` because Ubuntu's `kwin-dev` does not pull in the package
+carrying `xcb/res.h`; `tools/freebsd-packages.py` is the only translation of
+those names for the one platform that does not read `debian/control`, and it
+had no entry. Fixed in `05ad5d0`, which also replaced the bare `KeyError` from
+a set comprehension with a message naming the dependency and the file to edit,
+and added `tools/test_freebsd_packages.py`. That test reads the repository's
+own `debian/control`, so the next unmapped dependency now fails at push time
+through the existing `tooling-tests` hook, which already selects on `debian/`.
+Verified by temporarily adding an unmapped name: the guard rejected it with the
+intended message.
+
+Dispatched [BSD portability 35472700158](https://github.com/JensKSP/kwin-effect-upscale/actions/runs/35472700158)
+on the branch to confirm the fix against the real FreeBSD 15.0 virtual machine
+rather than reasoning about it. It passed: 169 of 169 targets built under clang
+with warnings as errors, including `upscale_x11_integration_test` and
+`upscale_test_driver`, and both `upscale-resolution` and `upscale-config`
+passed. This is the first time FreeBSD has compiled `x11input.cpp` and
+`x11resolution_present.cpp`; the previous green FreeBSD run at `75d5c96`
+predates them.
+
+The `resolute` package jobs failed on amd64 and arm64 in
+`upscale-x11-integration`, not in the build. Both causes and their fixes belong
+to [resolution control](slice-resolution-control.md); they are recorded there.
+Ubuntu 26.04 ships KWin 6.6.6 against Trixie's 6.3.6, and the integration tests
+only register below KWin 6.7, so neon skips them entirely. That is the gap the
+two new tests fell through: they were validated on 6.3.6 and on neon's eleven
+available entries, and never on 6.6.6.
+
+A FreeBSD or arm64 virtual machine cannot be reproduced in a container on a
+Linux host, because containers share the host kernel; the nightly uses QEMU
+through `vmactions/freebsd-vm`. QEMU and KVM are present on the development
+machine, so a local FreeBSD guest is possible and would move this class of
+failure earlier than the nightly. Not set up; recorded as an option.

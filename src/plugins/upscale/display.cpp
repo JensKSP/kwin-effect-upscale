@@ -97,6 +97,15 @@ void UpscaleDisplay::measure(UpscaleOutput *screen)
     });
 }
 
+// How far back the rate on the heads-up display reaches: one second, the
+// interval every frame-rate counter has used since they existed. It is a span
+// of time rather than a count of frames, so it means the same on a 60 Hz
+// television as on a 240 Hz monitor, where a thousand frames is 4.3 seconds
+// and an average that long hides what the game is doing. Shorter was tried at
+// half a second and reads as jumping about; the tail figures keep the whole
+// window, which is what makes them worth quoting.
+constexpr double upscaleRecentWindow = 1000;
+
 void UpscaleDisplay::update(UpscaleSnapshot snapshot, EffectWindow *window)
 {
     if (window != m_announced) {
@@ -117,6 +126,7 @@ void UpscaleDisplay::update(UpscaleSnapshot snapshot, EffectWindow *window)
         m_repaints = 0;
     }
     snapshot.presentedRate = m_presented.averageRate();
+    snapshot.presentedRecent = m_presented.recentRate(upscaleRecentWindow);
     snapshot.presentedLow = m_presented.lowRate(0.01);
     snapshot.presentedPercentile = m_presented.percentileFrameTime(0.99);
     snapshot.presentedWorst = m_presented.worstFrameTime();
@@ -190,6 +200,7 @@ void UpscaleDisplay::applyMeasurements(UpscaleSnapshot &snapshot, EffectWindow *
     // rest are only meaningful once intervals have been counted.
     if (m_presented.frames() > 0 && screen && screen == m_measured) {
         snapshot.presentedRate = m_presented.averageRate();
+        snapshot.presentedRecent = m_presented.recentRate(upscaleRecentWindow);
         snapshot.presentedLow = m_presented.lowRate(0.01);
         snapshot.presentedPercentile = m_presented.percentileFrameTime(0.99);
         snapshot.presentedWorst = m_presented.worstFrameTime();

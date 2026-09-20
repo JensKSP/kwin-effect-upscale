@@ -129,13 +129,20 @@ def announce(number: int, total: int, fields: dict[str, str]) -> None:
     print("      ...", flush=True)
 
 
+# How little a game's rate has to move between two resolutions before the
+# smaller one is not what is limiting it. Two per cent is below the spread of
+# a well-behaved run here and well under any real change: Extreme Tux Racer,
+# frame-limited to 60, moved by less than one per cent across every preset.
+UNCHANGED_PERCENT = 2.0
+
+
+def figure(value: float | None, digits: int = 1) -> str:
+    """Format a number for the shell, or the dash for nothing measured."""
+    return "-" if value is None else f"{round(value, digits)}"
+
+
 def report(summary: Summary) -> None:
     """Say what one run came to, including what was wrong with it."""
-
-    def figure(value: float | None, digits: int = 1) -> str:
-        """Format a number for the shell, or the dash for nothing measured."""
-        return "-" if value is None else f"{round(value, digits)}"
-
     print(f"      supplied           {summary.supplied or '-'} -> {summary.destination or '-'}")
     print(f"      upscaled           {'yes' if summary.scaling else 'NO'}")
     print(
@@ -149,6 +156,83 @@ def report(summary: Summary) -> None:
     print(f"      samples            {summary.samples}")
     for note in summary.notes:
         print(f"      ! {note}")
+
+
+def compare(summaries: list[Summary]) -> None:
+    """Print the runs beside each other, with the baseline as the reference."""
+    print()
+    header = f"{'preset':<14}{'supplied':<12}{'presented/s':>12}{'frame ms':>10}"
+    print(header + f"{'99th ms':>9}{'1% low/s':>10}{'client/s':>10}{'game/s':>9}{'spread':>8}")
+    print(
+        "-"
+        * len(header + f"{'99th ms':>9}{'1% low/s':>10}{'client/s':>10}{'game/s':>9}{'spread':>8}")
+    )
+    for summary in summaries:
+        print(
+            f"{summary.preset:<14}{summary.supplied or '-':<12}"
+            f"{figure(summary.presented_rate):>12}{figure(summary.frame_time, 2):>10}"
+            f"{figure(summary.presented_percentile):>9}{figure(summary.presented_low):>10}"
+            f"{figure(summary.client_updates):>10}{figure(summary.game_rate):>9}"
+            f"{figure(summary.presented_spread):>8}"
+        )
+    baseline = next((item for item in summaries if item.preset == "native"), None)
+    if not baseline:
+        return
+    print()
+    for summary in summaries:
+        if summary is not baseline:
+            print(f"{summary.preset} vs native: {_against(summary, baseline)}")
+    for summary in summaries:
+        for note in summary.notes:
+            print(f"note ({summary.preset}): {note}")
+
+
+def _against(summary: Summary, baseline: Summary) -> str:
+    """State one run against the baseline, in the figure that can answer.
+
+    The game's own commit rate, not the presented rate or anything derived
+    from it. A screen cannot present more often than it refreshes, so above
+    the refresh every preset reports the same presented rate and the same
+    frame time, and a comparison built on them says the resolution changed
+    nothing. Measured on 2026-09-19: 237/s presented at all three presets
+    while the game drew 493, 833 and 949 frames a second.
+    """
+    if baseline.client_updates and summary.client_updates:
+        change = summary.client_updates - baseline.client_updates
+        percent = 100.0 * change / baseline.client_updates
+        spread = (baseline.client_spread or 0) + (summary.client_spread or 0)
+        verdict = _verdict(
+            within_spread=abs(change) < spread,
+            unchanged=abs(percent) < UNCHANGED_PERCENT,
+        )
+        return (
+            f"the game drew {percent:+.1f}% "
+            f"({summary.client_updates:.1f}/s against {baseline.client_updates:.1f}/s), {verdict}"
+        )
+    # Without a commit rate there is only the presented one, which is worth
+    # stating only while the screen is not the thing limiting it.
+    if summary.frame_time and baseline.frame_time:
+        change = summary.frame_time - baseline.frame_time
+        percent = 100.0 * change / baseline.frame_time
+        spread = (baseline.frame_time_spread or 0) + (summary.frame_time_spread or 0)
+        return (
+            f"presented frame time {change:+.2f} ms ({percent:+.1f}%), "
+            f"{_verdict(within_spread=abs(change) < spread, unchanged=False)}"
+        )
+    return "nothing was measured to compare"
+
+
+def _verdict(*, within_spread: bool, unchanged: bool) -> str:
+    """Say what a difference amounts to, including when it amounts to nothing."""
+    if within_spread:
+        return "within run-to-run spread"
+    if unchanged:
+        # A game holding the same rate at every resolution is not being helped
+        # by the smaller one; it is limited by something that does not care,
+        # such as its own frame cap. Printing "+0.4%" for that invites the
+        # reader to believe a comparison took place.
+        return "the game held its rate: it is capped, not cost-bound here"
+    return "outside the spread"
 
 
 def write_json(path: Path, environment: Environment, runs: list[dict[str, Any]]) -> None:
