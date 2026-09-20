@@ -171,10 +171,15 @@ endif()
 # which runs on whatever the builder has. debian/rules turns this off for
 # exactly that reason; everywhere else it stays on.
 #
-# Declared here rather than beside the tests: a cache entry created inside a
-# subdirectory makes CMake regenerate, and ninja then re-runs cmake looking for
-# a settled manifest.
-option(UPSCALE_SESSION_TESTS "Register the tests that need a compositor session" ON)
+# A plain variable rather than option(), so nothing is written to the cache.
+# The source archive job began failing with "manifest 'build.ninja' still dirty
+# after 100 tries" in the commit that introduced this switch - 201 configures in
+# one job, so a genuine regeneration loop - and moving the option to this file
+# did not stop it. A -D on the command line still wins, which is all
+# debian/rules needs; it just no longer adds a cache entry to do it.
+if(NOT DEFINED UPSCALE_SESSION_TESTS)
+    set(UPSCALE_SESSION_TESTS ON)
+endif()
 
 include(KWinBuiltinEffectShim)
 include(UpscaleInstrumentation)
