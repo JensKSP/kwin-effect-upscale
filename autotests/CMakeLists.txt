@@ -100,7 +100,11 @@ if(KWin_VERSION VERSION_LESS 6.7)
     # passed in the quality jobs that run them alone. RUN_SERIAL is what says
     # "not beside anything else"; the timeout then covers the whole run of a
     # session that is merely slow rather than stuck.
-    set_tests_properties(upscale-integration PROPERTIES TIMEOUT 300 RUN_SERIAL TRUE)
+    # The outer bound has to exceed the inner one, or ctest kills the session
+    # before the harness can end it cleanly and say why - which is exactly the
+    # confusion that cost most of a night. run-integration-test.py allows a
+    # session 600 s, and 900 s under instrumentation; these sit above both.
+    set_tests_properties(upscale-integration PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
     add_executable(upscale_x11_integration_test x11_integration_test.cpp x11_client.cpp)
     target_link_libraries(
         upscale_x11_integration_test
@@ -121,7 +125,7 @@ if(KWin_VERSION VERSION_LESS 6.7)
             upscale-integration
             upscale-x11-integration
             PROPERTIES
-                TIMEOUT 600
+                TIMEOUT 1200
                 ENVIRONMENT
                     "UPSCALE_SANITIZER_RUNTIME=${UPSCALE_SANITIZER_RUNTIME};LSAN_OPTIONS=suppressions=${CMAKE_CURRENT_SOURCE_DIR}/lsan.supp:print_suppressions=1"
         )
