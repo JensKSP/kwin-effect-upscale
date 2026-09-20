@@ -111,8 +111,11 @@ How it does that depends on how the game talks to the desktop:
   instead, and the effect presents the result at full screen size itself.
 
 The game decides what to do with what it is told, and that is the whole
-limitation. One that follows the advertised mode renders smaller and gains the
-frame rate under [Measured](#measured). One that ignores it, picks its own
+limitation. One that follows the advertised mode renders smaller, and whether
+that buys anything depends on what was limiting it: SuperTuxKart gains the
+frame rate under [Measured](#measured), while Extreme Tux Racer follows the
+same request and stays at its own 60 frames a second, because a game already
+at its limit has nothing to win. One that ignores it, picks its own
 resolution, or renders through a path that never asks the screen, simply
 carries on at full size - and then this effect has nothing to upscale and
 changes nothing. Neither outcome is a fault to be fixed by trying harder; it is
