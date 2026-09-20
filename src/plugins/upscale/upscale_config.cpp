@@ -6,6 +6,8 @@
 
 #include "upscale_config.h"
 
+#include "resolutionchoice.h"
+
 #include "application.h"
 #include "applicationeditor.h"
 #include "placement.h"
@@ -55,7 +57,7 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     , m_output(new QComboBox(widget()))
     , m_preset(new QComboBox(widget()))
     , m_percentage(new QSlider(Qt::Horizontal, widget()))
-    , m_minimumPixels(new QSpinBox(widget()))
+    , m_minimumPixels(new QComboBox(widget()))
     , m_preview(new QLabel(widget()))
     , m_sharpening(new QCheckBox(i18n("Enable RCAS sharpening"), widget()))
     , m_strength(new QSlider(Qt::Horizontal, widget()))
@@ -125,11 +127,15 @@ void UpscaleEffectConfig::addStatusControls(QFormLayout *layout)
 void UpscaleEffectConfig::addThresholdControl(QFormLayout *layout)
 {
     m_minimumPixels->setObjectName(QStringLiteral("minimumPixels"));
-    m_minimumPixels->setRange(0, std::numeric_limits<int>::max());
-    m_minimumPixels->setSpecialValueText(i18n("No threshold"));
-    m_minimumPixels->setToolTip(i18n("Each output is checked independently. Scale only above this physical pixel count; Full HD is 2073600. Application rules can override it."));
-    layout->addRow(i18n("Minimum output pixels:"), m_minimumPixels);
-    connect(m_minimumPixels, &QSpinBox::valueChanged, this, [this]() {
+    // Editable, because the resolutions offered are the ones this system is
+    // showing and the ones people usually mean, which is not every resolution
+    // anybody might want a threshold at.
+    m_minimumPixels->setEditable(true);
+    m_minimumPixels->setInsertPolicy(QComboBox::NoInsert);
+    m_minimumPixels->setToolTip(i18n("Each output is checked independently. Scale only on outputs at least this large. Choose one of your screens, or type a resolution such as 1920x1080. Application rules can override it."));
+    upscaleFillResolutions(m_minimumPixels);
+    layout->addRow(i18n("Smallest output to scale on:"), m_minimumPixels);
+    connect(m_minimumPixels, &QComboBox::currentTextChanged, this, [this]() {
         updatePreview();
         setNeedsSave(true);
     });
@@ -276,6 +282,9 @@ void UpscaleEffectConfig::updateOutputs()
     if (previous >= 0) {
         m_output->setCurrentIndex(previous);
     }
+    // A screen plugged in or unplugged changes which resolutions this system
+    // is showing, and the threshold offers those first.
+    upscaleFillResolutions(m_minimumPixels);
     updatePreview();
 }
 
@@ -298,7 +307,7 @@ void UpscaleEffectConfig::updatePreview()
                                : i18n("%1% — %2 × %3 physical pixels. Select this resolution in the game. Scaling follows the actual supplied buffer, even when it differs.",
                                       QString::number(ratio * 100, 'f', preset == ResolutionPreset::Custom || preset == ResolutionPreset::Native || preset == ResolutionPreset::Performance ? 0 : 1),
                                       desired.width, desired.height));
-        if (!exceedsMinimumPixels({pixels.width(), pixels.height()}, m_minimumPixels->value())) {
+        if (!exceedsMinimumPixels({pixels.width(), pixels.height()}, upscaleResolutionPixels(m_minimumPixels, UpscaleConfig::minimumPixels()))) {
             m_preview->setText(i18n("This output is at or below the pixel threshold: no resolution request or upscaling, unless an application overrides the threshold."));
         }
     }
@@ -318,7 +327,7 @@ void UpscaleEffectConfig::showSettings()
     m_enabled->setChecked(UpscaleConfig::enabled());
     m_percentage->setValue(UpscaleConfig::percentage());
     m_preset->setCurrentIndex(UpscaleConfig::preset());
-    m_minimumPixels->setValue(UpscaleConfig::minimumPixels());
+    upscaleSelectResolution(m_minimumPixels, UpscaleConfig::minimumPixels());
     m_sharpening->setChecked(UpscaleConfig::sharpening());
     m_strength->setValue(UpscaleConfig::strength());
     m_osd->setChecked(UpscaleConfig::osd());
@@ -337,7 +346,7 @@ void UpscaleEffectConfig::applySettings()
     UpscaleConfig::setEnabled(m_enabled->isChecked());
     UpscaleConfig::setPreset(m_preset->currentIndex());
     UpscaleConfig::setPercentage(m_percentage->value());
-    UpscaleConfig::setMinimumPixels(m_minimumPixels->value());
+    UpscaleConfig::setMinimumPixels(upscaleResolutionPixels(m_minimumPixels, UpscaleConfig::minimumPixels()));
     UpscaleConfig::setSharpening(m_sharpening->isChecked());
     UpscaleConfig::setStrength(m_strength->value());
     UpscaleConfig::setOsd(m_osd->isChecked());

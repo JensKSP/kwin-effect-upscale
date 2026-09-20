@@ -274,6 +274,7 @@ if(KWIN_BUILD_KCMS)
         ../src/plugins/upscale/placement.cpp
         ../src/plugins/upscale/supportinformation.cpp
         ../src/plugins/upscale/upscale_config.cpp
+        ../src/plugins/upscale/resolutionchoice.cpp
     )
     kconfig_add_kcfg_files(settings_module_SOURCES ../src/plugins/upscale/upscaleconfig.kcfgc)
     # Exercise both the upstream form without project identity and the packaged
