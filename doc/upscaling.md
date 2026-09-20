@@ -2733,9 +2733,14 @@ not construct an effect in a real KWin session. An upgrade from an older release
 and actual GPU rendering remain separate acceptance cases.
 
 The source archive is extracted, configured, built, tested and staged without
-Git metadata. Publication accepts only the complete four-platform Debian
-package matrix, its build records, the source archive, and exactly one main
-package from each of Fedora, openSUSE and Arch. Those three are matched by
+Git metadata. Publication accepts the complete four-platform Debian package
+matrix with its build records and one Debian source package per distribution,
+the project's own source archive, and from each of Fedora, openSUSE and Arch a
+binary package per architecture it is built for together with exactly one
+source package. Each distribution therefore ships what its own packaging
+expects: the binary, its debug symbols and the source the binary came from. Two
+binaries of one distribution for the same architecture are refused, because
+which of them a user would install would then be decided by nothing. Those three are matched by
 shape rather than enumerated, because Fedora stamps `%{?dist}` into the name
 and Arch writes `x86_64` where Debian writes `amd64`; their debug subpackages
 are accepted but not required, since which of them a distribution emits is that

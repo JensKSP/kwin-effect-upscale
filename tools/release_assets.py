@@ -22,13 +22,19 @@ ARCHITECTURES = ("amd64", "arm64")
 # Their subpackages are accepted but not required, because which of debuginfo,
 # debugsource or -debug a distribution emits is that distribution's decision
 # and not something this repository should assert.
-# x86_64 only, because that is what distribution-packages.yml builds. Allowing
-# an architecture nothing produces would let an unexpected asset through the one
-# check whose job is to reject exactly that.
 DISTRIBUTION_PACKAGE_PATTERNS = {
-    "fedora": r"kwin-effect-upscale-{version}-\d+\.fc\d+\.x86_64\.rpm",
-    "opensuse": r"kwin-effect-upscale-{version}-\d+\.x86_64\.rpm",
-    "arch": r"kwin-effect-upscale-{version}-\d+-x86_64\.pkg\.tar\.zst",
+    "fedora": r"kwin-effect-upscale-{version}-\d+\.fc\d+\.(?P<arch>x86_64|aarch64)\.rpm",
+    "opensuse": r"kwin-effect-upscale-{version}-\d+\.(?P<arch>x86_64|aarch64)\.rpm",
+    # Arch publishes no aarch64: the distribution supports one architecture and
+    # the ARM port is a separate one with its own repositories.
+    "arch": r"kwin-effect-upscale-{version}-\d+-(?P<arch>x86_64)\.pkg\.tar\.zst",
+}
+# One per distribution whatever it was built for: a source package describes
+# the tree, not the machine.
+DISTRIBUTION_SOURCE_PATTERNS = {
+    "fedora": r"kwin-effect-upscale-{version}-\d+\.fc\d+\.src\.rpm",
+    "opensuse": r"kwin-effect-upscale-{version}-\d+\.src\.rpm",
+    "arch": r"kwin-effect-upscale-{version}-\d+\.src\.tar\.gz",
 }
 DISTRIBUTION_SUBPACKAGE = r"kwin-effect-upscale-(?:debuginfo|debugsource|debug)-"
 
@@ -73,7 +79,15 @@ def validate_distribution_assets(entries: set[str], version: str) -> set[str]:
     recognized: set[str] = set()
     for distribution, pattern in DISTRIBUTION_PACKAGE_PATTERNS.items():
         expression = pattern.format(version=escaped)
-        main = {name for name in entries if re.fullmatch(expression, name)}
+        source_expression = DISTRIBUTION_SOURCE_PATTERNS[distribution].format(version=escaped)
+        # Keep each match, so the architecture is read from the name that
+        # matched rather than matched a second time to satisfy a type checker.
+        main: dict[str, str] = {}
+        for name in entries:
+            found = re.fullmatch(expression, name)
+            if found is None or re.fullmatch(source_expression, name):
+                continue
+            main[name] = found["arch"]
         # A subpackage is the main name with debuginfo, debugsource or
         # debug inserted; strip that and it has to match the same shape.
         subpackages = set()
@@ -83,15 +97,27 @@ def validate_distribution_assets(entries: set[str], version: str) -> set[str]:
             stripped = re.sub(DISTRIBUTION_SUBPACKAGE, "kwin-effect-upscale-", name, count=1)
             if re.fullmatch(expression, stripped):
                 subpackages.add(name)
-        # Exactly one, not merely one or more: two main packages for the same
-        # distribution means two builds landed in one candidate, and which of
-        # them a user would install is then decided by nothing.
-        if len(main) != 1:
+        if not main:
+            message = f"No {distribution} package for {version} in the release candidate"
+            raise ValueError(message)
+        # One binary per architecture. Two for the same one means two builds
+        # landed in the candidate, and which of them a user installs would then
+        # be decided by nothing.
+        architectures = list(main.values())
+        if len(set(architectures)) != len(architectures):
+            message = f"More than one {distribution} package per architecture: {sorted(main)}"
+            raise ValueError(message)
+        sources = {name for name in entries if re.fullmatch(source_expression, name)}
+        # A distribution's contract is the binary, its debug symbols and the
+        # source it was built from. The binaries are per architecture; the
+        # source is one file, so exactly one of it is required.
+        if len(sources) != 1:
             message = (
-                f"Expected exactly one {distribution} package for {version}, found {sorted(main)}"
+                f"Expected exactly one {distribution} source package for {version}, "
+                f"found {sorted(sources)}"
             )
             raise ValueError(message)
-        recognized |= main | subpackages
+        recognized |= set(main) | subpackages | sources
     return recognized
 
 
@@ -128,6 +154,11 @@ def validate_assets(directory: Path, version: str) -> list[Path]:
                         message = f"Unexpected {field} in {package.name}"
                         raise ValueError(message)
                 packages.append(package)
+        # One source package per distribution, not per architecture: it
+        # describes the tree, so dpkg-buildpackage builds it once, on amd64.
+        expected.update(
+            f"kwin-effect-upscale_{version}~{distribution}.{ext}" for ext in ("dsc", "tar.xz")
+        )
     entries = {path.name for path in directory.iterdir()}
     extra = validate_distribution_assets(entries, version)
     if entries - extra != expected:

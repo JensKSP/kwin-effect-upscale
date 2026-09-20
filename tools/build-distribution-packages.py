@@ -86,17 +86,23 @@ def recipe(root: Path, distribution: str, version: str, kwin: str) -> str:
 
 
 def build_rpm(root: Path, work: Path, distribution: str, version: str, kwin: str) -> list[Path]:
-    """Build through rpmbuild, which wants its own directory layout."""
+    """Build through rpmbuild, which wants its own directory layout.
+
+    -ba rather than -bb, so the source package is built as well. An RPM
+    distribution expects to be handed the SRPM a binary came from: it is what
+    lets anyone rebuild it, and what the debuginfo and debugsource packages
+    refer back to.
+    """
     for directory in ("SOURCES", "SPECS", "BUILD", "RPMS", "SRPMS", "BUILDROOT"):
         (work / directory).mkdir(parents=True, exist_ok=True)
     source_archive(root, work / "SOURCES", version)
     spec = work / "SPECS" / f"{NAME}.spec"
     spec.write_text(recipe(root, distribution, version, kwin))
     subprocess.run(
-        ["rpmbuild", "-bb", "--define", f"_topdir {work}", str(spec)],
+        ["rpmbuild", "-ba", "--define", f"_topdir {work}", str(spec)],
         check=True,
     )
-    return sorted(work.glob("RPMS/*/*.rpm"))
+    return sorted([*work.glob("RPMS/*/*.rpm"), *work.glob("SRPMS/*.src.rpm")])
 
 
 ARCH_BUILDER = "builder"
@@ -119,12 +125,13 @@ def build_arch(root: Path, version: str, kwin: str) -> list[Path]:
         subprocess.run(["chown", "-R", owner, str(work)], check=True)
         run_as = ["setpriv", "--reuid", ARCH_BUILDER, "--regid", ARCH_BUILDER, "--init-groups"]
     # makepkg needs a writable home of its own for its temporary files.
-    subprocess.run(
-        [*run_as, "env", f"HOME={work}", "makepkg", "--noconfirm", "--nodeps", "--skipinteg"],
-        cwd=work,
-        check=True,
-    )
-    return sorted(work.glob("*.pkg.tar.zst"))
+    makepkg = [*run_as, "env", f"HOME={work}", "makepkg", "--noconfirm", "--skipinteg"]
+    subprocess.run([*makepkg, "--nodeps"], cwd=work, check=True)
+    # And the source package, which on Arch is the recipe together with what it
+    # builds from. --allsource keeps the tarball inside it, so the result stands
+    # on its own rather than pointing at a file only this build had.
+    subprocess.run([*makepkg, "--allsource"], cwd=work, check=True)
+    return sorted([*work.glob("*.pkg.tar.zst"), *work.glob("*.src.tar.gz")])
 
 
 def main() -> None:

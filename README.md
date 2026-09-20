@@ -314,13 +314,18 @@ the top of this document also applies to packaged builds.
 
 Packages are built for:
 
-| Distribution | Filename | Architectures |
-| --- | --- | --- |
-| Debian Trixie | `..._<version>.trixie_<arch>.deb` | amd64, arm64 |
-| Kubuntu 26.04 LTS | `..._<version>.resolute_<arch>.deb` | amd64, arm64 |
-| Fedora | `...-<version>-1.fc43.x86_64.rpm` | x86_64 |
-| openSUSE Tumbleweed | `...-<version>-1.x86_64.rpm` | x86_64 |
-| Arch | `...-<version>-1-x86_64.pkg.tar.zst` | x86_64 |
+| Distribution | Architectures | Binary | Debug symbols | Source |
+| --- | --- | --- | --- | --- |
+| Debian Trixie | amd64, arm64 | `.deb` | `-dbgsym` | `.dsc` + `.tar.xz` |
+| Kubuntu 26.04 LTS | amd64, arm64 | `.deb` | `-dbgsym` `.ddeb` | `.dsc` + `.tar.xz` |
+| Fedora | x86_64, aarch64 | `.rpm` | `-debuginfo`, `-debugsource` | `.src.rpm` |
+| openSUSE Tumbleweed | x86_64, aarch64 | `.rpm` | `-debuginfo`, `-debugsource` | `.src.rpm` |
+| Arch | x86_64 | `.pkg.tar.zst` | `-debug` | `.src.tar.gz` |
+
+Each distribution gets what its own packaging expects: the binary, its debug
+symbols, and the source the binary was built from. Arch is x86_64 alone because
+Arch itself supports one architecture — its ARM port is a separate distribution
+with its own repositories, not an architecture of this one.
 
 > [!IMPORTANT]
 > **Only Debian Trixie is tested on real hardware.** That is the one

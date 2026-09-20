@@ -358,10 +358,46 @@ matrix keeps both architectures. Nothing here verifies an aarch64 Fedora,
 openSUSE or Arch container, and claiming one without running it is exactly what
 this project's rules forbid.
 
+### Source packages and a second architecture, 2026-09-20
+
+Each distribution now gets what its own packaging expects, not only a binary:
+
+| Distribution | Architectures | Binary | Debug symbols | Source |
+| --- | --- | --- | --- | --- |
+| Debian, Kubuntu | amd64, arm64 | `.deb` | `-dbgsym` | `.dsc` + `.tar.xz` |
+| Fedora | x86_64, aarch64 | `.rpm` | `-debuginfo`, `-debugsource` | `.src.rpm` |
+| openSUSE Tumbleweed | x86_64, aarch64 | `.rpm` | `-debuginfo`, `-debugsource` | `.src.rpm` |
+| Arch | x86_64 | `.pkg.tar.zst` | `-debug` | `.src.tar.gz` |
+
+`rpmbuild -bb` became `-ba`, `makepkg` gained an `--allsource` pass, and
+`dpkg-buildpackage -b` became `-F` on amd64 only: a source package describes the
+tree rather than the machine, so building it on both architectures would produce
+the same two files twice under one name.
+
+**Arch is x86_64 alone, and that is not a decision taken here.** Read from the
+registry manifests: `fedora:43` publishes amd64 and arm64, `opensuse/tumbleweed`
+publishes both, and `archlinux:base-devel` publishes amd64 only. Arch supports
+one architecture; its ARM port is a separate distribution with its own
+repositories.
+
+The release inventory now requires, per distribution, one binary per
+architecture and exactly one source package, and refuses two binaries for the
+same architecture. Debug subpackages stay accepted but not required, because
+which of them a distribution emits is that distribution's decision.
+
+Observed locally: Fedora produced `.src.rpm` beside its binary, debuginfo and
+debugsource; Arch produced `.src.tar.gz` beside its binary and debug package;
+Debian Trixie produced `.dsc` and `.tar.xz` beside the binary and dbgsym, with
+the two clean builds still comparing equal. 135 tooling tests pass.
+
+A local container gotcha worth recording: an earlier `podman run --arch arm64`
+left an arm64 `debian:trixie` in the image cache, and the package image then
+failed to build with `Exec format error`. `--platform linux/amd64 --pull` is
+what fixes it.
+
 ### Remaining work
 
 - A hosted run. Everything above was observed locally, in containers; the
   nightly has not yet built these three.
 - Real-device acceptance on Fedora, openSUSE and Arch, which no acceptance host
   provides. The full-acceptance gate stays open and this slice stays with it.
-- aarch64 packages for the three new distributions, if they are ever wanted.

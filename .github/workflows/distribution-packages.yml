@@ -20,18 +20,31 @@ permissions:
 
 jobs:
   package:
-    name: ${{ matrix.distribution }}
-    runs-on: ubuntu-latest
+    name: ${{ matrix.distribution }} ${{ matrix.architecture }}
+    runs-on: ${{ matrix.architecture == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
+      # Arch is x86_64 only, and not as a decision taken here: the official
+      # image publishes no arm64, because Arch itself supports one
+      # architecture and the ARM port is a separate distribution with its own
+      # repositories. Fedora and openSUSE publish both.
       matrix:
         include:
           - distribution: fedora
+            architecture: amd64
+            base-image: docker.io/library/fedora:43
+          - distribution: fedora
+            architecture: arm64
             base-image: docker.io/library/fedora:43
           - distribution: opensuse
+            architecture: amd64
+            base-image: docker.io/opensuse/tumbleweed
+          - distribution: opensuse
+            architecture: arm64
             base-image: docker.io/opensuse/tumbleweed
           - distribution: arch
+            architecture: amd64
             base-image: docker.io/library/archlinux:base-devel
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -78,6 +91,7 @@ jobs:
           for candidate in $pattern; do
             case "$candidate" in
               *-debuginfo-*|*-debugsource-*|*-debug-*) continue ;;
+              *.src.rpm|*.src.tar.gz) continue ;;
             esac
             package="$candidate"
             break
@@ -93,13 +107,13 @@ jobs:
         run: sudo chown -R "$(id -u):$(id -g)" build
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: deliverable-${{ matrix.distribution }}
+          name: deliverable-${{ matrix.distribution }}-${{ matrix.architecture }}
           path: build/artifacts/*
           if-no-files-found: error
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
-          name: reports-${{ matrix.distribution }}
+          name: reports-${{ matrix.distribution }}-${{ matrix.architecture }}
           path: |
             build/packages/*/BUILD/*/build/CMakeFiles/CMakeConfigureLog.yaml
             build/packages/*/SPECS/*.spec
