@@ -19,6 +19,7 @@
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -32,6 +33,7 @@
 #include <array>
 #include <limits>
 #include <ranges>
+#include <utility>
 
 namespace KWin
 {
@@ -132,6 +134,10 @@ UpscaleApplicationEditor::UpscaleApplicationEditor(QWidget *parent)
     auto *add = new QPushButton(i18n("Add"), this);
     auto *detect = new QPushButton(i18n("Add from Window…"), this);
     m_delete = new QPushButton(i18n("Remove"), this);
+    // The order is the matching order: the first enabled entry that matches
+    // wins, so a narrow entry has to come before a broad one it overlaps.
+    m_up = new QPushButton(QIcon::fromTheme(QStringLiteral("go-up")), i18n("Move Up"), this);
+    m_down = new QPushButton(QIcon::fromTheme(QStringLiteral("go-down")), i18n("Move Down"), this);
     // Named as the rest of the settings page names its controls, so that the
     // tests reach them the way they reach everything else on it.
     m_list->setObjectName(QStringLiteral("applicationList"));
@@ -142,11 +148,15 @@ UpscaleApplicationEditor::UpscaleApplicationEditor(QWidget *parent)
     add->setObjectName(QStringLiteral("applicationAdd"));
     detect->setObjectName(QStringLiteral("applicationAddFromWindow"));
     m_delete->setObjectName(QStringLiteral("applicationRemove"));
+    m_up->setObjectName(QStringLiteral("applicationMoveUp"));
+    m_down->setObjectName(QStringLiteral("applicationMoveDown"));
     auto *buttons = new QHBoxLayout;
     buttons->addWidget(add);
     buttons->addWidget(detect);
     buttons->addWidget(m_delete);
     buttons->addStretch();
+    buttons->addWidget(m_up);
+    buttons->addWidget(m_down);
 
     auto *left = new QVBoxLayout;
     left->addWidget(m_list);
@@ -160,6 +170,12 @@ UpscaleApplicationEditor::UpscaleApplicationEditor(QWidget *parent)
     connect(add, &QPushButton::clicked, this, &UpscaleApplicationEditor::addApplication);
     connect(detect, &QPushButton::clicked, this, &UpscaleApplicationEditor::addFromWindow);
     connect(m_delete, &QPushButton::clicked, this, &UpscaleApplicationEditor::deleteSelected);
+    connect(m_up, &QPushButton::clicked, this, [this]() {
+        moveSelected(-1);
+    });
+    connect(m_down, &QPushButton::clicked, this, [this]() {
+        moveSelected(1);
+    });
     load();
 }
 
@@ -207,6 +223,9 @@ void UpscaleApplicationEditor::showSelected()
     // An entry this build ships comes back with the next package, so removing
     // it would not remove anything. Switching it off is what persists.
     m_delete->setEnabled(valid && !application->shipped);
+    const int row = m_list->currentRow();
+    m_up->setEnabled(valid && row > 0);
+    m_down->setEnabled(valid && row + 1 < m_list->count());
     if (!valid) {
         m_note->clear();
         return;
@@ -355,6 +374,31 @@ void UpscaleApplicationEditor::addIdentified(const QVariantMap &information, con
     rebuildList();
     m_list->setCurrentRow(int(m_applications.size()) - 1);
     m_name->setFocus();
+    Q_EMIT changed();
+}
+
+void UpscaleApplicationEditor::moveSelected(int step)
+{
+    const int row = m_list->currentRow();
+    const int target = row + step;
+    if (row < 0 || target < 0 || size_t(row) >= m_applications.size() || size_t(target) >= m_applications.size()) {
+        return;
+    }
+    // The two entries change places and each keeps the Order of the place it
+    // takes, so only these two are stored as changed. Where a stored Order
+    // already tied or ran backwards, the entries after it are moved on just
+    // far enough to keep the list strictly ordered, which is what the reader
+    // sorts by.
+    std::swap(m_applications[row], m_applications[target]);
+    std::swap(m_original[row], m_original[target]);
+    std::swap(m_applications[row].order, m_applications[target].order);
+    for (size_t index = 1; index < m_applications.size(); ++index) {
+        if (m_applications[index].order <= m_applications[index - 1].order) {
+            m_applications[index].order = m_applications[index - 1].order + 1;
+        }
+    }
+    rebuildList();
+    m_list->setCurrentRow(target);
     Q_EMIT changed();
 }
 

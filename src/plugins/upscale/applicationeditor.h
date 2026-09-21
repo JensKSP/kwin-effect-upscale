@@ -78,6 +78,7 @@ private:
     void askForProgram();
     void addIdentified(const QVariantMap &information, const QString &executable);
     void deleteSelected();
+    void moveSelected(int step);
     UpscaleApplication *selected();
 
     std::vector<UpscaleApplication> m_applications;
@@ -97,6 +98,8 @@ private:
     QCheckBox *m_enabled;
     QLabel *m_note;
     QPushButton *m_delete;
+    QPushButton *m_up;
+    QPushButton *m_down;
     // The window KWin's picker returned, while the effect is asked its program.
     // A second pick waits for both: m_selecting while the picker is open, the
     // query while the effect answers, so that it cannot replace m_picked.

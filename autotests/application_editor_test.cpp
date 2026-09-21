@@ -72,6 +72,7 @@ private Q_SLOTS:
     void givesEveryPendingApplicationItsOwnIdentifier();
     void refusesAnEntryNothingCouldEverMatch();
     void resetDiscardsThePendingApplicationEdits();
+    void reordersTheMatchingOrder();
 
 private:
     static QString userConfig();
@@ -478,6 +479,43 @@ void UpscaleApplicationEditorTest::resetDiscardsThePendingApplicationEdits()
     module.save();
     QVERIFY2(!userConfig().contains(QStringLiteral("discarded")), qPrintable(userConfig()));
     QVERIFY(!KWin::upscaleApplicationFor({QString(), QString(), QStringLiteral("discarded")}));
+}
+
+// The list's order is the matching order, so moving an entry is what lets a
+// narrow entry win over a broad one. Only the two entries that changed
+// places are stored as changed.
+void UpscaleApplicationEditorTest::reordersTheMatchingOrder()
+{
+    QWidget host;
+    KWin::UpscaleEffectConfig module(&host, KPluginMetaData());
+    auto *editor = module.widget()->findChild<KWin::UpscaleApplicationEditor *>();
+    QVERIFY(editor);
+    auto *list = editor->findChild<QListWidget *>(QStringLiteral("applicationList"));
+    auto *up = editor->findChild<QPushButton *>(QStringLiteral("applicationMoveUp"));
+    auto *down = editor->findChild<QPushButton *>(QStringLiteral("applicationMoveDown"));
+    QVERIFY(list && up && down && list->count() > 2);
+    const QString first = list->item(0)->text();
+    const QString second = list->item(1)->text();
+    list->setCurrentRow(0);
+    QVERIFY(!up->isEnabled());
+    QVERIFY(down->isEnabled());
+
+    down->click();
+    QCOMPARE(list->currentRow(), 1);
+    QCOMPARE(list->item(0)->text(), second);
+    QCOMPARE(list->item(1)->text(), first);
+    QVERIFY(module.needsSave());
+    module.save();
+    const std::vector<KWin::UpscaleApplication> &stored = KWin::upscaleApplications();
+    QCOMPARE(stored[0].name, second);
+    QCOMPARE(stored[1].name, first);
+    // Two groups carry an Order now, and nothing else was written.
+    QCOMPARE(userConfig().count(QStringLiteral("Order=")), 2);
+    QVERIFY2(!userConfig().contains(QStringLiteral("Name=")), qPrintable(userConfig()));
+
+    list->setCurrentRow(list->count() - 1);
+    QVERIFY(!down->isEnabled());
+    QVERIFY(up->isEnabled());
 }
 
 int main(int argc, char **argv)
