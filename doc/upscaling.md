@@ -1399,7 +1399,7 @@ resolution control succeeded.
 
 | Method | Intended behaviour |
 | --- | --- |
-| Auto | **Implemented**, and stateless: nothing it learns is stored. On X11 it is the buffer request, put back where the window stops covering its output. On Wayland it says nothing at bind; once the window exists it asks that one surface for a fractional scale, asserts it again when KWin reapplies the output's scale, and gives it back when the window stops covering its output or no smaller buffer arrives within 30 frames. In-session negotiation only: the [four requirements](#four-requirements-that-bound-every-route) leave no launch-time method to fall back to. |
+| Auto | **Implemented**, and stateless: nothing it learns is stored. On X11 it is the buffer request, put back where the window stops covering its output. On Wayland it says nothing at bind; once the window exists it asks that one surface for a fractional scale, asserts it again when KWin reapplies the output's scale, and gives it back when the window stops covering its output or no smaller buffer arrives within 30 frames. Wayland Auto is implemented but not yet measured; the [resolution-control bench](agents/slice-resolution-control.md#a-reversible-wayland-lever-for-auto-2026-09-20) decides when it enters the supported scope. In-session negotiation only: the [four requirements](#four-requirements-that-bound-every-route) leave no launch-time method to fall back to. |
 | Advertised screen mode | **Implemented for verified native Wayland client/runtime combinations.** Tell one recognized native Wayland client that its screen has a smaller current mode when it binds the output. This does not control Xwayland games. It needs no launch helper or restart and changes nothing outside that connection. |
 | Wayland negotiation | Generic surface-scale negotiation remains experimental; the implemented advertised scale and mode-and-scale methods are separate profile choices. |
 | X11 buffer request | **Implemented.** Request a smaller drawable and require client-owned fullscreen emulation to retain output coverage. The window keeps the place and size the system gave it; only the size the client renders at changes. |
@@ -1644,8 +1644,12 @@ that a later mismatch can be traced rather than guessed at.
 | vkmark | 2025.01 | `com.github.vkmark.vkmark` | `vkmark` | `vkmark` | Wayland fullscreen: advertised screen mode and scale | Native |
 
 Each entry states the one method slot it was measured under. Its other slots
-are absent and read as Auto, so a presentation nobody measured is still tried,
-and verified, rather than refused.
+are absent and read as Auto, so a presentation nobody measured is attempted
+rather than refused. Auto keeps its request only while what it observes at
+runtime holds - a smaller buffer that still covers the screen - and gives it
+back otherwise. That observation is a safeguard, not a measurement: a
+presentation is supported for a game once it has been measured, as the one in
+the table was.
 
 Two details in that table are the reason identities are measured.
 
