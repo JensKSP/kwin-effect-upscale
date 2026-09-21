@@ -12,7 +12,7 @@ kwin-effect-upscale (0.2.0) unstable; urgency=medium
     and rewritten in the new form when the settings page is applied.
   * X11 resolution requests hold on KWin 6.6.
 
- -- Jens Koehler <kwin-effect-upscale@koehler-speyer.de>  Mon, 21 Sep 2026 18:00:00 +0200
+ -- Jens Koehler <kwin-effect-upscale@koehler-speyer.de>  Mon, 21 Sep 2026 17:58:18 +0200
 
 kwin-effect-upscale (0.1.0) unstable; urgency=medium
 
