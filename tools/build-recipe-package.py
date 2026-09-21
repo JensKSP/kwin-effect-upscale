@@ -185,6 +185,10 @@ def build_pkg(root: Path, work: Path, version: str, kwin: str) -> list[Path]:
         env={**os.environ, "DESTDIR": str(stage)},
     )
 
+    # The packing list names each file relative to the manifest's prefix, and
+    # pkg create finds it at root directory + prefix + entry. So the root is
+    # the stage itself, which holds usr/local, and not the prefix inside it:
+    # given that, pkg looked for usr/local/usr/local/... and found nothing.
     prefix = stage / "usr" / "local"
     listed = sorted(path for path in prefix.rglob("*") if path.is_file())
     if not listed:
@@ -203,7 +207,7 @@ def build_pkg(root: Path, work: Path, version: str, kwin: str) -> list[Path]:
             "-p",
             str(plist),
             "-r",
-            str(prefix),
+            str(stage),
             "-o",
             str(work),
         ],
