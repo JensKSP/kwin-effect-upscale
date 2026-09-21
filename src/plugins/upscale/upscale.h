@@ -55,6 +55,8 @@ public:
 #endif
     bool isActive() const override;
     bool blocksDirectScanout() const override;
+    /** Whether the X11 resolution control has nothing in flight; see UpscaleX11Resolution::settled(). */
+    bool x11RequestsSettled() const;
     int requestedEffectChainPosition() const override;
     UpscalePaintResult drawWindow(const RenderTarget &target, const RenderViewport &viewport, EffectWindow *window,
                                   int mask, const UpscaleRegion &region, WindowPaintData &data) override;

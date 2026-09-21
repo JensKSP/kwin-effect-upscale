@@ -45,6 +45,17 @@ public:
     /** Configuration moved: give everything back and work it out again. */
     void reconfigure();
     QSize requested(const Window *window) const;
+
+    /**
+     * Whether nothing is in flight: no window waiting to be looked at, for its
+     * client to withdraw a mode, or for a buffer, and no restore under way.
+     *
+     * A request that has been made and is only awaiting its validation counts
+     * as settled, because what it asked for is already on its way to the
+     * client. This is what a caller waits for before judging what a
+     * reconfiguration did, rather than a delay that may or may not cover it.
+     */
+    bool settled() const;
     QString failure(const Window *window) const;
     /** Who is enlarging this window's buffer to the output right now. */
     UpscaleX11Presentation presentation(const Window *window) const;

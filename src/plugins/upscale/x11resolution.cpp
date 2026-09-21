@@ -116,6 +116,15 @@ void UpscaleX11Resolution::reconfigure()
 #endif
 }
 
+bool UpscaleX11Resolution::settled() const
+{
+#if KWIN_BUILD_X11
+    return !m_restoring && m_scheduled.isEmpty() && m_withdrawals.isEmpty() && m_waitingForBuffer.isEmpty();
+#else
+    return true;
+#endif
+}
+
 QSize UpscaleX11Resolution::requested(const Window *window) const
 {
 #if KWIN_BUILD_X11

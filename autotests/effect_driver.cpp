@@ -144,6 +144,9 @@ class UpscaleTestDriver : public Effect
     Q_PROPERTY(QString windows READ windows)
     Q_PROPERTY(QString captured READ captured)
     Q_PROPERTY(bool blocksScanout READ blocksDirectScanout)
+    // What a test waits for before judging what a reconfiguration did to an
+    // X11 window, rather than a delay that may or may not cover it.
+    Q_PROPERTY(bool x11Settled READ x11Settled)
 
 public:
     UpscaleTestDriver()
@@ -190,6 +193,11 @@ public:
     QString status() const
     {
         return m_effect->status();
+    }
+
+    bool x11Settled() const
+    {
+        return m_effect->x11RequestsSettled();
     }
 
     QString captured() const

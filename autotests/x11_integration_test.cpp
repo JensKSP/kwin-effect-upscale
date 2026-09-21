@@ -60,6 +60,14 @@ static bool waitForGeometry(const X11Client &client, const QRect &expected, QStr
                  qPrintable(QStringLiteral("wanted %1, saw\n%2%3").arg(QDebug::toString(expected), seen, status()))); \
     } while (false)
 
+// Waits until the effect has nothing in flight for any X11 window: no restore,
+// no request waiting to be sent, no client still to withdraw its mode. A
+// geometry that already matches before a reconfiguration says nothing about
+// what the reconfiguration did, so a case judges it only after this. Bounded
+// by the withdrawal fallback plus the nightly's slowest runner.
+#define UPSCALE_TRY_SETTLED() \
+    QTRY_VERIFY2_WITH_TIMEOUT(status().contains(QStringLiteral("x11Settled: true")), qPrintable(status()), 30000)
+
 class UpscaleX11IntegrationTest : public QObject
 {
     Q_OBJECT
@@ -418,6 +426,7 @@ void UpscaleX11IntegrationTest::independentOutputRules()
     QTRY_COMPARE(first.geometry().size(), QSize(3840, 2160));
     QTRY_COMPARE(other.geometry().size(), QSize(3840, 2160));
     configure(true); // A profile's own Native is its answer, whatever the global resolution.
+    UPSCALE_TRY_SETTLED();
     UPSCALE_TRY_GEOMETRY(first, QRect(0, 0, 1920, 1080));
     QTRY_VERIFY(status().contains(QStringLiteral("captured: upscale-x11-test")));
     QCOMPARE(other.geometry(), QRect(3840, 0, 3840, 2160));
@@ -430,10 +439,12 @@ void UpscaleX11IntegrationTest::independentOutputRules()
     // again, so the window this rule does not concern leaves its reduced mode
     // and returns to it. The request that follows the restore waits for the
     // client to withdraw its previous mode; before it did, KWin 6.6 undid it
-    // and only the validation's retry held, measured at about 8.1 s. Allow
-    // the whole retry path all the same rather than a fixed delay, then give
-    // the rule its own delay to resize the other window wrongly, which is
-    // what this is watching for.
+    // and only the validation's retry held, measured at about 8.1 s. The first
+    // window is already at the reduced size before any of that happens, so
+    // its geometry is judged only once the effect has finished: then every
+    // request this configuration makes has been sent, and a wrong one for the
+    // other window would already be on its way.
+    UPSCALE_TRY_SETTLED();
     UPSCALE_TRY_GEOMETRY(first, QRect(0, 0, 1920, 1080));
     QTest::qWait(500);
     QCOMPARE(other.geometry(), QRect(3840, 0, 3840, 2160));
@@ -442,6 +453,7 @@ void UpscaleX11IntegrationTest::independentOutputRules()
     second.writeEntry("MinimumPixels", 1920 * 1080);
     second.sync();
     configure(true);
+    UPSCALE_TRY_SETTLED();
     UPSCALE_TRY_GEOMETRY(other, QRect(3840, 0, 1920, 1080));
     UPSCALE_TRY_GEOMETRY(first, QRect(0, 0, 1920, 1080));
     QTRY_VERIFY2(status().contains(QStringLiteral("captured: upscale-x11-test,second-x11-test"))
@@ -454,6 +466,7 @@ void UpscaleX11IntegrationTest::independentOutputRules()
     second.writeEntry("Resolution", "Native");
     second.sync();
     configure(true);
+    UPSCALE_TRY_SETTLED();
     UPSCALE_TRY_GEOMETRY(other, QRect(3840, 0, 3840, 2160));
     UPSCALE_TRY_GEOMETRY(first, QRect(0, 0, 1920, 1080));
 }

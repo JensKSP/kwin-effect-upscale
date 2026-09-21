@@ -136,9 +136,15 @@ void UpscaleX11Resolution::withdrawal(xcb_property_notify_event_t *property)
     // KWin handles this event after this filter, and its handling is what
     // sizes the window from the property. The request has to follow that, so
     // it is scheduled for after the event has been dispatched.
+    // The token names this wait. A restore between the event and the callback
+    // starts a newer wait for the same window, and that one has to survive a
+    // callback that belongs to the old one - the fallback timer checks the
+    // same way. Tokens start at one, so an absent window reads as no wait.
     const QPointer<X11Window> guarded = window;
-    QTimer::singleShot(0, this, [this, guarded]() {
-        if (guarded && m_withdrawals.remove(guarded)) {
+    const int token = m_withdrawals.value(window);
+    QTimer::singleShot(0, this, [this, guarded, token]() {
+        if (guarded && m_withdrawals.value(guarded) == token) {
+            m_withdrawals.remove(guarded);
             schedule(guarded);
         }
     });

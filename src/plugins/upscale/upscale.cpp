@@ -260,6 +260,11 @@ bool UpscaleEffect::isActive() const
         && !window->isDeleted() && m_display.activeFor(window);
 }
 
+bool UpscaleEffect::x11RequestsSettled() const
+{
+    return m_x11Resolution->settled();
+}
+
 bool UpscaleEffect::blocksDirectScanout() const
 {
     // Only eligible content needs composition. KWin still selects presentation
