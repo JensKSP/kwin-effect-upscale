@@ -3,8 +3,9 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Reject agent-specific tooling and attribution anywhere in the tree.
 
-This enforces the first rule of AGENTS.md. The repository's AGENTS.md files
-and temporary slice documents under doc/agents/ are permitted by that rule.
+This enforces the "No AI artifacts in this repository" rule of AGENTS.md. The
+repository's AGENTS.md files and temporary slice documents under doc/agents/
+are permitted by that rule.
 
 Run without arguments it checks what is staged, which is how the pre-commit
 hook calls it. With --all it checks every tracked file, which is what the

@@ -3,7 +3,8 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Reject a commit message that names a tool as author or helper.
 
-This enforces the second rule of AGENTS.md and KDE's contribution rules.
+This enforces the "No AI attribution in commits" rule of AGENTS.md and KDE's
+contribution rules.
 
     check-commit-trailers.py [<range>]
 
