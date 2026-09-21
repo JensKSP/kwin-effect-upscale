@@ -281,7 +281,11 @@ UpscaleX11Resolution::Request UpscaleX11Resolution::requestFor(X11Window *window
     const qreal scale = kwinApp()->xwaylandScale();
     const QPoint position(qRound(window->output()->geometryF().x() * scale),
                           qRound(window->output()->geometryF().y() * scale));
-    return {window, key, position, QSize(size.width, size.height), application->x11PrimaryOutputOnly};
+    // Every field named, the last three with how a request starts out: not
+    // presented by the effect, not answered by the client, and no verdict
+    // until begin() sets one. Naming them keeps -Wmissing-field-initializers
+    // satisfied without an initializer on the timer that says nothing.
+    return {window, key, position, QSize(size.width, size.height), application->x11PrimaryOutputOnly, false, false, {}};
 }
 
 bool UpscaleX11Resolution::begin(const Request &request)

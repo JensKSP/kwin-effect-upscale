@@ -91,7 +91,7 @@ public:
         bool answered = false;
         // When validation judges this request, which is also how long a
         // release waits for the answer at most. Set by begin().
-        QDeadlineTimer verdict{};
+        QDeadlineTimer verdict;
     };
 #endif
 
