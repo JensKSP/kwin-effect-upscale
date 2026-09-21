@@ -83,6 +83,22 @@ void UpscaleMethodControls::build(QFormLayout *form, QWidget *parent)
         m_boxes[slot] = box;
         form->addRow(upscalePresentationLabel(presentation), box);
     }
+    // One width for the six, so they read as the one table they are rather
+    // than as boxes as wide as each one's longest entry.
+    int widest = 0;
+    for (const QComboBox *box : m_boxes) {
+        widest = std::max(widest, box->sizeHint().width());
+    }
+    for (QComboBox *box : m_boxes) {
+        box->setMinimumWidth(widest);
+    }
+}
+
+void UpscaleMethodControls::setEnabled(bool enabled)
+{
+    for (QComboBox *box : m_boxes) {
+        box->setEnabled(enabled);
+    }
 }
 
 void UpscaleMethodControls::show(const UpscaleMethods &methods)

@@ -10,6 +10,8 @@
 
 #include <KCModule>
 
+#include <QList>
+
 #include <array>
 #include <cstddef>
 
@@ -48,6 +50,8 @@ private:
     void takeCorner(std::size_t display);
     void addThresholdControl(QFormLayout *layout);
     void addApplicationControls(QFormLayout *layout);
+    void addUnlistedControls(QFormLayout *layout);
+    static void alignLabels(const QList<QFormLayout *> &forms);
     void resetApplications();
     static void reconfigureEffect();
     void updateApplicationSummary();

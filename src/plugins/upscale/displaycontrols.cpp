@@ -22,6 +22,7 @@
 #include <QComboBox>
 #include <QFormLayout>
 #include <QSignalBlocker>
+#include <QSpacerItem>
 #include <QSpinBox>
 
 namespace KWin
@@ -50,14 +51,22 @@ void UpscaleEffectConfig::addDisplayControls(QFormLayout *layout)
         m_osdTimeout->setSuffix(i18ncp("Suffix", " second", " seconds", seconds));
     };
     unit(m_osdTimeout->value());
-    layout->addRow(m_osdDetection);
-    layout->addRow(m_osdSummary);
+    // Three displays, each a switch and what it decides, set a little apart:
+    // the switches sit in the field column like every other value, and the
+    // space says where one display ends and the next begins.
+    const auto gap = [this, layout]() {
+        layout->addItem(new QSpacerItem(0, widget()->fontMetrics().height() / 2, QSizePolicy::Minimum, QSizePolicy::Fixed));
+    };
+    layout->addRow(QString(), m_osdDetection);
+    layout->addRow(QString(), m_osdSummary);
     layout->addRow(i18n("Show startup info for:"), m_osdTimeout);
     layout->addRow(i18n("Startup info position:"), m_osdAnnouncementPosition);
+    gap();
     m_osdStatistics->setToolTip(i18n("Shows the average frame rate and the slowest frames while a game is running."));
-    layout->addRow(m_osdStatistics);
+    layout->addRow(QString(), m_osdStatistics);
     layout->addRow(i18n("Frame rate position:"), m_osdStatisticsPosition);
-    layout->addRow(m_osdDeveloper);
+    gap();
+    layout->addRow(QString(), m_osdDeveloper);
     layout->addRow(i18n("Developer information position:"), m_osdDeveloperPosition);
     // A Debug build shows statistics and developer information unless the
     // user has said otherwise; a release build shows only the announcement.

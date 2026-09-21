@@ -812,20 +812,23 @@ committed, and neither a saved preference nor a made request is ever presented
 as a successfully applied client resolution.
 
 The page is grouped the way KWin's own effect pages are, a titled box per
-topic with a form inside, and its wording follows KDE's Human Interface
-Guidelines: title case for headings and push buttons, sentence case for
+topic with a form inside, and never a box inside a box: the profile editor's
+sections are tabs. All the boxes share one label column, labels against their
+fields and check boxes in the field column, so the page reads as one form, and
+it fits a settings page of 800 pixels. Its wording follows KDE's Human
+Interface Guidelines: title case for headings and push buttons, sentence case for
 labels, check boxes and tooltips, a colon after a form label, *screen* rather
 than *output*, and what a setting does rather than how it is done. The
 wording was reviewed with Jens string by string on 2026-09-21.
 
 | Section | Controls |
 | --- | --- |
-| General | **Upscale unlisted applications**, the global profile's own switch: off by default, and never a switch that stops the listed games; the overall off switch is KWin's Desktop Effects entry. **Scaler: AMD FSR 1**, shown as a fact until a second scaler exists. |
 | Resolution | **Render resolution:** Native, Ultra Quality, Quality, Balanced, Performance or Custom, AMD's own names. **Resolution scale:** the percentage, which selects Custom when moved off a preset's exact ratio. **Screen:** which connected screen the line below describes, followed by the render size in pixels and its share, or why nothing would happen. **Upscale on screens larger than:** the resolution limit, offered as the resolutions of the connected screens and the common ones, and **Any screen**. |
-| Sharpening | **Sharpen the image**, off by default, and **Strength:**, where zero is shown as **Off** because it is a real bypass rather than the weakest setting. |
-| On-Screen Display | **Show info at startup**, with **Include details**, **Show startup info for:** in seconds, and **Startup info position:**; **Show frame rate** and **Frame rate position:**; **Show developer information** and **Developer information position:**. No two displays share a corner. |
-| Applications | The profiles, each grouped like this page under **Identification**, **Resolution Request**, **Resolution**, **Sharpening** and **On-Screen Display**, with its six measured methods and a **Global** choice for every preference that names the value it follows, for example **Global (Quality)**; whether the list still follows the package, and **Restore Defaults**, which is separate from the page's own Defaults. |
-| About | **Version:** exactly as the version rule names the build, and **Author:**, read from the effect's metadata. |
+| Sharpening | **Sharpen the image**, off by default, and **Strength:** with its value beside the slider, where zero is shown as **Off** because it is a real bypass rather than the weakest setting. |
+| Applications | The list, in matching order, with **Add**, **Add from Window…**, **Remove** and arrows that move an entry up or down. Below it the selected entry's details, in tabs named like this page's groups - **Identification**, **Resolution Request**, **Resolution**, **Sharpening** and **On-Screen Display** - with its six measured methods and a **Global** choice for every preference that names the value it follows, for example **Global (Quality)**; the identity fields say which open windows the entry matches. Then whether the list still follows the package, and **Restore Defaults**, which is separate from the page's own Defaults. |
+| Unlisted Applications | **Upscale unlisted applications**, the global profile's own switch: off by default, and never a switch that stops the listed games; the overall off switch is KWin's Desktop Effects entry. Under it the global profile's six methods, offered only while the switch is on. |
+| On-Screen Display | **Show info at startup**, with **Include details**, **Show startup info for:** in seconds, and **Startup info position:**; **Show frame rate** and **Frame rate position:**; **Show developer information** and **Developer information position:**; each display set a little apart from the next. No two displays share a corner. |
+| About | **Version:** exactly as the version rule names the build, **Scaler:** AMD FSR 1, shown as a fact until a second scaler exists, and **Author:**, read from the effect's metadata. |
 
 The page does not report what the running effect is doing: Jens decided on
 2026-09-21 that status and a refresh button do not belong in settings. That
@@ -1431,7 +1434,7 @@ resolution control succeeded.
 
 | Method | Intended behaviour |
 | --- | --- |
-| Auto | **Implemented**, and stateless: nothing it learns is stored. On X11 it is the buffer request, put back where the window stops covering its output. On Wayland it says nothing at bind; once the window exists it asks that one surface for a fractional scale, asserts it again when KWin reapplies the output's scale, and gives it back when the window stops covering its output or no smaller buffer arrives within 30 frames. Wayland Auto is implemented but not yet measured; the [resolution-control bench](agents/slice-resolution-control.md#a-reversible-wayland-lever-for-auto-2026-09-20) decides when it enters the supported scope. In-session negotiation only: the [four requirements](#four-requirements-that-bound-every-route) leave no launch-time method to fall back to. |
+| Auto | **Implemented**, and stateless: nothing it learns is stored. On X11 it is the buffer request, put back where the window stops covering its output. On Wayland it says nothing at bind; once the window exists it asks that one surface for a fractional scale, asserts it again when KWin reapplies the output's scale, and gives it back when the window stops covering its output or no smaller buffer arrives within 30 frames. It asks the window its output would scale once the buffer allowed it, which a window drawing at full size is not yet; it keeps the effect active while it asks, so that nothing else has to; a window that ignored it is not asked again until the window, the ratio or the settings change; and a window that stops qualifying gets its own scale back at once. Wayland Auto is implemented but not yet measured; the [resolution-control bench](agents/slice-resolution-control.md#a-reversible-wayland-lever-for-auto-2026-09-20) decides when it enters the supported scope. In-session negotiation only: the [four requirements](#four-requirements-that-bound-every-route) leave no launch-time method to fall back to. |
 | Advertised screen mode | **Implemented for verified native Wayland client/runtime combinations.** Tell one recognized native Wayland client that its screen has a smaller current mode when it binds the output. This does not control Xwayland games. It needs no launch helper or restart and changes nothing outside that connection. |
 | Wayland negotiation | Generic surface-scale negotiation remains experimental; the implemented advertised scale and mode-and-scale methods are separate profile choices. |
 | X11 buffer request | **Implemented.** Request a smaller drawable and require client-owned fullscreen emulation to retain output coverage. The window keeps the place and size the system gave it; only the size the client renders at changes. |

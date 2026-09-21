@@ -1268,6 +1268,13 @@ Planned checks, not observed results:
 - [x] Implement the editor's **Use global** controls, 2026-09-21: built from the
       table by `settingcontrols.{h,cpp}` and `methodcontrols.{h,cpp}`. Named
       **Global (value)** since the text review below.
+- [x] Lay the settings page out by KDE's form conventions, 2026-09-21, at
+      Jens's request, from an offscreen render of the real page in Breeze:
+      one label column across all group boxes, check boxes in the field
+      column, no box inside a box (the profile editor's sections are tabs,
+      below the list), the unlisted switch with its six methods, the scaler in
+      About. It needed 1028 pixels and now fits 800. Awaiting Jens's review in
+      System Settings.
 - [ ] Review every user-facing text with Jens against KDE's naming, one batch
       at a time. Batch 1, the settings page, agreed and applied on 2026-09-21:
       group boxes like KWin's own effect pages, the status block and its

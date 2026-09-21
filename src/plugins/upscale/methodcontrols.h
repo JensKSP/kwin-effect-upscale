@@ -45,6 +45,8 @@ public:
     void build(QFormLayout *form, QWidget *parent);
     void show(const UpscaleMethods &methods);
     void store(UpscaleMethods &methods) const;
+    /** Offer the six boxes, or show them as not applying. */
+    void setEnabled(bool enabled);
 
 Q_SIGNALS:
     void changed();

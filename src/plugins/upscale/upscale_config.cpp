@@ -40,6 +40,7 @@
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QGuiApplication>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
@@ -48,6 +49,8 @@
 #include <QSlider>
 #include <QSpinBox>
 #include <QVBoxLayout>
+
+#include <algorithm>
 
 #include <limits>
 
@@ -84,17 +87,18 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     m_sharpening->setObjectName(QStringLiteral("sharpening"));
     m_strength->setObjectName(QStringLiteral("strength"));
     // Grouped the way KWin's own effect pages group theirs: a box per topic
-    // with a form inside it, and each box titled in title case.
+    // with a form inside it, and each box titled in title case. What a person
+    // sets most comes first; what only some need, and what only informs,
+    // comes last.
     auto page = new QVBoxLayout(widget());
-    const auto section = [this, page](const QString &title) {
+    QList<QFormLayout *> forms;
+    const auto section = [this, page, &forms](const QString &title) {
         auto box = new QGroupBox(title, widget());
         page->addWidget(box);
-        return new QFormLayout(box);
+        auto form = new QFormLayout(box);
+        forms.append(form);
+        return form;
     };
-
-    QFormLayout *general = section(i18n("General"));
-    general->addRow(m_enabled);
-    general->addRow(i18n("Scaler:"), new QLabel(i18n("AMD FSR 1"), widget()));
 
     QFormLayout *resolution = section(i18n("Resolution"));
     m_preset->addItems({i18n("Native"), i18n("Ultra Quality"), i18n("Quality"), i18n("Balanced"),
@@ -109,14 +113,24 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     addThresholdControl(resolution);
 
     QFormLayout *sharpening = section(i18n("Sharpening"));
-    sharpening->addRow(m_sharpening);
+    sharpening->addRow(QString(), m_sharpening);
     m_strength->setRange(0, 100);
-    sharpening->addRow(i18n("Strength:"), m_strength);
-    sharpening->addRow(QString(), m_strengthLabel);
+    // The value beside its slider, wide enough for the widest value so that
+    // moving the slider does not move the slider.
+    m_strengthLabel->setMinimumWidth(m_strengthLabel->fontMetrics().horizontalAdvance(i18nc("sharpening strength", "%1%", 100)));
+    auto strength = new QHBoxLayout;
+    strength->addWidget(m_strength, 1);
+    strength->addWidget(m_strengthLabel);
+    sharpening->addRow(i18n("Strength:"), strength);
 
-    addDisplayControls(section(i18n("On-Screen Display")));
+    // The list spans its box: its rows are the list and the editor beside
+    // it, which a label column would only narrow.
     addApplicationControls(section(i18n("Applications")));
+    forms.removeLast();
+    addUnlistedControls(section(i18n("Unlisted Applications")));
+    addDisplayControls(section(i18n("On-Screen Display")));
     addAboutControls(section(i18n("About")));
+    alignLabels(forms);
     page->addStretch();
     connectControls();
     connect(qGuiApp, &QGuiApplication::screenAdded, this, &UpscaleEffectConfig::updateOutputs);
@@ -137,6 +151,9 @@ void UpscaleEffectConfig::addAboutControls(QFormLayout *layout)
     m_build->setTextInteractionFlags(Qt::TextSelectableByMouse);
     m_build->setText(installedVersion());
     layout->addRow(i18n("Version:"), m_build);
+    // What does the upscaling. Not a choice, so it is told here rather than
+    // offered with the settings.
+    layout->addRow(i18n("Scaler:"), new QLabel(i18n("AMD FSR 1"), widget()));
     // Read from the effect's own metadata, which is where the author is
     // maintained, rather than repeated here. This module is built without
     // metadata of its own, so it looks the effect up by its plugin ID the way
@@ -185,6 +202,7 @@ void UpscaleEffectConfig::connectControls()
         setNeedsSave(true);
     });
     connect(m_enabled, &QCheckBox::toggled, this, [this]() {
+        updatePreview();
         setNeedsSave(true);
     });
     connect(m_sharpening, &QCheckBox::toggled, this, [this]() {
@@ -202,8 +220,12 @@ void UpscaleEffectConfig::connectControls()
 // so that a new package can deliver a corrected entry without touching what
 // the user changed. Its restore is therefore separate from this page's
 // Defaults, which restores the values above and leaves the list alone.
-void UpscaleEffectConfig::addApplicationControls(QFormLayout *layout)
+// The switch for the global profile and the six answers it gives, together:
+// the answers are asked of a program only while unlisted programs are
+// handled, so they follow the switch rather than sitting apart from it.
+void UpscaleEffectConfig::addUnlistedControls(QFormLayout *layout)
 {
+    layout->addRow(QString(), m_enabled);
     // The global profile's own six answers, for a window no profile claimed.
     // Off throughout by default: nothing is known about how an unmeasured
     // program answers, so one asked anything may keep its own resolution or
@@ -214,9 +236,37 @@ void UpscaleEffectConfig::addApplicationControls(QFormLayout *layout)
     connect(m_methods, &UpscaleMethodControls::changed, this, [this]() {
         setNeedsSave(true);
     });
+}
 
+// One label column for the whole page, as a single form would have. Each group
+// box lays out a form of its own, and left alone each would align its labels
+// to its own longest one, so the fields would start at a different place in
+// every box.
+void UpscaleEffectConfig::alignLabels(const QList<QFormLayout *> &forms)
+{
+    QList<QLabel *> labels;
+    int widest = 0;
+    for (QFormLayout *form : forms) {
+        for (int row = 0; row < form->rowCount(); ++row) {
+            QLayoutItem *item = form->itemAt(row, QFormLayout::LabelRole);
+            if (auto *label = item ? qobject_cast<QLabel *>(item->widget()) : nullptr) {
+                // A widened label keeps its text where the style puts a form's
+                // labels, which for KDE's is against the field.
+                label->setAlignment(form->labelAlignment() | Qt::AlignVCenter);
+                labels.append(label);
+                widest = std::max(widest, label->sizeHint().width());
+            }
+        }
+    }
+    for (QLabel *label : std::as_const(labels)) {
+        label->setMinimumWidth(widest);
+    }
+}
+
+void UpscaleEffectConfig::addApplicationControls(QFormLayout *layout)
+{
     m_editor = new UpscaleApplicationEditor(widget());
-    layout->addRow(i18n("Applications:"), m_editor);
+    layout->addRow(m_editor);
     connect(m_editor, &UpscaleApplicationEditor::changed, this, [this]() {
         setNeedsSave(true);
         updateApplicationSummary();
@@ -226,10 +276,13 @@ void UpscaleEffectConfig::addApplicationControls(QFormLayout *layout)
     m_applications->setObjectName(QStringLiteral("applicationSummary"));
     m_applications->setTextFormat(Qt::PlainText);
     m_applications->setWordWrap(true);
-    layout->addRow(QString(), m_applications);
     m_resetApplications = new QPushButton(i18n("Restore Defaults"), widget());
     m_resetApplications->setObjectName(QStringLiteral("resetApplications"));
-    layout->addRow(QString(), m_resetApplications);
+    // What the list is, and the way back to the list the package ships.
+    auto status = new QHBoxLayout;
+    status->addWidget(m_applications, 1);
+    status->addWidget(m_resetApplications);
+    layout->addRow(status);
     connect(m_resetApplications, &QPushButton::clicked, this, &UpscaleEffectConfig::resetApplications);
     updateApplicationSummary();
 }
@@ -301,6 +354,10 @@ void UpscaleEffectConfig::updatePreview()
         }
     }
     m_strength->setEnabled(m_sharpening->isChecked());
+    m_strengthLabel->setEnabled(m_sharpening->isChecked());
+    if (m_methods) {
+        m_methods->setEnabled(m_enabled->isChecked());
+    }
     // Zero is a real bypass rather than the weakest setting, so it is named as
     // one instead of being shown as a percentage.
     m_strengthLabel->setText(m_strength->value() == 0 ? i18nc("sharpening strength", "Off")

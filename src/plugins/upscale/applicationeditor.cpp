@@ -17,7 +17,6 @@
 #include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
 #include <QFormLayout>
-#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QLabel>
@@ -27,6 +26,7 @@
 #include <QPushButton>
 #include <QScopedValueRollback>
 #include <QSpinBox>
+#include <QTabWidget>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -43,27 +43,32 @@ namespace KWin
 // rather than written out here, which is what keeps this file able to take
 // another setting without passing the size limit.
 
-// One titled group of the details, the way the settings page groups its own.
-static QFormLayout *addGroup(QVBoxLayout *details, QWidget *parent, const QString &title)
+// One tab of the details. The editor sits inside the page's own Applications
+// box, and boxes inside a box are frames within frames; tabs keep the same
+// sections, show one at a time, and keep the editor as short as its list.
+static QFormLayout *addTab(QTabWidget *tabs, const QString &title)
 {
-    auto *group = new QGroupBox(title, parent);
-    auto *form = new QFormLayout(group);
-    details->addWidget(group);
+    auto *page = new QWidget(tabs);
+    auto *form = new QFormLayout(page);
+    tabs->addTab(page, title);
     return form;
 }
 
-// Grouped as the settings page is, so that a game's form reads like the
+// Sectioned as the settings page is, so that a game's form reads like the
 // global one with a Global choice added to each preference.
 void UpscaleApplicationEditor::buildDetails(QVBoxLayout *details)
 {
     m_note->setWordWrap(true);
     m_note->setTextFormat(Qt::PlainText);
-    QFormLayout *identification = addGroup(details, this, i18n("Identification"));
+    auto *tabs = new QTabWidget(this);
+    tabs->setObjectName(QStringLiteral("applicationDetails"));
+    details->addWidget(tabs);
+    QFormLayout *identification = addTab(tabs, i18n("Identification"));
     identification->addRow(i18n("Name:"), m_name);
     m_identity->build(identification, this);
     identification->addRow(QString(), m_enabled);
     identification->addRow(QString(), m_note);
-    QFormLayout *requests = addGroup(details, this, i18n("Resolution Request"));
+    QFormLayout *requests = addTab(tabs, i18n("Resolution Request"));
     m_settings->build(requests, this, {UpscaleSetting::ResolutionControl});
     // What to ask for, per way the game can present itself. No Global choice
     // here: a method is a measurement of this program and has nothing to
@@ -71,15 +76,13 @@ void UpscaleApplicationEditor::buildDetails(QVBoxLayout *details)
     m_methods->build(requests, this);
     // And what the user wants, every entry of which may follow the global
     // value instead.
-    m_settings->build(addGroup(details, this, i18n("Resolution")), this,
+    m_settings->build(addTab(tabs, i18n("Resolution")), this,
                       {UpscaleSetting::Resolution, UpscaleSetting::Percentage, UpscaleSetting::MinimumPixels});
-    m_settings->build(addGroup(details, this, i18n("Sharpening")), this,
-                      {UpscaleSetting::Sharpening, UpscaleSetting::Strength});
-    m_settings->build(addGroup(details, this, i18n("On-Screen Display")), this,
+    m_settings->build(addTab(tabs, i18n("Sharpening")), this, {UpscaleSetting::Sharpening, UpscaleSetting::Strength});
+    m_settings->build(addTab(tabs, i18n("On-Screen Display")), this,
                       {UpscaleSetting::OsdDetection, UpscaleSetting::OsdSummary, UpscaleSetting::OsdStatistics,
                        UpscaleSetting::OsdDeveloper, UpscaleSetting::OsdTimeout, UpscaleSetting::AnnouncementPosition,
                        UpscaleSetting::StatisticsPosition, UpscaleSetting::DeveloperPosition});
-    details->addStretch();
 }
 
 void UpscaleApplicationEditor::connectControls()
@@ -136,8 +139,14 @@ UpscaleApplicationEditor::UpscaleApplicationEditor(QWidget *parent)
     m_delete = new QPushButton(i18n("Remove"), this);
     // The order is the matching order: the first enabled entry that matches
     // wins, so a narrow entry has to come before a broad one it overlaps.
-    m_up = new QPushButton(QIcon::fromTheme(QStringLiteral("go-up")), i18n("Move Up"), this);
-    m_down = new QPushButton(QIcon::fromTheme(QStringLiteral("go-down")), i18n("Move Down"), this);
+    // Arrows, as KDE's own list editors show them, named for tooltips and
+    // screen readers rather than labelled, to keep the row within the list.
+    m_up = new QPushButton(QIcon::fromTheme(QStringLiteral("go-up")), QString(), this);
+    m_down = new QPushButton(QIcon::fromTheme(QStringLiteral("go-down")), QString(), this);
+    for (const auto &[button, name] : {std::pair{m_up, i18n("Move Up")}, std::pair{m_down, i18n("Move Down")}}) {
+        button->setToolTip(name);
+        button->setAccessibleName(name);
+    }
     // Named as the rest of the settings page names its controls, so that the
     // tests reach them the way they reach everything else on it.
     m_list->setObjectName(QStringLiteral("applicationList"));
@@ -158,13 +167,14 @@ UpscaleApplicationEditor::UpscaleApplicationEditor(QWidget *parent)
     buttons->addWidget(m_up);
     buttons->addWidget(m_down);
 
-    auto *left = new QVBoxLayout;
-    left->addWidget(m_list);
-    left->addLayout(buttons);
-    auto *layout = new QHBoxLayout(this);
+    // The list above the details rather than beside them: the details are five
+    // tabs and three identity fields that each carry a match type, and beside
+    // a list they would not fit a settings page's width.
+    auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->addLayout(left, 1);
-    layout->addLayout(details, 1);
+    layout->addWidget(m_list);
+    layout->addLayout(buttons);
+    layout->addLayout(details);
 
     connectControls();
     connect(add, &QPushButton::clicked, this, &UpscaleApplicationEditor::addApplication);
