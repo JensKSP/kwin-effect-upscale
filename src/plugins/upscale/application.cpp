@@ -174,10 +174,15 @@ static std::vector<UpscaleApplication> readApplications(const KSharedConfig::Ptr
         application.id = name.mid(applicationGroupPrefix.size());
         application.name = group.readEntry("Name", application.id);
         application.version = group.readEntry("MeasuredVersion", QString());
+        application.executable = group.readEntry("Executable", QString());
+        application.executableMatch = upscaleStringMatchFromKey(group.readEntry("ExecutableMatch", QString()));
         application.windowClass = group.readEntry("WindowClass", QString());
+        application.windowClassMatch = upscaleStringMatchFromKey(group.readEntry("WindowClassMatch", QString()));
         application.instance = group.readEntry("Instance", QString());
-        application.program = group.readEntry("Program", QString());
+        application.instanceMatch = upscaleStringMatchFromKey(group.readEntry("InstanceMatch", QString()));
         application.methods = readMethods(group);
+        // After the methods: what an old Program key meant depended on them.
+        upscaleReadLegacyProgram(group, application);
         application.overrides = upscaleReadOverrides(group);
         application.note = group.readEntry("Note", QString());
         application.order = group.readEntry("Order", 0);
@@ -190,7 +195,7 @@ static std::vector<UpscaleApplication> readApplications(const KSharedConfig::Ptr
             || group.hasDefault(upscalePresentationKey(UpscalePresentation::X11FullScreen));
         // An entry that constrains no identity would match every window,
         // including the desktop. Dropping it is the only safe reading.
-        if (application.windowClass.isEmpty() && application.instance.isEmpty()) {
+        if (application.executable.isEmpty() && application.windowClass.isEmpty() && application.instance.isEmpty()) {
             continue;
         }
         applications.push_back(std::move(application));
@@ -207,13 +212,20 @@ static std::vector<UpscaleApplication> readApplications(const KSharedConfig::Ptr
 // assembled, and neither may touch the disk. upscaleReloadApplications() is
 // what a reconfiguration calls to pick up an edit.
 static std::optional<std::vector<UpscaleApplication>> cachedApplications;
+static quint64 applicationsGeneration = 0;
 
 const std::vector<UpscaleApplication> &upscaleApplications()
 {
     if (!cachedApplications) {
         cachedApplications = readApplications(upscaleApplicationConfig());
+        ++applicationsGeneration;
     }
     return *cachedApplications;
+}
+
+quint64 upscaleApplicationsGeneration()
+{
+    return applicationsGeneration;
 }
 
 void upscaleReloadApplications()
@@ -221,6 +233,7 @@ void upscaleReloadApplications()
     const KSharedConfig::Ptr config = upscaleApplicationConfig();
     config->reparseConfiguration();
     cachedApplications = readApplications(config);
+    ++applicationsGeneration;
 }
 
 bool upscaleApplicationsCustomized()
@@ -304,9 +317,15 @@ void upscaleSaveApplication(const UpscaleApplication &application, const Upscale
     const KSharedConfig::Ptr config = upscaleApplicationConfig();
     KConfigGroup group(config, applicationGroupPrefix + application.id);
     writeField(group, "Name", application.name, original.name);
+    writeField(group, "Executable", application.executable, original.executable);
+    writeField(group, "ExecutableMatch", upscaleStringMatchKey(application.executableMatch),
+               upscaleStringMatchKey(original.executableMatch));
     writeField(group, "WindowClass", application.windowClass, original.windowClass);
+    writeField(group, "WindowClassMatch", upscaleStringMatchKey(application.windowClassMatch),
+               upscaleStringMatchKey(original.windowClassMatch));
     writeField(group, "Instance", application.instance, original.instance);
-    writeField(group, "Program", application.program, original.program);
+    writeField(group, "InstanceMatch", upscaleStringMatchKey(application.instanceMatch),
+               upscaleStringMatchKey(original.instanceMatch));
     for (std::size_t slot = 0; slot < upscalePresentationCount; ++slot) {
         const char *key = upscalePresentationKey(UpscalePresentation(slot));
         writeField(group, key, upscaleMethodKey(application.methods[slot]), upscaleMethodKey(original.methods[slot]));
@@ -348,64 +367,6 @@ void upscaleSyncApplications()
 {
     upscaleApplicationConfig()->sync();
     upscaleReloadApplications();
-}
-
-// A profile that is switched off takes no part in matching, so a later one can
-// claim the window and, failing that, the global profile does. That is how a
-// user shadows an entry this package ships: their own entry takes a lower
-// Order, or they switch the shipped one off.
-//
-// It reads as leaving the game alone because the global profile is switched
-// off by default, so falling all the way through means nothing acts on it. A
-// user who has deliberately switched the global profile on has asked for
-// unlisted applications to be handled, and this game is then one of them.
-static bool matches(const UpscaleApplication &application, const QString &windowClass, const QString &instance)
-{
-    if (!application.enabled) {
-        return false;
-    }
-    if (!application.windowClass.isEmpty() && application.windowClass != windowClass) {
-        return false;
-    }
-    return application.instance.isEmpty() || application.instance == instance;
-}
-
-const UpscaleApplication *upscaleApplicationForIdentity(const QString &windowClass, const QString &instance)
-{
-    if (windowClass.isEmpty() && instance.isEmpty()) {
-        // Identity can arrive after the window does. Nothing matches yet, and
-        // windowClassChanged will bring the effect back here when it does.
-        return nullptr;
-    }
-    for (const UpscaleApplication &application : upscaleApplications()) {
-        if (matches(application, windowClass, instance)) {
-            return &application;
-        }
-    }
-    return nullptr;
-}
-
-const UpscaleApplication *upscaleApplicationForProgram(const QString &executablePath)
-{
-    if (executablePath.isEmpty()) {
-        return nullptr;
-    }
-    // Compare the file name only: the same program sits in a different
-    // directory depending on how it was installed.
-    const QString program = executablePath.section(QLatin1Char('/'), -1);
-    if (program.isEmpty()) {
-        return nullptr;
-    }
-    for (const UpscaleApplication &application : upscaleApplications()) {
-        if (!application.enabled || application.program.isEmpty() || application.program != program) {
-            continue;
-        }
-        return &application;
-    }
-    // Nothing in the list describes this program. A null profile is how the
-    // caller asks for the global one, which answers for every window no
-    // profile claimed.
-    return nullptr;
 }
 
 QString describeControlMethod(UpscaleMethod method)

@@ -1068,11 +1068,16 @@ reading of a process:
 - a native Wayland client: `ClientConnection::executablePath()`, resolved by
   KWin from the connection's own credentials;
 - an X11 window: `executablePathFromPid()`, exported by KWin in
-  `utils/executable_path.h`, given `X11Window::pid()`. That PID is the
-  window's `_NET_WM_PID`, which the client sets and the X server does not
-  verify, and a client inside its own process namespace - Flatpak uses one;
-  Steam's runtime is to be checked - reports a number that means another
-  process on the host. A PID that does not resolve therefore makes gate 1 not
+  `utils/executable_path.h`, given `X11Window::pid()`. On KWin 6.3.6 that
+  PID is the window's `_NET_WM_PID`, which the client sets and the X server
+  does not verify, and a client inside its own process namespace - Flatpak
+  uses one; Steam's runtime is to be checked - reports a number that means
+  another process on the host. KWin 6.6.6 and master ask the X server instead
+  (`X11Window::fetchPid()`, the X-Resource extension's local client PID), which
+  takes it from the connection, so neither caveat applies there. Observed on
+  2026-09-21: the first version of the X11 test expected a window reporting no
+  `_NET_WM_PID` to have no path; on 6.3.6 it had none, on 6.6.6 it resolved to
+  the test's own executable. A PID that does not resolve makes gate 1 not
   match, and never matches something by accident: every entry stating gate 1
   passes over that window, and only a gate-2-only entry can claim it.
 
@@ -1120,10 +1125,85 @@ reading of a process:
 
 ### Not decided yet
 
-Whether a Proton game's `steam_app_<id>` should be offered by *Add from window*
-as the natural identity, which it is, or left to the person. And whether the
-Flatpak app ID is worth a field of its own once it has been seen on a real
-Flatpak game.
+Whether the Flatpak app ID is worth a field of its own once it has been seen on
+a real Flatpak game. Settled by the implementation: *Add from Window* states a
+Proton game's window identity, `steam_app_<id>` among it, because its program
+is the Wine loader every Proton game shares.
+
+### As implemented, 2026-09-21
+
+- `pattern.{h,cpp}`: the three match types, their keys, and one compiled
+  field. A regular expression is anchored, and one that is invalid or matches
+  the empty string is unusable and never matches.
+- `matching.{h,cpp}`: the gates, the match rule, `upscaleIdentityProblem()`,
+  `upscaleApplicationFor()` and `upscaleApplicationAtBind()`. The stored list's
+  patterns are compiled once per reading of the list, keyed on a generation
+  that `upscaleReloadApplications()` advances.
+- `windowidentity.{h,cpp}`, effect only: the executable path from
+  `executablePathFromPid(window->pid())`, and the per-window cache every caller
+  now goes through - eligibility, observation, the candidate choice and both
+  X11 lookups. The path is resolved once per window; the match is redone only
+  when the generation or the window's class or instance changes. Entries are
+  keyed by address and guarded by a `QPointer`, so a window created where a
+  closed one was does not inherit its path. It also exports
+  `org.kde.KWin.Effect.Upscale1.executablePath(uuid)`, because KWin 6.3's
+  `queryWindowInfo` returns no PID (master added one), and *Add from Window*
+  needs the path.
+- The drag clause above turned out unnecessary: which profile claims a window
+  does not depend on its geometry, so moving or resizing a window never
+  touches the cache, and eligibility's own per-frame checks were already
+  cheap.
+- `modeoverride.cpp`: the bind answer is tri-state. A path matching an entry
+  that also names a window is undecided, and neither that entry nor the
+  global profile advertises to it; a gate-2-only entry neither answers nor
+  blocks.
+- `identitycontrols.{h,cpp}`: the editor's three fields, each with KWin's
+  "Exact match", "Substring match" and "Regular expression". The editor
+  refuses to store an entry with a problem and shows the problem in its note
+  while it is being edited.
+- `legacysettings.cpp`: an old `Program` becomes `.*/<escaped name>` as
+  gate 1 where the entry stated no window, or advertised at bind, in which
+  case the window identity is dropped; otherwise it decided nothing and is
+  dropped. Saving writes the new keys and removes `Program` and any window
+  identity the reading dropped.
+- The catalogue: SuperTuxKart, glmark2 and vkmark state their program alone,
+  as a regular expression, because their method is an advertisement; Extreme
+  Tux Racer and the Source entry state their window alone, because no X11
+  game's `_NET_WM_PID` has been observed. The measured values that are not
+  stated are kept as comments.
+
+Open from this design: the editor showing which running windows a rule
+matches while it is written. It needs the effect to answer for every window
+rather than one, and is not implemented.
+
+**Observed on 2026-09-21**, in the containers:
+
+- clang-tidy clean on the whole tree, after four findings were fixed: a
+  pass-by-value, a member function it wanted static (the D-Bus slot now uses
+  the handler it was created under), a function over the complexity
+  threshold (split), and an analyzer leak report on the editor's second D-Bus
+  watcher. That last one was reported only when the analyzer followed the
+  call from inside the first watcher's callback. It is gone now that the
+  watcher is held in `m_programQuery`, which also stops a second pick while
+  the effect answers.
+- KWin master builds with GCC and Clang; Ubuntu 26.04 builds.
+- Trixie, GCC and Clang: every test passed, 17 of 17, including the Wayland
+  case where an entry naming a window is undecided at bind.
+- Ubuntu 26.04 X11 test: the first version of the new X11 case failed twice.
+  It expected a window reporting no `_NET_WM_PID` to have no path, but KWin
+  6.6 resolves the PID through the X server; see the gate definition above.
+  Its second version also expected the window back at full size after being
+  released, and failed once on 6.6: the test client mirrors every resize into
+  its RandR mode, and KWin 6.6 sizes a window to its client's mode. The case
+  now judges release by the effect's report, and passed 4 of 4 on 6.6.6 and
+  in both Trixie suites.
+- Three test files passed the 400-line limit and were split:
+  `matching_test.cpp` from `application_test.cpp`, `editor_stand_ins.h` from
+  the editor test, and `integration_advertisement_test.cpp` from the Wayland
+  integration test. Every moved case was seen to run and pass.
+- Both pre-commit stages passed.
+
+Not observed yet: any of this on a real session.
 
 ## Acceptance criteria
 
@@ -1194,8 +1274,10 @@ Planned checks, not observed results:
       then the displays' own texts, the developer information and the method
       descriptions in reports.
 - [ ] Profile reordering in the editor.
-- [ ] Match by executable path and by pattern, per
-      [matching by path and by pattern](#matching-by-path-and-by-pattern-2026-09-21).
+- [x] Match by executable path and by pattern, 2026-09-21, per
+      [as implemented](#as-implemented-2026-09-21). Not yet observed on a real
+      session: an X11 game's `_NET_WM_PID` resolving, and Steam's runtime.
+- [ ] Show in the editor which running windows a rule matches.
 - [x] Read a previous release's global keys under their old meaning, 2026-09-21:
       `legacysettings.{h,cpp}`, read-side only.
 - [ ] Decide what the settings page shows a person whose stored `Enabled=false`

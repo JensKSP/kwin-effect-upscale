@@ -6,9 +6,12 @@
 
 #include "application.h"
 #include "applicationeditor.h"
+#include "identitycontrols.h"
+#include "matching.h"
 #include "methodcontrols.h"
 #include "upscale_config.h"
 
+#include "editor_stand_ins.h"
 #include "settings_fixture.h"
 
 #include <KPluginMetaData>
@@ -28,42 +31,6 @@
 #include <QTimer>
 
 #include <initializer_list>
-
-// KWin picks the window itself and hands back its identity. Only this private
-// bus answers here, and each case the settings page has to handle is selected
-// by the reply this stands in for.
-class TestWindowPicker : public QObject, protected QDBusContext
-{
-    Q_OBJECT
-    Q_CLASSINFO("D-Bus Interface", "org.kde.KWin")
-
-public:
-    enum Outcome {
-        Identified,
-        WithoutIdentity,
-        Cancelled,
-        Refused,
-    };
-    Outcome outcome = Identified;
-
-public Q_SLOTS:
-    QVariantMap queryWindowInfo()
-    {
-        if (outcome == Cancelled) {
-            sendErrorReply(QStringLiteral("org.kde.KWin.Error.UserCancel"), QStringLiteral("Cancelled"));
-            return {};
-        }
-        if (outcome == Refused) {
-            sendErrorReply(QStringLiteral("org.kde.KWin.Error.InvalidWindow"), QStringLiteral("No such window"));
-            return {};
-        }
-        if (outcome == WithoutIdentity) {
-            return {{QStringLiteral("resourceClass"), QString()}, {QStringLiteral("resourceName"), QString()}};
-        }
-        return {{QStringLiteral("resourceClass"), QStringLiteral("hedgewars")},
-                {QStringLiteral("resourceName"), QStringLiteral("hedgewars")}};
-    }
-};
 
 // The page's confirmations and warnings are modal, and a test that waited for
 // a person would hang rather than fail. This answers the next one that opens.
@@ -163,8 +130,13 @@ void UpscaleApplicationEditorTest::editsTheApplicationList()
     // Selecting an entry shows what it says, including the description that
     // records why it looks the way it does.
     QCOMPARE(name->text(), QStringLiteral("SuperTuxKart"));
-    QCOMPARE(windowClass->text(), QStringLiteral("supertuxkart"));
-    QCOMPARE(program->text(), QStringLiteral("supertuxkart"));
+    // It states its program alone, as the file name in any folder, because
+    // its method is said before the window exists.
+    QVERIFY(windowClass->text().isEmpty());
+    QCOMPARE(program->text(), QStringLiteral(".*/supertuxkart"));
+    auto *programMatch = editor->findChild<QComboBox *>(QStringLiteral("applicationProgramMatch"));
+    QVERIFY(programMatch);
+    QCOMPARE(programMatch->currentIndex(), int(KWin::UpscaleStringMatch::RegularExpression));
     QCOMPARE(method->currentText(), KWin::upscaleMethodLabel(KWin::UpscaleMethod::AdvertisedMode));
     QVERIFY(enabled->isChecked());
     QVERIFY(!note->text().isEmpty());
@@ -251,6 +223,7 @@ void UpscaleApplicationEditorTest::addsApplicationsAndRemovesOnlyItsOwn()
 
     module.save();
     QVERIFY2(userConfig().contains(QStringLiteral("Instance=hedgewars")), qPrintable(userConfig()));
+    QVERIFY2(userConfig().contains(QStringLiteral("Executable=hedgewars")), qPrintable(userConfig()));
     QCOMPARE(list->count(), shipped + 1);
 
     // Removing takes effect on the file only once the page is applied, the
@@ -282,8 +255,9 @@ void UpscaleApplicationEditorTest::addsAnApplicationFromAWindow()
     QVERIFY(list && windowClass && instance && detect);
     const int shipped = list->count();
 
-    // KWin reports the identity; the effect records it and asks for nothing
-    // until the user says which program is behind it.
+    // KWin reports the window's identity. The effect is not loaded, so nobody
+    // says which program is behind it, and the identity is what the entry
+    // states.
     detect->click();
     QTRY_COMPARE(list->count(), shipped + 1);
     QCOMPARE(windowClass->text(), QStringLiteral("hedgewars"));
@@ -310,6 +284,31 @@ void UpscaleApplicationEditorTest::addsAnApplicationFromAWindow()
     detect->click();
     QTRY_VERIFY(editor->findChildren<QDBusPendingCallWatcher *>().isEmpty());
     QTRY_COMPARE(list->count(), shipped + 1);
+
+    // With the effect answering, the entry states the exact path of this
+    // copy, which is what finds it before its window exists, and nothing else.
+    TestProgramLookup lookup;
+    lookup.path = QStringLiteral("/usr/games/hedgewars");
+    QVERIFY(bus.registerObject(QStringLiteral("/org/kde/KWin/Effect/Upscale1"), &lookup, QDBusConnection::ExportAllSlots));
+    auto *program = editor->findChild<QLineEdit *>(QStringLiteral("applicationProgram"));
+    QVERIFY(program);
+    picker.outcome = TestWindowPicker::Identified;
+    detect->click();
+    QTRY_COMPARE(list->count(), shipped + 2);
+    QCOMPARE(lookup.askedFor, QStringLiteral("{0b4a6c3e-8f0e-4a55-9d2c-1d1f5e3b7a90}"));
+    QCOMPARE(program->text(), QStringLiteral("/usr/games/hedgewars"));
+    QVERIFY(windowClass->text().isEmpty() && instance->text().isEmpty());
+
+    // A runtime many games share names none of them, so the window's
+    // identity is stated instead of its path.
+    lookup.path = QStringLiteral("/steam/common/Proton 9.0/files/bin/wine64-preloader");
+    detect->click();
+    QTRY_COMPARE(list->count(), shipped + 3);
+    QVERIFY(program->text().isEmpty());
+    QCOMPARE(windowClass->text(), QStringLiteral("hedgewars"));
+    QVERIFY(!KWin::upscaleIdentifiesOneProgram(QStringLiteral("/usr/bin/python3.12")));
+    QVERIFY(!KWin::upscaleIdentifiesOneProgram(QString()));
+    bus.unregisterObject(QStringLiteral("/org/kde/KWin/Effect/Upscale1"));
 
     bus.unregisterObject(QStringLiteral("/KWin"));
     QVERIFY(bus.unregisterService(QStringLiteral("org.kde.KWin")));
@@ -394,8 +393,8 @@ void UpscaleApplicationEditorTest::givesEveryPendingApplicationItsOwnIdentifier(
     const QString stored = userConfig();
     QVERIFY2(stored.contains(QStringLiteral("Instance=first")), qPrintable(stored));
     QVERIFY2(stored.contains(QStringLiteral("Instance=second")), qPrintable(stored));
-    QVERIFY(KWin::upscaleApplicationForIdentity(QString(), QStringLiteral("first")));
-    QVERIFY(KWin::upscaleApplicationForIdentity(QString(), QStringLiteral("second")));
+    QVERIFY(KWin::upscaleApplicationFor({QString(), QString(), QStringLiteral("first")}));
+    QVERIFY(KWin::upscaleApplicationFor({QString(), QString(), QStringLiteral("second")}));
 }
 
 // An entry stating no identity would match every window on the screen, so the
@@ -417,23 +416,37 @@ void UpscaleApplicationEditorTest::refusesAnEntryNothingCouldEverMatch()
     add->click();
     name->clear();
     QTest::keyClicks(name, QStringLiteral("Nameless"));
-    // A program alone recognizes a connection but never a window, so this
-    // entry could not match anything the list is matched against.
-    QTest::keyClicks(program, QStringLiteral("nameless"));
-
+    // A name is not an identity: with no program, window class or instance
+    // the entry would match every window.
     answerNextDialog(QMessageBox::Ok);
     module.save();
     // Kept here rather than written and then silently dropped, and the page
     // stays applicable so the user can correct it.
     QCOMPARE(list->count(), shipped + 1);
     QCOMPARE(list->currentRow(), shipped);
-    QVERIFY2(!userConfig().contains(QStringLiteral("nameless")), qPrintable(userConfig()));
+    QVERIFY2(!userConfig().contains(QStringLiteral("Nameless")), qPrintable(userConfig()));
     QVERIFY(module.needsSave());
 
-    // Given an identity, the same entry applies.
-    QTest::keyClicks(instance, QStringLiteral("nameless"));
+    // A pattern that cannot be used is refused the same way, and the entry
+    // says why where it is being edited.
+    auto *programMatch = editor->findChild<QComboBox *>(QStringLiteral("applicationProgramMatch"));
+    auto *note = editor->findChild<QLabel *>(QStringLiteral("applicationNote"));
+    QVERIFY(programMatch && note);
+    QTest::keyClicks(program, QStringLiteral("(nameless"));
+    programMatch->setCurrentIndex(int(KWin::UpscaleStringMatch::RegularExpression));
+    Q_EMIT programMatch->activated(programMatch->currentIndex());
+    QVERIFY2(note->text().contains(QStringLiteral("(nameless")), qPrintable(note->text()));
+    answerNextDialog(QMessageBox::Ok);
     module.save();
-    QVERIFY2(userConfig().contains(QStringLiteral("Instance=nameless")), qPrintable(userConfig()));
+    QVERIFY2(!userConfig().contains(QStringLiteral("Nameless")), qPrintable(userConfig()));
+    QVERIFY(module.needsSave());
+
+    // A program alone is an identity: it finds the program before and after
+    // its window exists.
+    program->clear();
+    QTest::keyClicks(program, QStringLiteral(".*/nameless"));
+    module.save();
+    QVERIFY2(userConfig().contains(QStringLiteral("Executable=.*/nameless")), qPrintable(userConfig()));
     QVERIFY(!module.needsSave());
 }
 
@@ -464,7 +477,7 @@ void UpscaleApplicationEditorTest::resetDiscardsThePendingApplicationEdits()
     // And a later Apply must not bring it back.
     module.save();
     QVERIFY2(!userConfig().contains(QStringLiteral("discarded")), qPrintable(userConfig()));
-    QVERIFY(!KWin::upscaleApplicationForIdentity(QString(), QStringLiteral("discarded")));
+    QVERIFY(!KWin::upscaleApplicationFor({QString(), QString(), QStringLiteral("discarded")}));
 }
 
 int main(int argc, char **argv)

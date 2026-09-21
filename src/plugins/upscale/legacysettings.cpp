@@ -11,7 +11,11 @@
 
 #include <KConfigGroup>
 
+#include <QRegularExpression>
+
 #include <algorithm>
+#include <array>
+#include <utility>
 
 namespace KWin
 {
@@ -63,6 +67,58 @@ void upscaleReadLegacyOverrides(const KConfigGroup &profile, UpscaleSettingOverr
     }
 }
 
+void upscaleReadLegacyProgram(const KConfigGroup &profile, UpscaleApplication &application)
+{
+    if (profile.hasKey("Executable")) {
+        return;
+    }
+    const QString program = profile.readEntry("Program", QString());
+    if (program.isEmpty()) {
+        return;
+    }
+    const bool advertises = upscaleIsAdvertisement(application.methods[std::size_t(upscaleAdvertisedPresentation())]);
+    const bool statesWindow = !application.windowClass.isEmpty() || !application.instance.isEmpty();
+    if (statesWindow && !advertises) {
+        return;
+    }
+    application.executable = QStringLiteral(".*/") + QRegularExpression::escape(program);
+    application.executableMatch = UpscaleStringMatch::RegularExpression;
+    application.windowClass.clear();
+    application.instance.clear();
+}
+
+// The Program half of upscaleRetireLegacyProfileKeys(): its value under the
+// current keys, and the window identity its reading left out removed as well.
+static void retireLegacyProgram(KConfigGroup &profile, const UpscaleApplication &application)
+{
+    if (!profile.hasKey("Program") || profile.hasDefault("Program")) {
+        return;
+    }
+    if (!application.executable.isEmpty() && !profile.hasKey("Executable")) {
+        profile.writeEntry("Executable", application.executable);
+        profile.writeEntry("ExecutableMatch", upscaleStringMatchKey(application.executableMatch));
+    }
+    // A window identity the reading above left out goes as well, or the next
+    // reading would require it beside the path and the entry would stop
+    // advertising. One the package supplies is hidden rather than deleted,
+    // because deleting would let the package's value show through.
+    const std::array<std::pair<const char *, bool>, 2> identity{{
+        {"WindowClass", !application.windowClass.isEmpty()},
+        {"Instance", !application.instance.isEmpty()},
+    }};
+    for (const auto &[key, stated] : identity) {
+        if (stated || !profile.hasKey(key)) {
+            continue;
+        }
+        if (profile.hasDefault(key)) {
+            profile.writeEntry(key, QString());
+        } else {
+            profile.deleteEntry(key);
+        }
+    }
+    profile.deleteEntry("Program");
+}
+
 void upscaleRetireLegacyProfileKeys(KConfigGroup &profile, const UpscaleApplication &application)
 {
     // A shipped file never carries these any more, so a key with a default
@@ -82,6 +138,7 @@ void upscaleRetireLegacyProfileKeys(KConfigGroup &profile, const UpscaleApplicat
         }
         profile.deleteEntry("Preset");
     }
+    retireLegacyProgram(profile, application);
 }
 
 } // namespace KWin

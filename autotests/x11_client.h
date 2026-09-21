@@ -26,6 +26,13 @@ public:
     void resize(const QSize &size);
     /** Where the last pointer motion landed, in the window's own coordinates. */
     QPoint lastMotion() const;
+    /**
+     * Report this process as the window's owner, in _NET_WM_PID, when shown.
+     *
+     * Off unless asked: KWin groups a process's windows by it, and the cases
+     * that do not ask are about windows whose program is not known.
+     */
+    void reportProcess();
 
 private:
     xcb_atom_t atom(const QByteArray &name) const;
@@ -41,4 +48,5 @@ private:
     bool m_cooperative;
     int m_ignoredResizes = 0;
     bool m_fullscreenOnMap = false;
+    bool m_reportsProcess = false;
 };

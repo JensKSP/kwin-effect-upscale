@@ -39,7 +39,14 @@ foreach(protocol IN ITEMS xdg-shell viewporter)
     )
     list(APPEND protocol_sources ${protocol_header} ${protocol_code})
 endforeach()
-add_executable(upscale_integration_test integration_test.cpp wayland_client.cpp ${protocol_sources})
+add_executable(
+    upscale_integration_test
+    integration_test.cpp
+    integration_test.h
+    integration_advertisement_test.cpp
+    wayland_client.cpp
+    ${protocol_sources}
+)
 target_include_directories(upscale_integration_test PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(
     upscale_integration_test
@@ -49,6 +56,8 @@ if(KWin_VERSION VERSION_LESS 6.7)
     set(driver_sources
         effect_driver.cpp
         ../src/plugins/upscale/application.cpp
+        ../src/plugins/upscale/matching.cpp
+        ../src/plugins/upscale/pattern.cpp
         ../src/plugins/upscale/settings.cpp
         ../src/plugins/upscale/legacysettings.cpp
         ../src/plugins/upscale/display.cpp
@@ -56,6 +65,7 @@ if(KWin_VERSION VERSION_LESS 6.7)
         ../src/plugins/upscale/framestatistics.cpp
         ../src/plugins/upscale/display.h
         ../src/plugins/upscale/eligibility.cpp
+        ../src/plugins/upscale/windowidentity.cpp
         ../src/plugins/upscale/refusaltext.cpp
         ../src/plugins/upscale/modeoverride.cpp
         ../src/plugins/upscale/waylandscale.cpp
@@ -201,7 +211,10 @@ add_executable(
     upscale_application_test
     application_test.cpp
     legacysettings_test.cpp
+    matching_test.cpp
     ../src/plugins/upscale/application.cpp
+    ../src/plugins/upscale/matching.cpp
+    ../src/plugins/upscale/pattern.cpp
     ../src/plugins/upscale/settings.cpp
     ../src/plugins/upscale/legacysettings.cpp
     ${application_test_sources}
@@ -222,11 +235,14 @@ add_test(NAME upscale-application COMMAND upscale_application_test)
 set(snapshot_test_sources
     snapshot_test.cpp
     ../src/plugins/upscale/application.cpp
+    ../src/plugins/upscale/matching.cpp
+    ../src/plugins/upscale/pattern.cpp
     ../src/plugins/upscale/settings.cpp
     ../src/plugins/upscale/legacysettings.cpp
     ../src/plugins/upscale/snapshot.cpp
     ../src/plugins/upscale/snapshot_metrics.cpp
     ../src/plugins/upscale/eligibility.cpp
+    ../src/plugins/upscale/windowidentity.cpp
     ../src/plugins/upscale/refusaltext.cpp
 )
 kconfig_add_kcfg_files(snapshot_test_sources ../src/plugins/upscale/upscaleconfig.kcfgc)
@@ -242,11 +258,14 @@ add_test(NAME upscale-snapshot COMMAND upscale_snapshot_test)
 set(headsup_test_sources
     headsup_test.cpp
     ../src/plugins/upscale/application.cpp
+    ../src/plugins/upscale/matching.cpp
+    ../src/plugins/upscale/pattern.cpp
     ../src/plugins/upscale/settings.cpp
     ../src/plugins/upscale/legacysettings.cpp
     ../src/plugins/upscale/snapshot.cpp
     ../src/plugins/upscale/snapshot_metrics.cpp
     ../src/plugins/upscale/eligibility.cpp
+    ../src/plugins/upscale/windowidentity.cpp
     ../src/plugins/upscale/refusaltext.cpp
 )
 kconfig_add_kcfg_files(headsup_test_sources ../src/plugins/upscale/upscaleconfig.kcfgc)
@@ -262,6 +281,8 @@ add_test(NAME upscale-headsup COMMAND upscale_headsup_test)
 set(placement_test_sources
     placement_test.cpp
     ../src/plugins/upscale/application.cpp
+    ../src/plugins/upscale/matching.cpp
+    ../src/plugins/upscale/pattern.cpp
     ../src/plugins/upscale/settings.cpp
     ../src/plugins/upscale/legacysettings.cpp
     ../src/plugins/upscale/overlay.cpp
@@ -269,6 +290,7 @@ set(placement_test_sources
     ../src/plugins/upscale/snapshot.cpp
     ../src/plugins/upscale/snapshot_metrics.cpp
     ../src/plugins/upscale/eligibility.cpp
+    ../src/plugins/upscale/windowidentity.cpp
     ../src/plugins/upscale/refusaltext.cpp
 )
 kconfig_add_kcfg_files(placement_test_sources ../src/plugins/upscale/upscaleconfig.kcfgc)
@@ -290,6 +312,8 @@ set_tests_properties(upscale-placement PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=o
 set(display_test_sources
     display_test.cpp
     ../src/plugins/upscale/application.cpp
+    ../src/plugins/upscale/matching.cpp
+    ../src/plugins/upscale/pattern.cpp
     ../src/plugins/upscale/settings.cpp
     ../src/plugins/upscale/legacysettings.cpp
     ../src/plugins/upscale/display.cpp
@@ -299,6 +323,7 @@ set(display_test_sources
     ../src/plugins/upscale/snapshot.cpp
     ../src/plugins/upscale/snapshot_metrics.cpp
     ../src/plugins/upscale/eligibility.cpp
+    ../src/plugins/upscale/windowidentity.cpp
     ../src/plugins/upscale/refusaltext.cpp
 )
 kconfig_add_kcfg_files(display_test_sources ../src/plugins/upscale/upscaleconfig.kcfgc)
@@ -326,10 +351,13 @@ endif()
 if(KWIN_BUILD_KCMS)
     set(settings_module_SOURCES
         ../src/plugins/upscale/application.cpp
+        ../src/plugins/upscale/matching.cpp
+        ../src/plugins/upscale/pattern.cpp
         ../src/plugins/upscale/settings.cpp
         ../src/plugins/upscale/legacysettings.cpp
         ../src/plugins/upscale/applicationeditor.cpp
         ../src/plugins/upscale/settingcontrols.cpp
+        ../src/plugins/upscale/identitycontrols.cpp
         ../src/plugins/upscale/methodcontrols.cpp
         ../src/plugins/upscale/placement.cpp
         ../src/plugins/upscale/upscale_config.cpp
@@ -343,7 +371,9 @@ if(KWIN_BUILD_KCMS)
     foreach(variant IN ITEMS config config-buildinfo application-editor)
         set(test_target "upscale_${variant}_test")
         if(variant STREQUAL "application-editor")
-            set(test_source application_editor_test.cpp)
+            # The stand-ins for KWin and the effect are QObjects, so moc reads
+            # their header too.
+            set(test_source application_editor_test.cpp editor_stand_ins.h)
         else()
             set(test_source config_test.cpp)
         endif()

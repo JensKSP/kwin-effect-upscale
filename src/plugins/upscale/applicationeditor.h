@@ -7,14 +7,18 @@
 #pragma once
 
 #include "application.h"
+#include "identitycontrols.h"
 #include "methodcontrols.h"
 #include "settingcontrols.h"
 
+#include <QPointer>
+#include <QVariantMap>
 #include <QWidget>
 
 #include <vector>
 
 class QCheckBox;
+class QDBusPendingCallWatcher;
 class QComboBox;
 class QLabel;
 class QLineEdit;
@@ -67,9 +71,12 @@ private:
     void connectControls();
     void rebuildList();
     void showSelected();
+    void showNote(const UpscaleApplication &application);
     void applyToSelected();
     void addApplication();
     void addFromWindow();
+    void askForProgram();
+    void addIdentified(const QVariantMap &information, const QString &executable);
     void deleteSelected();
     UpscaleApplication *selected();
 
@@ -81,9 +88,7 @@ private:
 
     QListWidget *m_list;
     QLineEdit *m_name;
-    QLineEdit *m_windowClass;
-    QLineEdit *m_instance;
-    QLineEdit *m_program;
+    UpscaleIdentityControls *m_identity;
     // The six measured answers, and the preferences this profile may state
     // of its own. Both are built from a table rather than written out field
     // by field, which is what keeps this file able to take another setting.
@@ -92,6 +97,11 @@ private:
     QCheckBox *m_enabled;
     QLabel *m_note;
     QPushButton *m_delete;
+    // The window KWin's picker returned, while the effect is asked its program.
+    // A second pick waits for both: m_selecting while the picker is open, the
+    // query while the effect answers, so that it cannot replace m_picked.
+    QVariantMap m_picked;
+    QPointer<QDBusPendingCallWatcher> m_programQuery;
     bool m_selecting = false;
     bool m_updating = false;
 };

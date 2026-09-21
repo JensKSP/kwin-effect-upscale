@@ -9,8 +9,10 @@ set(upscale_SOURCES
     refusaltext.cpp
     framestatistics.cpp
     main.cpp
+    matching.cpp
     modeoverride.cpp
     legacysettings.cpp
+    pattern.cpp
     settings.cpp
     waylandscale.cpp
     observation.cpp
@@ -20,6 +22,7 @@ set(upscale_SOURCES
     snapshot.cpp
     snapshot_metrics.cpp
     upscale.cpp
+    windowidentity.cpp
     x11geometry.cpp
     x11input.cpp
     x11resolution.cpp
@@ -40,6 +43,7 @@ kwin_add_builtin_effect(upscale ${upscale_SOURCES})
 target_link_libraries(upscale PRIVATE
     kwin
 
+    Qt::DBus
     KF6::ConfigGui
     KF6::I18n
     Libdrm::Libdrm
@@ -56,7 +60,10 @@ if (KWIN_BUILD_KCMS)
         displaycontrols.cpp
         resolutionchoice.cpp
         application.cpp
+        identitycontrols.cpp
         legacysettings.cpp
+        matching.cpp
+        pattern.cpp
         settings.cpp
         settingcontrols.cpp
         methodcontrols.cpp

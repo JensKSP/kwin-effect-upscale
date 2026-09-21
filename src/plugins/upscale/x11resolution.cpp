@@ -10,6 +10,7 @@
 #include "compatibility.h"
 #include "eligibility.h"
 #include "upscaleconfig.h"
+#include "windowidentity.h"
 #include "x11geometry.h"
 #include "x11input.h"
 
@@ -189,7 +190,7 @@ QString UpscaleX11Resolution::keyFor(const Window *window)
     if (!window || !window->output()) {
         return {};
     }
-    const UpscaleApplication *application = upscaleApplicationForIdentity(window->resourceClass(), window->resourceName());
+    const UpscaleApplication *application = upscaleApplicationForWindow(window);
     // SFML replaces XIDs while retaining its process. Keep negotiation across
     // those replacements. PID is only a grouping hint, not a launch identity:
     // expire orphaned state after a replacement grace period. Use KWin's
@@ -256,7 +257,7 @@ UpscaleX11Resolution::Request UpscaleX11Resolution::requestFor(X11Window *window
     if (key.isEmpty() || m_failures.contains(key)) {
         return {};
     }
-    const UpscaleApplication *application = upscaleApplicationForIdentity(window->resourceClass(), window->resourceName());
+    const UpscaleApplication *application = upscaleApplicationForWindow(window);
     const UpscaleSettings settings = upscaleResolveSettings(application);
     const QSize pixels = window->output()->pixelSize();
     if (!exceedsMinimumPixels({pixels.width(), pixels.height()}, settings.value(UpscaleSetting::MinimumPixels))) {

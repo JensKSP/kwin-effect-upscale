@@ -7,6 +7,7 @@
 #include "modeoverride.h"
 
 #include "compatibility.h"
+#include "matching.h"
 #include "settings.h"
 
 #include "effect/effecthandler.h"
@@ -144,10 +145,17 @@ void UpscaleModeOverride::announce(OutputInterface *output, ClientConnection *cl
     if (!client || !resource) {
         return;
     }
-    // The profile that describes this program, or none. With none, the global
+    // The profile the program's path selects, or none. With none, the global
     // profile answers - which is what switching on unlisted applications and
-    // giving the global profile a method is for - through the same code.
-    const UpscaleApplication *application = upscaleApplicationForProgram(client->executablePath());
+    // giving the global profile a method is for - through the same code. A
+    // path claimed by a profile that also names a window does not decide
+    // yet, and nothing is advertised: that profile may still claim the
+    // window, and an advertisement cannot be taken back.
+    const UpscaleBindAnswer answer = upscaleApplicationAtBind(client->executablePath());
+    if (!answer.decided) {
+        return;
+    }
+    const UpscaleApplication *application = answer.application;
     const UpscaleSettings settings = upscaleResolveSettings(application);
     if (!settings.acts() || !settings.switchedOn(UpscaleSetting::ResolutionControl)) {
         return;
@@ -190,10 +198,9 @@ void UpscaleModeOverride::announce(OutputInterface *output, ClientConnection *cl
     if (version >= WL_OUTPUT_DONE_SINCE_VERSION) {
         wl_output_send_done(resource);
     }
-    // An unlisted program is recorded by its file name like any other, so
-    // that restoring and reporting do not have to know which profile spoke.
-    const QString program = application ? application->program
-                                        : client->executablePath().section(QLatin1Char('/'), -1);
+    // Recorded by the program's file name, whichever profile spoke, so that
+    // restoring and reporting do not have to know which one it was.
+    const QString program = client->executablePath().section(QLatin1Char('/'), -1);
     m_announced.append({output, client, program});
     if (!m_advertised.contains(client)) {
         connect(client, &QObject::destroyed, this, [this, client]() {

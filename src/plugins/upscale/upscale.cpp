@@ -16,6 +16,7 @@
 #include "snapshot.h"
 #include "upscaleconfig.h"
 #include "waylandscale.h"
+#include "windowidentity.h"
 #include "x11resolution.h"
 
 // The build identity lives outside the plugin folder, because that folder has
@@ -63,6 +64,7 @@ UpscaleEffect::UpscaleEffect(ItemRenderer *renderer)
     m_modeOverride = std::make_unique<UpscaleModeOverride>();
     m_x11Resolution = std::make_unique<UpscaleX11Resolution>();
     m_waylandScale = std::make_unique<UpscaleWaylandScale>();
+    new UpscaleIdentityService(this);
 #if !UPSCALE_RENDER_DEVICE_API
     if (!m_renderer) {
         m_renderer = effects->scene()->renderer();
@@ -320,9 +322,7 @@ EffectWindow *UpscaleEffect::candidate(UpscaleRefusal *refusal, UpscaleOutput *o
         // choices - comes from this one answer, so a frame never asks which
         // layer a setting came from and never reads configuration at all.
         const Window *internal = m_candidate ? m_candidate->window() : nullptr;
-        const UpscaleApplication *claimed = internal
-            ? upscaleApplicationForIdentity(internal->resourceClass(), internal->resourceName())
-            : nullptr;
+        const UpscaleApplication *claimed = upscaleApplicationForWindow(internal);
         m_settings = upscaleResolveSettings(claimed);
         askForSmallerBuffer(m_candidate, claimed);
         m_candidateOutput = output;

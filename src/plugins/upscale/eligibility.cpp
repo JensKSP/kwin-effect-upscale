@@ -9,6 +9,7 @@
 #include "application.h"
 #include "resolution.h"
 #include "settings.h"
+#include "windowidentity.h"
 
 #include "effect/effecthandler.h"
 #include "effect/effectwindow.h"
@@ -191,8 +192,7 @@ bool upscalePresentation(EffectWindow *window)
     // person who switched on unlisted applications, which by decision reaches
     // borderless windows as well as fullscreen ones. With the global profile
     // off, which is the default, an unlisted borderless window stays out.
-    return upscaleApplicationForIdentity(internal->resourceClass(), internal->resourceName())
-        || upscaleGlobalSettings().acts();
+    return upscaleApplicationForWindow(internal) || upscaleGlobalSettings().acts();
 }
 
 // What the settings say about this window: whether anything acts on it at
@@ -203,8 +203,7 @@ bool upscalePresentation(EffectWindow *window)
 static UpscaleRefusal settingsRefusal(EffectWindow *window)
 {
     const Window *internal = window->window();
-    const UpscaleApplication *application =
-        internal ? upscaleApplicationForIdentity(internal->resourceClass(), internal->resourceName()) : nullptr;
+    const UpscaleApplication *application = upscaleApplicationForWindow(internal);
     const UpscaleSettings settings = upscaleResolveSettings(application);
     if (!settings.acts()) {
         // A profile that is switched off takes no part in matching, so a

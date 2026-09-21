@@ -614,19 +614,18 @@ packaging.
 
 ### About, build identity and third-party notices
 
-Implemented so far: the settings footer names the installed build as
+Implemented so far: a build names itself as
 `X.X.X short_hash build_date branch/tag`, with the base project version, an
 independent abbreviated revision (also for releases), a UTC timestamp and the
 source branch or exact tag. Local changes append `-dirty` to the revision;
 missing revision or ref data is stated explicitly. The timestamp is refreshed
 on each build invocation; `SOURCE_DATE_EPOCH` controls reproducible builds.
 The package version retains its snapshot suffix independently of this compact
-display. The settings page also names the build the running
-compositor answers with when that differs, because KWin keeps a plugin it has
-already loaded until the session restarts. The effect writes the same identity
-to the log once, when it initializes, rather than when its library is loaded,
-so a process that only reads the identity does not claim to have loaded the
-effect. The full About dialog, the plugin metadata below and the component
+display. The settings page shows only the version and the author, in its
+**About** group. The complete record is in the developer information, and the
+effect writes it to the log once, when it initializes, rather than when its
+library is loaded, so a process that only reads the identity does not claim to
+have loaded the effect. The full About dialog, the plugin metadata below and the component
 notices remain unimplemented.
 
 Required extension, not yet implemented: provide **About Upscale** from the
@@ -872,33 +871,60 @@ and adding another language must be adding a catalogue, never a code change.
 ### Per-application overrides
 
 Implemented: the settings page can create profiles manually or from KWin’s
-interactive window selection, inspect/edit them, disable shipped entries,
-delete user entries, and restore the shipped catalogue. It edits the name,
-window class/instance, executable basename, method, preset and pixel threshold.
-Saved changes are sparse relative to shipped fields; untouched fields follow
-package updates. Native explicitly opts out of scaling. Disabling an entry
-removes its participation in matching; it is not a Native opt-out rule.
+interactive window selection, inspect and edit them, disable shipped entries,
+delete user entries, and restore the shipped catalogue. A profile states its
+identity, its six measured methods, and any of the effect's preferences as an
+override; a preference it leaves out follows the global value, which each
+control names in its **Global** choice. False and zero are valid overrides, and
+equality with today's global value does not erase one. Saved changes are sparse
+relative to shipped fields; untouched fields follow package updates. Native
+explicitly opts out of scaling. Disabling an entry removes it from matching, so
+its game falls through to the global profile, which is off by default; it is
+not a Native opt-out rule.
 
-Still required: general sparse per-setting overrides (including sharpening and
-OSD choices), explicit inheritance controls for those settings and ordering in
-the editor. A stored Order field already determines matching precedence. False
-and zero must remain valid overrides; equality with today’s global value must
-not erase an explicit override.
+Still required: ordering in the editor. A stored Order field already determines
+matching precedence.
 
-Identify windows through KWin's application ID/window class and optional instance,
-using its interactive window detection service when adding a running application.
-Do not use process scanning or a changing window title as the primary identity.
-Known-application recommendations must remain editable and removable, and must
-not overwrite user changes on update. Profiles do not bypass rendering
-eligibility or automatically implement client-resolution negotiation.
+**A profile is found by two gates.** Gate 1 is the program's executable path;
+gate 2 is the window's class and instance. Each field is compared the way
+KWin's Window Rules compare one - exact, substring or regular expression, a
+regular expression matching the whole value - and an empty field constrains
+nothing. An entry states at least one gate and matches a window when every
+gate it states matches; entries are tried in order, and the first enabled
+match wins as a whole. Window titles are never used: they change during play.
 
-Two identities are needed rather than one, and they are not interchangeable.
-The window class and instance identify a window, which is what the scaler and
-the reports work with. The program behind the connection identifies a client
-before it has a window, which is the only identity available to the
-[advertised screen mode](#telling-one-application-that-its-screen-is-smaller)
-and is taken from KWin's own resolved executable path, never from inspecting
-processes. A profile that wants that method needs the program as well.
+The path is KWin's own, never the effect's reading of a process: resolved from
+the connection's credentials for a native Wayland client. For an X11 window
+KWin 6.3 takes the PID the client reports in `_NET_WM_PID`, which the X server
+does not verify and which a client in its own PID namespace fills with a number
+that means another process, so there an X11 path is a claim. KWin 6.6 asks the
+X server instead, which knows the PID from the client's connection, so the
+path is as reliable as a Wayland client's; observed in the integration test on
+6.6.6, where a window reporting no PID still resolved. A path that does not
+resolve matches no entry stating gate 1. Gate 2 alone is for exactly the cases a path cannot tell apart: a
+runtime many games share, such as Wine, Proton or an interpreter, and a window
+whose path does not resolve.
+
+Before a window exists only gate 1 can be checked, and that is when an
+[advertisement](#telling-one-application-that-its-screen-is-smaller) is made.
+Only an entry stating gate 1 and no gate 2 can answer then: a program whose
+path matches an entry that also names a window is told nothing, because that
+entry may still claim the window and an advertisement cannot be taken back.
+The shipped entries whose method is an advertisement therefore state the
+program alone.
+
+A pattern that cannot be used - invalid, or matching the empty string and so
+every value - is refused by the editor, never matches, and is reported in the
+session's journal. **Add from Window** asks the effect for the picked window's
+program, because KWin 6.3's picker does not name it, and states its exact path;
+for a shared runtime, or with the effect not loaded, it states the window's
+class and instance instead.
+
+The identity is resolved once per window, not per frame: the path when the
+window is first looked at, and the match again only when the list is read
+again or the window's class or instance changes. A window being moved or
+resized costs nothing here, because its geometry takes no part in which
+profile claims it.
 
 Recommendations that ship with the effect are active on installation rather
 than offered as templates, decided by Jens on 2026-09-18: the effect is meant
@@ -908,8 +934,8 @@ layer must be able to change or remove one.
 
 Shipped entries and user changes are already stored this way, in
 `kwinupscalerc` with the defaults installed beside the session's other
-configuration defaults. General setting overrides and editor ordering remain
-open. The proposed model, code reuse findings,
+configuration defaults. Editor ordering remains open. The model, code reuse
+findings,
 catalogue policy and required checks are in the
 [application profiles slice](agents/slice-application-profiles.md).
 
@@ -1507,14 +1533,16 @@ either request.
 Advertising
 the size the output already has is not a request and is not sent.
 
-**Which application.** Only one whose program matches an enabled entry in the
-layered shipped/user catalogue, unless the user explicitly enables attempts for
-unlisted applications. That fallback uses advertised mode and is off by default.
-At the moment of the bind no window exists, so there is no window class to
-match: the identity available is the executable path KWin resolved for the
-connection, and only its file name is compared, because the same game lives in
-different directories depending on how it was installed. The window class and
-instance identify the window later, for reporting and for the scaler.
+**Which application.** Only one whose program's path matches an enabled entry
+in the layered shipped/user catalogue that states no window identity, unless
+the user explicitly switches on unlisted applications and gives the global
+profile a method. At the moment of the bind no window exists, so there is no
+window class to match: the identity available is the executable path KWin
+resolved for the connection. The shipped entries state the file name in any
+directory as a regular expression, because the same game lives in different
+directories depending on how it was installed. A program whose path matches an
+entry that also names a window is told nothing, and is not treated as
+unlisted either.
 
 **What it is not.** It is not enforcement. A program that ignores mode
 information, or that asks the compositor for its fullscreen size instead of
@@ -1635,13 +1663,21 @@ Every field was read off a running instance of the stated package version. A
 name never implies an identity, and a version is recorded with each entry so
 that a later mismatch can be traced rather than guessed at.
 
-| Application | Measured version | Window class | Instance | Program | Measured method | Resolution |
-| --- | --- | --- | --- | --- | --- | --- |
-| SuperTuxKart | 1.4 | `supertuxkart` | `supertuxkart` | `supertuxkart` | Wayland fullscreen: advertised screen mode | follows the global |
-| Extreme Tux Racer | 0.8.4 | not constrained | `etr` | `etr` | X11 fullscreen: X11 buffer request, primary output only | follows the global |
-| Native Source games (`hl2_linux`) | Steam build 23990068 | `hl2_linux` | `hl2_linux` | `hl2_linux` | X11 fullscreen: X11 buffer request | follows the global |
-| glmark2 | 2023.01 | `com.github.glmark2.glmark2` | `glmark2-wayland` | `glmark2-wayland` | Wayland fullscreen: advertised screen scale | Native |
-| vkmark | 2025.01 | `com.github.vkmark.vkmark` | `vkmark` | `vkmark` | Wayland fullscreen: advertised screen mode and scale | Native |
+| Application | Measured version | Stated identity | Measured but not stated | Measured method | Resolution |
+| --- | --- | --- | --- | --- | --- |
+| SuperTuxKart | 1.4 | program `.*/supertuxkart` | class and instance `supertuxkart` | Wayland fullscreen: advertised screen mode | follows the global |
+| Extreme Tux Racer | 0.8.4 | instance `etr` | program `etr` | X11 fullscreen: X11 buffer request, primary output only | follows the global |
+| Native Source games (`hl2_linux`) | Steam build 23990068 | class and instance `hl2_linux` | program `hl2_linux`, in each game's folder | X11 fullscreen: X11 buffer request | follows the global |
+| glmark2 | 2023.01 | program `.*/glmark2-wayland` | class `com.github.glmark2.glmark2`, instance `glmark2-wayland` | Wayland fullscreen: advertised screen scale | Native |
+| vkmark | 2025.01 | program `.*/vkmark` | class `com.github.vkmark.vkmark`, instance `vkmark` | Wayland fullscreen: advertised screen mode and scale | Native |
+
+The Wayland entries state their program alone, as a regular expression for the
+file name in any folder, because their method is said before the window
+exists. The X11 entries state their window alone: an X11 window's program comes
+from the PID the client reports, which has not been observed for these games,
+and Steam's runtime may report one that means another process. A person's own
+entry for one Source game can state that game's path as well, which is what
+tells the Source games apart.
 
 Each entry states the one method slot it was measured under. Its other slots
 are absent and read as Auto, so a presentation nobody measured is attempted
@@ -1725,8 +1761,9 @@ for executable arguments, environments, runtime wrappers and trial relaunches
 were superseded by the requirement to start games normally. No launch helper,
 launcher adapter or discovery controller is implemented or required.
 
-The profile’s Program field is an executable basename used to recognize a
-Wayland connection before its windows exist; it is not a command to run.
+The profile’s Program field is an executable path, or a pattern for one, that
+recognizes a program before and after its windows exist; it is not a command
+to run.
 Compatibility measurements must still record actual buffers, presentation,
 input and lifecycle, and cannot label a request as successful without observation.
 

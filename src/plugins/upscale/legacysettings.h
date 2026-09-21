@@ -84,6 +84,30 @@ void upscaleForgetLegacySettings(KConfigGroup &global);
 void upscaleReadLegacyOverrides(const KConfigGroup &profile, UpscaleSettingOverrides &overrides);
 
 /**
+ * A profile's old Program key, read into @p application as the gate it meant.
+ *
+ * Program named a file and was compared by file name alone, and it was only
+ * ever consulted at wl_output bind, to decide an advertisement; windows were
+ * found by their class and instance. The two-gate model has no field that
+ * means "at bind only", so each old entry is read as the nearest thing that
+ * behaves the same:
+ *
+ * - With no window identity, the program was all there was: it becomes gate 1,
+ *   the file name in any directory.
+ * - With a window identity and an advertisement in the slot that is read at
+ *   bind, the program was how that advertisement was found. It becomes gate 1
+ *   and the window identity is left out, because an entry that also required
+ *   a window could not advertise before the window exists. For a native
+ *   Wayland client the path reaches the same windows: its window and its
+ *   connection are the same program.
+ * - Otherwise it decided nothing - an X11 window was found by its identity,
+ *   and nothing but an advertisement is said at bind - and it is dropped.
+ *
+ * Nothing is read where the profile already states an Executable.
+ */
+void upscaleReadLegacyProgram(const KConfigGroup &profile, UpscaleApplication &application);
+
+/**
  * Replace a profile's old keys with the current ones, keeping what they said.
  *
  * Called when the editor saves a profile. The values the old keys held have

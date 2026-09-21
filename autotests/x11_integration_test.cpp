@@ -83,6 +83,7 @@ private Q_SLOTS:
     void respectsPrimaryOutputRestriction();
     void retriesADroppedResizeOnce();
     void independentOutputRules();
+    void matchesTheProgramBehindTheWindow();
     void repeatedFullscreenTransitions();
 
 private:
@@ -469,6 +470,42 @@ void UpscaleX11IntegrationTest::independentOutputRules()
     UPSCALE_TRY_SETTLED();
     UPSCALE_TRY_GEOMETRY(other, QRect(3840, 0, 3840, 2160));
     UPSCALE_TRY_GEOMETRY(first, QRect(0, 0, 1920, 1080));
+}
+
+// Gate 1 for an X11 window: the path KWin resolves from the window's PID,
+// here this test's own executable. KWin 6.3 takes that PID from the
+// _NET_WM_PID the client reports, which is why this window reports one; by 6.6
+// KWin asks the X server instead, which knows it from the connection itself.
+// Either way the path is the program's, so the entry claims the window while
+// it names this program and lets it go once it names another.
+//
+// Letting go is judged by what the effect says, not by the geometry after it:
+// where the window ends up is then KWin's and the client's business. This
+// client mirrors every resize into its RandR mode, and on KWin 6.6, which
+// sizes an X11 window to its client's emulated mode, it was observed to end
+// at the reduced size after the effect had already handed it back.
+void UpscaleX11IntegrationTest::matchesTheProgramBehindTheWindow()
+{
+    const KSharedConfig::Ptr catalogue = KSharedConfig::openConfig(QStringLiteral("kwinupscalerc"));
+    KConfigGroup entry(catalogue, QStringLiteral("Application-test"));
+    entry.writeEntry("Executable", ".*/upscale_x11_integration_test");
+    entry.writeEntry("ExecutableMatch", "RegularExpression");
+    entry.sync();
+    X11Client target;
+    target.reportProcess();
+    QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 3840, 2160)));
+    QTRY_VERIFY_WITH_TIMEOUT(target.isFullscreen(), 10000);
+    QTRY_COMPARE(target.geometry().size(), QSize(3840, 2160));
+    configure(true);
+    UPSCALE_TRY_SETTLED();
+    UPSCALE_TRY_GEOMETRY(target, QRect(0, 0, 1920, 1080));
+
+    entry.writeEntry("Executable", ".*/another_program");
+    entry.sync();
+    configure(true);
+    UPSCALE_TRY_SETTLED();
+    QTRY_VERIFY2(status().contains(QStringLiteral("not in the list")), qPrintable(status()));
+    QVERIFY2(!status().contains(QStringLiteral("requested from")), qPrintable(status()));
 }
 
 QTEST_GUILESS_MAIN(UpscaleX11IntegrationTest)

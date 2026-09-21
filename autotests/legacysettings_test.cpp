@@ -12,6 +12,7 @@
 
 #include "application.h"
 #include "legacysettings.h"
+#include "matching.h"
 #include "settings.h"
 
 #include <KConfig>
@@ -20,11 +21,26 @@
 #include <QFile>
 #include <QTest>
 
+#include <algorithm>
+#include <ranges>
+
 using namespace KWin;
 
 static QString userFile()
 {
     return QString::fromLocal8Bit(qgetenv("XDG_CONFIG_HOME")) + QLatin1String("/kwinupscalerc");
+}
+
+static const UpscaleApplication *byInstance(const QString &instance)
+{
+    return upscaleApplicationFor({QString(), QString(), instance});
+}
+
+static const UpscaleApplication *byId(const QString &id)
+{
+    const std::vector<UpscaleApplication> &list = upscaleApplications();
+    const auto found = std::ranges::find(list, id, &UpscaleApplication::id);
+    return found == list.end() ? nullptr : &*found;
 }
 
 class LegacySettingsTest : public QObject
@@ -35,6 +51,7 @@ private Q_SLOTS:
     void init();
     void readsTheGlobalKeysOfThePreviousRelease();
     void keepsTheProfileKeysOfThePreviousRelease();
+    void readsTheOldProgramKeyAsItWorked();
 
 private:
     static void writeUserConfig(const QString &contents);
@@ -124,12 +141,12 @@ void LegacySettingsTest::keepsTheProfileKeysOfThePreviousRelease()
     writeUserConfig(QStringLiteral("[Application-old]\nInstance=old\nMethod=X11Resize\n"
                                    "Preset=Performance\nMinimumPixels=-1\n"
                                    "[Application-automatic]\nInstance=automatic\nPreset=Automatic\n"));
-    const UpscaleApplication *old = upscaleApplicationForIdentity(QString(), QStringLiteral("old"));
+    const UpscaleApplication *old = byInstance(QStringLiteral("old"));
     QVERIFY(old);
     QCOMPARE(old->overrides[std::size_t(UpscaleSetting::Resolution)], std::optional<int>(int(ResolutionPreset::Performance)));
     QVERIFY(!old->overrides[std::size_t(UpscaleSetting::MinimumPixels)]);
     // Automatic meant "follow the global resolution", which no value says now.
-    const UpscaleApplication *automatic = upscaleApplicationForIdentity(QString(), QStringLiteral("automatic"));
+    const UpscaleApplication *automatic = byInstance(QStringLiteral("automatic"));
     QVERIFY(automatic);
     QVERIFY(!automatic->overrides[std::size_t(UpscaleSetting::Resolution)]);
 
@@ -147,10 +164,68 @@ void LegacySettingsTest::keepsTheProfileKeysOfThePreviousRelease()
     QVERIFY2(!group.hasKey("Preset"), stored.constData());
     QCOMPARE(group.readEntry("MethodX11FullScreen", QString()), QStringLiteral("X11Resize"));
     QCOMPARE(group.readEntry("Resolution", QString()), QStringLiteral("Performance"));
-    const UpscaleApplication *saved = upscaleApplicationForIdentity(QString(), QStringLiteral("old"));
+    const UpscaleApplication *saved = byInstance(QStringLiteral("old"));
     QVERIFY(saved);
     QCOMPARE(saved->methods[std::size_t(UpscalePresentation::X11FullScreen)], UpscaleMethod::X11Resize);
     QCOMPARE(saved->overrides[std::size_t(UpscaleSetting::Resolution)], std::optional<int>(int(ResolutionPreset::Performance)));
+}
+
+// Program was consulted only at wl_output bind, and windows were found by their
+// class and instance. Each old entry is read as the nearest two-gate entry
+// that behaves the same, and saving it writes that under the current keys.
+void LegacySettingsTest::readsTheOldProgramKeyAsItWorked()
+{
+    writeUserConfig(QStringLiteral("[Application-programonly]\nProgram=only\nOrder=1\n"
+                                   "[Application-advertised]\nWindowClass=adv\nInstance=adv\nProgram=adv+plus\n"
+                                   "MethodWaylandFullScreen=AdvertisedMode\nOrder=2\n"
+                                   "[Application-resized]\nInstance=resized\nProgram=resized\n"
+                                   "MethodX11FullScreen=X11Resize\nOrder=3\n"));
+    // The program was all there was: it becomes the file name in any folder.
+    const UpscaleApplication *only = byId(QStringLiteral("programonly"));
+    QVERIFY(only);
+    QCOMPARE(only->executable, QStringLiteral(".*/only"));
+    QCOMPARE(only->executableMatch, UpscaleStringMatch::RegularExpression);
+    QCOMPARE(upscaleApplicationAtBind(QStringLiteral("/usr/games/only")).application, only);
+
+    // It was how an advertisement found its program. The window identity is
+    // left out, because an entry that required a window could not advertise;
+    // and the name is escaped, so a character a pattern treats specially is
+    // matched as itself.
+    const UpscaleApplication *advertised = byId(QStringLiteral("advertised"));
+    QVERIFY(advertised);
+    QVERIFY(advertised->windowClass.isEmpty() && advertised->instance.isEmpty());
+    QCOMPARE(upscaleApplicationAtBind(QStringLiteral("/usr/bin/adv+plus")).application, advertised);
+    QVERIFY(!upscaleApplicationAtBind(QStringLiteral("/usr/bin/advvplus")).application);
+
+    // An X11 window was found by its identity and nothing was said at bind,
+    // so the program decided nothing and is not required now either: the
+    // window is found even when its PID does not resolve.
+    const UpscaleApplication *resized = byId(QStringLiteral("resized"));
+    QVERIFY(resized);
+    QVERIFY(resized->executable.isEmpty());
+    QCOMPARE(byInstance(QStringLiteral("resized")), resized);
+
+    // Saved unchanged, each is written under the current keys, and the
+    // window identity the reading left out is gone from the file too, or the
+    // next reading would require it beside the path.
+    for (const QString &id : {QStringLiteral("programonly"), QStringLiteral("advertised"), QStringLiteral("resized")}) {
+        const UpscaleApplication unchanged = *byId(id);
+        upscaleSaveApplication(unchanged, unchanged);
+    }
+    upscaleSyncApplications();
+    const KConfig file(userFile(), KConfig::SimpleConfig);
+    const QByteArray stored = readUserConfig();
+    for (const QString &group : {QStringLiteral("Application-programonly"), QStringLiteral("Application-advertised"),
+                                 QStringLiteral("Application-resized")}) {
+        QVERIFY2(!KConfigGroup(&file, group).hasKey("Program"), stored.constData());
+    }
+    const KConfigGroup advertisedGroup(&file, QStringLiteral("Application-advertised"));
+    QCOMPARE(advertisedGroup.readEntry("Executable", QString()), QStringLiteral(".*/adv\\+plus"));
+    QCOMPARE(advertisedGroup.readEntry("ExecutableMatch", QString()), QStringLiteral("RegularExpression"));
+    QVERIFY2(!advertisedGroup.hasKey("WindowClass") && !advertisedGroup.hasKey("Instance"), stored.constData());
+    QVERIFY(!KConfigGroup(&file, QStringLiteral("Application-resized")).hasKey("Executable"));
+    QCOMPARE(upscaleApplicationAtBind(QStringLiteral("/usr/bin/adv+plus")).application->id, QStringLiteral("advertised"));
+    QCOMPARE(byInstance(QStringLiteral("resized"))->id, QStringLiteral("resized"));
 }
 
 int runLegacySettingsTest(int argc, char *argv[])

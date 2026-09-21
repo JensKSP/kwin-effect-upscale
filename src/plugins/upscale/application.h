@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "pattern.h"
 #include "presentation.h"
 #include "resolution.h"
 #include "settings.h"
@@ -34,16 +35,24 @@ struct UpscaleApplication
     QString name;
     /** The package this identity was read from, so a later mismatch is traceable. */
     QString version;
-    /** Exact match against Window::resourceClass(), or empty to not constrain it. */
-    QString windowClass;
-    /** Exact match against Window::resourceName(), or empty to not constrain it. */
-    QString instance;
     /**
-     * Exact match against the file name of ClientConnection::executablePath().
-     * Used by Wayland advertisement methods before the application has a
-     * window. X11 resizing uses the window identity instead.
+     * Gate 1: the executable path of the program behind the window, or empty
+     * to not constrain it.
+     *
+     * KWin resolves it, from the connection's own credentials for a native
+     * Wayland client and from the window's PID for an X11 one. The shipped
+     * entries state a regular expression matching the file name in any
+     * directory, because a game is installed in different places; a person's
+     * own entry may state the exact path of their copy.
      */
-    QString program;
+    QString executable;
+    UpscaleStringMatch executableMatch = UpscaleStringMatch::Exact;
+    /** Gate 2: compared with Window::resourceClass(), or empty to not constrain it. */
+    QString windowClass;
+    UpscaleStringMatch windowClassMatch = UpscaleStringMatch::Exact;
+    /** Gate 2: compared with Window::resourceName(), or empty to not constrain it. */
+    QString instance;
+    UpscaleStringMatch instanceMatch = UpscaleStringMatch::Exact;
     /**
      * What to say to this program in each way it can present itself.
      *
@@ -78,6 +87,12 @@ struct UpscaleApplication
 const std::vector<UpscaleApplication> &upscaleApplications();
 
 /**
+ * How often the list has been read, so that anything derived from it knows
+ * when to derive it again. It is at least one once the list has been read.
+ */
+quint64 upscaleApplicationsGeneration();
+
+/**
  * Read the applications again.
  *
  * Reading configuration is disk work, so it happens when the effect is
@@ -104,26 +119,6 @@ bool upscaleApplicationsCustomized();
  * one this build ships and follows later packages again.
  */
 void upscaleRestoreApplications();
-
-/**
- * The application matching a window class and instance name, or null.
- *
- * Fields left empty in an entry do not constrain the match; every field it
- * does state has to be equal, case included. Window titles are never used:
- * they change while a game is running. This takes the two strings rather than
- * a window so that the matching rules can be tested without a compositor, and
- * so that the settings module can match without KWin's effect interfaces.
- */
-const UpscaleApplication *upscaleApplicationForIdentity(const QString &windowClass, const QString &instance);
-
-/**
- * The application for a program path, matched on the file name alone.
- *
- * The directory is deliberately ignored: the same game is at /usr/games on
- * Debian and elsewhere in a Flatpak or a user build, and the file name is the
- * part that stayed the same. An empty path matches nothing.
- */
-const UpscaleApplication *upscaleApplicationForProgram(const QString &executablePath);
 
 /**
  * Store one application, writing only the fields that differ from @p original.

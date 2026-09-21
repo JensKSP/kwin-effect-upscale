@@ -5,6 +5,7 @@
 */
 
 #include "application.h"
+#include "matching.h"
 #include "settings.h"
 
 #include <KConfig>
@@ -24,10 +25,33 @@ using namespace KWin;
 // real file rather than a fixture of their own: an entry that stops parsing is
 // a shipped defect, not a test problem.
 int runLegacySettingsTest(int argc, char *argv[]);
+int runMatchingTest(int argc, char *argv[]);
 
 static QString userDirectory()
 {
     return QString::fromLocal8Bit(qgetenv("XDG_CONFIG_HOME"));
+}
+
+// A window as the effect sees it: its program's path, where it resolved, and
+// its class and instance.
+static const UpscaleApplication *forWindow(const QString &executable, const QString &windowClass, const QString &instance)
+{
+    return upscaleApplicationFor({executable, windowClass, instance});
+}
+
+static const UpscaleApplication *forInstance(const QString &instance)
+{
+    return forWindow(QString(), QString(), instance);
+}
+
+static const UpscaleApplication *atBind(const QString &executable)
+{
+    return upscaleApplicationAtBind(executable).application;
+}
+
+static const UpscaleApplication *superTuxKart()
+{
+    return forWindow(QStringLiteral("/usr/games/supertuxkart"), QStringLiteral("supertuxkart"), QStringLiteral("supertuxkart"));
 }
 
 class ApplicationTest : public QObject
@@ -40,7 +64,6 @@ private Q_SLOTS:
     void matchesObservedIdentities();
     void matchesTheBenchmarks();
     void ignoresIdentitiesItDoesNotKnow();
-    void matchesProgramsByFileName();
     void layersUserChangesOverTheDefaults();
     void restoringDiscardsOnlyTheUserChanges();
     void dropsEntriesThatConstrainNothing();
@@ -91,17 +114,21 @@ void ApplicationTest::readsTheShippedDefaults()
         // of them has a default behind it to be restored to.
         QVERIFY(application.shipped);
         QVERIFY(application.enabled);
-        // An entry has to constrain an identity, or it would match anything.
-        QVERIFY(!application.windowClass.isEmpty() || !application.instance.isEmpty());
+        // An entry has to constrain an identity, or it would match anything,
+        // and every pattern it states has to be usable.
+        QVERIFY2(upscaleIdentityProblem(application).isEmpty(), qPrintable(application.id));
         // An advertisement is made before the window exists, so it has
-        // nothing but the program name to recognize the application by.
+        // nothing but the program's path to recognize the application by,
+        // and an entry that also names a window could not answer then.
         const bool advertises = std::ranges::any_of(application.methods, [](KWin::UpscaleMethod method) {
             return method == KWin::UpscaleMethod::AdvertisedMode || method == KWin::UpscaleMethod::AdvertisedScale
                 || method == KWin::UpscaleMethod::AdvertisedModeAndScale;
         });
         if (advertises) {
-            QVERIFY(!application.program.isEmpty());
+            QVERIFY(!application.executable.isEmpty());
+            QVERIFY(application.windowClass.isEmpty() && application.instance.isEmpty());
         }
+        QVERIFY2(upscaleAdvertisementProblem(application).isEmpty(), qPrintable(application.id));
         // Matching order has to be decided by the file, not by its layout.
         QVERIFY(application.order > previousOrder);
         previousOrder = application.order;
@@ -111,7 +138,7 @@ void ApplicationTest::readsTheShippedDefaults()
 void ApplicationTest::matchesObservedIdentities()
 {
     // The identities both games were observed to present on 2026-09-18.
-    const UpscaleApplication *kart = upscaleApplicationForIdentity(QStringLiteral("supertuxkart"), QStringLiteral("supertuxkart"));
+    const UpscaleApplication *kart = superTuxKart();
     QVERIFY(kart);
     QCOMPARE(kart->name, QStringLiteral("SuperTuxKart"));
     QCOMPARE(kart->methods[std::size_t(KWin::UpscalePresentation::WaylandFullScreen)],
@@ -129,10 +156,12 @@ void ApplicationTest::matchesObservedIdentities()
     // Extreme Tux Racer carries its version in the window class, so it is
     // matched on the instance name and must keep matching when that class
     // changes with the next package.
-    const UpscaleApplication *racer = upscaleApplicationForIdentity(QStringLiteral("Extreme Tux Racer 0.8.4"), QStringLiteral("etr"));
+    // It states its window alone, so it is found whether or not its X11
+    // window's PID resolved to a path.
+    const UpscaleApplication *racer = forWindow(QString(), QStringLiteral("Extreme Tux Racer 0.8.4"), QStringLiteral("etr"));
     QVERIFY(racer);
     QCOMPARE(racer->name, QStringLiteral("Extreme Tux Racer"));
-    QCOMPARE(racer, upscaleApplicationForIdentity(QStringLiteral("Extreme Tux Racer 0.9.0"), QStringLiteral("etr")));
+    QCOMPARE(racer, forWindow(QStringLiteral("/usr/games/etr"), QStringLiteral("Extreme Tux Racer 0.9.0"), QStringLiteral("etr")));
     QCOMPARE(racer->methods[std::size_t(KWin::UpscalePresentation::X11FullScreen)], KWin::UpscaleMethod::X11Resize);
     QVERIFY(!racer->overrides[std::size_t(KWin::UpscaleSetting::Resolution)]);
     QVERIFY(racer->x11PrimaryOutputOnly);
@@ -142,15 +171,15 @@ void ApplicationTest::matchesObservedIdentities()
 // screen mode, because that is what their sources were observed to read.
 void ApplicationTest::matchesTheBenchmarks()
 {
-    const UpscaleApplication *gl = upscaleApplicationForIdentity(QStringLiteral("com.github.glmark2.glmark2"),
-                                                                 QStringLiteral("glmark2-wayland"));
+    const UpscaleApplication *gl = forWindow(QStringLiteral("/usr/bin/glmark2-wayland"), QStringLiteral("com.github.glmark2.glmark2"),
+                                             QStringLiteral("glmark2-wayland"));
     QVERIFY(gl);
     QCOMPARE(gl->methods[std::size_t(KWin::UpscalePresentation::WaylandFullScreen)],
              KWin::UpscaleMethod::AdvertisedScale);
-    QCOMPARE(upscaleApplicationForProgram(QStringLiteral("/usr/bin/glmark2-wayland")), gl);
+    QCOMPARE(atBind(QStringLiteral("/usr/bin/glmark2-wayland")), gl);
 
-    const UpscaleApplication *vk = upscaleApplicationForIdentity(QStringLiteral("com.github.vkmark.vkmark"),
-                                                                 QStringLiteral("vkmark"));
+    const UpscaleApplication *vk = forWindow(QStringLiteral("/usr/bin/vkmark"), QStringLiteral("com.github.vkmark.vkmark"),
+                                             QStringLiteral("vkmark"));
     QVERIFY(vk);
     QCOMPARE(vk->methods[std::size_t(KWin::UpscalePresentation::WaylandFullScreen)],
              KWin::UpscaleMethod::AdvertisedModeAndScale);
@@ -166,27 +195,16 @@ void ApplicationTest::matchesTheBenchmarks()
 
 void ApplicationTest::ignoresIdentitiesItDoesNotKnow()
 {
-    QVERIFY(!upscaleApplicationForIdentity(QString(), QString()));
-    QVERIFY(!upscaleApplicationForIdentity(QStringLiteral("konsole"), QStringLiteral("konsole")));
+    QVERIFY(!forWindow(QString(), QString(), QString()));
+    QVERIFY(!forWindow(QStringLiteral("/usr/bin/konsole"), QStringLiteral("konsole"), QStringLiteral("konsole")));
     // Matching is case sensitive, as KWin's own exact window-class rules are.
-    QVERIFY(!upscaleApplicationForIdentity(QStringLiteral("SuperTuxKart"), QStringLiteral("SuperTuxKart")));
+    QVERIFY(!forWindow(QString(), QStringLiteral("ETR"), QStringLiteral("ETR")));
     // A stated field that differs refuses the entry even when the other matches.
-    QVERIFY(!upscaleApplicationForIdentity(QStringLiteral("supertuxkart"), QStringLiteral("launcher")));
-}
-
-void ApplicationTest::matchesProgramsByFileName()
-{
-    const UpscaleApplication *kart = upscaleApplicationForIdentity(QStringLiteral("supertuxkart"), QStringLiteral("supertuxkart"));
-    QVERIFY(kart);
-    // The same game sits in different directories depending on how it was
-    // installed, so only the file name may decide.
-    QCOMPARE(upscaleApplicationForProgram(QStringLiteral("/usr/games/supertuxkart")), kart);
-    QCOMPARE(upscaleApplicationForProgram(QStringLiteral("/usr/local/bin/supertuxkart")), kart);
-    QCOMPARE(upscaleApplicationForProgram(QStringLiteral("supertuxkart")), kart);
-    QVERIFY(!upscaleApplicationForProgram(QString()));
-    QVERIFY(!upscaleApplicationForProgram(QStringLiteral("/usr/games/")));
-    // A directory that merely contains the name is not the program.
-    QVERIFY(!upscaleApplicationForProgram(QStringLiteral("/opt/supertuxkart/launcher")));
+    QVERIFY(!forWindow(QString(), QStringLiteral("hl2_linux"), QStringLiteral("launcher")));
+    // SuperTuxKart states its program alone, so its window class without its
+    // program is not SuperTuxKart: a path that did not resolve matches no
+    // entry that states one.
+    QVERIFY(!forWindow(QString(), QStringLiteral("supertuxkart"), QStringLiteral("supertuxkart")));
 }
 
 // What a user changes has to win, and everything they did not change has to
@@ -203,14 +221,14 @@ void ApplicationTest::layersUserChangesOverTheDefaults()
                                    "\n"
                                    "[Application-mygame]\n"
                                    "Name=My Game\n"
-                                   "Instance=mygame\n"
-                                   "Program=mygame\n"
-                                   "Method=AdvertisedMode\n"
+                                   "Executable=.*/mygame\n"
+                                   "ExecutableMatch=RegularExpression\n"
+                                   "MethodWaylandFullScreen=AdvertisedMode\n"
                                    "Resolution=Balanced\n"
                                    "Order=5\n"));
     QCOMPARE(upscaleApplications().size(), shipped + 1);
 
-    const UpscaleApplication *kart = upscaleApplicationForIdentity(QStringLiteral("supertuxkart"), QStringLiteral("supertuxkart"));
+    const UpscaleApplication *kart = superTuxKart();
     QVERIFY(kart);
     QCOMPARE(KWin::upscaleResolveSettings(kart).resolution(), ResolutionPreset::Performance);
     // The field the user did not touch still comes from the shipped file.
@@ -219,10 +237,11 @@ void ApplicationTest::layersUserChangesOverTheDefaults()
     QVERIFY(kart->shipped);
 
     // A disabled entry stops matching without being deleted.
-    QVERIFY(!upscaleApplicationForIdentity(QStringLiteral("com.github.glmark2.glmark2"), QStringLiteral("glmark2-wayland")));
-    QVERIFY(!upscaleApplicationForProgram(QStringLiteral("/usr/bin/glmark2-wayland")));
+    QVERIFY(!forWindow(QStringLiteral("/usr/bin/glmark2-wayland"), QStringLiteral("com.github.glmark2.glmark2"),
+                       QStringLiteral("glmark2-wayland")));
+    QVERIFY(!atBind(QStringLiteral("/usr/bin/glmark2-wayland")));
 
-    const UpscaleApplication *mine = upscaleApplicationForIdentity(QString(), QStringLiteral("mygame"));
+    const UpscaleApplication *mine = atBind(QStringLiteral("/home/player/mygame"));
     QVERIFY(mine);
     QCOMPARE(mine->name, QStringLiteral("My Game"));
     // Nothing shipped describes it, which is how restoring knows to remove it.
@@ -241,29 +260,28 @@ void ApplicationTest::restoringDiscardsOnlyTheUserChanges()
                                    "Name=My Game\n"
                                    "Instance=mygame\n"
                                    "Order=5\n"));
-    QVERIFY(upscaleApplicationForIdentity(QString(), QStringLiteral("mygame")));
+    QVERIFY(forInstance(QStringLiteral("mygame")));
 
     upscaleRestoreApplications();
 
     // The list is the one this build ships: overridden fields are back and the
     // user's own application is gone.
-    const UpscaleApplication *kart = upscaleApplicationForIdentity(QStringLiteral("supertuxkart"), QStringLiteral("supertuxkart"));
+    const UpscaleApplication *kart = superTuxKart();
     QVERIFY(kart);
     // The user's own resolution is gone, so this follows the global one again.
     QVERIFY(!kart->overrides[std::size_t(KWin::UpscaleSetting::Resolution)]);
     QCOMPARE(kart->methods[std::size_t(KWin::UpscalePresentation::WaylandFullScreen)],
              KWin::UpscaleMethod::AdvertisedMode);
-    QVERIFY(!upscaleApplicationForIdentity(QString(), QStringLiteral("mygame")));
+    QVERIFY(!forInstance(QStringLiteral("mygame")));
 
     // Restoring must leave the defaults reachable rather than suppressed: a
     // deletion marker would hide them from every later package as well.
     upscaleReloadApplications();
-    QVERIFY(upscaleApplicationForIdentity(QStringLiteral("com.github.vkmark.vkmark"), QStringLiteral("vkmark")));
-    QVERIFY(!upscaleApplicationForIdentity(QStringLiteral("supertuxkart"), QStringLiteral("supertuxkart"))
-                 ->overrides[std::size_t(KWin::UpscaleSetting::Resolution)]);
+    QVERIFY(atBind(QStringLiteral("/usr/bin/vkmark")));
+    QVERIFY(!superTuxKart()->overrides[std::size_t(KWin::UpscaleSetting::Resolution)]);
 }
 
-// An entry that names neither a window class nor an instance would match every
+// An entry that names no program, window class or instance would match every
 // window on the screen, the desktop included. Reading it as "recognize
 // everything" is the one reading that cannot be right.
 void ApplicationTest::dropsEntriesThatConstrainNothing()
@@ -271,10 +289,11 @@ void ApplicationTest::dropsEntriesThatConstrainNothing()
     const size_t shipped = upscaleApplications().size();
     writeUserConfig(QStringLiteral("[Application-nothing]\n"
                                    "Name=Constrains Nothing\n"
-                                   "Program=nothing\n"
+                                   "Executable=\n"
+                                   "ExecutableMatch=RegularExpression\n"
                                    "Order=5\n"));
     QCOMPARE(upscaleApplications().size(), shipped);
-    QVERIFY(!upscaleApplicationForProgram(QStringLiteral("/usr/bin/nothing")));
+    QVERIFY(!forWindow(QStringLiteral("/usr/bin/nothing"), QStringLiteral("nothing"), QStringLiteral("nothing")));
 }
 
 // The keys are the file's vocabulary, so what is read has to be what is
@@ -289,7 +308,7 @@ void ApplicationTest::spellsEveryMethodAndPreset()
         const QString key = upscaleMethodKey(method);
         QVERIFY(!key.isEmpty());
         writeUserConfig(QStringLiteral("[Application-roundtrip]\nInstance=roundtrip\nMethodWaylandFullScreen=%1\n").arg(key));
-        const UpscaleApplication *stored = upscaleApplicationForIdentity(QString(), QStringLiteral("roundtrip"));
+        const UpscaleApplication *stored = forInstance(QStringLiteral("roundtrip"));
         QVERIFY(stored);
         QCOMPARE(stored->methods[std::size_t(UpscalePresentation::WaylandFullScreen)], method);
     }
@@ -299,7 +318,7 @@ void ApplicationTest::spellsEveryMethodAndPreset()
     // for an X11 window. It reads as asking for nothing rather than as an
     // instruction this build would act on.
     writeUserConfig(QStringLiteral("[Application-roundtrip]\nInstance=roundtrip\nMethodX11FullScreen=AdvertisedMode\n"));
-    QCOMPARE(upscaleApplicationForIdentity(QString(), QStringLiteral("roundtrip"))
+    QCOMPARE(forInstance(QStringLiteral("roundtrip"))
                  ->methods[std::size_t(UpscalePresentation::X11FullScreen)],
              UpscaleMethod::Off);
 
@@ -309,7 +328,7 @@ void ApplicationTest::spellsEveryMethodAndPreset()
         const QString key = upscalePresetKey(preset);
         QVERIFY(!key.isEmpty());
         writeUserConfig(QStringLiteral("[Application-roundtrip]\nInstance=roundtrip\nResolution=%1\n").arg(key));
-        const UpscaleApplication *stored = upscaleApplicationForIdentity(QString(), QStringLiteral("roundtrip"));
+        const UpscaleApplication *stored = forInstance(QStringLiteral("roundtrip"));
         QVERIFY(stored);
         QCOMPARE(KWin::upscaleResolveSettings(stored).resolution(), preset);
     }
@@ -319,7 +338,7 @@ void ApplicationTest::spellsEveryMethodAndPreset()
     // only safe reading; refusing the entry would lose the identity as well.
     writeUserConfig(QStringLiteral("[Application-roundtrip]\nInstance=roundtrip\n"
                                    "MethodWaylandFullScreen=SomethingLater\nResolution=Enormous\n"));
-    const UpscaleApplication *later = upscaleApplicationForIdentity(QString(), QStringLiteral("roundtrip"));
+    const UpscaleApplication *later = forInstance(QStringLiteral("roundtrip"));
     QVERIFY(later);
     QCOMPARE(later->methods[std::size_t(KWin::UpscalePresentation::WaylandFullScreen)], KWin::UpscaleMethod::Off);
     // An unreadable resolution falls back to what would have applied anyway
@@ -348,7 +367,7 @@ void ApplicationTest::storesOnlyTheFieldsTheUserChanged()
 {
     QVERIFY(!upscaleApplicationsCustomized());
 
-    const UpscaleApplication *shipped = upscaleApplicationForIdentity(QStringLiteral("supertuxkart"), QStringLiteral("supertuxkart"));
+    const UpscaleApplication *shipped = superTuxKart();
     QVERIFY(shipped);
     const UpscaleApplication original = *shipped;
     UpscaleApplication edited = original;
@@ -369,23 +388,25 @@ void ApplicationTest::storesOnlyTheFieldsTheUserChanged()
     // frozen into the user's file at today's values.
     QVERIFY2(!stored.contains(QStringLiteral("Method=")), qPrintable(stored));
     QVERIFY(!stored.contains(QStringLiteral("WindowClass=")));
-    QVERIFY(!stored.contains(QStringLiteral("Program=")));
+    QVERIFY(!stored.contains(QStringLiteral("Executable")));
+    QVERIFY(!stored.contains(QStringLiteral("Match=")));
     QVERIFY(!stored.contains(QStringLiteral("Name=")));
     // A shipped entry carries the package's own description, so the user's
     // file must not copy it.
     QVERIFY(!stored.contains(QStringLiteral("Note=")));
 
     // The saved list is what the effect sees afterwards, without re-reading.
-    QVERIFY(!upscaleApplicationForIdentity(QStringLiteral("supertuxkart"), QStringLiteral("supertuxkart")));
+    QVERIFY(!superTuxKart());
 
     // An application the user added has nothing behind it, so it carries every
     // field it states, including its own description.
     UpscaleApplication added;
     added.id = upscaleNewApplicationId(QStringLiteral("My Game"));
     added.name = QStringLiteral("My Game");
+    added.executable = QStringLiteral("/opt/games/.*game");
+    added.executableMatch = UpscaleStringMatch::RegularExpression;
     added.windowClass = QStringLiteral("mygame");
     added.instance = QStringLiteral("mygame");
-    added.program = QStringLiteral("mygame");
     added.methods[std::size_t(KWin::UpscalePresentation::WaylandFullScreen)] = KWin::UpscaleMethod::AdvertisedScale;
     added.overrides[std::size_t(KWin::UpscaleSetting::Resolution)] = int(ResolutionPreset::Balanced);
     added.note = QStringLiteral("Measured by me.");
@@ -393,7 +414,11 @@ void ApplicationTest::storesOnlyTheFieldsTheUserChanged()
     upscaleSaveApplication(added, UpscaleApplication{});
     upscaleSyncApplications();
 
-    const UpscaleApplication *mine = upscaleApplicationForIdentity(QStringLiteral("mygame"), QStringLiteral("mygame"));
+    const QString storedAddition = QString::fromUtf8(readUserConfig());
+    QVERIFY2(storedAddition.contains(QStringLiteral("ExecutableMatch=RegularExpression")), qPrintable(storedAddition));
+    // Exact is what an absent match type means, so it is not written.
+    QVERIFY(!storedAddition.contains(QStringLiteral("WindowClassMatch=")));
+    const UpscaleApplication *mine = forWindow(QStringLiteral("/opt/games/mygame"), QStringLiteral("mygame"), QStringLiteral("mygame"));
     QVERIFY(mine);
     QCOMPARE(mine->name, QStringLiteral("My Game"));
     QCOMPARE(mine->methods[std::size_t(KWin::UpscalePresentation::WaylandFullScreen)],
@@ -401,7 +426,8 @@ void ApplicationTest::storesOnlyTheFieldsTheUserChanged()
     QCOMPARE(KWin::upscaleResolveSettings(mine).resolution(), ResolutionPreset::Balanced);
     QCOMPARE(mine->note, QStringLiteral("Measured by me."));
     QVERIFY(!mine->shipped);
-    QCOMPARE(upscaleApplicationForProgram(QStringLiteral("/opt/games/mygame")), mine);
+    // It names a window as well, so its path alone decides nothing at bind.
+    QVERIFY(!upscaleApplicationAtBind(QStringLiteral("/opt/games/mygame")).decided);
 }
 
 void ApplicationTest::removesOwnEntriesAndDisablesShippedOnes()
@@ -413,11 +439,11 @@ void ApplicationTest::removesOwnEntriesAndDisablesShippedOnes()
     added.order = 200;
     upscaleSaveApplication(added, UpscaleApplication{});
     upscaleSyncApplications();
-    QVERIFY(upscaleApplicationForIdentity(QString(), QStringLiteral("mygame")));
+    QVERIFY(forInstance(QStringLiteral("mygame")));
 
     upscaleDeleteApplication(QStringLiteral("mygame"));
     upscaleSyncApplications();
-    QVERIFY(!upscaleApplicationForIdentity(QString(), QStringLiteral("mygame")));
+    QVERIFY(!forInstance(QStringLiteral("mygame")));
     QVERIFY(!QString::fromUtf8(readUserConfig()).contains(QStringLiteral("Application-mygame")));
 
     // A shipped entry cannot be removed: the next package brings it back, so
@@ -425,7 +451,7 @@ void ApplicationTest::removesOwnEntriesAndDisablesShippedOnes()
     // switched off instead, which is what the user's file can record.
     upscaleDeleteApplication(QStringLiteral("vkmark"));
     upscaleSyncApplications();
-    QVERIFY(!upscaleApplicationForIdentity(QStringLiteral("com.github.vkmark.vkmark"), QStringLiteral("vkmark")));
+    QVERIFY(!atBind(QStringLiteral("/usr/bin/vkmark")));
     const std::vector<UpscaleApplication> &list = upscaleApplications();
     const auto disabled = std::ranges::find(list, QStringLiteral("vkmark"), &UpscaleApplication::id);
     QVERIFY(disabled != list.end());
@@ -441,21 +467,25 @@ void ApplicationTest::asksUnlistedApplicationsOnlyWhenTurnedOn()
     // synthesised entry standing in for one: a null profile is how a caller
     // asks for the global one, and the global profile answers for every window
     // no profile claimed.
-    QVERIFY(!upscaleApplicationForProgram(QStringLiteral("/usr/bin/something-nobody-measured")));
+    const UpscaleBindAnswer unmeasured = upscaleApplicationAtBind(QStringLiteral("/usr/bin/something-nobody-measured"));
+    QVERIFY(unmeasured.decided);
+    QVERIFY(!unmeasured.application);
 
     // A profile that is switched off takes no part in matching, by both
     // identities, so a later profile can claim the window and the global
     // profile gets it when none does. That is what makes switching one off
     // read as leaving the game alone: the global profile is off by default,
     // so nothing acts on it either.
-    writeUserConfig(QStringLiteral("[Application-quiet]\nInstance=quiet\nProgram=quiet\nEnabled=false\n"));
-    QVERIFY(!upscaleApplicationForProgram(QStringLiteral("/usr/bin/quiet")));
-    QVERIFY(!upscaleApplicationForIdentity(QString(), QStringLiteral("quiet")));
+    writeUserConfig(QStringLiteral("[Application-quiet]\nExecutable=/usr/bin/quiet\nEnabled=false\n"
+                                   "[Application-quieter]\nInstance=quiet\nEnabled=false\n"));
+    QVERIFY(!atBind(QStringLiteral("/usr/bin/quiet")));
+    QVERIFY(upscaleApplicationAtBind(QStringLiteral("/usr/bin/quiet")).decided);
+    QVERIFY(!forWindow(QStringLiteral("/usr/bin/quiet"), QString(), QStringLiteral("quiet")));
 
     // The single Method of a previous release lands in the one presentation it
     // can have been measured under, and nowhere else.
     writeUserConfig(QStringLiteral("[Application-old]\nInstance=old\nMethod=X11Resize\n"));
-    const UpscaleApplication *old = upscaleApplicationForIdentity(QString(), QStringLiteral("old"));
+    const UpscaleApplication *old = forInstance(QStringLiteral("old"));
     QVERIFY(old);
     QCOMPARE(old->methods[std::size_t(KWin::UpscalePresentation::X11FullScreen)], KWin::UpscaleMethod::X11Resize);
     QCOMPARE(old->methods[std::size_t(KWin::UpscalePresentation::WaylandFullScreen)], KWin::UpscaleMethod::Auto);
@@ -463,7 +493,7 @@ void ApplicationTest::asksUnlistedApplicationsOnlyWhenTurnedOn()
     // Except None, which recorded a decision about the program rather than
     // about one way of running it, so it fills every slot.
     writeUserConfig(QStringLiteral("[Application-none]\nInstance=none\nMethod=None\n"));
-    const UpscaleApplication *none = upscaleApplicationForIdentity(QString(), QStringLiteral("none"));
+    const UpscaleApplication *none = forInstance(QStringLiteral("none"));
     QVERIFY(none);
     QVERIFY(std::ranges::all_of(none->methods, [](KWin::UpscaleMethod method) {
         return method == KWin::UpscaleMethod::Off;
@@ -506,7 +536,7 @@ int main(int argc, char *argv[])
     // The cases about what a previous release stored live in their own file,
     // beside the code that reads it, and run in the same environment. Both go
     // together once no installation can carry the old keys.
-    return result | runLegacySettingsTest(argc, argv);
+    return result | runLegacySettingsTest(argc, argv) | runMatchingTest(argc, argv);
 }
 
 #include "application_test.moc"

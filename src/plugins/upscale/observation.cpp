@@ -20,6 +20,7 @@
 #include "settings.h"
 #include "snapshot.h"
 #include "upscaleconfig.h"
+#include "windowidentity.h"
 #include "x11resolution.h"
 
 #include "effect/effecthandler.h"
@@ -60,10 +61,7 @@ UpscaleSnapshot UpscaleEffect::snapshot(EffectWindow *window, const RenderTarget
     // What applies to this window, profile over global, rather than the global
     // layer alone. A report naming the global value would describe a window
     // other than the one being looked at, which is the whole point of a report.
-    const UpscaleSettings settings = upscaleResolveSettings(
-        window->window() ? upscaleApplicationForIdentity(window->window()->resourceClass(),
-                                                         window->window()->resourceName())
-                         : nullptr);
+    const UpscaleSettings settings = upscaleResolveSettings(upscaleApplicationForWindow(window->window()));
     state.enabled = settings.acts();
     state.preset = settings.resolution();
     state.percentage = settings.value(UpscaleSetting::Percentage);
@@ -107,9 +105,7 @@ void UpscaleEffect::describeApplication(UpscaleSnapshot &state, const Window *wi
                                         UpscalePresentation presentation) const
 {
     // Read identity fields separately; EffectWindow::windowClass combines them.
-    const UpscaleApplication *known = window
-        ? upscaleApplicationForIdentity(window->resourceClass(), window->resourceName())
-        : nullptr;
+    const UpscaleApplication *known = upscaleApplicationForWindow(window);
     if (!known) {
         return;
     }

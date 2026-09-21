@@ -98,6 +98,13 @@ constexpr bool upscaleMethodApplies(UpscalePresentation presentation, UpscaleMet
     }
 }
 
+/** Whether @p method is one of the three said when a client binds its output. */
+constexpr bool upscaleIsAdvertisement(UpscaleMethod method)
+{
+    return method == UpscaleMethod::AdvertisedMode || method == UpscaleMethod::AdvertisedScale
+        || method == UpscaleMethod::AdvertisedModeAndScale;
+}
+
 /**
  * The presentation whose method is said when a client binds the output.
  *
