@@ -25,9 +25,12 @@ int main()
     assert(!exceedsMinimumPixels({0, 1080}, 0));
     assert(!exceedsMinimumPixels({-1, -1}, 0));
     assert(exceedsMinimumPixels({std::numeric_limits<int>::max(), std::numeric_limits<int>::max()}, std::numeric_limits<int>::max()));
-    assert(effectiveResolutionPreset(ResolutionPreset::Custom, ResolutionPreset::Native) == ResolutionPreset::Native);
-    assert(effectiveResolutionPreset(ResolutionPreset::Native, ResolutionPreset::Quality) == ResolutionPreset::Native);
-    assert(effectiveResolutionPreset(ResolutionPreset::Automatic, ResolutionPreset::Quality) == ResolutionPreset::Quality);
+    // There is no negotiation between a global preset and a profile's any
+    // more: a profile either states a resolution or inherits one. Native is
+    // the opt-out and says so by asking for the whole output.
+    assert(resolutionRatio(ResolutionPreset::Native, 50) == 1.0);
+    assert(resolutionRatio(ResolutionPreset::Performance, 100) == 0.5);
+    assert(reachableScale({3840, 2160}, 1, ResolutionPreset::Native, 100) == 0);
     assert((desiredResolution(output, ResolutionPreset::UltraQuality, 50) == UpscaleSize{2954, 1662}));
     assert((desiredResolution(output, ResolutionPreset::Quality, 50) == UpscaleSize{2560, 1440}));
     assert((desiredResolution(output, ResolutionPreset::Balanced, 50) == UpscaleSize{2259, 1271}));
@@ -85,7 +88,6 @@ int main()
     // rather than refused, and the caller reports what was asked for.
     assert(reachableScale(output, 2, ResolutionPreset::Quality, 50) == 1);
     // Asking for no reduction asks for no scale.
-    assert(reachableScale(output, 2, ResolutionPreset::Automatic, 50) == 0);
     assert(reachableScale(output, 2, ResolutionPreset::Native, 50) == 0);
     assert(reachableScale(output, 2, ResolutionPreset::Custom, 100) == 0);
     // A fractional desktop scale still offers whole steps below it.

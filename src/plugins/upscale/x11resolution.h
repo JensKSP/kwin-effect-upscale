@@ -42,7 +42,8 @@ class UpscaleX11Resolution : public QObject
 public:
     UpscaleX11Resolution();
     ~UpscaleX11Resolution() override;
-    void reconfigure(bool enabled, ResolutionPreset preset, int percentage);
+    /** Configuration moved: give everything back and work it out again. */
+    void reconfigure();
     QSize requested(const Window *window) const;
     QString failure(const Window *window) const;
     /** Who is enlarging this window's buffer to the output right now. */
@@ -113,8 +114,6 @@ private:
     std::unique_ptr<UpscaleX11Input> m_input;
     bool m_enabled = false;
     bool m_restoring = false;
-    ResolutionPreset m_preset = ResolutionPreset::Automatic;
-    int m_percentage = 100;
     int m_generation = 0;
     int m_nextValidation = 0;
     xcb_atom_t m_stateAtom = XCB_ATOM_NONE;

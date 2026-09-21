@@ -6,6 +6,7 @@
 
 #include "application.h"
 #include "applicationeditor.h"
+#include "methodcontrols.h"
 #include "upscale_config.h"
 
 #include "settings_fixture.h"
@@ -135,8 +136,10 @@ void UpscaleApplicationEditorTest::editsTheApplicationList()
     auto *windowClass = editor->findChild<QLineEdit *>(QStringLiteral("applicationWindowClass"));
     auto *instance = editor->findChild<QLineEdit *>(QStringLiteral("applicationInstance"));
     auto *program = editor->findChild<QLineEdit *>(QStringLiteral("applicationProgram"));
-    auto *method = editor->findChild<QComboBox *>(QStringLiteral("applicationMethod"));
-    auto *preset = editor->findChild<QComboBox *>(QStringLiteral("applicationPreset"));
+    auto *method = editor->findChild<QComboBox *>(QStringLiteral("method0"));
+    // Built from the settings table, so each control is named by the key it
+    // stores rather than by a name chosen per field.
+    auto *preset = editor->findChild<QComboBox *>(QStringLiteral("Resolution"));
     auto *enabled = editor->findChild<QCheckBox *>(QStringLiteral("applicationEnabled"));
     auto *note = editor->findChild<QLabel *>(QStringLiteral("applicationNote"));
     auto *remove = editor->findChild<QPushButton *>(QStringLiteral("applicationRemove"));
@@ -162,7 +165,7 @@ void UpscaleApplicationEditorTest::editsTheApplicationList()
     QCOMPARE(name->text(), QStringLiteral("SuperTuxKart"));
     QCOMPARE(windowClass->text(), QStringLiteral("supertuxkart"));
     QCOMPARE(program->text(), QStringLiteral("supertuxkart"));
-    QCOMPARE(method->currentText(), KWin::describeControlMethod(KWin::UpscaleControlMethod::AdvertisedMode));
+    QCOMPARE(method->currentText(), KWin::upscaleMethodLabel(KWin::UpscaleMethod::AdvertisedMode));
     QVERIFY(enabled->isChecked());
     QVERIFY(!note->text().isEmpty());
     // An entry this build ships comes back with the next package, so removing
@@ -171,12 +174,17 @@ void UpscaleApplicationEditorTest::editsTheApplicationList()
 
     // A combo box reports a choice only when the user makes it, so the keyboard
     // drives it here rather than setCurrentIndex.
-    const int automatic = preset->currentIndex();
+    // A profile that states nothing shows "use global" first, naming the value
+    // it follows, so that following it is a choice made knowingly.
+    QCOMPARE(preset->currentIndex(), 0);
+    QVERIFY2(preset->currentText().contains(QStringLiteral("Quality")), qPrintable(preset->currentText()));
+    const int inherited = preset->currentIndex();
     QTest::keyClick(preset, Qt::Key_Down);
-    QVERIFY(preset->currentIndex() != automatic);
+    QVERIFY(preset->currentIndex() != inherited);
     const QString chosen = preset->currentText();
-    auto *minimum = editor->findChild<QSpinBox *>(QStringLiteral("applicationMinimumPixels"));
+    auto *minimum = editor->findChild<QSpinBox *>(QStringLiteral("MinimumPixels"));
     QVERIFY(minimum);
+    // One step below the range is "use global", which the spin box names.
     QCOMPARE(minimum->value(), -1);
     minimum->setValue(2073600);
     // Nothing is written before the page is applied.
@@ -192,9 +200,10 @@ void UpscaleApplicationEditorTest::editsTheApplicationList()
     module.save();
     const QString stored = userConfig();
     QVERIFY2(stored.contains(QStringLiteral("[Application-supertuxkart]")), qPrintable(stored));
-    QVERIFY2(stored.contains(QStringLiteral("Preset=")), qPrintable(stored));
-    // Everything the user did not touch keeps following the installed package.
-    QVERIFY2(!stored.contains(QStringLiteral("Method=")), qPrintable(stored));
+    QVERIFY2(stored.contains(QStringLiteral("Resolution=")), qPrintable(stored));
+    // Everything the user did not touch keeps following the installed package,
+    // including all six measured answers.
+    QVERIFY2(!stored.contains(QStringLiteral("Method")), qPrintable(stored));
     QVERIFY(!stored.contains(QStringLiteral("WindowClass=")));
 
     // Saving reloads, so the page shows what was stored rather than what was

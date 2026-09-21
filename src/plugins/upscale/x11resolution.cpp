@@ -58,16 +58,16 @@ UpscaleX11Resolution::UpscaleX11Resolution()
         m_fullscreenAtom = XCB_ATOM_NONE;
     });
     connect(kwinApp(), &Application::xwaylandScaleChanged, this, [this]() {
-        reconfigure(m_enabled, m_preset, m_percentage);
+        reconfigure();
     });
     const auto watchOutput = [this](UpscaleOutput *output) {
         connect(output, &UpscaleOutput::geometryChanged, this, [this]() {
-            reconfigure(m_enabled, m_preset, m_percentage);
+            reconfigure();
         });
     };
     connect(effects, &EffectsHandler::screenAdded, this, watchOutput);
     connect(effects, &EffectsHandler::screenRemoved, this, [this]() {
-        reconfigure(m_enabled, m_preset, m_percentage);
+        reconfigure();
     });
     for (UpscaleOutput *output : effects->screens()) {
         watchOutput(output);
@@ -87,7 +87,7 @@ UpscaleX11Resolution::~UpscaleX11Resolution()
 #endif
 }
 
-void UpscaleX11Resolution::reconfigure(bool enabled, ResolutionPreset preset, int percentage)
+void UpscaleX11Resolution::reconfigure()
 {
 #if KWIN_BUILD_X11
     ++m_generation;
@@ -99,16 +99,13 @@ void UpscaleX11Resolution::reconfigure(bool enabled, ResolutionPreset preset, in
     m_retries.clear();
     m_validation.clear();
     m_waitingForBuffer.clear();
-    m_preset = preset;
-    m_percentage = percentage;
-    m_enabled = enabled && waylandServer();
+    // Nothing global is held any more: what to ask of a window comes from the
+    // profile that claims it, resolved when the window is looked at. All this
+    // still needs to know is whether there is an Xwayland to talk to.
+    m_enabled = waylandServer();
     for (X11Window *window : std::as_const(m_watched)) {
         schedule(window);
     }
-#else
-    Q_UNUSED(enabled)
-    Q_UNUSED(preset)
-    Q_UNUSED(percentage)
 #endif
 }
 
@@ -132,6 +129,44 @@ QString UpscaleX11Resolution::failure(const Window *window) const
 #endif
 }
 
+// Which of the three X11 cells this window is in. Unlike the Wayland half,
+// this can be answered honestly: the window is already here, so its state and
+// its geometry are both readable. A window the effect itself made smaller
+// still holds the fullscreen state, which is why the state is asked first and
+// the geometry only decides between the other two.
+static UpscalePresentation x11PresentationOf(const Window *window)
+{
+    const bool coversOutput = window->output() && window->frameGeometry() == window->output()->geometryF();
+    return upscalePresentationFor(true, window->isFullScreen(), !window->isDecorated() && coversOutput);
+}
+
+// Whether this window is one to ask for a smaller drawable.
+//
+// Auto and an explicit X11Resize both resize, and on X11 they mean the same
+// thing for a good reason: there is one method, the window exists before
+// anything is asked of it, and a request that loses coverage is observed and
+// put back by the validation below. Auto has nothing to choose between and
+// nothing it cannot undo, which is exactly what it does not have on Wayland.
+//
+// A windowed presentation is never resized. Shrinking a window the user sized
+// only makes it smaller: the destination is the window's own size, so there is
+// no gap left to enlarge into, and holding the frame while the client renders
+// below it is not something any implemented path does.
+static bool upscaleX11ResizeWanted(const UpscaleApplication &application, const Window *window)
+{
+    const UpscalePresentation presentation = x11PresentationOf(window);
+    if (upscaleIsWindowed(presentation)) {
+        return false;
+    }
+    const UpscaleSettings settings = upscaleResolveSettings(&application);
+    if (!settings.acts() || !settings.switchedOn(UpscaleSetting::ResolutionControl)
+        || settings.resolution() == ResolutionPreset::Native) {
+        return false;
+    }
+    const UpscaleMethod method = application.methods[std::size_t(presentation)];
+    return method == UpscaleMethod::Auto || method == UpscaleMethod::X11Resize;
+}
+
 #if KWIN_BUILD_X11
 QString UpscaleX11Resolution::keyFor(const Window *window)
 {
@@ -143,7 +178,7 @@ QString UpscaleX11Resolution::keyFor(const Window *window)
     // those replacements. PID is only a grouping hint, not a launch identity:
     // expire orphaned state after a replacement grace period. Use KWin's
     // identity, not /proc.
-    return application && application->method == UpscaleControlMethod::X11Resize
+    return application && upscaleX11ResizeWanted(*application, window)
         ? application->id + QLatin1Char('/') + window->output()->name() + QLatin1Char('/') + QString::number(window->pid())
         : QString();
 }
@@ -206,13 +241,13 @@ UpscaleX11Resolution::Request UpscaleX11Resolution::requestFor(X11Window *window
         return {};
     }
     const UpscaleApplication *application = upscaleApplicationForIdentity(window->resourceClass(), window->resourceName());
-    const ResolutionPreset preset = effectiveResolutionPreset(m_preset, application->preset);
+    const UpscaleSettings settings = upscaleResolveSettings(application);
     const QSize pixels = window->output()->pixelSize();
-    const int minimum = application->minimumPixels < 0 ? UpscaleConfig::minimumPixels() : application->minimumPixels;
-    if (!exceedsMinimumPixels({pixels.width(), pixels.height()}, minimum)) {
+    if (!exceedsMinimumPixels({pixels.width(), pixels.height()}, settings.value(UpscaleSetting::MinimumPixels))) {
         return {};
     }
-    const UpscaleSize size = desiredResolution({pixels.width(), pixels.height()}, preset, m_percentage);
+    const UpscaleSize size = desiredResolution({pixels.width(), pixels.height()}, settings.resolution(),
+                                               settings.value(UpscaleSetting::Percentage));
     if (!canUpscale(size, {pixels.width(), pixels.height()}) || size.width > 65535 || size.height > 65535) {
         return {};
     }

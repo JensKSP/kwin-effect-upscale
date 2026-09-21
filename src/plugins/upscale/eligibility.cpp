@@ -8,7 +8,7 @@
 
 #include "application.h"
 #include "resolution.h"
-#include "upscaleconfig.h"
+#include "settings.h"
 
 #include "effect/effecthandler.h"
 #include "effect/effectwindow.h"
@@ -157,6 +157,18 @@ bool upscaleCoversOutput(EffectWindow *window)
         && samePixel(frame.y() + frame.height(), output.y() + output.height(), scale);
 }
 
+// Which of the six cells this window presents in. Answerable here and not
+// when a client binds an output, which is the whole reason Auto waits for the
+// window before it says anything on Wayland: by now the window exists, so its
+// state and its geometry are both readable.
+UpscalePresentation upscalePresentationOf(EffectWindow *window)
+{
+    const Window *internal = window->window();
+    const bool borderless = internal && internal->isNormalWindow() && !internal->isDecorated()
+        && upscaleCoversOutput(window);
+    return upscalePresentationFor(!window->isWaylandClient(), window->isFullScreen(), borderless);
+}
+
 // The window itself: what it is and where it sits, before anything about its
 // contents is examined. These checks are cheap and run for every window of
 // every frame, so they stay in the order that rejects the common case first.
@@ -168,12 +180,47 @@ bool upscalePresentation(EffectWindow *window)
     const Window *internal = window->window();
     // Borderless applications need not advertise fullscreen. Match both the
     // origin and extent of one output; equal dimensions on a different output
-    // or a spanning window do not describe the same presentation. Requiring a
-    // profile keeps ordinary desktop windows out of this additional path.
-    return internal && internal->isNormalWindow() && !internal->isDecorated()
-        && internal->clientGeometry() == internal->frameGeometry()
-        && upscaleCoversOutput(window)
-        && upscaleApplicationForIdentity(internal->resourceClass(), internal->resourceName());
+    // or a spanning window do not describe the same presentation.
+    if (!internal || !internal->isNormalWindow() || internal->isDecorated()
+        || internal->clientGeometry() != internal->frameGeometry() || !upscaleCoversOutput(window)) {
+        return false;
+    }
+    // Something has to have asked for this path, because an undecorated
+    // window covering an output is also what a desktop's own surfaces can
+    // look like. A profile describing the application asks for it; so does a
+    // person who switched on unlisted applications, which by decision reaches
+    // borderless windows as well as fullscreen ones. With the global profile
+    // off, which is the default, an unlisted borderless window stays out.
+    return upscaleApplicationForIdentity(internal->resourceClass(), internal->resourceName())
+        || upscaleGlobalSettings().acts();
+}
+
+// What the settings say about this window: whether anything acts on it at
+// all, and whether its resolution and its output leave anything to do. One
+// resolution, from the profile that claimed the window over the global layer;
+// where the two disagree the profile wins outright, and nothing here decides
+// which layer speaks for which value.
+static UpscaleRefusal settingsRefusal(EffectWindow *window)
+{
+    const Window *internal = window->window();
+    const UpscaleApplication *application =
+        internal ? upscaleApplicationForIdentity(internal->resourceClass(), internal->resourceName()) : nullptr;
+    const UpscaleSettings settings = upscaleResolveSettings(application);
+    if (!settings.acts()) {
+        // A profile that is switched off takes no part in matching, so a
+        // window that reaches here unclaimed is simply one no profile
+        // describes. Only a previous release's own off switch refuses a
+        // claimed one.
+        return application ? UpscaleRefusal::Disabled : UpscaleRefusal::Unlisted;
+    }
+    if (settings.resolution() == ResolutionPreset::Native) {
+        return UpscaleRefusal::NativeRule;
+    }
+    const QSize pixels = window->screen()->pixelSize();
+    if (!exceedsMinimumPixels({pixels.width(), pixels.height()}, settings.value(UpscaleSetting::MinimumPixels))) {
+        return UpscaleRefusal::BelowMinimumPixels;
+    }
+    return UpscaleRefusal::None;
 }
 
 static UpscaleRefusal placementRefusal(EffectWindow *window)
@@ -202,17 +249,9 @@ static UpscaleRefusal placementRefusal(EffectWindow *window)
     if (!window->screen()) {
         return UpscaleRefusal::NoOutput;
     }
-    const Window *internal = window->window();
-    const UpscaleApplication *application = internal ? upscaleApplicationForIdentity(internal->resourceClass(), internal->resourceName()) : nullptr;
-    const ResolutionPreset preset = effectiveResolutionPreset(static_cast<ResolutionPreset>(UpscaleConfig::preset()),
-                                                              application ? application->preset : ResolutionPreset::Automatic);
-    if (preset == ResolutionPreset::Native) {
-        return UpscaleRefusal::NativeRule;
-    }
-    const int minimum = application && application->minimumPixels >= 0 ? application->minimumPixels : UpscaleConfig::minimumPixels();
-    const QSize pixels = window->screen()->pixelSize();
-    if (!exceedsMinimumPixels({pixels.width(), pixels.height()}, minimum)) {
-        return UpscaleRefusal::BelowMinimumPixels;
+    const UpscaleRefusal configured = settingsRefusal(window);
+    if (configured != UpscaleRefusal::None) {
+        return configured;
     }
     if (!window->windowItem() || !window->windowItem()->surfaceItem()) {
         return UpscaleRefusal::NoSurface;

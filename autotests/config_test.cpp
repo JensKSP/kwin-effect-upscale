@@ -73,7 +73,11 @@ void UpscaleConfigTest::presetsAndKeyboard()
     QVERIFY(preset);
     QVERIFY(percentage);
     QVERIFY(preview);
-    QCOMPARE(preset->currentIndex(), 0);
+    // Quality by default. There is no Automatic any more: what it meant was
+    // "nobody chose", which a profile now says by storing nothing, and the
+    // global default has to be a real reduction or a fresh install would
+    // leave the games it ships profiles for at their full resolution.
+    QCOMPARE(preset->currentIndex(), 2);
     // The threshold is stored as a pixel count and offered as a resolution,
     // because nobody setting one is thinking of 2073600.
     QComboBox *minimum = module.widget()->findChild<QComboBox *>(QStringLiteral("minimumPixels"));
@@ -82,15 +86,18 @@ void UpscaleConfigTest::presetsAndKeyboard()
     QVERIFY2(minimum->currentText().contains(QStringLiteral("1920 × 1080")), qPrintable(minimum->currentText()));
     QVERIFY2(minimum->itemData(0).toInt() == 0, "the first entry is every output");
     minimum->setCurrentIndex(0);
-    QVERIFY(preview->text().contains(QStringLiteral("no resolution request")));
-    preset->setCurrentIndex(3);
+    // Native is the preset that asks for nothing, and it says so.
+    preset->setCurrentIndex(0);
+    QVERIFY2(preview->text().contains(QStringLiteral("asks for nothing")), qPrintable(preview->text()));
+    preset->setCurrentIndex(2);
     QCOMPARE(percentage->value(), 67);
     QVERIFY(preview->text().contains(QStringLiteral("66.7%")));
     const QScreen *screen = QGuiApplication::screens().constFirst();
     const QSize output = screen->geometry().size() * screen->devicePixelRatio();
     QVERIFY2(preview->text().contains(QStringLiteral("%1 × %2").arg(qRound(output.width() / 1.5)).arg(qRound(output.height() / 1.5))), qPrintable(preview->text()));
     QTest::keyClick(percentage, Qt::Key_Right);
-    QCOMPARE(preset->currentIndex(), 6);
+    // Moving the slider off a preset's exact ratio is choosing Custom.
+    QCOMPARE(preset->currentIndex(), 5);
     QCOMPARE(percentage->value(), 68);
     QVERIFY(preview->text().contains(QStringLiteral("68%")));
     percentage->setValue(50);
@@ -126,17 +133,22 @@ void UpscaleConfigTest::saveAndRestore()
     strength->setValue(0);
     module.save();
     const KConfigGroup saved(KSharedConfig::openConfig(QStringLiteral("kwinrc")), QStringLiteral("Effect-upscale"));
-    QCOMPARE(saved.readEntry("Preset", -1), 6);
+    // Written under its current name. The old Preset key numbered the same
+    // presets one higher, so storing under it would have been misread.
+    QCOMPARE(saved.readEntry("Resolution", -1), 5);
+    QVERIFY(!saved.hasKey("Preset"));
     QCOMPARE(saved.readEntry("Percentage", -1), 73);
     QCOMPARE(saved.readEntry("MinimumPixels", -1), 3686400);
     QCOMPARE(saved.readEntry("Strength", -1), 0);
     QCOMPARE(saved.readEntry("Sharpening", false), true);
     module.defaults();
-    QCOMPARE(preset->currentIndex(), 0);
+    // The default is Quality, index 2, not the first entry: see presetsAndKeyboard.
+    QCOMPARE(preset->currentIndex(), 2);
     QVERIFY(!sharpening->isChecked());
     module.load();
     QCOMPARE(KWin::upscaleResolutionPixels(minimum, -1), 3686400);
-    QCOMPARE(preset->currentIndex(), 6);
+    // Custom, which is the last of six presets now that Automatic is gone.
+    QCOMPARE(preset->currentIndex(), 5);
     QCOMPARE(percentage->value(), 73);
     QVERIFY(sharpening->isChecked());
     QVERIFY(strength->isEnabled());

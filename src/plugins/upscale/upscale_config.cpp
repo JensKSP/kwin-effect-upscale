@@ -6,7 +6,10 @@
 
 #include "upscale_config.h"
 
+#include "legacysettings.h"
+#include "methodcontrols.h"
 #include "resolutionchoice.h"
+#include "settings.h"
 
 #include "application.h"
 #include "applicationeditor.h"
@@ -53,7 +56,7 @@ namespace KWin
 
 UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData &data)
     : KCModule(parent, data)
-    , m_enabled(new QCheckBox(i18n("Enable upscaling"), widget()))
+    , m_enabled(new QCheckBox(i18n("Also upscale applications that are not in the list"), widget()))
     , m_output(new QComboBox(widget()))
     , m_preset(new QComboBox(widget()))
     , m_percentage(new QSlider(Qt::Horizontal, widget()))
@@ -83,7 +86,7 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     layout->addRow(m_enabled);
     layout->addRow(i18n("Scaler:"), new QLabel(i18n("FSR 1 (EASU)"), widget()));
     layout->addRow(i18n("Preview output:"), m_output);
-    m_preset->addItems({i18n("Automatic"), i18n("Native"), i18n("Ultra Quality"), i18n("Quality"),
+    m_preset->addItems({i18n("Native \u2014 do not reduce"), i18n("Ultra Quality"), i18n("Quality"),
                         i18n("Balanced"), i18n("Performance"), i18n("Custom")});
     layout->addRow(i18n("Preferred game resolution:"), m_preset);
     m_percentage->setRange(50, 100);
@@ -174,12 +177,14 @@ void UpscaleEffectConfig::connectControls()
 // Defaults, which restores the values above and leaves the list alone.
 void UpscaleEffectConfig::addApplicationControls(QFormLayout *layout)
 {
-    m_unknown = new QCheckBox(i18n("Also ask applications that are not in the list"), widget());
-    m_unknown->setToolTip(i18n("Every application is asked for the resolution below when it starts, not only the ones "
-                               "listed here. Nothing is known in advance about how an application answers, so one may "
-                               "keep its own resolution or open at the wrong size."));
-    layout->addRow(i18n("Unlisted applications:"), m_unknown);
-    connect(m_unknown, &QCheckBox::toggled, this, [this]() {
+    // The global profile's own six answers, for a window no profile claimed.
+    // Off throughout by default: nothing is known about how an unmeasured
+    // program answers, so one asked anything may keep its own resolution or
+    // open at the wrong size. Setting one to Automatic is a choice a person
+    // makes, not one they inherit.
+    m_methods = new UpscaleMethodControls(this);
+    m_methods->build(layout, widget());
+    connect(m_methods, &UpscaleMethodControls::changed, this, [this]() {
         setNeedsSave(true);
     });
 
@@ -256,11 +261,11 @@ void UpscaleEffectConfig::updatePreview()
         const double ratio = resolutionRatio(preset, m_percentage->value());
         const UpscaleSize desired = desiredResolution({pixels.width(), pixels.height()}, preset, m_percentage->value());
         const QSignalBlocker blocker(m_percentage);
-        if (preset != ResolutionPreset::Automatic && preset != ResolutionPreset::Custom) {
+        if (preset != ResolutionPreset::Custom) {
             m_percentage->setValue(qRound(ratio * 100));
         }
-        m_preview->setText(preset == ResolutionPreset::Automatic
-                               ? i18n("Automatic uses the supplied buffer and sends no resolution request.")
+        m_preview->setText(preset == ResolutionPreset::Native
+                               ? i18n("Native asks for nothing and leaves the supplied buffer as it is.")
                                : i18n("%1% — %2 × %3 physical pixels. Select this resolution in the game. Scaling follows the actual supplied buffer, even when it differs.",
                                       QString::number(ratio * 100, 'f', preset == ResolutionPreset::Custom || preset == ResolutionPreset::Native || preset == ResolutionPreset::Performance ? 0 : 1),
                                       desired.width, desired.height));
@@ -284,9 +289,12 @@ void UpscaleEffectConfig::updatePreview()
 
 void UpscaleEffectConfig::showSettings()
 {
-    m_enabled->setChecked(UpscaleConfig::enabled());
+    // The global profile's own participation, read through the translation of
+    // the previous release's key like every other global value on this page.
+    const KConfigGroup global(UpscaleConfig::self()->config(), QStringLiteral("Effect-upscale"));
+    m_enabled->setChecked(UpscaleConfig::unlistedApplications() || upscaleLegacyUnlisted(global));
     m_percentage->setValue(UpscaleConfig::percentage());
-    m_preset->setCurrentIndex(UpscaleConfig::preset());
+    m_preset->setCurrentIndex(upscaleSettingInfo(UpscaleSetting::Resolution).global());
     upscaleSelectResolution(m_minimumPixels, UpscaleConfig::minimumPixels());
     m_sharpening->setChecked(UpscaleConfig::sharpening());
     m_strength->setValue(UpscaleConfig::strength());
@@ -309,14 +317,14 @@ void UpscaleEffectConfig::showSettings()
         positions[entry]->setCurrentIndex(int(corners[entry]));
     }
     m_osdTimeout->setValue(UpscaleConfig::osdTimeout());
-    m_unknown->setChecked(UpscaleConfig::unknownApplications());
+    m_methods->show(upscaleGlobalMethods());
     updatePreview();
 }
 
 void UpscaleEffectConfig::applySettings()
 {
-    UpscaleConfig::setEnabled(m_enabled->isChecked());
-    UpscaleConfig::setPreset(m_preset->currentIndex());
+    UpscaleConfig::setUnlistedApplications(m_enabled->isChecked());
+    UpscaleConfig::setResolution(m_preset->currentIndex());
     UpscaleConfig::setPercentage(m_percentage->value());
     UpscaleConfig::setMinimumPixels(upscaleResolutionPixels(m_minimumPixels, UpscaleConfig::minimumPixels()));
     UpscaleConfig::setSharpening(m_sharpening->isChecked());
@@ -329,10 +337,18 @@ void UpscaleEffectConfig::applySettings()
     UpscaleConfig::setOsdStatisticsPosition(m_osdStatisticsPosition->currentIndex());
     UpscaleConfig::setOsdDeveloperPosition(m_osdDeveloperPosition->currentIndex());
     UpscaleConfig::setOsdTimeout(m_osdTimeout->value());
-    UpscaleConfig::setUnknownApplications(m_unknown->isChecked());
+    UpscaleMethods methods;
+    m_methods->store(methods);
+    upscaleSetGlobalMethods(methods);
     // A value equal to the current default is stored as no entry at all, so a
     // build type's default is never written back as if the user chose it.
     UpscaleConfig::self()->save();
+    // The new keys now say everything the old ones did, so the old ones go.
+    // Only here, on Apply: the effect never rewrites a person's configuration
+    // on its own, and until this runs both sides read the same translation.
+    KConfigGroup global(UpscaleConfig::self()->config(), QStringLiteral("Effect-upscale"));
+    upscaleForgetLegacySettings(global);
+    global.sync();
 }
 
 void UpscaleEffectConfig::load()

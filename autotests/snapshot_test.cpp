@@ -199,7 +199,14 @@ void UpscaleSnapshotTest::doesNotInventUnknownValues()
     disabled.enabled = false;
     disabled.refusal = UpscaleRefusal::Disabled;
     QVERIFY(upscaleDeveloperInformation(disabled).contains(QStringLiteral("Configuration: disabled")));
-    QVERIFY(upscaleStatusText(disabled).contains(QStringLiteral("Inactive: disabled")));
+    QVERIFY(upscaleStatusText(disabled).contains(QStringLiteral("Inactive: upscaling was switched off")));
+
+    // A window no profile claims, with unlisted applications switched off, is
+    // left alone - and says so, naming both ways the answer could change.
+    UpscaleSnapshot unlisted;
+    unlisted.refusal = UpscaleRefusal::Unlisted;
+    QVERIFY2(upscaleStatusText(unlisted).contains(QStringLiteral("not in the list, and unlisted applications are switched off")),
+             qPrintable(upscaleStatusText(unlisted)));
 }
 
 void UpscaleSnapshotTest::pixelSizesAreNotGrouped()
@@ -234,11 +241,14 @@ void UpscaleSnapshotTest::developerInformationCoversTheState()
     QVERIFY(developer.contains(QStringLiteral("gamma 2.2")));
     QVERIFY(developer.contains(QStringLiteral("203")));
 
-    // Automatic sends no request at all, and says so instead of naming a size.
+    // Native sends no request at all, and says so instead of naming a size.
+    // It is the opt-out that Automatic used to be, with the difference that a
+    // profile now says "no opinion" by storing nothing rather than by storing
+    // a value that meant nothing.
     UpscaleSnapshot automatic = snapshot;
-    automatic.preset = ResolutionPreset::Automatic;
+    automatic.preset = ResolutionPreset::Native;
     QVERIFY(upscaleDeveloperInformation(automatic).contains(QStringLiteral("use the supplied buffer")));
-    QVERIFY(upscaleStatusText(automatic).contains(QStringLiteral("Automatic (no request)")));
+    QVERIFY(upscaleStatusText(automatic).contains(QStringLiteral("Native (no request)")));
     UpscaleSnapshot custom = snapshot;
     custom.preset = ResolutionPreset::Custom;
     QVERIFY(upscaleStatusText(custom).contains(QStringLiteral("Select 2560 × 1440 in the game")));
@@ -262,17 +272,17 @@ void UpscaleSnapshotTest::namesEveryPresetAndTransferFunction()
         return QString();
     };
     QSet<QString> presets;
-    for (const ResolutionPreset preset : {ResolutionPreset::Automatic, ResolutionPreset::Native,
-                                          ResolutionPreset::UltraQuality, ResolutionPreset::Quality,
-                                          ResolutionPreset::Balanced, ResolutionPreset::Performance,
-                                          ResolutionPreset::Custom}) {
+    for (const ResolutionPreset preset : {ResolutionPreset::Native, ResolutionPreset::UltraQuality,
+                                          ResolutionPreset::Quality, ResolutionPreset::Balanced,
+                                          ResolutionPreset::Performance, ResolutionPreset::Custom}) {
         snapshot.preset = preset;
         const QString line = group(upscaleDeveloperInformation(snapshot), QStringLiteral("Configuration:"));
         QVERIFY2(!line.isEmpty() && !line.contains(QStringLiteral("unknown")), qPrintable(line));
         presets.insert(line);
     }
-    // Seven presets, seven different things said about them.
-    QCOMPARE(presets.size(), 7);
+    // Six presets, six different things said about them. Automatic is gone:
+    // "nobody chose" is said by storing no resolution, not by a preset.
+    QCOMPARE(presets.size(), 6);
 
     QSet<QString> transfers;
     for (const int transfer : {int(TransferFunction::sRGB), int(TransferFunction::linear),
@@ -435,7 +445,7 @@ void UpscaleSnapshotTest::separatesWhatWasRequestedFromWhatArrived()
 {
     UpscaleSnapshot snapshot = scaling();
     snapshot.recognized = QStringLiteral("SuperTuxKart");
-    snapshot.method = UpscaleControlMethod::AdvertisedMode;
+    snapshot.method = KWin::UpscaleMethod::AdvertisedMode;
     snapshot.advertised = QSize(2560, 1440);
     snapshot.supplied = QSize(3840, 2160);
     snapshot.destination = QSize(3840, 2160);
@@ -458,7 +468,7 @@ void UpscaleSnapshotTest::separatesWhatWasRequestedFromWhatArrived()
     QVERIFY(developer.contains(QStringLiteral("advertised 2560 × 1440")));
     QVERIFY(developer.contains(QStringLiteral("advertised screen mode")));
 
-    snapshot.method = UpscaleControlMethod::X11Resize;
+    snapshot.method = KWin::UpscaleMethod::X11Resize;
     snapshot.advertised = {};
     snapshot.requested = QSize(1920, 1080);
     snapshot.requestFailure = QStringLiteral("The requested mode was ignored.");

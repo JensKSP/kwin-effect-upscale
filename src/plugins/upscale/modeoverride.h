@@ -8,6 +8,7 @@
 
 #include "application.h"
 #include "resolution.h"
+#include "settings.h"
 
 #include <QHash>
 #include <QList>
@@ -62,7 +63,8 @@ public:
      * it in the catalogue instead, so that installing the effect is enough for
      * a known game; an application's Native opt-out overrides a global choice.
      */
-    void reconfigure(bool enabled, ResolutionPreset preset, int percentage);
+    /** Configuration moved. Nothing is cached, so this only gives back what was announced. */
+    void reconfigure();
 
     /** Whether this session has a Wayland server to talk to at all. */
     static bool available();
@@ -92,7 +94,13 @@ private:
         QSize size;
         int scale = 0;
     };
-    Advertisement advertisementFor(OutputInterface *output, const UpscaleApplication &application) const;
+    /**
+     * What to say, from values already resolved: the preferences that apply
+     * and the method for the presentation read at bind. Taking those rather
+     * than a profile is what lets the global profile answer for a program no
+     * profile describes, through exactly the same arithmetic.
+     */
+    static Advertisement advertisementFor(OutputInterface *output, const UpscaleSettings &settings, UpscaleMethod method);
 
     // One client that was told a different mode, kept so that the real mode
     // can be sent back when the user turns this off. Both ends can disappear
@@ -104,9 +112,6 @@ private:
         QString program;
     };
 
-    bool m_enabled = false;
-    ResolutionPreset m_preset = ResolutionPreset::Automatic;
-    int m_percentage = 100;
     QSet<const OutputInterface *> m_watched;
     QList<Announcement> m_announced;
     QHash<const ClientConnection *, QHash<QString, QSize>> m_advertised;

@@ -20,8 +20,11 @@ struct UpscaleSize
     bool operator==(const UpscaleSize &) const = default;
 };
 
+// Native first, so that the value a fresh configuration reads as zero is the
+// one that asks for nothing. There is no Automatic: what it used to mean was
+// "nobody has chosen", which a profile now says by storing no resolution at
+// all and inheriting the global one.
 enum class ResolutionPreset {
-    Automatic,
     Native,
     UltraQuality,
     Quality,
@@ -37,13 +40,6 @@ inline bool exceedsMinimumPixels(UpscaleSize output, int minimumPixels)
 {
     return output.width > 0 && output.height > 0
         && int64_t(output.width) * output.height > std::max(0, minimumPixels);
-}
-
-inline ResolutionPreset effectiveResolutionPreset(ResolutionPreset global, ResolutionPreset application)
-{
-    // Native is an explicit application opt-out, including when a global
-    // percentage was chosen. Automatic leaves the decision to the profile.
-    return application == ResolutionPreset::Native || global == ResolutionPreset::Automatic ? application : global;
 }
 
 inline double resolutionRatio(ResolutionPreset preset, int percentage)
@@ -140,7 +136,9 @@ inline UpscaleSize scaledRequest(UpscaleSize outputPixels, double outputScale, i
 inline int reachableScale(UpscaleSize outputPixels, double outputScale, ResolutionPreset preset, int percentage)
 {
     const double wanted = resolutionRatio(preset, percentage);
-    if (preset == ResolutionPreset::Automatic || wanted >= 1.0) {
+    // Native asks for the whole output, which resolutionRatio() returns as
+    // one, so the bound below covers it without naming it.
+    if (wanted >= 1.0) {
         return 0;
     }
     int best = 0;

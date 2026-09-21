@@ -7,6 +7,7 @@
 #pragma once
 
 #include "compatibility.h"
+#include "presentation.h"
 
 #include <QString>
 
@@ -63,6 +64,7 @@ enum class UpscaleRefusal {
     None,
 
     Disabled,
+    Unlisted,
     NativeRule,
     BelowMinimumPixels,
     ResourceFailure,
@@ -107,6 +109,9 @@ enum class UpscaleRefusal {
     ScaledPass,
     TransformedRenderTarget,
 };
+
+/** Which of the six cells this window presents in. */
+UpscalePresentation upscalePresentationOf(EffectWindow *window);
 
 /** Fullscreen, or a profiled borderless window covering its own output. */
 bool upscalePresentation(EffectWindow *window);

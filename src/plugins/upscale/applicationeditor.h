@@ -7,6 +7,8 @@
 #pragma once
 
 #include "application.h"
+#include "methodcontrols.h"
+#include "settingcontrols.h"
 
 #include <QWidget>
 
@@ -82,9 +84,11 @@ private:
     QLineEdit *m_windowClass;
     QLineEdit *m_instance;
     QLineEdit *m_program;
-    QComboBox *m_method;
-    QComboBox *m_preset;
-    QSpinBox *m_minimumPixels;
+    // The six measured answers, and the preferences this profile may state
+    // of its own. Both are built from a table rather than written out field
+    // by field, which is what keeps this file able to take another setting.
+    UpscaleMethodControls *m_methods;
+    UpscaleSettingControls *m_settings;
     QCheckBox *m_enabled;
     QLabel *m_note;
     QPushButton *m_delete;

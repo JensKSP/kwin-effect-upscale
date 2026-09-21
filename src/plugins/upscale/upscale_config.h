@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "methodcontrols.h"
+
 #include <KCModule>
 
 #include <array>
@@ -72,7 +74,7 @@ private:
     QComboBox *m_osdStatisticsPosition;
     QComboBox *m_osdDeveloperPosition;
     QSpinBox *m_osdTimeout;
-    QCheckBox *m_unknown;
+    UpscaleMethodControls *m_methods = nullptr;
     UpscaleApplicationEditor *m_editor;
     QLabel *m_applications;
     QPushButton *m_resetApplications;

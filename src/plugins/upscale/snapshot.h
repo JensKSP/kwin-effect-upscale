@@ -8,6 +8,7 @@
 
 #include "application.h"
 #include "eligibility.h"
+#include "presentation.h"
 #include "resolution.h"
 
 #include <QSize>
@@ -49,7 +50,10 @@ struct UpscaleSnapshot
     // effect does not recognize it. A recognized application is not a claim
     // that anything was done for it: the method says that.
     QString recognized;
-    UpscaleControlMethod method = UpscaleControlMethod::None;
+    // The answer for the way this window is actually presenting, not the
+    // profile's whole set: a report names what applies here and now.
+    UpscaleMethod method = UpscaleMethod::Off;
+    UpscalePresentation presentedAs = UpscalePresentation::WaylandFullScreen;
     // The size this effect told the application its screen has, invalid when
     // it told it nothing. Never confuse it with the committed buffer: the
     // application is free to ignore it.
@@ -71,7 +75,7 @@ struct UpscaleSnapshot
 
     // Configuration
     bool enabled = true;
-    ResolutionPreset preset = ResolutionPreset::Automatic;
+    ResolutionPreset preset = ResolutionPreset::Native;
     int percentage = 100;
     double sharpening = 0;
 

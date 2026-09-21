@@ -34,8 +34,6 @@ static QString sizeText(const QSize &size)
 static QString presetName(ResolutionPreset preset)
 {
     switch (preset) {
-    case ResolutionPreset::Automatic:
-        return i18n("Automatic");
     case ResolutionPreset::Native:
         return i18n("Native");
     case ResolutionPreset::UltraQuality:
@@ -344,7 +342,9 @@ QString upscaleHeadsUp(const UpscaleSnapshot &snapshot)
 
 static QString desiredText(const UpscaleSnapshot &snapshot)
 {
-    if (snapshot.preset == ResolutionPreset::Automatic) {
+    if (snapshot.preset == ResolutionPreset::Native) {
+        // Native is the opt-out, so there is no wish to report: whatever the
+        // game commits is what gets used, and nothing was asked of it.
         return i18n("%1 (use the supplied buffer)", presetName(snapshot.preset));
     }
     // A wish, not an applied setting: nothing asks the game for this size yet.
@@ -390,8 +390,8 @@ QString upscaleStatusText(const UpscaleSnapshot &snapshot)
         wish = i18n("%1 requested from %2 as its screen mode",
                     sizeText(snapshot.advertised),
                     snapshot.recognized.isEmpty() ? application(snapshot) : snapshot.recognized);
-    } else if (snapshot.preset == ResolutionPreset::Automatic) {
-        wish = i18n("Automatic (no request)");
+    } else if (snapshot.preset == ResolutionPreset::Native) {
+        wish = i18n("Native (no request)");
     } else {
         wish = i18n("Select %1 × %2 in the game",
                     QString::number(snapshot.desired.width), QString::number(snapshot.desired.height));
@@ -468,7 +468,7 @@ QString upscaleDeveloperInformation(const UpscaleSnapshot &snapshot)
                       snapshot.recognized.isEmpty() ? i18n("not recognized") : snapshot.recognized,
                       describeControlMethod(snapshot.method),
                       snapshot.advertised.isValid() ? sizeText(snapshot.advertised) : i18n("nothing")));
-    if (snapshot.method == UpscaleControlMethod::X11Resize) {
+    if (snapshot.method == UpscaleMethod::X11Resize) {
         const QString presentedBy = x11Presentation(snapshot);
         lines.append(i18n("X11 resize: requested %1, failure %2, %3", sizeText(snapshot.requested),
                           snapshot.requestFailure.isEmpty() ? i18n("none reported") : snapshot.requestFailure,

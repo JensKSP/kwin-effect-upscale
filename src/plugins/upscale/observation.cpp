@@ -17,6 +17,7 @@
 #include "eligibility.h"
 #include "modeoverride.h"
 #include "resolution.h"
+#include "settings.h"
 #include "snapshot.h"
 #include "upscaleconfig.h"
 #include "x11resolution.h"
@@ -49,17 +50,24 @@ UpscaleSnapshot UpscaleEffect::snapshot(EffectWindow *window, const RenderTarget
     state.refusal = state.selected ? m_passRefusals.value(window, UpscaleRefusal::None) : refusal;
     state.window = window->caption();
     state.application = window->windowClass();
-    describeApplication(state, window->window());
+    describeApplication(state, window->window(), upscalePresentationOf(window));
     state.activeWindow = effects->activeWindow() == window;
     state.fullScreen = window->isFullScreen();
     state.blocksScanout = blocksDirectScanout();
 
-    state.enabled = m_enabled;
     state.failed = m_failed;
     state.maximumTexture = m_maximumTexture;
-    state.preset = static_cast<ResolutionPreset>(UpscaleConfig::preset());
-    state.percentage = UpscaleConfig::percentage();
-    state.sharpening = m_strength;
+    // What applies to this window, profile over global, rather than the global
+    // layer alone. A report naming the global value would describe a window
+    // other than the one being looked at, which is the whole point of a report.
+    const UpscaleSettings settings = upscaleResolveSettings(
+        window->window() ? upscaleApplicationForIdentity(window->window()->resourceClass(),
+                                                         window->window()->resourceName())
+                         : nullptr);
+    state.enabled = settings.acts();
+    state.preset = settings.resolution();
+    state.percentage = settings.value(UpscaleSetting::Percentage);
+    state.sharpening = settings.sharpening();
 
     if (UpscaleOutput *output = window->screen()) {
         state.output = output->name();
@@ -95,7 +103,8 @@ UpscaleSnapshot UpscaleEffect::snapshot(EffectWindow *window, const RenderTarget
     return state;
 }
 
-void UpscaleEffect::describeApplication(UpscaleSnapshot &state, const Window *window) const
+void UpscaleEffect::describeApplication(UpscaleSnapshot &state, const Window *window,
+                                        UpscalePresentation presentation) const
 {
     // Read identity fields separately; EffectWindow::windowClass combines them.
     const UpscaleApplication *known = window
@@ -105,13 +114,14 @@ void UpscaleEffect::describeApplication(UpscaleSnapshot &state, const Window *wi
         return;
     }
     state.recognized = known->name;
-    state.method = known->method;
+    state.presentedAs = presentation;
+    state.method = known->methods[std::size_t(state.presentedAs)];
     // Keyed by the connection, not the program: another connection of the same
     // executable must not overwrite what the selected window was told.
     if (m_modeOverride && window->surface() && window->output()) {
         state.advertised = m_modeOverride->advertised(window->surface()->client(), window->output()->name());
     }
-    if (known->method == UpscaleControlMethod::X11Resize) {
+    if (state.method == UpscaleMethod::X11Resize) {
         state.requested = m_x11Resolution->requested(window);
         state.requestFailure = m_x11Resolution->failure(window);
         state.x11Presentation = m_x11Resolution->presentation(window);

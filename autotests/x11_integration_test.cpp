@@ -48,8 +48,15 @@ private Q_SLOTS:
     void repeatedFullscreenTransitions();
 
 private:
+    // The global resolution as kwinrc stores it, spelled out rather than taken
+    // from the plugin: the stored number is the contract this test drives.
+    enum class Stored {
+        Quality = 2,
+        Balanced = 3,
+        Performance = 4,
+    };
     QString status();
-    void configure(bool enabled, int preset = 5);
+    void configure(bool enabled, Stored resolution = Stored::Performance);
     void movePointer(const QPoint &position);
     QDBusInterface m_effects{QStringLiteral("org.kde.KWin"), QStringLiteral("/Effects"),
                              QStringLiteral("org.kde.kwin.Effects"), QDBusConnection::sessionBus()};
@@ -61,14 +68,16 @@ QString UpscaleX11IntegrationTest::status()
     return reply.isValid() ? reply.value() : reply.error().message();
 }
 
-void UpscaleX11IntegrationTest::configure(bool enabled, int preset)
+// The window under test is claimed by the catalogue entry init() writes, so
+// the global profile's own participation does not decide whether it acts.
+// The entry states no resolution, so the global one reaches it.
+void UpscaleX11IntegrationTest::configure(bool enabled, Stored resolution)
 {
     const KSharedConfig::Ptr config = KSharedConfig::openConfig(QStringLiteral("kwinrc"));
     KConfigGroup group(config, QStringLiteral("Effect-upscale"));
-    group.writeEntry("Enabled", true);
     group.writeEntry("ResolutionControl", enabled);
     group.writeEntry("Osd", false);
-    group.writeEntry("Preset", preset);
+    group.writeEntry("Resolution", int(resolution));
     group.writeEntry("MinimumPixels", 1920 * 1080);
     group.sync();
     const QDBusMessage reply = m_effects.call(QStringLiteral("reconfigureEffect"), QStringLiteral("upscale_test_driver"));
@@ -80,7 +89,12 @@ void UpscaleX11IntegrationTest::init()
     QTRY_VERIFY(m_effects.isValid());
     QFile catalogue(QString::fromLocal8Bit(qgetenv("XDG_CONFIG_HOME")) + QStringLiteral("/kwinupscalerc"));
     QVERIFY(catalogue.open(QIODevice::WriteOnly | QIODevice::Truncate));
-    QVERIFY(catalogue.write("[Application-test]\nName=X11 test\nWindowClass=upscale-x11-test\nMethod=X11Resize\nPreset=Performance\n") > 0);
+    // Measured for both X11 presentations the cases below drive, and stating
+    // no resolution of its own: a resolution here would pin this game and the
+    // global value each case sets would never reach it.
+    QVERIFY(catalogue.write("[Application-test]\nName=X11 test\nWindowClass=upscale-x11-test\n"
+                            "MethodX11FullScreen=X11Resize\nMethodX11Borderless=X11Resize\n")
+            > 0);
     catalogue.close();
     const QDBusReply<bool> loaded = m_effects.call(QStringLiteral("loadEffect"), QStringLiteral("upscale_test_driver"));
     QVERIFY(loaded.isValid() && loaded.value());
@@ -137,7 +151,7 @@ void UpscaleX11IntegrationTest::lifecycle()
     QTest::qWait(100);
     QCOMPARE(target.geometry(), QRect(position, QSize(1920, 1080)));
     QCOMPARE(other.geometry(), otherGeometry);
-    configure(true, 3);
+    configure(true, Stored::Quality);
     // Changing the preset asks the client for another size, and on KWin 6.6
     // that first request fails its validation: the documented single retry is
     // what recovers it, and the retry costs the whole path - validation 3 s
@@ -280,7 +294,7 @@ void UpscaleX11IntegrationTest::refusesUnavailableMode()
     QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), native));
     QTRY_VERIFY_WITH_TIMEOUT(target.isFullscreen(), 10000);
     QTRY_COMPARE(target.geometry(), native);
-    configure(true, 4); // Balanced is 2259 × 1271, absent from this output's modes.
+    configure(true, Stored::Balanced); // Balanced is 2259 × 1271, absent from this output's modes.
     QTRY_VERIFY2(status().contains(QStringLiteral("requested X11 mode is unavailable")), qPrintable(status()));
     QCOMPARE(target.geometry(), native);
     configure(true);
@@ -363,8 +377,8 @@ void UpscaleX11IntegrationTest::independentOutputRules()
     const KSharedConfig::Ptr catalogue = KSharedConfig::openConfig(QStringLiteral("kwinupscalerc"));
     KConfigGroup second(catalogue, QStringLiteral("Application-second"));
     second.writeEntry("WindowClass", "second-x11-test");
-    second.writeEntry("Method", "X11Resize");
-    second.writeEntry("Preset", "Native");
+    second.writeEntry("MethodX11FullScreen", "X11Resize");
+    second.writeEntry("Resolution", "Native");
     second.sync();
     X11Client first;
     X11Client other;
@@ -374,12 +388,12 @@ void UpscaleX11IntegrationTest::independentOutputRules()
     QTRY_VERIFY_WITH_TIMEOUT(other.isFullscreen(), 10000);
     QTRY_COMPARE(first.geometry().size(), QSize(3840, 2160));
     QTRY_COMPARE(other.geometry().size(), QSize(3840, 2160));
-    configure(true); // Global Performance must not override the Native rule.
+    configure(true); // A profile's own Native is its answer, whatever the global resolution.
     QTRY_COMPARE(first.geometry().size(), QSize(1920, 1080));
     QTRY_VERIFY(status().contains(QStringLiteral("captured: upscale-x11-test")));
     QCOMPARE(other.geometry(), QRect(3840, 0, 3840, 2160));
 
-    second.writeEntry("Preset", "Performance");
+    second.writeEntry("Resolution", "Performance");
     second.writeEntry("MinimumPixels", 3840 * 2160); // Equality bypasses.
     second.sync();
     configure(true);
@@ -410,7 +424,7 @@ void UpscaleX11IntegrationTest::independentOutputRules()
     QCOMPARE(other.geometry(), QRect(3840, 0, 1920, 1080));
     QCOMPARE(first.geometry().size(), QSize(1920, 1080));
 
-    second.writeEntry("Preset", "Native");
+    second.writeEntry("Resolution", "Native");
     second.sync();
     configure(true);
     QTRY_COMPARE(other.geometry(), QRect(3840, 0, 3840, 2160));

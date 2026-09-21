@@ -10,6 +10,7 @@
 #include "compatibility.h"
 #include "display.h"
 #include "eligibility.h"
+#include "settings.h"
 
 #include <QHash>
 #include <QPointer>
@@ -21,7 +22,9 @@ namespace KWin
 {
 
 class UpscaleModeOverride;
+class UpscaleWaylandScale;
 class UpscaleX11Resolution;
+class UpscaleWaylandScale;
 class UpscaleScaler;
 class Window;
 
@@ -76,7 +79,7 @@ private:
     // The render target is the frame being painted, and null when the caller
     // is outside a paint pass and colour is therefore not observable.
     UpscaleSnapshot snapshot(EffectWindow *window, const RenderTarget *target) const;
-    void describeApplication(UpscaleSnapshot &state, const Window *window) const;
+    void describeApplication(UpscaleSnapshot &state, const Window *window, UpscalePresentation presentation) const;
     void watchWindow(EffectWindow *window);
     void watchOutput(UpscaleOutput *output);
     UpscaleRefusal rememberPassRefusal(EffectWindow *window, UpscaleRefusal refusal);
@@ -96,15 +99,21 @@ private:
     // created once, not per candidate.
     std::unique_ptr<UpscaleModeOverride> m_modeOverride;
     std::unique_ptr<UpscaleX11Resolution> m_x11Resolution;
+    std::unique_ptr<UpscaleWaylandScale> m_waylandScale;
+
+    /** Auto's Wayland half for the selected window, or giving its scale back. */
+    void askForSmallerBuffer(EffectWindow *window, const UpscaleApplication *claimed) const;
     // Refused windows are independent. Output colour/configuration changes
     // and window output changes invalidate their refusal without reconfiguration.
     QList<QPointer<EffectWindow>> m_unsupportedColors;
-    bool m_enabled = true;
+    // Resolved for the window that was selected, because every preference is
+    // now a global value a profile may override and no two windows need agree.
+    // Updated where the candidate is, which is off the paint path.
+    mutable UpscaleSettings m_settings;
     bool m_failed = false;
     // The largest texture this GPU will allocate, read from the driver rather
     // than assumed. The scaler needs one at the destination size.
     int m_maximumTexture = 0;
-    double m_strength = 0;
     ItemRenderer *m_renderer = nullptr;
     QHash<EffectWindow *, QSize> m_renderedInputs;
     // Why the last paint pass over the candidate could not be replaced. It

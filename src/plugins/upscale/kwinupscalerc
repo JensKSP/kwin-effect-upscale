@@ -21,8 +21,18 @@
 # match exactly. Program identifies the connection before any window exists,
 # which is when the request has to be made, and is compared by file name only.
 #
+# There is one Method entry per way the application can present itself, and
+# each is a separate measurement: MethodWaylandFullScreen,
+# MethodWaylandBorderless, MethodWaylandWindowed, MethodX11FullScreen,
+# MethodX11Borderless and MethodX11Windowed. An entry that is absent means Auto
+# - nobody has run the application that way yet - which is not the same as Off,
+# which records that the question was asked and the answer is to ask for
+# nothing. Each name below acts on one protocol only: the advertisements reach
+# a native Wayland client, and the resize reaches an X11 window.
+#
 # Method is one of:
-#   None                   Recognize it, ask for nothing.
+#   Auto                   Work it out and verify the result.
+#   Off                    Recognize it, ask for nothing.
 #   AdvertisedMode         Tell it alone that its screen has a smaller mode.
 #                          For clients that select a mode and present it
 #                          through a viewport still covering the screen.
@@ -36,11 +46,14 @@
 #   X11Resize              Resize a selected X11 fullscreen window. Requires
 #                          a client which follows resizing and RandR modes.
 #
-# Preset is what the application gets while the global preset is Automatic,
-# which means the user has not chosen. An explicit global choice wins except
-# for a profile selecting Native, which always opts out of scaling.
-# MinimumPixels inherits the global physical-output pixel threshold when absent
-# or -1; zero disables the threshold for that profile.
+# Every other setting the effect has may also appear here, and each one absent
+# follows the global value the user chose. This file states only what was
+# measured about the application, never what somebody would prefer: a
+# Resolution here would pin that game and stop the user's own global setting
+# ever reaching it. The two benchmarks are the exception and state Native,
+# because a benchmark exists to measure a machine and reporting a number for a
+# reduced one is wrong whatever anybody prefers. That is a fact about the
+# program, not a taste.
 
 [General]
 FormatVersion=1
@@ -51,8 +64,7 @@ MeasuredVersion=1.4
 WindowClass=supertuxkart
 Instance=supertuxkart
 Program=supertuxkart
-Method=AdvertisedMode
-Preset=Quality
+MethodWaylandFullScreen=AdvertisedMode
 Order=10
 Note=Follows the advertised screen mode with its OpenGL renderer. Its Vulkan renderer keeps the full resolution.
 
@@ -63,9 +75,8 @@ MeasuredVersion=0.8.4
 # stop matching at the next package. The instance name is the stable field.
 Instance=etr
 Program=etr
-Method=X11Resize
+MethodX11FullScreen=X11Resize
 X11PrimaryOutputOnly=true
-Preset=Quality
 Order=20
 Note=Follows X11 resize requests on the primary display. Its SFML mode selection always uses that display, so requests on other displays are refused. Requested sizes must match an available mode.
 
@@ -79,8 +90,7 @@ MeasuredVersion=Steam build 23990068
 WindowClass=hl2_linux
 Instance=hl2_linux
 Program=hl2_linux
-Method=X11Resize
-Preset=Quality
+MethodX11FullScreen=X11Resize
 Order=50
 Note=Takes its fullscreen size from the window manager and never asks Xwayland for a mode, so the effect presents the resized window itself and maps pointer input to it. Measured through Steam's pressure-vessel runtime.
 
@@ -90,10 +100,10 @@ MeasuredVersion=2023.01
 WindowClass=com.github.glmark2.glmark2
 Instance=glmark2-wayland
 Program=glmark2-wayland
-Method=AdvertisedScale
+MethodWaylandFullScreen=AdvertisedScale
 # A benchmark measures a machine. Reducing what it renders without being asked
 # would make it report a number for something nobody chose.
-Preset=Automatic
+Resolution=Native
 Order=30
 Note=Follows the advertised screen scale. A screen without a scale above one offers it no reduction.
 
@@ -103,7 +113,7 @@ MeasuredVersion=2025.01
 WindowClass=com.github.vkmark.vkmark
 Instance=vkmark
 Program=vkmark
-Method=AdvertisedModeAndScale
-Preset=Automatic
+MethodWaylandFullScreen=AdvertisedModeAndScale
+Resolution=Native
 Order=40
 Note=Follows the advertised screen mode and scale together. A screen without a scale above one offers it no reduction.

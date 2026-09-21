@@ -33,53 +33,14 @@
 namespace KWin
 {
 
-static const std::array<UpscaleControlMethod, 5> controlMethods = {
-    UpscaleControlMethod::None,
-    UpscaleControlMethod::AdvertisedMode,
-    UpscaleControlMethod::AdvertisedScale,
-    UpscaleControlMethod::AdvertisedModeAndScale,
-    UpscaleControlMethod::X11Resize,
-};
-
-static const std::array<ResolutionPreset, 7> resolutionPresets = {
-    ResolutionPreset::Automatic,
-    ResolutionPreset::Native,
-    ResolutionPreset::UltraQuality,
-    ResolutionPreset::Quality,
-    ResolutionPreset::Balanced,
-    ResolutionPreset::Performance,
-    ResolutionPreset::Custom,
-};
-
-static QString presetLabel(ResolutionPreset preset)
-{
-    switch (preset) {
-    case ResolutionPreset::Automatic:
-        return i18n("Follow the global setting");
-    case ResolutionPreset::Native:
-        return i18n("Native");
-    case ResolutionPreset::UltraQuality:
-        return i18n("Ultra Quality");
-    case ResolutionPreset::Quality:
-        return i18n("Quality");
-    case ResolutionPreset::Balanced:
-        return i18n("Balanced");
-    case ResolutionPreset::Performance:
-        return i18n("Performance");
-    case ResolutionPreset::Custom:
-        return i18n("Custom");
-    }
-    return QString();
-}
+// The lists this file used to carry - every method, every preset, and a label
+// for each - live in the tables now. A profile's fields are built from those
+// rather than written out here, which is what keeps this file able to take
+// another setting without passing the size limit.
 
 void UpscaleApplicationEditor::buildDetails(QFormLayout *form)
 {
-    for (const UpscaleControlMethod method : controlMethods) {
-        m_method->addItem(describeControlMethod(method));
-    }
-    for (const ResolutionPreset preset : resolutionPresets) {
-        m_preset->addItem(presetLabel(preset));
-    }
+
     m_note->setWordWrap(true);
     m_note->setTextFormat(Qt::PlainText);
     m_windowClass->setPlaceholderText(i18n("Any"));
@@ -89,14 +50,19 @@ void UpscaleApplicationEditor::buildDetails(QFormLayout *form)
     form->addRow(i18n("Window class:"), m_windowClass);
     form->addRow(i18n("Window instance:"), m_instance);
     form->addRow(i18n("Program:"), m_program);
-    form->addRow(i18n("Resolution request:"), m_method);
-    form->addRow(i18n("Resolution:"), m_preset);
-    m_preset->setToolTip(i18n("Native disables resolution requests and upscaling for this application, including when a global preset is selected."));
-    m_minimumPixels->setObjectName(QStringLiteral("applicationMinimumPixels"));
-    m_minimumPixels->setRange(-1, std::numeric_limits<int>::max());
-    m_minimumPixels->setSpecialValueText(i18n("Use global threshold"));
-    m_minimumPixels->setToolTip(i18n("An output with this many physical pixels or fewer is left alone; only a larger one is scaled. Full HD is 2073600. Zero scales on every output."));
-    form->addRow(i18n("Biggest output not to scale, in pixels:"), m_minimumPixels);
+    // What to ask for, per way the game can present itself. No "use global"
+    // here: a method is a measurement of this program and has nothing to
+    // inherit from anything else.
+    m_methods->build(form, this);
+    // And what the user wants, every entry of which may follow the global
+    // value instead.
+    m_settings->build(form, this,
+                      {UpscaleSetting::Resolution, UpscaleSetting::Percentage, UpscaleSetting::MinimumPixels,
+                       UpscaleSetting::Sharpening, UpscaleSetting::Strength, UpscaleSetting::ResolutionControl,
+                       UpscaleSetting::OsdDetection, UpscaleSetting::OsdSummary, UpscaleSetting::OsdStatistics,
+                       UpscaleSetting::OsdDeveloper, UpscaleSetting::OsdTimeout,
+                       UpscaleSetting::AnnouncementPosition, UpscaleSetting::StatisticsPosition,
+                       UpscaleSetting::DeveloperPosition});
     form->addRow(QString(), m_enabled);
     form->addRow(QString(), m_note);
 }
@@ -122,15 +88,13 @@ void UpscaleApplicationEditor::connectControls()
             applyToSelected();
         });
     }
-    for (QComboBox *box : {m_method, m_preset}) {
-        connect(box, &QComboBox::activated, this, [this]() {
-            applyToSelected();
-        });
-    }
     connect(m_enabled, &QCheckBox::clicked, this, [this]() {
         applyToSelected();
     });
-    connect(m_minimumPixels, &QSpinBox::valueChanged, this, [this]() {
+    connect(m_methods, &UpscaleMethodControls::changed, this, [this]() {
+        applyToSelected();
+    });
+    connect(m_settings, &UpscaleSettingControls::changed, this, [this]() {
         applyToSelected();
     });
 }
@@ -142,9 +106,8 @@ UpscaleApplicationEditor::UpscaleApplicationEditor(QWidget *parent)
     , m_windowClass(new QLineEdit(this))
     , m_instance(new QLineEdit(this))
     , m_program(new QLineEdit(this))
-    , m_method(new QComboBox(this))
-    , m_preset(new QComboBox(this))
-    , m_minimumPixels(new QSpinBox(this))
+    , m_methods(new UpscaleMethodControls(this))
+    , m_settings(new UpscaleSettingControls(this))
     , m_enabled(new QCheckBox(i18n("Recognize this application"), this))
     , m_note(new QLabel(this))
 {
@@ -161,8 +124,7 @@ UpscaleApplicationEditor::UpscaleApplicationEditor(QWidget *parent)
     m_windowClass->setObjectName(QStringLiteral("applicationWindowClass"));
     m_instance->setObjectName(QStringLiteral("applicationInstance"));
     m_program->setObjectName(QStringLiteral("applicationProgram"));
-    m_method->setObjectName(QStringLiteral("applicationMethod"));
-    m_preset->setObjectName(QStringLiteral("applicationPreset"));
+
     m_enabled->setObjectName(QStringLiteral("applicationEnabled"));
     m_note->setObjectName(QStringLiteral("applicationNote"));
     add->setObjectName(QStringLiteral("applicationAdd"));
@@ -227,7 +189,7 @@ void UpscaleApplicationEditor::showSelected()
     const QScopedValueRollback updating(m_updating, true);
     const UpscaleApplication *application = selected();
     const bool valid = application != nullptr;
-    const std::array<QWidget *, 8> fields = {m_name, m_windowClass, m_instance, m_program, m_method, m_preset, m_minimumPixels, m_enabled};
+    const std::array<QWidget *, 5> fields = {m_name, m_windowClass, m_instance, m_program, m_enabled};
     for (QWidget *widget : fields) {
         widget->setEnabled(valid);
     }
@@ -242,10 +204,9 @@ void UpscaleApplicationEditor::showSelected()
     m_windowClass->setText(application->windowClass);
     m_instance->setText(application->instance);
     m_program->setText(application->program);
-    m_method->setCurrentIndex(int(std::ranges::distance(controlMethods.begin(), std::ranges::find(controlMethods, application->method))));
-    m_preset->setCurrentIndex(int(std::ranges::distance(resolutionPresets.begin(), std::ranges::find(resolutionPresets, application->preset))));
+    m_methods->show(application->methods);
+    m_settings->show(application->overrides, upscaleGlobalSettings());
     m_enabled->setChecked(application->enabled);
-    m_minimumPixels->setValue(application->minimumPixels);
     m_note->setText(application->shipped
                         ? application->note
                         : i18n("Added by you. A request this application does not follow will not make it "
@@ -265,10 +226,9 @@ void UpscaleApplicationEditor::applyToSelected()
     application->windowClass = m_windowClass->text();
     application->instance = m_instance->text();
     application->program = m_program->text();
-    application->method = controlMethods.at(size_t(std::max(0, m_method->currentIndex())));
-    application->preset = resolutionPresets.at(size_t(std::max(0, m_preset->currentIndex())));
+    m_methods->store(application->methods);
+    m_settings->store(application->overrides);
     application->enabled = m_enabled->isChecked();
-    application->minimumPixels = m_minimumPixels->value();
     const QScopedValueRollback updating(m_updating, true);
     if (QListWidgetItem *item = m_list->currentItem()) {
         item->setText(application->name);

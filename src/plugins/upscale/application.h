@@ -6,7 +6,9 @@
 
 #pragma once
 
+#include "presentation.h"
 #include "resolution.h"
+#include "settings.h"
 
 #include <KSharedConfig>
 
@@ -16,58 +18,6 @@
 
 namespace KWin
 {
-
-/**
- * How the effect asks an application for a smaller image.
- *
- * The effect cannot make a program render differently. It can only change what
- * the program is told, and a program acts only on what it happens to read, so
- * every method names a specific thing said to a specific application rather
- * than a promise about the result. Which one applies was read in that
- * program's source and then confirmed by running it; it cannot be guessed from
- * the outside, because all of them look alike until the request is made.
- */
-enum class UpscaleControlMethod {
-    /** Say nothing. The supplied buffer is scaled at whatever size it arrives. */
-    None,
-    /**
-     * Tell this application alone that its screen has a smaller current mode,
-     * at the moment it binds the output and before it enumerates displays.
-     *
-     * For clients that select a display mode and then present it through a
-     * viewport that still covers the screen, which is what SDL 2 does in
-     * exclusive fullscreen. Any calculated size can be asked for.
-     */
-    AdvertisedMode,
-    /**
-     * Tell this application alone that its screen has a smaller scale.
-     *
-     * For clients that render the logical screen size multiplied by the scale
-     * they were told and declare that scale on their surface. Their image
-     * still covers the screen, because the compositor divides the buffer by
-     * the scale the client declared. Only whole steps of the output's own
-     * scale are reachable, so an unscaled screen offers such a client nothing.
-     */
-    AdvertisedScale,
-    /**
-     * Tell this application alone about both a smaller mode and a smaller
-     * scale.
-     *
-     * For clients that take their fullscreen size from the mode in pixels but
-     * declare the output's scale on their surface. Either alone leaves the two
-     * disagreeing: the mode alone shrinks the window away from the screen
-     * edges, and the scale alone stretches it past them.
-     */
-    AdvertisedModeAndScale,
-    /**
-     * Resize a selected X11 client which follows resize events.
-     *
-     * A client that then selects a matching RandR mode on its own connection
-     * is enlarged to the output by Xwayland; any other is enlarged by the
-     * effect, which also maps pointer input to the smaller window.
-     */
-    X11Resize,
-};
 
 /**
  * One application the effect recognizes, as it was read from configuration.
@@ -94,14 +44,24 @@ struct UpscaleApplication
      * window. X11 resizing uses the window identity instead.
      */
     QString program;
-    UpscaleControlMethod method = UpscaleControlMethod::None;
     /**
-     * The resolution this application gets while the global preset is
-     * Automatic. Native is an explicit opt-out even with a global preset.
+     * What to say to this program in each way it can present itself.
+     *
+     * One answer per presentation, because the request that works is a
+     * property of how the program is running and not only of the program: the
+     * advertisements act on wl_output, which an Xwayland game never sees, and
+     * the resize acts on an X11 window. A slot nobody has measured holds Auto,
+     * which is also what an absent key reads as.
      */
-    ResolutionPreset preset = ResolutionPreset::Automatic;
-    /** Physical output pixel threshold; -1 inherits the global setting. */
-    int minimumPixels = -1;
+    UpscaleMethods methods{};
+    /**
+     * The preferences this profile states, of those in the settings table.
+     *
+     * Absent means the global value applies. There is no sentinel and no
+     * negotiation: a key present here is this game's answer, whatever the
+     * global layer says and whether or not the two happen to agree.
+     */
+    UpscaleSettingOverrides overrides;
     /** Why this entry looks the way it does, for the settings page. */
     QString note;
     /** Matching order; the first enabled match wins as a whole. */
@@ -166,18 +126,6 @@ const UpscaleApplication *upscaleApplicationForIdentity(const QString &windowCla
 const UpscaleApplication *upscaleApplicationForProgram(const QString &executablePath);
 
 /**
- * The entry to use for an application the list does not describe, or null.
- *
- * Off unless the user asks for it. Nothing can be known in advance about a
- * program nobody measured, so this asks every client that connects for the
- * same thing and reports what each one did with it.
- */
-const UpscaleApplication *upscaleUnknownApplication();
-
-/** Whether unlisted applications are asked for a resolution at all. */
-void upscaleSetUnknownApplications(bool enabled, ResolutionPreset preset);
-
-/**
  * Store one application, writing only the fields that differ from @p original.
  *
  * Everything else keeps following the installed package. A field the user set
@@ -208,12 +156,21 @@ void upscaleSyncApplications();
 QString upscaleNewApplicationId(const QString &name, const std::vector<UpscaleApplication> &pending = {});
 
 /** The configuration name of a method, as the stored file spells it. */
-QString upscaleMethodKey(UpscaleControlMethod method);
+QString upscaleMethodKey(UpscaleMethod method);
+
+/** A method from the name a file spells, or @p absent where it says nothing. */
+UpscaleMethod upscaleMethodFromKey(const QString &name, UpscaleMethod absent);
+
+/** The configuration key for one presentation's answer, in either layer. */
+const char *upscalePresentationKey(UpscalePresentation presentation);
 
 /** The configuration name of a preset, as the stored file spells it. */
 QString upscalePresetKey(ResolutionPreset preset);
 
+/** A preset from the name a file spells, or @p absent where it is unknown. */
+ResolutionPreset upscalePresetFromKey(const QString &name, ResolutionPreset absent);
+
 /** One sentence naming what the effect does for this application. */
-QString describeControlMethod(UpscaleControlMethod method);
+QString describeControlMethod(UpscaleMethod method);
 
 } // namespace KWin

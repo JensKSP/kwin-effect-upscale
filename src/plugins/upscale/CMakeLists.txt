@@ -3,12 +3,16 @@
 
 set(upscale_SOURCES
     application.cpp
+    autorequest.cpp
     display.cpp
     eligibility.cpp
     refusaltext.cpp
     framestatistics.cpp
     main.cpp
     modeoverride.cpp
+    legacysettings.cpp
+    settings.cpp
+    waylandscale.cpp
     observation.cpp
     overlay.cpp
     placement.cpp
@@ -52,6 +56,10 @@ if (KWIN_BUILD_KCMS)
         displaycontrols.cpp
         resolutionchoice.cpp
         application.cpp
+        legacysettings.cpp
+        settings.cpp
+        settingcontrols.cpp
+        methodcontrols.cpp
         applicationeditor.cpp
         placement.cpp
         supportinformation.cpp

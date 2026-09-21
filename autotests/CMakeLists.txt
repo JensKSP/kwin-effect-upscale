@@ -49,6 +49,8 @@ if(KWin_VERSION VERSION_LESS 6.7)
     set(driver_sources
         effect_driver.cpp
         ../src/plugins/upscale/application.cpp
+        ../src/plugins/upscale/settings.cpp
+        ../src/plugins/upscale/legacysettings.cpp
         ../src/plugins/upscale/display.cpp
         ../src/plugins/upscale/framestatistics.cpp
         ../src/plugins/upscale/framestatistics.cpp
@@ -56,12 +58,14 @@ if(KWin_VERSION VERSION_LESS 6.7)
         ../src/plugins/upscale/eligibility.cpp
         ../src/plugins/upscale/refusaltext.cpp
         ../src/plugins/upscale/modeoverride.cpp
+        ../src/plugins/upscale/waylandscale.cpp
         ../src/plugins/upscale/observation.cpp
         ../src/plugins/upscale/overlay.cpp
         ../src/plugins/upscale/placement.cpp
         ../src/plugins/upscale/snapshot.cpp
         ../src/plugins/upscale/snapshot_metrics.cpp
         ../src/plugins/upscale/upscale.cpp
+        ../src/plugins/upscale/autorequest.cpp
         ../src/plugins/upscale/x11geometry.cpp
         ../src/plugins/upscale/x11input.cpp
         ../src/plugins/upscale/x11resolution.cpp
@@ -190,13 +194,24 @@ if(KWin_VERSION VERSION_LESS 6.7)
     )
 endif()
 
-add_executable(upscale_application_test application_test.cpp ../src/plugins/upscale/application.cpp)
+# settings.cpp reads the global layer through the generated configuration, so
+# this test needs the kcfg generated for it as the others do.
+kconfig_add_kcfg_files(application_test_sources ../src/plugins/upscale/upscaleconfig.kcfgc)
+add_executable(
+    upscale_application_test
+    application_test.cpp
+    legacysettings_test.cpp
+    ../src/plugins/upscale/application.cpp
+    ../src/plugins/upscale/settings.cpp
+    ../src/plugins/upscale/legacysettings.cpp
+    ${application_test_sources}
+)
 target_include_directories(upscale_application_test PRIVATE ../src/plugins/upscale)
 target_compile_definitions(
     upscale_application_test
     PRIVATE -DTRANSLATION_DOMAIN="kwin_effect_upscale"
 )
-target_link_libraries(upscale_application_test PRIVATE kwin Qt6::Test KF6::I18n KF6::ConfigCore)
+target_link_libraries(upscale_application_test PRIVATE kwin Qt6::Test KF6::I18n KF6::ConfigGui)
 target_compile_definitions(
     upscale_application_test
     PRIVATE
@@ -207,6 +222,8 @@ add_test(NAME upscale-application COMMAND upscale_application_test)
 set(snapshot_test_sources
     snapshot_test.cpp
     ../src/plugins/upscale/application.cpp
+    ../src/plugins/upscale/settings.cpp
+    ../src/plugins/upscale/legacysettings.cpp
     ../src/plugins/upscale/snapshot.cpp
     ../src/plugins/upscale/snapshot_metrics.cpp
     ../src/plugins/upscale/eligibility.cpp
@@ -225,6 +242,8 @@ add_test(NAME upscale-snapshot COMMAND upscale_snapshot_test)
 set(headsup_test_sources
     headsup_test.cpp
     ../src/plugins/upscale/application.cpp
+    ../src/plugins/upscale/settings.cpp
+    ../src/plugins/upscale/legacysettings.cpp
     ../src/plugins/upscale/snapshot.cpp
     ../src/plugins/upscale/snapshot_metrics.cpp
     ../src/plugins/upscale/eligibility.cpp
@@ -243,6 +262,8 @@ add_test(NAME upscale-headsup COMMAND upscale_headsup_test)
 set(placement_test_sources
     placement_test.cpp
     ../src/plugins/upscale/application.cpp
+    ../src/plugins/upscale/settings.cpp
+    ../src/plugins/upscale/legacysettings.cpp
     ../src/plugins/upscale/overlay.cpp
     ../src/plugins/upscale/placement.cpp
     ../src/plugins/upscale/snapshot.cpp
@@ -269,6 +290,8 @@ set_tests_properties(upscale-placement PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=o
 set(display_test_sources
     display_test.cpp
     ../src/plugins/upscale/application.cpp
+    ../src/plugins/upscale/settings.cpp
+    ../src/plugins/upscale/legacysettings.cpp
     ../src/plugins/upscale/display.cpp
     ../src/plugins/upscale/framestatistics.cpp
     ../src/plugins/upscale/overlay.cpp
@@ -303,7 +326,11 @@ endif()
 if(KWIN_BUILD_KCMS)
     set(settings_module_SOURCES
         ../src/plugins/upscale/application.cpp
+        ../src/plugins/upscale/settings.cpp
+        ../src/plugins/upscale/legacysettings.cpp
         ../src/plugins/upscale/applicationeditor.cpp
+        ../src/plugins/upscale/settingcontrols.cpp
+        ../src/plugins/upscale/methodcontrols.cpp
         ../src/plugins/upscale/placement.cpp
         ../src/plugins/upscale/supportinformation.cpp
         ../src/plugins/upscale/upscale_config.cpp
