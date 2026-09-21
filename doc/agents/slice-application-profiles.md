@@ -257,7 +257,10 @@ active shipped defaults, and matching permits an instance-only constraint.
   overlap warnings and the selected profile in status. Offer reordering.
 - Keep profile participation separate from the `Enabled` setting override.
   Turning off a profile makes it stop matching; an active profile with
-  `Enabled=false` disables upscaling for its application.
+  `Enabled=false` disables upscaling for its application - superseded on
+  2026-09-20 by [a disabled profile falls through](#a-disabled-profile-falls-through):
+  `Enabled` is participation only, and saying "not this game" is a profile
+  whose method slots are `Off`.
 - Do not persist a process ID or window UUID as application identity. The UUID
   is useful only for the current selection. Unknown applications use globals.
 - Matching does not relax render eligibility: unsupported surfaces, transforms,
@@ -512,8 +515,10 @@ Profile ordering in the interface and the notes' translation, which needs the
 localized-entry extraction KDE uses for `.desktop` files, remain part of this
 slice as well.
 
-One question in that section is open rather than decided: what an upgrade does
-with a stored global `Enabled=false`, which has no successor switch. Auto's own
+What an upgrade does with a stored global `Enabled=false`, which has no
+successor switch, is decided and implemented: it is honoured and kept, as
+[what an existing installation loses](#what-an-existing-installation-loses)
+states. Open is only how the settings page explains it. Auto's own
 Wayland mechanism is no longer in doubt as a design but is unmeasured as
 behaviour; it and its bench belong to
 [resolution control](slice-resolution-control.md#a-reversible-wayland-lever-for-auto-2026-09-20).
@@ -913,13 +918,15 @@ once no installation can carry the old keys.
 The global master switch has no successor. With a switch on every profile and a
 catalogue that ships enabled, nothing stops the effect single-handedly except
 KWin's own Desktop Effects entry, so reading a stored `Enabled=false` as
-anything else would switch upscaling on for someone who had turned it off. **As
-implemented it is honoured**: nothing acts while it is stored, and Apply keeps
-it, because no new key can say "everything off" and removing it would be the
-page quietly switching upscaling back on. The consequence Jens has still to
-decide is what the page shows such a person: at present nothing on it explains
-why no profile acts, and that is the one open question in this section besides
-the Wayland measurement.
+anything else would switch upscaling on for someone who had turned it off.
+**This is the policy, and it is implemented**: nothing acts while it is stored,
+and Apply keeps it, because no new key can say "everything off" and removing it
+would be the page quietly switching upscaling back on. `LegacySettingsTest`
+asserts both halves: only a stored `false` counts, and forgetting the legacy
+keys on Apply leaves it in place. What is not decided is presentation, not
+behaviour: what the page shows such a person, since at present nothing on it
+explains why no profile acts. That, and the Wayland measurement, are the open
+questions in this section.
 
 ### Storage
 
@@ -982,14 +989,21 @@ advertisement goes to a program only when the executable path alone decides,
 and the editor should show which running windows a rule matches as it is
 written.
 
-The broad extreme is more than a switch. Applying the global profile to every
-window above a limit means more than one scaled window per output, per-window
-scaler state, and a limit measured on the window rather than on the output. It
-also means watching windows resize, without making resizing any slower: every
-decision is taken when a window appears, when its class or geometry changes
-and on reconfiguration, never per frame, and while a person drags a window the
-effect steps aside entirely. That is rendering and eligibility rather than
-matching, and is to be specified in a slice of its own.
+"Everything" means every window the rules make eligible, Jens clarified the
+same day - fullscreen windows, and borderless windows covering one output -
+not literally every window. **The broad extreme therefore already exists**: it
+is the global profile switched on, reaching those windows above the limit.
+Nothing about scaling several windows per output follows from it.
+
+What it does add is a requirement on the matching work: a window that becomes
+eligible, by being resized onto its output or across the limit, has to be
+noticed without making resizing any slower. Eligibility is re-derived for
+every window on every frame today, which is affordable while it compares
+strings and would not be once matching resolves an executable path and runs
+patterns. The per-window identity cache below is what keeps it affordable:
+every decision is taken when a window appears, when its class or geometry
+changes and on reconfiguration, never per frame, and while a person drags a
+borderless window the effect steps aside and decides once when the drag ends.
 
 ### What a path can and cannot tell apart
 
@@ -1014,7 +1028,8 @@ process and nothing here is Linux-only: the path is KWin's.
 Decided by Jens on 2026-09-21, replacing a first proposal that kept the file
 name and added a path beside it.
 
-**Gate 1 is the executable path, with a match type, for every entry.** It
+**Gate 1 is the executable path, with a match type.** Every entry states it
+unless it states gate 2 instead, which the match rule below spells out. It
 replaces `Program`. A file-name match is simply the pattern `.*/supertuxkart`,
 so today's field becomes one case of the new one rather than a second field
 beside it, and the shipped catalogue, which has to match wherever a game is
@@ -1022,9 +1037,22 @@ installed, states exactly that pattern. A person's own entry may state an exact
 path instead, which *Add from window* fills from the running game.
 
 **Gate 2 is the window identity, optional**: window class and instance, as
-now. An entry matches a window when gate 1 matches and, where it states one,
-gate 2 matches too. Profiles are tried in their order, as now, and the first
-enabled match wins as a whole.
+now. **The match rule: an entry states at least one gate, and it matches a
+window when every gate it states matches.** An entry stating gate 1 alone or
+both gates is the normal case. An entry stating gate 2 alone is the one
+exception, and it exists for the two cases where a path cannot say which game
+this is: a loader or interpreter shared by many games, and a window whose PID
+does not resolve to a path (both below). An entry stating neither is dropped,
+as today. Profiles are tried in their order, as now, and the first enabled
+match wins as a whole.
+
+The exception is a property of the entry, not of the window, and cannot be
+narrower than that. Whether a PID resolves is known only when a window
+appears, and differs between launches of the same game, so an entry written
+beforehand cannot be limited to "windows whose path is unknown". What limits
+it instead is that an entry stating gate 1 never matches a window whose path
+did not resolve, so a gate-2-only entry is the only kind that can reach such
+a window, and it reaches it only by its window class or instance.
 
 **Match types follow KWin's own Window Rules**, which give each property
 `Exact`, `Substring` or `RegularExpression` (`Rules::StringMatch` in KWin's
@@ -1045,7 +1073,8 @@ reading of a process:
   verify, and a client inside its own process namespace - Flatpak uses one;
   Steam's runtime is to be checked - reports a number that means another
   process on the host. A PID that does not resolve therefore makes gate 1 not
-  match, and never matches something by accident.
+  match, and never matches something by accident: every entry stating gate 1
+  passes over that window, and only a gate-2-only entry can claim it.
 
 ### Four consequences the implementation has to carry
 
@@ -1063,10 +1092,18 @@ reading of a process:
    compares strings. Resolving a PID to a path is a system call and a pattern
    is a regular-expression match per entry, and neither belongs in a frame. A
    window's path and the profile it matches are resolved once - when it
-   appears, when its class changes, and on reconfiguration - and frames read
-   the cached answer.
-4. **An entry with only gate 2 stays allowed**, so that a game whose PID does
-   not resolve can still be given a profile rather than none.
+   appears, when its class or its geometry changes, and on reconfiguration -
+   and frames read the cached answer. The geometry it reacts to is the
+   system's, the frame KWin gives the window, and never the client geometry
+   the effect changed itself. The effect never changes a window's size or
+   place: it decides the size the client renders at and scales that buffer
+   into the window where the system put it, which on X11 means a smaller
+   drawable inside a frame that stays as it was. Reacting to that drawable
+   would let the effect's own request read as a resize and re-evaluate itself
+   in a loop.
+4. **An entry with only gate 2 stays allowed**, as the match rule says, so
+   that a game whose PID does not resolve can still be given a profile rather
+   than none.
 
 ### What a pattern has to be held to
 
@@ -1108,7 +1145,8 @@ Planned checks, not observed results:
   slots defaulting to Off.
 - Migration tests: a stored `Automatic`, a `-1` threshold, an
   `UnknownApplications` entry and a single `Method` field each read once into
-  the new form, with old keys never reinterpreted as new ones.
+  the new form, with old keys never reinterpreted as new ones. A stored global
+  `Enabled=false` keeps every profile from acting and survives Apply.
 - Editor tests: create/read/update/delete, reorder, detection cancellation and
   errors, Apply/Reset, inherited controls, and dependent preset/sharpening values.
   An inherited control must not become a stored override when another field
@@ -1144,7 +1182,17 @@ Planned checks, not observed results:
       [resolution-control bench](slice-resolution-control.md#a-reversible-wayland-lever-for-auto-2026-09-20)
       remains the measurement that moves Wayland Auto into the supported scope.
 - [x] Implement the editor's **Use global** controls, 2026-09-21: built from the
-      table by `settingcontrols.{h,cpp}` and `methodcontrols.{h,cpp}`.
+      table by `settingcontrols.{h,cpp}` and `methodcontrols.{h,cpp}`. Named
+      **Global (value)** since the text review below.
+- [ ] Review every user-facing text with Jens against KDE's naming, one batch
+      at a time. Batch 1, the settings page, agreed and applied on 2026-09-21:
+      group boxes like KWin's own effect pages, the status block and its
+      refresh replaced by version and author. Batch 2, the profile editor,
+      agreed and applied on 2026-09-21: the same groups, **Global (value)**,
+      the method choices named by what the game is told, units on every
+      number. Open: batch 3, the refusal and status texts the displays show;
+      then the displays' own texts, the developer information and the method
+      descriptions in reports.
 - [ ] Profile reordering in the editor.
 - [ ] Match by executable path and by pattern, per
       [matching by path and by pattern](#matching-by-path-and-by-pattern-2026-09-21).

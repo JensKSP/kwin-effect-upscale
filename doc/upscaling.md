@@ -120,9 +120,10 @@ a game the way they always have, and it works.
    that starts the game.
 3. **Installing the package is the whole of the setup.** The user installs the
    package and is finished. The effect is enabled by default, and the shipped
-   defaults are chosen so that this is safe: the global preset is Automatic,
-   which defers to the application profiles, so a program the package does not
-   recognize is untouched; outputs at or below the Full HD pixel threshold
+   defaults are chosen so that this is safe: the global profile is off, so a
+   program the package does not recognize is untouched, while a recognized
+   game follows the global resolution, Quality unless the user chose another;
+   outputs at or below the Full HD pixel threshold
    bypass the effect entirely; and the effect blocks direct scanout only while
    it actually has eligible content, never merely by being loaded. Nothing
    else: no configuration file to write, no environment variable to set, no
@@ -660,8 +661,13 @@ About/notices record below remain requirements, not implemented claims.
 | Build date and time | Complete ISO 8601 UTC timestamp, with the timezone visible. Honour `SOURCE_DATE_EPOCH`; identify a reproducible timestamp as such instead of claiming it is a measured wall-clock compilation time. |
 | License | `GPL-2.0-or-later`, a clickable [license link](https://github.com/JensKSP/kwin-effect-upscale/blob/master/LICENSES/GPL-2.0-or-later.txt), and access to the bundled full text. |
 
-Use one consistent identity record for the settings dialog, startup log and
-optional overlay. Run the generator on **every build invocation**, including
+Where each field is shown, decided by Jens on 2026-09-21: the settings page
+shows the **version** and the **author** and nothing else; the full record
+above is written to the startup log and shown in the developer information on
+screen; and the license, project address and authors are also in the About
+that System Settings builds for every effect from its plugin metadata, which is
+where KDE users look for them. Use one consistent identity record for all of
+these. Run the generator on **every build invocation**, including
 builds without source changes and direct builds of the effect or settings
 target. Recompute revision, ref and the complete timestamp then, not only during
 configuration or after a new commit. Read the timestamp through CMake with
@@ -685,11 +691,12 @@ when producing source archives. For arbitrary archives without that information,
 show **Unavailable**
 or **Unknown** explicitly; do not infer a full commit or branch from a version.
 
-Show which binary a record describes. If a newly installed settings module and
-the effect already loaded in KWin differ, distinguish their records and indicate
-that the loaded build remains older until reloaded. Never silently present the
-installed build as the one currently rendering. If loaded-build information
-cannot be obtained, label that state and retain access to installed information.
+Show which binary a record describes. The settings page shows the version of
+the installed build, which after an update can differ from the one KWin still
+has loaded until the session restarts. Which build is rendering is therefore
+answered by the running effect itself - in the developer information on screen
+and in the line it writes to the log when KWin loads it - and never by the
+settings page claiming it.
 
 #### Startup log
 
@@ -805,19 +812,26 @@ resolution. What was requested is reported apart from what the application
 committed, and neither a saved preference nor a made request is ever presented
 as a successfully applied client resolution.
 
-| Control | Behaviour |
+The page is grouped the way KWin's own effect pages are, a titled box per
+topic with a form inside, and its wording follows KDE's Human Interface
+Guidelines: title case for headings and push buttons, sentence case for
+labels, check boxes and tooltips, a colon after a form label, *screen* rather
+than *output*, and what a setting does rather than how it is done. The
+wording was reviewed with Jens string by string on 2026-09-21.
+
+| Section | Controls |
 | --- | --- |
-| Enable upscaling | Process eligible fullscreen and profiled full-output borderless windows; disabling restores normal KWin rendering. |
-| Scaler | Show FSR 1 for the initial implementation. Offer a selector when several scalers are implemented and supported. |
-| Mode | Upscale only, until a mode from the processing modes section above is implemented. Offer a selector only for modes that are implemented, and show why an unavailable mode does not apply to the current buffer. |
-| Preferred game resolution | Automatic follows a matching profile’s preset, otherwise the supplied buffer; explicit presets or a percentage select a target in physical pixels. |
-| Resolution control | Enabled by default for recognized applications; disabling stops requests while eligible supplied buffers can still be scaled. |
-| Try other applications too | Off by default; opt into experimental native Wayland advertisement for unlisted executable identities. |
-| Minimum output pixels | Scale only when the output’s physical width × height exceeds the threshold; default 2073600, zero disables the threshold. Application entries can inherit or override it. |
-| Resolution preset | Native, Ultra Quality, Quality, Balanced, Performance, or Custom; changing the slider selects Custom. |
-| Sharpening | RCAS switch, initially off, and a 0–100% strength slider. Zero bypasses sharpening; increasing the value increases strength. The UI must not expose AMD's reversed parameter directly. |
-| Status | Desired input, actual supplied input, destination resolution, active scaler, and a reason when upscaling is inactive. Show HDR and VRR information only to the extent actually known. The reason names the one condition that refused the window, not the general eligibility rule. |
-| On-screen display | The announcement and summary choices with their timeout, and the persistent statistics and developer information choices. Each display is switched on its own and no switch sits above them, because all four off already means nothing is drawn. Their defaults come from the build type; the page writes an entry only where the user's choice differs from that default. |
+| General | **Upscale unlisted applications**, the global profile's own switch: off by default, and never a switch that stops the listed games; the overall off switch is KWin's Desktop Effects entry. **Scaler: AMD FSR 1**, shown as a fact until a second scaler exists. |
+| Resolution | **Render resolution:** Native, Ultra Quality, Quality, Balanced, Performance or Custom, AMD's own names. **Resolution scale:** the percentage, which selects Custom when moved off a preset's exact ratio. **Screen:** which connected screen the line below describes, followed by the render size in pixels and its share, or why nothing would happen. **Upscale on screens larger than:** the resolution limit, offered as the resolutions of the connected screens and the common ones, and **Any screen**. |
+| Sharpening | **Sharpen the image**, off by default, and **Strength:**, where zero is shown as **Off** because it is a real bypass rather than the weakest setting. |
+| On-Screen Display | **Show info at startup**, with **Include details**, **Show startup info for:** in seconds, and **Startup info position:**; **Show frame rate** and **Frame rate position:**; **Show developer information** and **Developer information position:**. No two displays share a corner. |
+| Applications | The profiles, each grouped like this page under **Identification**, **Resolution Request**, **Resolution**, **Sharpening** and **On-Screen Display**, with its six measured methods and a **Global** choice for every preference that names the value it follows, for example **Global (Quality)**; whether the list still follows the package, and **Restore Defaults**, which is separate from the page's own Defaults. |
+| About | **Version:** exactly as the version rule names the build, and **Author:**, read from the effect's metadata. |
+
+The page does not report what the running effect is doing: Jens decided on
+2026-09-21 that status and a refresh button do not belong in settings. That
+report is the developer information on screen and KWin's support
+information, which carries the effect's own section.
 
 HDR and VRR follow KWin's display settings. They are mandatory supported paths,
 not optional quality presets. An enabled VRR setting must not be labelled as
@@ -1062,7 +1076,7 @@ and placed apart from the three passive ones in
 disable scaling, adjust sharpening, select available filters and geometry, and
 change the desired resolution without leaving the game. Show the selected
 game/profile and whether a value is inherited or explicitly overridden. An
-explicit **Apply to this game** saves profile overrides; **Use global** clears
+explicit **Apply to this game** saves profile overrides; **Global** clears
 an override. Keep editing global defaults a separate, labelled action.
 
 The panel must distinguish configured, effective and pending values. Classify
@@ -1246,13 +1260,13 @@ supported modes or scale granularity may differ. Display any negotiated size
 as such, separately from the calculated wish and the actual committed buffer.
 The example dimensions are calculated targets, not guaranteed game modes.
 
-Automatic is the default and makes no resolution request of its own; a
-recognized application then follows the size recorded for it in the
-[catalogue](#the-recognized-applications-shipped-with-this-effect), so that
-installing the effect is enough for a known game on an eligible output.
-Selecting Native bypasses both resolution requests and processing, even if the
-application supplies a smaller buffer. An application's Native rule also wins
-over an explicit global scaling preset. At actual native resolution the initial
+Quality is the global default. A recognized application follows it, because
+the [catalogue](#the-recognized-applications-shipped-with-this-effect) states
+no resolution for a game, so that installing the effect is enough for a known
+game on an eligible output. Selecting Native bypasses both resolution requests
+and processing, even if the application supplies a smaller buffer. A profile's
+own resolution, Native included, is that game's answer whatever the global
+one is. At actual native resolution the initial
 effect bypasses both EASU and RCAS; the proposed sharpen-only mode would be
 the explicit exception, and it does not change this default. Turning the
 effect off is a separate action.
@@ -1374,22 +1388,21 @@ that a smaller drawable fixes an uncooperative renderer.
 
 ### Selecting the resolution control method
 
-Implemented per profile: None, advertised mode, advertised scale, advertised
-mode and scale, and X11 resize. There is no global method selector or automatic
-method discovery. The following global-selection design remains unimplemented:
-provide **Resolution control method**
-in global settings, defaulting to **Auto**, with a sparse per-application
-profile override. **Use global** inherits the current global method; an
-explicit **Auto** override keeps automatic selection for that application even
-if the global method later changes. Game detection selects the profile; it
-does not by itself establish that resolution control succeeded.
+Implemented as six slots per profile, one per presentation: Wayland and X11,
+each fullscreen, borderless and windowed. Each slot is **Automatic**, one of
+the methods its protocol can carry, or **Off**. A method is a measurement of a
+program, so a slot has no **Global** choice. An absent slot reads as Automatic
+on a game profile and as Off on the global profile, which answers for unlisted
+applications only while it is switched on and never reaches a windowed window.
+Game detection selects the profile; it does not by itself establish that
+resolution control succeeded.
 
 | Method | Intended behaviour |
 | --- | --- |
-| Auto | Choose a verified compatible method for the selected application and runtime. In-session negotiation only: the [four requirements](#four-requirements-that-bound-every-route) leave no launch-time method to fall back to. |
+| Auto | **Implemented**, and stateless: nothing it learns is stored. On X11 it is the buffer request, put back where the window stops covering its output. On Wayland it says nothing at bind; once the window exists it asks that one surface for a fractional scale, asserts it again when KWin reapplies the output's scale, and gives it back when the window stops covering its output or no smaller buffer arrives within 30 frames. In-session negotiation only: the [four requirements](#four-requirements-that-bound-every-route) leave no launch-time method to fall back to. |
 | Advertised screen mode | **Implemented for verified native Wayland client/runtime combinations.** Tell one recognized native Wayland client that its screen has a smaller current mode when it binds the output. This does not control Xwayland games. It needs no launch helper or restart and changes nothing outside that connection. |
 | Wayland negotiation | Generic surface-scale negotiation remains experimental; the implemented advertised scale and mode-and-scale methods are separate profile choices. |
-| X11 window resize | **Implemented.** Request a smaller drawable and require client-owned fullscreen emulation to retain output coverage. |
+| X11 buffer request | **Implemented.** Request a smaller drawable and require client-owned fullscreen emulation to retain output coverage. The window keeps the place and size the system gave it; only the size the client renders at changes. |
 | Display proxy | **Out of scope.** Sommelier's direct-scale mode supplied smaller buffers, native and through a private Xwayland, but every form of it starts the game. Kept as a measured mechanism and as technique worth reading, not an offered method. |
 | Gamescope | **Out of scope.** It forwarded smaller original buffers in testing, but the game has to be started through it, and its image arrives as a child surface this effect rejects. Kept here as a measured mechanism, not an offered method. |
 | Game settings only | Make no automatic resolution changes; show the desired pixels as guidance and scale eligible supplied buffers. |
@@ -1399,10 +1412,10 @@ Show unavailable methods with a reason. An explicit method must not silently
 switch to another method when it fails. Auto may use a verified alternative,
 but must report the effective method and whether the target was reached.
 Method selection is independent of the desired resolution, EASU and RCAS.
-The existing Automatic resolution preset follows the matched profile’s preset;
-with no profile target it makes no request. The implemented None method makes
-no request but permits scaling of eligible supplied buffers. Native disables
-scaling independently of method selection.
+A matched profile's resolution, where it states one, overrides the global
+one; otherwise the global resolution applies. The Off method makes no request
+but permits scaling of eligible supplied buffers. Native disables scaling
+independently of method selection.
 
 A running Wayland client may have cached its output information; changing the
 profile does not make that client re-enumerate. Report observed dimensions and
@@ -1487,10 +1500,10 @@ game after that.
 **How the size is chosen.** From the preset or percentage, against the pixel
 size of each output, exactly as the desired resolution is calculated
 everywhere else. Arbitrary calculated sizes are honoured, so a preset is not
-restricted to standard modes. When the global preset is Automatic, which means
-the user has not chosen, a recognized application uses the size recorded for
-it in the catalogue; an explicit global choice wins except for an application's
-Native opt-out. The output pixel threshold is checked before either request.
+restricted to standard modes. A profile that states a resolution uses it,
+and any other follows the global resolution; the shipped games state none, and
+the benchmarks state Native. The output pixel threshold is checked before
+either request.
 Advertising
 the size the output already has is not a request and is not sent.
 
@@ -1566,7 +1579,7 @@ menu a second route, and it is the only route that reaches every game.
 
 The option is `UserConfigured`. The person selects the resolution once, in the
 game, and the entry records that this is how this game is driven. It is not the
-same statement as `None`. `None` says the question was asked and the program
+same statement as `Off`. `Off` says the question was asked and the program
 followed nothing; `UserConfigured` says the program never needed to follow
 anything, because its own settings already produce the smaller buffer. Neither
 sends a request, and both recognize the game. They differ in what they tell the
@@ -1622,12 +1635,17 @@ Every field was read off a running instance of the stated package version. A
 name never implies an identity, and a version is recorded with each entry so
 that a later mismatch can be traced rather than guessed at.
 
-| Application | Measured version | Window class | Instance | Program | Method | Resolution when the global preset is Automatic |
+| Application | Measured version | Window class | Instance | Program | Measured method | Resolution |
 | --- | --- | --- | --- | --- | --- | --- |
-| SuperTuxKart | 1.4 | `supertuxkart` | `supertuxkart` | `supertuxkart` | Advertised screen mode | Quality, 1 / 1.5 |
-| Extreme Tux Racer | 0.8.4 | not constrained | `etr` | `etr` | X11 window resize, primary output | Quality |
-| glmark2 | 2023.01 | `com.github.glmark2.glmark2` | `glmark2-wayland` | `glmark2-wayland` | Advertised screen scale | Automatic, no request |
-| vkmark | 2025.01 | `com.github.vkmark.vkmark` | `vkmark` | `vkmark` | Advertised screen mode and scale | Automatic, no request |
+| SuperTuxKart | 1.4 | `supertuxkart` | `supertuxkart` | `supertuxkart` | Wayland fullscreen: advertised screen mode | follows the global |
+| Extreme Tux Racer | 0.8.4 | not constrained | `etr` | `etr` | X11 fullscreen: X11 buffer request, primary output only | follows the global |
+| Native Source games (`hl2_linux`) | Steam build 23990068 | `hl2_linux` | `hl2_linux` | `hl2_linux` | X11 fullscreen: X11 buffer request | follows the global |
+| glmark2 | 2023.01 | `com.github.glmark2.glmark2` | `glmark2-wayland` | `glmark2-wayland` | Wayland fullscreen: advertised screen scale | Native |
+| vkmark | 2025.01 | `com.github.vkmark.vkmark` | `vkmark` | `vkmark` | Wayland fullscreen: advertised screen mode and scale | Native |
+
+Each entry states the one method slot it was measured under. Its other slots
+are absent and read as Auto, so a presentation nobody measured is still tried,
+and verified, rather than refused.
 
 Two details in that table are the reason identities are measured.
 
@@ -1637,22 +1655,24 @@ next package update. Its instance name is the stable field, and the entry
 constrains that alone.
 
 Extreme Tux Racer uses [X11 window resizing](#per-window-x11-resize-and-fullscreen-emulation).
-Its profile requests Quality by default, giving 2560 × 1440 on a 3840 × 2160
-output without editing game settings. SFML 2.6.2 always selects the primary
+Its entry states no resolution, so it follows the global one: at Quality it
+renders 2560 × 1440 on a 3840 × 2160 output without editing game settings. SFML 2.6.2 always selects the primary
 RandR output when recreating a fullscreen window. The profile therefore sets
 `X11PrimaryOutputOnly=true`: requests on another output are refused before
 resizing, so the game does not unexpectedly jump between displays. This is a
 client limitation, not an Xwayland server per display.
 
-SuperTuxKart carries a preset of its own so that a fresh installation already
-does something. The user's explicit choice always wins over it; Automatic means
-the user has not chosen, not that nothing may happen.
+The catalogue states facts, not taste. A resolution in a shipped entry would
+pin that game, because a key present in a profile overrides the global value,
+and the user's own global setting would never reach it. The games therefore
+state none and follow whatever the user chose globally.
 
-The two benchmarks deliberately carry no preset. A benchmark exists to measure
-a machine, and quietly halving what it renders would make it report a number
-for something nobody asked for. They follow an explicit setting like anything
-else, which is what makes them usable for measuring this effect: the same
-binary, the same scene, once at the screen's resolution and once reduced.
+The two benchmarks are the exception and state `Native`. A benchmark exists to
+measure a machine, and quietly reducing what it renders would make it report a
+number for something nobody asked for; that is a fact about the program. To
+measure this effect with one - the same binary, the same scene, once at the
+screen's resolution and once reduced - a person overrides that resolution in
+their own entry for it.
 
 Their methods differ from SuperTuxKart's because their sources read different
 things. glmark2's Wayland backend takes the size the compositor configures,
@@ -1667,7 +1687,7 @@ were read in the source and then confirmed by running them.
 
 Required extension, not yet implemented: a route by which someone who got a game
 working submits what they measured, and a written rule for what we do with it.
-The four entries above were measured on one machine, and a list assembled that
+The five entries above were measured on one machine, and a list assembled that
 way reaches exactly as far as the games one person owns.
 
 An entry is a measurement, so a submission is one too. It states the identity
@@ -1841,7 +1861,7 @@ be a cleaner integration direction for upstream discussion. It is not an
 available fallback under this project's current no-external-patches requirement,
 and upstream acceptance remains unestablished.
 
-An X11 window resize is a separate mechanism from Wayland output advertising.
+An X11 buffer request is a separate mechanism from Wayland output advertising.
 The effect can address one managed X window through KWin's exported window
 and X11 event-filter APIs. The application must then update its rendering for
 the new dimensions. A smaller drawable alone is insufficient: an application
