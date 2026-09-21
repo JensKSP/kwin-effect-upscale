@@ -15,9 +15,13 @@
 #include "resolution.h"
 #include "settings.h"
 #include "waylandscale.h"
+#include "windowidentity.h"
 
+#include "effect/effecthandler.h"
 #include "effect/effectwindow.h"
 #include "window.h"
+
+#include <algorithm>
 
 namespace KWin
 {
@@ -61,13 +65,41 @@ static double autoRatio(EffectWindow *window, const UpscaleApplication *claimed,
     return resolutionRatio(settings.resolution(), settings.value(UpscaleSetting::Percentage));
 }
 
-// Auto's Wayland half, run where the candidate was resolved.
-void UpscaleEffect::askForSmallerBuffer(EffectWindow *window, const UpscaleApplication *claimed) const
+// Whether Auto has a Wayland window to ask, or is waiting for one to answer.
+// KWin calls only an active effect's paint hooks, and those are where Auto
+// asks and counts its patience; without this, a game drawing at full size
+// would be asked only while something else happened to keep the effect
+// active - an on-screen display, say - and never otherwise.
+bool UpscaleEffect::autoWaiting() const
 {
+    if (m_waylandScale->asking()) {
+        return true;
+    }
+    const QList<UpscaleOutput *> outputs = effects->screens();
+    return std::ranges::any_of(outputs, [this](UpscaleOutput *output) {
+        EffectWindow *window = upscaleWindowAwaitingBuffer(output);
+        if (!window || !window->isWaylandClient() || m_waylandScale->known(window->window())) {
+            return false;
+        }
+        const UpscaleApplication *claimed = upscaleApplicationForWindow(window->window());
+        return autoRatio(window, claimed, upscaleResolveSettings(claimed)) < 1.0;
+    });
+}
+
+// Auto's Wayland half, run where the candidate was resolved. The window asked
+// is the one this output would scale once its buffer allowed it: the
+// candidate when there is one, and otherwise the window that qualifies in
+// every respect but its buffer - which is the window Auto exists for.
+void UpscaleEffect::askForSmallerBuffer(UpscaleOutput *output, EffectWindow *candidate,
+                                        const UpscaleApplication *claimed) const
+{
+    EffectWindow *window = candidate ? candidate : upscaleWindowAwaitingBuffer(output);
+    m_waylandScale->releaseOthers(output, window);
     if (!window || !window->isWaylandClient()) {
         return;
     }
-    m_waylandScale->request(window, autoRatio(window, claimed, m_settings));
+    const UpscaleApplication *asked = window == candidate ? claimed : upscaleApplicationForWindow(window->window());
+    m_waylandScale->request(window, autoRatio(window, asked, upscaleResolveSettings(asked)));
 }
 
 } // namespace KWin

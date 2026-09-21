@@ -250,7 +250,7 @@ bool UpscaleEffect::supported()
 
 bool UpscaleEffect::isActive() const
 {
-    if (candidate()) {
+    if (candidate() || autoWaiting()) {
         return true;
     }
     // KWin only calls the paint hooks of effects that say they are active, so
@@ -324,7 +324,7 @@ EffectWindow *UpscaleEffect::candidate(UpscaleRefusal *refusal, UpscaleOutput *o
         const Window *internal = m_candidate ? m_candidate->window() : nullptr;
         const UpscaleApplication *claimed = upscaleApplicationForWindow(internal);
         m_settings = upscaleResolveSettings(claimed);
-        askForSmallerBuffer(m_candidate, claimed);
+        askForSmallerBuffer(output, m_candidate, claimed);
         m_candidateOutput = output;
         m_candidateCached = true;
     }

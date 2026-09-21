@@ -13,6 +13,7 @@
 #include "scene/windowitem.h"
 #include "window.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace KWin
@@ -52,13 +53,28 @@ void UpscaleWaylandScale::observe(Window *window)
             return;
         }
         const double wanted = entry->original * entry->ratio;
-        if (std::abs(window->nextTargetScale() - wanted) > 0.001) {
+        if (!entry->ignored && std::abs(window->nextTargetScale() - wanted) > 0.001) {
             apply(window, *entry);
         }
     });
     connect(window, &Window::closed, this, [this, window]() {
         m_requests.remove(window);
     });
+    // A window that stops being the one its output would scale - out of
+    // fullscreen, off its output, minimized, moved - gets its scale back at
+    // once. Nothing else would give it back: the frame path asks only the
+    // window that qualifies, and with nothing qualifying the effect is not
+    // even painting.
+    const auto recheck = [this, window]() {
+        EffectWindow *effectWindow = window->effectWindow();
+        if (!effectWindow || upscaleWindowAwaitingBuffer(effectWindow->screen()) != effectWindow) {
+            release(window);
+        }
+    };
+    connect(window, &Window::fullScreenChanged, this, recheck);
+    connect(window, &Window::frameGeometryChanged, this, recheck);
+    connect(window, &Window::outputChanged, this, recheck);
+    connect(window, &Window::minimizedChanged, this, recheck);
 }
 
 void UpscaleWaylandScale::request(EffectWindow *effectWindow, double ratio)
@@ -90,10 +106,11 @@ void UpscaleWaylandScale::request(EffectWindow *effectWindow, double ratio)
         entry->ratio = ratio;
         entry->frames = 0;
         entry->answered = false;
+        entry->ignored = false;
         apply(window, *entry);
         return;
     }
-    if (entry->answered) {
+    if (entry->answered || entry->ignored) {
         return;
     }
 
@@ -119,6 +136,34 @@ void UpscaleWaylandScale::request(EffectWindow *effectWindow, double ratio)
         // and SDL 2 do: neither honours a fractional scale. Give the scale
         // back so nothing carries a request the client is not acting on, and
         // let the status say no method reached it.
+        entry->ignored = true;
+        window->setNextTargetScale(entry->original);
+    }
+}
+
+bool UpscaleWaylandScale::known(const Window *window) const
+{
+    return m_requests.contains(const_cast<Window *>(window));
+}
+
+bool UpscaleWaylandScale::asking() const
+{
+    return std::ranges::any_of(m_requests, [](const Request &request) {
+        return !request.answered && !request.ignored;
+    });
+}
+
+void UpscaleWaylandScale::releaseOthers(UpscaleOutput *output, const EffectWindow *kept)
+{
+    const Window *keptWindow = kept ? kept->window() : nullptr;
+    QList<Window *> released;
+    for (auto entry = m_requests.cbegin(); entry != m_requests.cend(); ++entry) {
+        Window *window = entry.key();
+        if (window != keptWindow && window->effectWindow() && window->effectWindow()->screen() == output) {
+            released.append(window);
+        }
+    }
+    for (Window *window : std::as_const(released)) {
         release(window);
     }
 }
@@ -129,9 +174,14 @@ void UpscaleWaylandScale::release(Window *window)
     if (entry == m_requests.constEnd()) {
         return;
     }
-    window->setNextTargetScale(entry->original);
+    // Forgotten before the scale goes back, not after. Giving it back emits
+    // nextTargetScaleChanged, and while a request stands that is the signal
+    // that re-asserts it: in the other order every release was undone the
+    // moment it was made.
+    const double original = entry->original;
     disconnect(window, nullptr, this, nullptr);
     m_requests.remove(window);
+    window->setNextTargetScale(original);
 }
 
 void UpscaleWaylandScale::releaseAll()
@@ -146,7 +196,7 @@ void UpscaleWaylandScale::releaseAll()
 double UpscaleWaylandScale::requested(const Window *window) const
 {
     const auto entry = m_requests.constFind(const_cast<Window *>(window));
-    return entry == m_requests.constEnd() ? 0 : entry->ratio;
+    return entry == m_requests.constEnd() || entry->ignored ? 0 : entry->ratio;
 }
 
 bool UpscaleWaylandScale::answered(const Window *window) const

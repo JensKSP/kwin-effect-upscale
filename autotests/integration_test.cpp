@@ -380,4 +380,72 @@ void UpscaleIntegrationTest::answersWhichWindowsAnEntryMatches()
     m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
 }
 
+// Auto on Wayland. Nothing is said when the program binds its screen, because
+// that cannot be taken back; once the window exists its surface is asked for
+// a fractional scale, which can. A client that answers with a smaller buffer
+// keeps the request. One that keeps drawing at full size, as Qt and SDL 2 do,
+// has it given back after thirty frames, so nothing carries a request the
+// client is not acting on.
+void UpscaleIntegrationTest::autoAsksTheWindowForAFractionalScale()
+{
+    const QDBusReply<bool> loaded = m_effects.call(QStringLiteral("loadEffect"), QStringLiteral("upscale_test_driver"));
+    QVERIFY(loaded.isValid() && loaded.value());
+    // The entry states its program and no method, so every slot is Auto. It
+    // states its own limit too: the screen is 128 pixels square, and a case
+    // before this one leaves the global limit at exactly that.
+    writeCatalogue(integrationEntry(QStringLiteral("MinimumPixels=0\n")));
+    configureResolution(true, false, Stored::Quality);
+    const auto pump = [this](WaylandClient &client, QSocketNotifier &notifier) {
+        connect(&notifier, &QSocketNotifier::activated, this, [&client]() {
+            client.dispatch();
+        });
+    };
+    {
+        WaylandClient honouring;
+        QVERIFY(honouring.initialize());
+        QCOMPARE(honouring.advertisedMode(), QSize(128, 128));
+        QSocketNotifier notifier(honouring.descriptor(), QSocketNotifier::Read);
+        pump(honouring, notifier);
+        QVERIFY(honouring.show(QSize(128, 128)));
+        // Quality is two thirds, which the protocol carries in 120ths.
+        QTRY_VERIFY2(honouring.preferredScale() == 80,
+                     qPrintable(QString::number(honouring.preferredScale()) + QLatin1Char('\n') + status()));
+        // The report names what Auto asked for, not only the resolution wanted.
+        QTRY_VERIFY2(status().contains(QStringLiteral("85 × 85 requested from Upscale integration test as its surface scale")),
+                     qPrintable(status()));
+        QVERIFY(honouring.show(QSize(85, 85)));
+        for (int frame = 0; frame < 40; ++frame) {
+            honouring.commit();
+            QTest::qWait(10);
+        }
+        QCOMPARE(honouring.preferredScale(), 80);
+        // A window that stops presenting full screen, and no longer covers its
+        // output either, is no longer asked, and gets its own scale back rather
+        // than rendering small in a window. Out of fullscreen alone it would
+        // still be a borderless window over its output, which Auto also asks.
+        honouring.fullscreen(false);
+        honouring.resize(QSize(64, 64));
+        QTRY_VERIFY2_WITH_TIMEOUT((honouring.commit(), honouring.preferredScale() == 120),
+                                  qPrintable(QString::number(honouring.preferredScale()) + QLatin1Char('\n') + status()),
+                                  10000);
+    }
+    {
+        WaylandClient ignoring;
+        QVERIFY(ignoring.initialize());
+        QSocketNotifier notifier(ignoring.descriptor(), QSocketNotifier::Read);
+        pump(ignoring, notifier);
+        QVERIFY(ignoring.show(QSize(128, 128)));
+        QTRY_COMPARE(ignoring.preferredScale(), 80);
+        QTRY_VERIFY_WITH_TIMEOUT((ignoring.commit(), ignoring.preferredScale() == 120), 10000);
+        // And it is not asked the same question again thirty frames later.
+        for (int frame = 0; frame < 60; ++frame) {
+            ignoring.commit();
+            QTest::qWait(10);
+        }
+        QCOMPARE(ignoring.preferredScale(), 120);
+    }
+    writeCatalogue(QString());
+    m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
+}
+
 QTEST_GUILESS_MAIN(UpscaleIntegrationTest)

@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "fractional-scale-v1-client.h"
 #include "viewporter-client.h"
 #include "xdg-shell-client.h"
 
@@ -36,6 +37,8 @@ public:
     // are the only direct evidence of what the effect asked it for.
     QSize advertisedMode() const;
     int advertisedScale() const;
+    /** The last preferred scale the compositor sent, in 120ths, or zero before any. */
+    int preferredScale() const;
 
 private:
     static void global(void *data, wl_registry *registry, uint32_t name, const char *interface, uint32_t version);
@@ -51,6 +54,9 @@ private:
     wl_output *m_output = nullptr;
     xdg_wm_base *m_shell = nullptr;
     wp_viewporter *m_viewporter = nullptr;
+    wp_fractional_scale_manager_v1 *m_fractionalScaleManager = nullptr;
+    wp_fractional_scale_v1 *m_fractionalScale = nullptr;
+    int m_preferredScale = 0;
     wl_surface *m_surface = nullptr;
     xdg_surface *m_shellSurface = nullptr;
     xdg_toplevel *m_toplevel = nullptr;

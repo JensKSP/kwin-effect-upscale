@@ -20,6 +20,7 @@
 #include "settings.h"
 #include "snapshot.h"
 #include "upscaleconfig.h"
+#include "waylandscale.h"
 #include "windowidentity.h"
 #include "x11resolution.h"
 
@@ -117,10 +118,15 @@ void UpscaleEffect::describeApplication(UpscaleSnapshot &state, const Window *wi
     if (m_modeOverride && window->surface() && window->output()) {
         state.advertised = m_modeOverride->advertised(window->surface()->client(), window->output()->name());
     }
-    if (state.method == UpscaleMethod::X11Resize) {
+    // Auto is the resize on X11 and the surface scale on Wayland, and reports
+    // what it actually asked for, the same as a method named outright.
+    const bool x11 = upscaleIsX11(presentation);
+    if (state.method == UpscaleMethod::X11Resize || (state.method == UpscaleMethod::Auto && x11)) {
         state.requested = m_x11Resolution->requested(window);
         state.requestFailure = m_x11Resolution->failure(window);
         state.x11Presentation = m_x11Resolution->presentation(window);
+    } else if (state.method == UpscaleMethod::Auto) {
+        state.scaleRequested = m_waylandScale->requested(window);
     }
 }
 

@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "compatibility.h"
+
 #include <QHash>
 #include <QObject>
 
@@ -60,8 +62,25 @@ public:
     /** Give every window back its own scale, for reconfiguration and teardown. */
     void releaseAll();
 
+    /**
+     * Give back what was asked of every window on @p output except @p kept.
+     *
+     * A window is asked only while it is the one its output would scale, and
+     * one that stops being it - leaving fullscreen, losing its output to
+     * another window - is no longer passed to request() at all, so this is
+     * where its request ends. Left standing, it would even be re-asserted
+     * whenever KWin set the window's scale back.
+     */
+    void releaseOthers(UpscaleOutput *output, const EffectWindow *kept);
+
     /** The ratio currently asked of @p window, or zero where none is. */
     double requested(const Window *window) const;
+
+    /** Whether @p window has been asked anything since it last qualified. */
+    bool known(const Window *window) const;
+
+    /** Whether a request is still waiting for its client's answer. */
+    bool asking() const;
 
     /**
      * Whether @p window answered the request: it committed a smaller buffer
@@ -80,6 +99,11 @@ private:
         /** Frames seen since the request, to decide it was ignored. */
         int frames = 0;
         bool answered = false;
+        // The client drew at full size through its whole patience, and has
+        // its own scale back. Kept rather than forgotten, so the same window
+        // is not asked the same question again every thirty frames; a new
+        // question - another ratio, or new settings - asks again.
+        bool ignored = false;
     };
 
     static void apply(Window *window, const Request &request);

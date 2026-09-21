@@ -25,8 +25,18 @@ pkg_check_modules(WAYLAND_CLIENT REQUIRED IMPORTED_TARGET wayland-client)
 pkg_get_variable(WAYLAND_PROTOCOLS wayland-protocols pkgdatadir)
 find_program(WAYLAND_SCANNER wayland-scanner REQUIRED)
 set(protocol_sources)
-foreach(protocol IN ITEMS xdg-shell viewporter)
-    set(protocol_xml "${WAYLAND_PROTOCOLS}/stable/${protocol}/${protocol}.xml")
+# The fractional scale is how Auto asks a Wayland window for a smaller buffer,
+# so the test client binds it to see what it was asked.
+foreach(
+    path
+    IN
+    ITEMS
+        stable/xdg-shell/xdg-shell
+        stable/viewporter/viewporter
+        staging/fractional-scale/fractional-scale-v1
+)
+    get_filename_component(protocol ${path} NAME)
+    set(protocol_xml "${WAYLAND_PROTOCOLS}/${path}.xml")
     set(protocol_header "${CMAKE_CURRENT_BINARY_DIR}/${protocol}-client.h")
     set(protocol_code "${CMAKE_CURRENT_BINARY_DIR}/${protocol}-protocol.c")
     add_custom_command(

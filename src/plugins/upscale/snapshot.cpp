@@ -390,6 +390,12 @@ QString upscaleStatusText(const UpscaleSnapshot &snapshot)
         wish = i18n("%1 requested from %2 as its screen mode",
                     sizeText(snapshot.advertised),
                     snapshot.recognized.isEmpty() ? application(snapshot) : snapshot.recognized);
+    } else if (snapshot.scaleRequested > 0) {
+        // Asked of the window's surface, and like an advertisement only a
+        // request: the committed input below says what the client did.
+        wish = i18n("%1 × %2 requested from %3 as its surface scale", QString::number(snapshot.desired.width),
+                    QString::number(snapshot.desired.height),
+                    snapshot.recognized.isEmpty() ? application(snapshot) : snapshot.recognized);
     } else if (snapshot.preset == ResolutionPreset::Native) {
         wish = i18n("Native (no request)");
     } else {

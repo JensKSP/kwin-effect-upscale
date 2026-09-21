@@ -61,6 +61,9 @@ struct UpscaleSnapshot
     // A live X11 request is a window size, not a Wayland mode advertisement.
     QSize requested;
     QString requestFailure;
+    // The share of its output Auto asked a Wayland window's surface to render
+    // at, zero when it asks nothing - including once the client ignored it.
+    double scaleRequested = 0;
     // Who enlarges the resized window to the output, read from its geometry
     // rather than from what was planned: Xwayland when the client established
     // an emulated mode, otherwise this effect, with pointer input mapped.

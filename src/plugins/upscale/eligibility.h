@@ -137,6 +137,19 @@ bool upscaleCoversOutput(EffectWindow *window);
  */
 UpscaleRefusal windowRefusal(EffectWindow *window);
 
+/**
+ * The window this output would scale once its client supplied a smaller
+ * buffer, or null.
+ *
+ * Everything about the window has to hold - it presents full screen or
+ * borderless over its output, the settings reach it, nothing covers or
+ * transforms it - and only its surface and buffer may still stand in the
+ * way. That is the window Auto asks for a smaller buffer: asking only a
+ * window that is already scaled would never ask one that draws at full size,
+ * which is the one Auto exists for. Null when none, or more than one, does.
+ */
+EffectWindow *upscaleWindowAwaitingBuffer(UpscaleOutput *output);
+
 /** Whether this paint pass may be replaced by a scaled one. */
 UpscaleRefusal passRefusal(const RenderTarget &target, const RenderViewport &viewport, EffectWindow *window,
                            int mask, const WindowPaintData &data);

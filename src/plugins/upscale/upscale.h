@@ -104,7 +104,8 @@ private:
     std::unique_ptr<UpscaleWaylandScale> m_waylandScale;
 
     /** Auto's Wayland half for the selected window, or giving its scale back. */
-    void askForSmallerBuffer(EffectWindow *window, const UpscaleApplication *claimed) const;
+    void askForSmallerBuffer(UpscaleOutput *output, EffectWindow *candidate, const UpscaleApplication *claimed) const;
+    bool autoWaiting() const;
     // Refused windows are independent. Output colour/configuration changes
     // and window output changes invalidate their refusal without reconfiguration.
     QList<QPointer<EffectWindow>> m_unsupportedColors;

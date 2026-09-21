@@ -338,6 +338,22 @@ static UpscaleRefusal contentRefusal(EffectWindow *window, SurfaceItem *surface)
     return readableFormat(*format) ? UpscaleRefusal::None : UpscaleRefusal::UnsupportedBufferFormat;
 }
 
+EffectWindow *upscaleWindowAwaitingBuffer(UpscaleOutput *output)
+{
+    EffectWindow *found = nullptr;
+    const QList<EffectWindow *> windows = effects->stackingOrder();
+    for (EffectWindow *window : windows) {
+        if (window->screen() != output || placementRefusal(window) != UpscaleRefusal::None) {
+            continue;
+        }
+        if (found) {
+            return nullptr;
+        }
+        found = window;
+    }
+    return found;
+}
+
 UpscaleRefusal windowRefusal(EffectWindow *window)
 {
     const UpscaleRefusal placement = placementRefusal(window);

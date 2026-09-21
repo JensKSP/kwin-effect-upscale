@@ -30,6 +30,7 @@ private Q_SLOTS:
     void selectedBorderlessPresentation();
     void outputPixelPolicy();
     void answersWhichWindowsAnEntryMatches();
+    void autoAsksTheWindowForAFractionalScale();
 
 private:
     // The global resolution as kwinrc stores it. Spelled out here rather than
