@@ -1757,6 +1757,72 @@ The Qt sample is the natural source of the second row, since Qt clamps the hint
 to one, and a GLFW program honours it, so it serves for the first, third and
 fourth.
 
+### Auto under test, 2026-09-21
+
+Until this date no automated test drove Auto at runtime: every integration case
+named its method. Two cases were added - `autoAsksTheWindowForAFractionalScale`
+in the Wayland integration test, whose client now binds
+`wp_fractional_scale_v1`, and `autoResizesAnUnmeasuredX11Window` in the X11
+one - and the Wayland one found four defects, all in the Wayland half:
+
+1. **A window drawing at full size was never asked.** Auto asked the candidate,
+   and a full-size buffer is exactly what keeps a window from being the
+   candidate. It now asks the window that qualifies in every respect but its
+   buffer, `upscaleWindowAwaitingBuffer()`.
+2. **Every release was undone at once.** `release()` gave the scale back
+   before forgetting the request, and the `nextTargetScaleChanged` handler that
+   re-asserts a standing request put it straight back - after the patience ran
+   out and on lost coverage alike. The request is now forgotten first.
+3. **An ignored request was asked again every thirty frames.** Released and
+   forgotten, the next frame asked afresh. The request now stays, marked as
+   ignored, until the window closes, the ratio changes or the settings do.
+4. **Auto depended on something else keeping the effect active.** KWin calls
+   only an active effect's paint hooks, which is where Auto asks and counts;
+   with no candidate and no display showing, it never ran - which a Debug
+   build's default frame rate display hid. `isActive()` now also holds while
+   Auto has a window to ask or is waiting for an answer, and a window that
+   stops qualifying - out of fullscreen, off its output, minimized, resized -
+   gets its scale back from its own signals rather than from a paint that may
+   not come.
+
+The status also reports what Auto asked for: the surface scale on Wayland, and
+the window size on X11, which it previously reported only for a method named
+outright. Observed: both cases pass on Trixie. Jens's report of Auto working on
+2026-09-21 is consistent with this: on X11 it was unaffected, and a Debug build
+keeps the effect active. Which session it was is still to be recorded.
+
+### The X11 request path on KWin 6.6, made deterministic, 2026-09-21
+
+The X11 test on Ubuntu 26.04 failed intermittently: interleaved against
+7f55154 on one machine, the tree then current passed 3 of 5 and 7f55154 5 of 5,
+though 7f55154 also once took 144 s instead of 62. Traced by Fable on KWin
+6.6.6, three defects in the X11 control, none reachable on 6.3.6, which never
+reads the emulation property:
+
+1. A client's ConfigureRequest that arrived during the withdrawal wait went to
+   KWin, which answered with its stale cached geometry. The mirroring client
+   set that as its mode, KWin enforced it, and the effect re-armed its
+   withdrawal wait every 3 s for good. The filter now answers such requests
+   with the true geometry.
+2. A reconfiguration released a request the client had not answered yet, and
+   the client's late answers then raced the new request. A release now waits
+   for the client's answer or the end of the validation window, and
+   `settled()` includes pending releases.
+3. The withdrawal wait's fallback never made the request it promised. It now
+   does, once, and validation judges the result.
+
+The test's `lifecycle` also waited 100 ms after a client resize and asserted;
+it now waits for the ConfigureNotify that answers it.
+
+Observed by Fable on the fixed sources: 70 X11 iterations on 6.6.6 without a
+failure (30 on the exact final sources), the full 26.04 suite 19 of 19 twice,
+Trixie with GCC and with Clang 18 of 18 each, clang-tidy clean. Three
+iterations in one pair of concurrent runs took 110-190 s and passed; their logs
+were not kept, and the same wall-clock times in both runs suggest an outside
+stall. Not established: the cause of the ~1 s stalls in the failing runs, and
+why the Auto rework lost the race more often. Not exercised: the hosted runner
+and a real session on 6.6.
+
 ## Remaining work on the X11 production integration
 
 ### Production X11 integration

@@ -170,6 +170,11 @@ QPoint X11Client::lastMotion() const
     return m_lastMotion;
 }
 
+int X11Client::configureNotifies() const
+{
+    return m_configureNotifies;
+}
+
 QRect X11Client::geometry() const
 {
     const Reply<xcb_get_geometry_reply_t> geometry(xcb_get_geometry_reply(m_connection,
@@ -254,6 +259,7 @@ void X11Client::dispatch()
         if (type == XCB_CONFIGURE_NOTIFY) {
             const auto configure = reinterpret_cast<xcb_configure_notify_event_t *>(event);
             const QSize size(configure->width, configure->height);
+            ++m_configureNotifies;
             if (size != m_size) {
                 m_size = size;
                 // Commit the resized buffer first, before anything that can

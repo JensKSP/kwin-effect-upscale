@@ -57,6 +57,8 @@ UpscaleX11Resolution::UpscaleX11Resolution()
         m_validation.clear();
         m_waitingForBuffer.clear();
         m_withdrawals.clear();
+        m_overdue.clear();
+        m_releases.clear();
         m_stateAtom = XCB_ATOM_NONE;
         m_fullscreenAtom = XCB_ATOM_NONE;
         m_emulationAtom = XCB_ATOM_NONE;
@@ -96,16 +98,23 @@ void UpscaleX11Resolution::reconfigure()
 #if KWIN_BUILD_X11
     ++m_generation;
     m_enabled = false;
-    restoreAll();
+    // Released rather than restored outright: a request the client has not
+    // answered yet is given back only once it has, so that its answer cannot
+    // arrive after the window was handed back; see release().
+    const auto windows = m_requests.keys();
+    for (X11Window *window : windows) {
+        release(window);
+    }
     m_requested.clear();
     m_failures.clear();
     m_attempts.clear();
     m_retries.clear();
     m_validation.clear();
     m_waitingForBuffer.clear();
-    // m_withdrawals stays: it records what the clients are doing, which a
-    // change of configuration does not alter, and restoreAll() above has just
-    // added to it.
+    m_overdue.clear();
+    // m_withdrawals and m_releases stay: they record what the clients are
+    // doing, which a change of configuration does not alter, and the releases
+    // above have just added to them.
     //
     // Nothing global is held any more: what to ask of a window comes from the
     // profile that claims it, resolved when the window is looked at. All this
@@ -120,7 +129,8 @@ void UpscaleX11Resolution::reconfigure()
 bool UpscaleX11Resolution::settled() const
 {
 #if KWIN_BUILD_X11
-    return !m_restoring && m_scheduled.isEmpty() && m_withdrawals.isEmpty() && m_waitingForBuffer.isEmpty();
+    return !m_restoring && m_scheduled.isEmpty() && m_releases.isEmpty() && m_withdrawals.isEmpty()
+        && m_waitingForBuffer.isEmpty();
 #else
     return true;
 #endif
@@ -311,12 +321,17 @@ bool UpscaleX11Resolution::begin(const Request &request)
         refuse(request.key, i18n("The application repeatedly replaced its window without accepting the request."));
         return false;
     }
-    m_requests.insert(request.window, request);
+    Request live = request;
+    // A client may already hold the mode this asks for, as a replacement
+    // window does; then there is no answer left to wait for.
+    live.answered = upscaleX11ModeMatches(request.window, request.position, request.size);
+    live.verdict.setRemainingTime(s_validationWindow);
+    m_requests.insert(request.window, live);
     m_requested.insert(request.key, request.size);
     const int generation = m_generation;
     const int revision = ++m_nextValidation;
     m_validation.insert(request.key, revision);
-    QTimer::singleShot(3000, this, [this, key = request.key, generation, revision]() {
+    QTimer::singleShot(s_validationWindow, this, [this, key = request.key, generation, revision]() {
         validate(key, generation, revision);
     });
     return true;
@@ -340,9 +355,25 @@ void UpscaleX11Resolution::apply(X11Window *window)
     const bool negotiating = m_requests.contains(window);
     const bool presenting = upscalePresentation(window->effectWindow())
         && (negotiating || upscaleCoversOutput(window->effectWindow()));
-    const Request request = presenting ? requestFor(window) : Request{};
-    if (!request.window) {
+    if (!presenting) {
+        // The window's own state changed under the request - it left
+        // fullscreen, or stopped covering its output - so the client is
+        // resizing it itself, and the request is given back at once.
         restore(window);
+        return;
+    }
+    // A request being released is not touched until its client has answered
+    // it; the release looks at the window again when that is done.
+    if (m_releases.contains(window)) {
+        return;
+    }
+    const Request request = requestFor(window);
+    if (!request.window) {
+        // Nothing is asked of a window that still presents: the configuration
+        // or the profile that claimed it changed. Its request is released
+        // the way a reconfiguration releases them, once the client has
+        // answered it, so that the answer cannot overtake the restore.
+        release(window);
         return;
     }
     // A configure sent during window construction can be consumed before the
@@ -359,36 +390,46 @@ void UpscaleX11Resolution::apply(X11Window *window)
         if (previous->key == request.key && previous->position == request.position && previous->size == request.size) {
             return;
         }
-        // Released here rather than in begin(), so that the wait restore()
-        // starts is respected below: the client answers the release by
-        // withdrawing its mode, and that answer has to arrive first.
-        restore(window);
+        // Released here rather than in begin(), so that the waits release()
+        // and restore() start are respected below: the client answers the
+        // release by withdrawing its mode, and that answer has to arrive
+        // before anything else is asked of it.
+        release(window);
+        if (m_releases.contains(window)) {
+            return;
+        }
     }
-    // Nothing is asked of the client until it has withdrawn the emulated mode
-    // of the request before this one. KWin 6.6 sizes the client window from
-    // the _XWAYLAND_RANDR_EMU_MONITOR_RECTS property whenever Xwayland changes
-    // it: to the mode it names, or to the full frame once it has gone. A
-    // client withdraws its mode in answer to a restore, and a request made
-    // before that answer reaches KWin is applied first and undone by it.
-    // Measured on KWin 6.6.6 with Xwayland 24.1 on 2026-09-21, polling the
-    // window every 10 ms after such a request: 3840 x 2160, 1920 x 1080 at
-    // 17 ms, 3840 x 2160 at 35 ms, and 1920 x 1080 again only at 3117 ms,
-    // when validation had failed and its retry - restore, 250 ms, request
-    // again - had put it right. Most preset changes and re-enables on 6.6
-    // cost that retry, and the integration test raced an 18 ms transient.
-    // restore() starts the wait and withdrawal() ends it. A mode the client
-    // holds that is neither the request nor being withdrawn, one it chose
-    // itself, is waited for the same way, for as long as the wait allows.
-    // KWin 6.3 never reads the property; there the wait costs only the
-    // milliseconds the withdrawal takes.
+    ask(window, request);
+}
+
+// Nothing is asked of the client until it has withdrawn the emulated mode of
+// the request before this one. KWin 6.6 sizes the client window from the
+// _XWAYLAND_RANDR_EMU_MONITOR_RECTS property whenever Xwayland changes it: to
+// the mode it names, or to the full frame once it has gone. A client
+// withdraws its mode in answer to a restore, and a request made before that
+// answer reaches KWin is applied first and undone by it. Measured on KWin
+// 6.6.6 with Xwayland 24.1 on 2026-09-21, polling the window every 10 ms
+// after such a request: 3840 x 2160, 1920 x 1080 at 17 ms, 3840 x 2160 at
+// 35 ms, and 1920 x 1080 again only at 3117 ms, when validation had failed
+// and its retry - restore, 250 ms, request again - had put it right. Most
+// preset changes and re-enables on 6.6 cost that retry, and the integration
+// test raced an 18 ms transient. restore() starts the wait and
+// emulatedModeChanged() ends it. A mode the client holds that is neither the
+// request nor being withdrawn, one it chose itself, is waited for the same
+// way; once that wait has run out the request is made regardless, and
+// validation says what became of it. KWin 6.3 never reads the property; there
+// the wait costs only the milliseconds the withdrawal takes.
+void UpscaleX11Resolution::ask(X11Window *window, const Request &request)
+{
     if (m_withdrawals.contains(window)) {
         return;
     }
     const std::optional<QSize> held = upscaleX11EmulatedMode(window, request.position);
-    if (held && *held != request.size) {
+    if (held && *held != request.size && !m_overdue.contains(window)) {
         awaitWithdrawal(window);
         return;
     }
+    m_overdue.remove(window);
     if (begin(request)) {
         upscaleX11Configure(window, request.position, request.size);
         qCDebug(KWIN_UPSCALE) << "Requested X11 buffer" << request.size << "from" << request.key;
@@ -434,30 +475,15 @@ void UpscaleX11Resolution::refuse(const QString &key, const QString &reason)
     }
 }
 
-// The client holds an emulated mode this effect has just asked it to give up,
-// or one of its own: nothing more is asked of it until the property Xwayland
-// keeps for it changes. Not indefinitely, because a client that keeps a mode
-// its window no longer has never withdraws it: after the validation window
-// the request is made regardless, and validation says what became of it. The
-// token keeps an earlier wait's timer from ending a later wait on the same
-// window.
-void UpscaleX11Resolution::awaitWithdrawal(X11Window *window)
-{
-    const int token = ++m_nextWithdrawal;
-    m_withdrawals.insert(window, token);
-    qCDebug(KWIN_UPSCALE) << "Waiting for" << keyFor(window) << "to withdraw its emulated mode";
-    const QPointer<X11Window> guarded = window;
-    QTimer::singleShot(3000, this, [this, guarded, token]() {
-        if (guarded && m_withdrawals.value(guarded) == token) {
-            m_withdrawals.remove(guarded);
-            schedule(guarded);
-        }
-    });
-}
-
+// Gives the window back at once, whether or not its client has answered the
+// request. release() is the way to give one back that respects the answer;
+// this is for the cases that cannot wait for it: the client left fullscreen
+// or stopped presenting, validation has judged the request, or this object
+// is going away with the effect.
 void UpscaleX11Resolution::restore(X11Window *window)
 {
     m_waitingForBuffer.remove(window);
+    m_releases.remove(window);
     const Request request = m_requests.take(window);
     if (!request.window) {
         return;

@@ -84,6 +84,7 @@ private Q_SLOTS:
     void retriesADroppedResizeOnce();
     void independentOutputRules();
     void matchesTheProgramBehindTheWindow();
+    void autoResizesAnUnmeasuredX11Window();
     void repeatedFullscreenTransitions();
 
 private:
@@ -186,8 +187,19 @@ void UpscaleX11IntegrationTest::lifecycle()
     // acknowledge fullscreen before checking the final monitor placement.
     QTRY_VERIFY_WITH_TIMEOUT(other.isFullscreen(), 10000);
     QTRY_COMPARE(other.geometry(), otherGeometry);
+    // The client's own resize is refused while the request stands, and the
+    // refusal is answered: the effect tells the client the size it really
+    // has, as ICCCM 4.1.5 asks of a window manager. The comparison waits for
+    // that answer, because a fixed delay only checked how fast KWin read the
+    // request: whenever it had not read it yet, the comparison passed on a
+    // window nothing had touched, and the request then reached KWin after
+    // the reconfiguration below had handed the window back. Measured on
+    // 2026-09-21 on KWin 6.6.6: KWin answered such a late request with the
+    // client geometry it had last configured, 1920 x 1080, and this client
+    // selected that mode again and kept it.
+    const int answered = target.configureNotifies();
     target.resize(QSize(1600, 900));
-    QTest::qWait(100);
+    QTRY_VERIFY_WITH_TIMEOUT(target.configureNotifies() > answered, 30000);
     QCOMPARE(target.geometry(), QRect(position, QSize(1920, 1080)));
     QCOMPARE(other.geometry(), otherGeometry);
     configure(true, Stored::Quality);
@@ -506,6 +518,26 @@ void UpscaleX11IntegrationTest::matchesTheProgramBehindTheWindow()
     UPSCALE_TRY_SETTLED();
     QTRY_VERIFY2(status().contains(QStringLiteral("not in the list")), qPrintable(status()));
     QVERIFY2(!status().contains(QStringLiteral("requested from")), qPrintable(status()));
+}
+
+// Auto on X11: an entry that states no method for the X11 fullscreen slot has
+// nobody's measurement there, which reads as Auto, and on X11 Auto is the
+// resize with its validation. The window is already there to be asked, and a
+// request that loses coverage is put back.
+void UpscaleX11IntegrationTest::autoResizesAnUnmeasuredX11Window()
+{
+    const KSharedConfig::Ptr catalogue = KSharedConfig::openConfig(QStringLiteral("kwinupscalerc"));
+    KConfigGroup entry(catalogue, QStringLiteral("Application-test"));
+    entry.deleteEntry("MethodX11FullScreen");
+    entry.sync();
+    X11Client target;
+    QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 3840, 2160)));
+    QTRY_VERIFY_WITH_TIMEOUT(target.isFullscreen(), 10000);
+    QTRY_COMPARE(target.geometry().size(), QSize(3840, 2160));
+    configure(true);
+    UPSCALE_TRY_SETTLED();
+    UPSCALE_TRY_GEOMETRY(target, QRect(0, 0, 1920, 1080));
+    QTRY_VERIFY2(status().contains(QStringLiteral("as its X11 window size")), qPrintable(status()));
 }
 
 QTEST_GUILESS_MAIN(UpscaleX11IntegrationTest)
