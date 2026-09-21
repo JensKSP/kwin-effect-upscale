@@ -1172,9 +1172,13 @@ is the Wine loader every Proton game shares.
   game's `_NET_WM_PID` has been observed. The measured values that are not
   stated are kept as comments.
 
-Open from this design: the editor showing which running windows a rule
-matches while it is written. It needs the effect to answer for every window
-rather than one, and is not implemented.
+Implemented later the same day: the editor shows which open windows an entry
+matches while it is written. The effect answers through a second method on
+the same D-Bus object, `windowsMatching()`, which takes the entry in the file's
+own keys, so an entry not yet stored can be asked about. The editor asks 300 ms
+after typing stops, one question at a time, and says nothing without the
+effect. Reordering is implemented too: Move Up and Move Down swap two entries
+and each keeps the Order of the place it takes.
 
 **Observed on 2026-09-21**, in the containers:
 
@@ -1273,17 +1277,23 @@ Planned checks, not observed results:
       number. Open: batch 3, the refusal and status texts the displays show;
       then the displays' own texts, the developer information and the method
       descriptions in reports.
-- [ ] Profile reordering in the editor.
+- [x] Profile reordering in the editor, 2026-09-21: Move Up and Move Down;
+      `reordersTheMatchingOrder` in the editor test.
 - [x] Match by executable path and by pattern, 2026-09-21, per
       [as implemented](#as-implemented-2026-09-21). Not yet observed on a real
       session: an X11 game's `_NET_WM_PID` resolving, and Steam's runtime.
-- [ ] Show in the editor which running windows a rule matches.
+- [x] Show in the editor which open windows an entry matches, 2026-09-21:
+      `identitycontrols.cpp` and the effect's `windowsMatching()`, tested on
+      both sides (`upscale-identity-controls`, and
+      `answersWhichWindowsAnEntryMatches` in the Wayland integration test).
 - [x] Read a previous release's global keys under their old meaning, 2026-09-21:
       `legacysettings.{h,cpp}`, read-side only.
 - [ ] Decide what the settings page shows a person whose stored `Enabled=false`
       is keeping every profile from acting.
-- [ ] Update the handbook's settings page, per-application overrides and
-      resolution-control sections to the implemented model.
+- [x] Update the handbook's settings page, per-application overrides and
+      resolution-control sections to the implemented model, 2026-09-21:
+      the settings page table, the two gates, reordering, the method slots
+      and Auto, and the catalogue.
 - [ ] Run acceptance tests, both compiler/container builds and TV checks.
 
 Observed documentation validation, 2026-09-18: `pre-commit run --all-files`

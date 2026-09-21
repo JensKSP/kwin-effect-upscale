@@ -11,8 +11,13 @@
 #include <KLocalizedString>
 
 #include <QComboBox>
+#include <QDBusConnection>
+#include <QDBusMessage>
+#include <QDBusPendingCallWatcher>
+#include <QDBusPendingReply>
 #include <QFormLayout>
 #include <QHBoxLayout>
+#include <QLabel>
 #include <QLineEdit>
 #include <QRegularExpression>
 
@@ -52,6 +57,16 @@ void UpscaleIdentityControls::build(QFormLayout *form, QWidget *parent)
     }
     m_fields[0].value->setToolTip(i18n("The program's full path. As a regular expression, .*/supertuxkart matches "
                                        "that program in any folder."));
+    m_matches = new QLabel(parent);
+    m_matches->setObjectName(QStringLiteral("applicationMatches"));
+    m_matches->setWordWrap(true);
+    m_matches->setTextFormat(Qt::PlainText);
+    m_matches->hide();
+    form->addRow(QString(), m_matches);
+    m_asking.setSingleShot(true);
+    m_asking.setInterval(300);
+    connect(&m_asking, &QTimer::timeout, this, &UpscaleIdentityControls::askForMatches);
+    connect(this, &UpscaleIdentityControls::changed, &m_asking, qOverload<>(&QTimer::start));
 }
 
 void UpscaleIdentityControls::show(const UpscaleApplication &application)
@@ -65,9 +80,10 @@ void UpscaleIdentityControls::show(const UpscaleApplication &application)
         m_fields[index].value->setText(values[index].first);
         m_fields[index].match->setCurrentIndex(int(values[index].second));
     }
+    m_asking.start();
 }
 
-void UpscaleIdentityControls::store(UpscaleApplication &application) const
+UpscaleStringMatch UpscaleIdentityControls::matchOf(std::size_t field) const
 {
     // The list's order, looked up rather than cast, so that no index can
     // name a match type that does not exist.
@@ -76,15 +92,59 @@ void UpscaleIdentityControls::store(UpscaleApplication &application) const
         UpscaleStringMatch::Substring,
         UpscaleStringMatch::RegularExpression,
     };
-    const auto match = [this](std::size_t index) {
-        return s_matches[std::size_t(std::clamp(m_fields[index].match->currentIndex(), 0, int(s_matches.size()) - 1))];
-    };
+    return s_matches[std::size_t(std::clamp(m_fields[field].match->currentIndex(), 0, int(s_matches.size()) - 1))];
+}
+
+void UpscaleIdentityControls::store(UpscaleApplication &application) const
+{
     application.executable = m_fields[0].value->text();
-    application.executableMatch = match(0);
+    application.executableMatch = matchOf(0);
     application.windowClass = m_fields[1].value->text();
-    application.windowClassMatch = match(1);
+    application.windowClassMatch = matchOf(1);
     application.instance = m_fields[2].value->text();
-    application.instanceMatch = match(2);
+    application.instanceMatch = matchOf(2);
+}
+
+QVariantMap UpscaleIdentityControls::entry() const
+{
+    const std::array<QString, 3> keys{QStringLiteral("Executable"), QStringLiteral("WindowClass"),
+                                      QStringLiteral("Instance")};
+    QVariantMap fields;
+    for (std::size_t index = 0; index < m_fields.size(); ++index) {
+        fields.insert(keys[index], m_fields[index].value->text());
+        fields.insert(keys[index] + QStringLiteral("Match"), upscaleStringMatchKey(matchOf(index)));
+    }
+    return fields;
+}
+
+void UpscaleIdentityControls::askForMatches()
+{
+    if (m_query) {
+        m_asking.start();
+        return;
+    }
+    QDBusMessage message = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
+                                                          QStringLiteral("/org/kde/KWin/Effect/Upscale1"),
+                                                          QStringLiteral("org.kde.KWin.Effect.Upscale1"),
+                                                          QStringLiteral("windowsMatching"));
+    message << entry();
+    m_query = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(message), this);
+    connect(m_query.data(), &QDBusPendingCallWatcher::finished, this, [this]() {
+        const QDBusPendingReply<QStringList> reply = *m_query;
+        m_query->deleteLater();
+        // No answer is not "no window": without the effect there is nobody to
+        // ask, and saying nothing is the honest report of that.
+        if (!reply.isValid() || !m_fields[0].value->isEnabled()) {
+            m_matches->hide();
+            return;
+        }
+        const QStringList captions = reply.value();
+        m_matches->setText(captions.isEmpty()
+                               ? i18n("No open window matches.")
+                               : i18np("Matches the open window “%2”.", "Matches %1 open windows: %2", captions.size(),
+                                       captions.join(i18nc("Between window titles", ", "))));
+        m_matches->show();
+    });
 }
 
 void UpscaleIdentityControls::setEnabled(bool enabled)
@@ -92,6 +152,10 @@ void UpscaleIdentityControls::setEnabled(bool enabled)
     for (const Field &field : m_fields) {
         field.value->setEnabled(enabled);
         field.match->setEnabled(enabled);
+    }
+    if (!enabled) {
+        m_asking.stop();
+        m_matches->hide();
     }
 }
 

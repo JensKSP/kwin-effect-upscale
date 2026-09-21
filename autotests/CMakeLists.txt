@@ -368,12 +368,14 @@ if(KWIN_BUILD_KCMS)
     # Exercise both the upstream form without project identity and the packaged
     # settings module, which compares the full identity reported by KWin. The
     # application editor is its own page and is tested once.
-    foreach(variant IN ITEMS config config-buildinfo application-editor)
+    foreach(variant IN ITEMS config config-buildinfo application-editor identity-controls)
         set(test_target "upscale_${variant}_test")
         if(variant STREQUAL "application-editor")
             # The stand-ins for KWin and the effect are QObjects, so moc reads
             # their header too.
             set(test_source application_editor_test.cpp editor_stand_ins.h)
+        elseif(variant STREQUAL "identity-controls")
+            set(test_source identity_controls_test.cpp editor_stand_ins.h)
         else()
             set(test_source config_test.cpp)
         endif()

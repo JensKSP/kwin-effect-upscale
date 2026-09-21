@@ -8,6 +8,8 @@
 
 #include <QObject>
 #include <QString>
+#include <QStringList>
+#include <QVariantMap>
 
 namespace KWin
 {
@@ -67,6 +69,18 @@ public:
 public Q_SLOTS:
     /** The executable path of the window with this internal ID, or empty. */
     QString executablePath(const QString &window) const;
+
+    /**
+     * The captions of the open windows an entry with these fields would match.
+     *
+     * The fields are named as the configuration file names them - Executable,
+     * ExecutableMatch, WindowClass, WindowClassMatch, Instance, InstanceMatch -
+     * so that the page can ask about an entry it has not stored yet. Matching
+     * is the effect's own, gates and all; an entry with no usable gate
+     * matches nothing. Asked when a person edits an entry, not per frame, so
+     * resolving each window's path here is affordable.
+     */
+    QStringList windowsMatching(const QVariantMap &entry) const;
 
 private:
     // The compositor the effect was loaded into, which knows the windows.

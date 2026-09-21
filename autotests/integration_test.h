@@ -29,6 +29,7 @@ private Q_SLOTS:
     void asksApplicationsForASmallerImage();
     void selectedBorderlessPresentation();
     void outputPixelPolicy();
+    void answersWhichWindowsAnEntryMatches();
 
 private:
     // The global resolution as kwinrc stores it. Spelled out here rather than

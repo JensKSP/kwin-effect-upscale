@@ -882,8 +882,10 @@ explicitly opts out of scaling. Disabling an entry removes it from matching, so
 its game falls through to the global profile, which is off by default; it is
 not a Native opt-out rule.
 
-Still required: ordering in the editor. A stored Order field already determines
-matching precedence.
+The list's order is the matching order, and **Move Up** and **Move Down**
+change it: a narrow entry has to come before a broad one it overlaps. Moving an
+entry stores a new Order for it and the one it changed places with, and for
+nothing else.
 
 **A profile is found by two gates.** Gate 1 is the program's executable path;
 gate 2 is the window's class and instance. Each field is compared the way
@@ -920,6 +922,11 @@ program, because KWin 6.3's picker does not name it, and states its exact path;
 for a shared runtime, or with the effect not loaded, it states the window's
 class and instance instead.
 
+While an entry is edited, the page shows which open windows it would match, so
+that an entry is made as broad or as narrow as intended rather than found out
+later. The effect answers, from its own matching; with the effect not loaded
+the page says nothing, because no answer is not the same as no window.
+
 The identity is resolved once per window, not per frame: the path when the
 window is first looked at, and the match again only when the list is read
 again or the window's class or instance changes. A window being moved or
@@ -934,8 +941,7 @@ layer must be able to change or remove one.
 
 Shipped entries and user changes are already stored this way, in
 `kwinupscalerc` with the defaults installed beside the session's other
-configuration defaults. Editor ordering remains open. The model, code reuse
-findings,
+configuration defaults. The model, code reuse findings,
 catalogue policy and required checks are in the
 [application profiles slice](agents/slice-application-profiles.md).
 

@@ -350,4 +350,34 @@ void UpscaleIntegrationTest::outputPixelPolicy()
     m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
 }
 
+// The settings page asks the effect which open windows an entry would match,
+// with the entry in the file's own terms. The answer comes from KWin's view of
+// the client: its program is this test's own executable, resolved from the
+// connection.
+void UpscaleIntegrationTest::answersWhichWindowsAnEntryMatches()
+{
+    const QDBusReply<bool> loaded = m_effects.call(QStringLiteral("loadEffect"), QStringLiteral("upscale_test_driver"));
+    QVERIFY(loaded.isValid() && loaded.value());
+    WaylandClient client;
+    QVERIFY(client.initialize());
+    QSocketNotifier notifier(client.descriptor(), QSocketNotifier::Read);
+    connect(&notifier, &QSocketNotifier::activated, this, [&client]() {
+        client.dispatch();
+    });
+    QVERIFY(client.show(QSize(64, 64)));
+    QDBusInterface effect(QStringLiteral("org.kde.KWin"), QStringLiteral("/org/kde/KWin/Effect/Upscale1"),
+                          QStringLiteral("org.kde.KWin.Effect.Upscale1"), QDBusConnection::sessionBus());
+    const auto matching = [&effect](const QString &executable) {
+        const QVariantMap entry{{QStringLiteral("Executable"), executable},
+                                {QStringLiteral("ExecutableMatch"), QStringLiteral("RegularExpression")}};
+        const QDBusReply<QStringList> reply = effect.call(QStringLiteral("windowsMatching"), entry);
+        return reply.isValid() ? reply.value() : QStringList{reply.error().message()};
+    };
+    QTRY_COMPARE(matching(QStringLiteral(".*/upscale_integration_test")), QStringList{QStringLiteral("Upscale integration test")});
+    QCOMPARE(matching(QStringLiteral(".*/another_program")), QStringList());
+    // An entry with an unusable pattern matches nothing, as it would in the list.
+    QCOMPARE(matching(QStringLiteral(".*")), QStringList());
+    m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
+}
+
 QTEST_GUILESS_MAIN(UpscaleIntegrationTest)

@@ -9,6 +9,7 @@
 #include <QDBusContext>
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QVariantMap>
 
 // KWin picks the window itself and hands back its identity. Only this private
@@ -58,11 +59,19 @@ class TestProgramLookup : public QObject
 public:
     QString path;
     QString askedFor;
+    QStringList windows;
+    QVariantMap entry;
 
 public Q_SLOTS:
     QString executablePath(const QString &window)
     {
         askedFor = window;
         return path;
+    }
+
+    QStringList windowsMatching(const QVariantMap &asked)
+    {
+        entry = asked;
+        return windows;
     }
 };

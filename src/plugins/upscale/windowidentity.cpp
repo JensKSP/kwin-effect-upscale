@@ -109,6 +109,33 @@ UpscaleIdentityService::UpscaleIdentityService(QObject *parent)
                                                  QDBusConnection::ExportAllSlots);
 }
 
+QStringList UpscaleIdentityService::windowsMatching(const QVariantMap &entry) const
+{
+    const auto field = [&entry](const char *key) {
+        return entry.value(QLatin1String(key)).toString();
+    };
+    const UpscaleGates gates{
+        UpscalePattern(field("Executable"), upscaleStringMatchFromKey(field("ExecutableMatch"))),
+        UpscalePattern(field("WindowClass"), upscaleStringMatchFromKey(field("WindowClassMatch"))),
+        UpscalePattern(field("Instance"), upscaleStringMatchFromKey(field("InstanceMatch"))),
+    };
+    QStringList captions;
+    if (!m_handler) {
+        return captions;
+    }
+    const QList<EffectWindow *> windows = m_handler->stackingOrder();
+    for (const EffectWindow *window : windows) {
+        const Window *internal = window->window();
+        if (!internal || internal->isDeleted() || !window->isNormalWindow()) {
+            continue;
+        }
+        if (gates.matches({upscaleExecutableOf(internal), internal->resourceClass(), internal->resourceName()})) {
+            captions.append(window->caption());
+        }
+    }
+    return captions;
+}
+
 QString UpscaleIdentityService::executablePath(const QString &window) const
 {
     const EffectWindow *found = m_handler ? m_handler->findWindow(QUuid::fromString(window)) : nullptr;

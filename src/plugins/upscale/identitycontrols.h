@@ -6,13 +6,20 @@
 
 #pragma once
 
+#include "pattern.h"
+
 #include <QObject>
+#include <QPointer>
 #include <QString>
+#include <QTimer>
+#include <QVariantMap>
 
 #include <array>
 
 class QComboBox;
+class QDBusPendingCallWatcher;
 class QFormLayout;
+class QLabel;
 class QLineEdit;
 class QWidget;
 
@@ -29,6 +36,12 @@ struct UpscaleApplication;
  * the value, with the same three names. An empty value constrains nothing,
  * which is what Window Rules calls "unimportant", so there is no fourth
  * choice.
+ *
+ * Below the fields it says which open windows the entry would match, as it is
+ * written: the narrow and the broad extreme are both the person's to choose,
+ * and seeing what an entry catches is how one chooses on purpose. The effect
+ * answers, over org.kde.KWin.Effect.Upscale1, because it holds the windows
+ * and the matching; without it loaded nothing is said.
  */
 class UpscaleIdentityControls : public QObject
 {
@@ -47,6 +60,11 @@ Q_SIGNALS:
     void changed();
 
 private:
+    UpscaleStringMatch matchOf(std::size_t field) const;
+    /** The fields, named as the configuration file names them. */
+    QVariantMap entry() const;
+    void askForMatches();
+
     struct Field
     {
         QLineEdit *value = nullptr;
@@ -54,6 +72,11 @@ private:
     };
     // Program, window class, window instance: the order of the form.
     std::array<Field, 3> m_fields{};
+    QLabel *m_matches = nullptr;
+    // Asked a moment after typing stops rather than on every key, and one
+    // question at a time: the answer to an older one is replaced by the next.
+    QTimer m_asking;
+    QPointer<QDBusPendingCallWatcher> m_query;
 };
 
 /**
