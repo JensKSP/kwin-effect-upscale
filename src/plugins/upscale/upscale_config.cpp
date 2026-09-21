@@ -48,6 +48,7 @@
 #include <QSignalBlocker>
 #include <QSlider>
 #include <QSpinBox>
+#include <QTabWidget>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -62,6 +63,7 @@ namespace KWin
 UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData &data)
     : KCModule(parent, data)
     , m_enabled(new QCheckBox(i18n("Upscale unlisted applications"), widget()))
+    , m_resolutionControl(new QCheckBox(i18n("Ask applications to render smaller"), widget()))
     , m_output(new QComboBox(widget()))
     , m_preset(new QComboBox(widget()))
     , m_percentage(new QSlider(Qt::Horizontal, widget()))
@@ -86,21 +88,60 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     m_preview->setObjectName(QStringLiteral("preview"));
     m_sharpening->setObjectName(QStringLiteral("sharpening"));
     m_strength->setObjectName(QStringLiteral("strength"));
-    // Grouped the way KWin's own effect pages group theirs: a box per topic
-    // with a form inside it, and each box titled in title case. What a person
-    // sets most comes first; what only some need, and what only informs,
-    // comes last.
+    m_resolutionControl->setObjectName(QStringLiteral("resolutionControl"));
+    QTabWidget *all = buildAllPanel();
+
+    // The page: the list with "All applications" first, then what this build
+    // is. Grouped the way KWin's own effect pages group theirs, a box per
+    // topic titled in title case.
     auto page = new QVBoxLayout(widget());
-    QList<QFormLayout *> forms;
-    const auto section = [this, page, &forms](const QString &title) {
+    const auto section = [this, page](const QString &title) {
         auto box = new QGroupBox(title, widget());
         page->addWidget(box);
-        auto form = new QFormLayout(box);
+        return new QFormLayout(box);
+    };
+    addApplicationControls(section(i18n("Applications")));
+    m_editor->setAllPanel(all);
+    addAboutControls(section(i18n("About")));
+    page->addStretch();
+    connectControls();
+    connect(qGuiApp, &QGuiApplication::screenAdded, this, &UpscaleEffectConfig::updateOutputs);
+    connect(qGuiApp, &QGuiApplication::screenRemoved, this, &UpscaleEffectConfig::updateOutputs);
+    updateOutputs();
+    UpscaleEffectConfig::load();
+}
+
+QTabWidget *UpscaleEffectConfig::buildAllPanel()
+{
+    // The global settings are a profile with no identity, and the page shows
+    // them as one: "All applications", the first entry of the list, with the
+    // same sections as a game's. Every application follows these values
+    // unless its own entry states one, so nothing of it is repeated anywhere
+    // else on the page.
+    auto all = new QTabWidget(widget());
+    all->setObjectName(QStringLiteral("allApplications"));
+    QList<QFormLayout *> forms;
+    const auto tab = [all, &forms](const QString &title) {
+        auto contents = new QWidget(all);
+        auto form = new QFormLayout(contents);
+        all->addTab(contents, title);
         forms.append(form);
         return form;
     };
 
-    QFormLayout *resolution = section(i18n("Resolution"));
+    QFormLayout *general = tab(i18n("General"));
+    auto explanation = new QLabel(i18n("Every application follows these settings unless its own entry sets them."), widget());
+    explanation->setWordWrap(true);
+    general->addRow(explanation);
+    // An empty label rather than none, so that the check box takes the shared
+    // label column's place, the way a game's Enabled does.
+    general->addRow(new QLabel(widget()), m_enabled);
+
+    QFormLayout *requests = tab(i18n("Resolution Request"));
+    requests->addRow(i18n("Resolution requests:"), m_resolutionControl);
+    addUnlistedControls(requests);
+
+    QFormLayout *resolution = tab(i18n("Resolution"));
     m_preset->addItems({i18n("Native"), i18n("Ultra Quality"), i18n("Quality"), i18n("Balanced"),
                         i18n("Performance"), i18n("Custom")});
     resolution->addRow(i18n("Render resolution:"), m_preset);
@@ -112,7 +153,7 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     resolution->addRow(QString(), m_preview);
     addThresholdControl(resolution);
 
-    QFormLayout *sharpening = section(i18n("Sharpening"));
+    QFormLayout *sharpening = tab(i18n("Sharpening"));
     sharpening->addRow(QString(), m_sharpening);
     m_strength->setRange(0, 100);
     // The value beside its slider, wide enough for the widest value so that
@@ -123,20 +164,9 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     strength->addWidget(m_strengthLabel);
     sharpening->addRow(i18n("Strength:"), strength);
 
-    // The list spans its box: its rows are the list and the editor beside
-    // it, which a label column would only narrow.
-    addApplicationControls(section(i18n("Applications")));
-    forms.removeLast();
-    addUnlistedControls(section(i18n("Unlisted Applications")));
-    addDisplayControls(section(i18n("On-Screen Display")));
-    addAboutControls(section(i18n("About")));
+    addDisplayControls(tab(i18n("On-Screen Display")));
     alignLabels(forms);
-    page->addStretch();
-    connectControls();
-    connect(qGuiApp, &QGuiApplication::screenAdded, this, &UpscaleEffectConfig::updateOutputs);
-    connect(qGuiApp, &QGuiApplication::screenRemoved, this, &UpscaleEffectConfig::updateOutputs);
-    updateOutputs();
-    UpscaleEffectConfig::load();
+    return all;
 }
 
 // The version this build calls itself and who wrote it, and nothing else: the
@@ -205,6 +235,9 @@ void UpscaleEffectConfig::connectControls()
         updatePreview();
         setNeedsSave(true);
     });
+    connect(m_resolutionControl, &QCheckBox::toggled, this, [this]() {
+        setNeedsSave(true);
+    });
     connect(m_sharpening, &QCheckBox::toggled, this, [this]() {
         updatePreview();
         setNeedsSave(true);
@@ -220,12 +253,14 @@ void UpscaleEffectConfig::connectControls()
 // so that a new package can deliver a corrected entry without touching what
 // the user changed. Its restore is therefore separate from this page's
 // Defaults, which restores the values above and leaves the list alone.
-// The switch for the global profile and the six answers it gives, together:
-// the answers are asked of a program only while unlisted programs are
-// handled, so they follow the switch rather than sitting apart from it.
+// The global profile's six answers, which unlike every other setting do not
+// reach the games in the list: a method is a measurement of one program, so a
+// game's unset slot means Automatic rather than this. They are asked of a
+// program only while unlisted programs are handled, and follow that switch.
 void UpscaleEffectConfig::addUnlistedControls(QFormLayout *layout)
 {
-    layout->addRow(QString(), m_enabled);
+    auto scope = new QLabel(i18n("For applications not in the list:"), widget());
+    layout->addRow(scope);
     // The global profile's own six answers, for a window no profile claimed.
     // Off throughout by default: nothing is known about how an unmeasured
     // program answers, so one asked anything may keep its own resolution or
@@ -261,53 +296,6 @@ void UpscaleEffectConfig::alignLabels(const QList<QFormLayout *> &forms)
     for (QLabel *label : std::as_const(labels)) {
         label->setMinimumWidth(widest);
     }
-}
-
-void UpscaleEffectConfig::addApplicationControls(QFormLayout *layout)
-{
-    m_editor = new UpscaleApplicationEditor(widget());
-    layout->addRow(m_editor);
-    connect(m_editor, &UpscaleApplicationEditor::changed, this, [this]() {
-        setNeedsSave(true);
-        updateApplicationSummary();
-    });
-
-    m_applications = new QLabel(widget());
-    m_applications->setObjectName(QStringLiteral("applicationSummary"));
-    m_applications->setTextFormat(Qt::PlainText);
-    m_applications->setWordWrap(true);
-    m_resetApplications = new QPushButton(i18n("Restore Defaults"), widget());
-    m_resetApplications->setObjectName(QStringLiteral("resetApplications"));
-    // What the list is, and the way back to the list the package ships.
-    auto status = new QHBoxLayout;
-    status->addWidget(m_applications, 1);
-    status->addWidget(m_resetApplications);
-    layout->addRow(status);
-    connect(m_resetApplications, &QPushButton::clicked, this, &UpscaleEffectConfig::resetApplications);
-    updateApplicationSummary();
-}
-
-void UpscaleEffectConfig::updateApplicationSummary()
-{
-    const bool customized = UpscaleApplicationEditor::customized();
-    m_applications->setText(customized
-                                ? i18n("Contains your changes.")
-                                : i18n("Default list, updated with each release."));
-    m_resetApplications->setEnabled(customized);
-}
-
-// The application list is a different kind of setting from the rest of this
-// page: it is a list the effect ships and the user edits, kept in its own file
-// so that a new package can deliver a corrected entry without touching what
-// the user changed. Its restore is therefore separate from this page's
-// Defaults, which restores the values above and leaves the list alone.
-void UpscaleEffectConfig::resetApplications()
-{
-    // A different file than Apply writes, and not recoverable afterwards, so
-    // the editor asks before doing it and does it at once.
-    m_editor->restoreDefaults();
-    updateApplicationSummary();
-    reconfigureEffect();
 }
 
 void UpscaleEffectConfig::updateOutputs()
@@ -380,6 +368,7 @@ void UpscaleEffectConfig::showSettings()
     // the previous release's key like every other global value on this page.
     const KConfigGroup global(UpscaleConfig::self()->config(), QStringLiteral("Effect-upscale"));
     m_enabled->setChecked(UpscaleConfig::unlistedApplications() || upscaleLegacyUnlisted(global));
+    m_resolutionControl->setChecked(UpscaleConfig::resolutionControl());
     m_percentage->setValue(UpscaleConfig::percentage());
     m_preset->setCurrentIndex(upscaleSettingInfo(UpscaleSetting::Resolution).global());
     upscaleSelectResolution(m_minimumPixels, UpscaleConfig::minimumPixels());
@@ -411,6 +400,7 @@ void UpscaleEffectConfig::showSettings()
 void UpscaleEffectConfig::applySettings()
 {
     UpscaleConfig::setUnlistedApplications(m_enabled->isChecked());
+    UpscaleConfig::setResolutionControl(m_resolutionControl->isChecked());
     UpscaleConfig::setResolution(m_preset->currentIndex());
     UpscaleConfig::setPercentage(m_percentage->value());
     UpscaleConfig::setMinimumPixels(upscaleResolutionPixels(m_minimumPixels, UpscaleConfig::minimumPixels()));

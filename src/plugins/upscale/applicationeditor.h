@@ -25,6 +25,7 @@ class QLineEdit;
 class QListWidget;
 class QPushButton;
 class QSpinBox;
+class QStackedWidget;
 class QVBoxLayout;
 
 namespace KWin
@@ -62,6 +63,28 @@ public:
     /** Whether the stored list differs from the one this build ships. */
     static bool customized();
 
+    /**
+     * The details shown for "All applications", the list's first row.
+     *
+     * The global settings are a profile with no identity, and the page shows
+     * them as one: pinned first, never moved or removed, and with the same
+     * sections as a game. The settings page builds the panel, because the
+     * values live in its configuration rather than in this list's file.
+     */
+    void setAllPanel(QWidget *panel);
+
+    /** Write the list as it stands, pending edits included, to @p path. */
+    bool exportTo(const QString &path) const;
+
+    /**
+     * Take the entries a file describes into the list, as edits to apply.
+     *
+     * An entry whose identifier the list already has replaces its fields, and
+     * any other is added; nothing is stored until the page is applied, like
+     * every other edit here. Returns how many entries the file described.
+     */
+    int importFrom(const QString &path);
+
 Q_SIGNALS:
     /** A field changed, so the settings page has something to apply. */
     void changed();
@@ -80,6 +103,8 @@ private:
     void deleteSelected();
     void moveSelected(int step);
     UpscaleApplication *selected();
+    // The row an entry is shown in: the first row is "All applications".
+    static int rowOf(std::size_t index);
 
     std::vector<UpscaleApplication> m_applications;
     // What each entry looked like when it was read, so that saving can store
@@ -88,6 +113,8 @@ private:
     std::vector<QString> m_removed;
 
     QListWidget *m_list;
+    // The game's tabs, and the panel for "All applications", one at a time.
+    QStackedWidget *m_details = nullptr;
     QLineEdit *m_name;
     UpscaleIdentityControls *m_identity;
     // The six measured answers, and the preferences this profile may state

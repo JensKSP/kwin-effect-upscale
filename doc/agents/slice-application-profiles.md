@@ -1275,6 +1275,21 @@ Planned checks, not observed results:
       below the list), the unlisted switch with its six methods, the scaler in
       About. It needed 1028 pixels and now fits 800. Awaiting Jens's review in
       System Settings.
+- [x] Show the global settings as the list's first entry, "All applications",
+      2026-09-21, decided by Jens: pinned, never moved or removed, no identity,
+      the same tabs as a game's, and no Global choice of its own. Its methods
+      apply only to applications not in the list and say so, because a game's
+      method never inherits: Automatic is an explicit choice. System
+      Settings' Defaults restores it and leaves the games alone; the list has
+      its own Restore Defaults, Export and Import. The global panel keeps the
+      page's richer controls - sliders, the screen preview, the resolution
+      list, the corner rule - which a game's tabs do not have yet. Tested in
+      `upscale-application-list`. New texts await the text review: "All
+      applications", "Every application follows these settings unless its own
+      entry sets them.", "For applications not in the list:", "Ask
+      applications to render smaller", "Export…", "Import…" and their dialogs.
+- [ ] Give a game's tabs the global panel's richer controls, with the Global
+      choice added.
 - [ ] Review every user-facing text with Jens against KDE's naming, one batch
       at a time. Batch 1, the settings page, agreed and applied on 2026-09-21:
       group boxes like KWin's own effect pages, the status block and its

@@ -811,11 +811,13 @@ resolution. What was requested is reported apart from what the application
 committed, and neither a saved preference nor a made request is ever presented
 as a successfully applied client resolution.
 
-The page is grouped the way KWin's own effect pages are, a titled box per
-topic with a form inside, and never a box inside a box: the profile editor's
-sections are tabs. All the boxes share one label column, labels against their
-fields and check boxes in the field column, so the page reads as one form, and
-it fits a settings page of 800 pixels. Its wording follows KDE's Human
+The page has two boxes, the way KWin's own effect pages group theirs: the
+application list and About. The global settings are not a section of their
+own but the list's first entry, so nothing on the page is shown twice and a
+game's settings read like the global ones with a Global choice added. Each
+entry's sections are tabs, which share one label column, labels against their
+fields and check boxes in the field column, and the page fits a settings page
+of 800 pixels. Its wording follows KDE's Human
 Interface Guidelines: title case for headings and push buttons, sentence case for
 labels, check boxes and tooltips, a colon after a form label, *screen* rather
 than *output*, and what a setting does rather than how it is done. The
@@ -823,12 +825,7 @@ wording was reviewed with Jens string by string on 2026-09-21.
 
 | Section | Controls |
 | --- | --- |
-| Resolution | **Render resolution:** Native, Ultra Quality, Quality, Balanced, Performance or Custom, AMD's own names. **Resolution scale:** the percentage, which selects Custom when moved off a preset's exact ratio. **Screen:** which connected screen the line below describes, followed by the render size in pixels and its share, or why nothing would happen. **Upscale on screens larger than:** the resolution limit, offered as the resolutions of the connected screens and the common ones, and **Any screen**. |
-| Sharpening | **Sharpen the image**, off by default, and **Strength:** with its value beside the slider, where zero is shown as **Off** because it is a real bypass rather than the weakest setting. |
-| Applications | The list, in matching order, with **Add**, **Add from Window…**, **Remove** and arrows that move an entry up or down. Below it the selected entry's details, in tabs named like this page's groups - **Identification**, **Resolution Request**, **Resolution**, **Sharpening** and **On-Screen Display** - with its six measured methods and a **Global** choice for every preference that names the value it follows, for example **Global (Quality)**; the identity fields say which open windows the entry matches. Then whether the list still follows the package, and **Restore Defaults**, which is separate from the page's own Defaults. |
-| Unlisted Applications | **Upscale unlisted applications**, the global profile's own switch: off by default, and never a switch that stops the listed games; the overall off switch is KWin's Desktop Effects entry. Under it the global profile's six methods, offered only while the switch is on. |
-| On-Screen Display | **Show info at startup**, with **Include details**, **Show startup info for:** in seconds, and **Startup info position:**; **Show frame rate** and **Frame rate position:**; **Show developer information** and **Developer information position:**; each display set a little apart from the next. No two displays share a corner. |
-| About | **Version:** exactly as the version rule names the build, **Scaler:** AMD FSR 1, shown as a fact until a second scaler exists, and **Author:**, read from the effect's metadata. |
+| Applications | The list, in matching order, with **All applications** pinned first: the global settings, shown as a profile with no identity, in the same tabs as a game's. Its **General** tab holds **Upscale unlisted applications**, the global profile's own switch, off by default and never a switch that stops the listed games; its **Resolution Request** tab **Resolution requests:** and the six methods, which apply only to applications not in the list, because a game's unset method means Automatic; **Resolution** holds the render resolution, the resolution scale, a screen and the size it would render there, and the resolution limit; **Sharpening** and **On-Screen Display** the rest, with no two displays sharing a corner. A game's tabs hold its identity, its six measured methods and a **Global (…)** choice for every preference, naming the value from **All applications** it would follow. **Add**, **Add from Window…**, **Remove** and two arrows edit the list; **Export…** and **Import…** move it as a file in `kwinupscalerc`'s format, an import being an edit that Apply stores; **Restore Defaults** returns the games to the list the package ships. System Settings' own **Defaults** restores **All applications** and leaves the games alone. |
 
 The page does not report what the running effect is doing: Jens decided on
 2026-09-21 that status and a refresh button do not belong in settings. That

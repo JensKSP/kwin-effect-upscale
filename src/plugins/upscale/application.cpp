@@ -12,6 +12,8 @@
 #include <KConfigGroup>
 #include <KLocalizedString>
 
+#include <QFile>
+
 #include <algorithm>
 #include <ranges>
 
@@ -312,10 +314,9 @@ static void writeField(KConfigGroup &group, const char *key, const QString &valu
     }
 }
 
-void upscaleSaveApplication(const UpscaleApplication &application, const UpscaleApplication &original)
+static void writeApplication(KConfigGroup &group, const UpscaleApplication &application,
+                             const UpscaleApplication &original)
 {
-    const KSharedConfig::Ptr config = upscaleApplicationConfig();
-    KConfigGroup group(config, applicationGroupPrefix + application.id);
     writeField(group, "Name", application.name, original.name);
     writeField(group, "Executable", application.executable, original.executable);
     writeField(group, "ExecutableMatch", upscaleStringMatchKey(application.executableMatch),
@@ -348,6 +349,36 @@ void upscaleSaveApplication(const UpscaleApplication &application, const Upscale
     if (!application.shipped && !application.note.isEmpty() && application.note != original.note) {
         group.writeEntry("Note", application.note);
     }
+}
+
+void upscaleSaveApplication(const UpscaleApplication &application, const UpscaleApplication &original)
+{
+    const KSharedConfig::Ptr config = upscaleApplicationConfig();
+    KConfigGroup group(config, applicationGroupPrefix + application.id);
+    writeApplication(group, application, original);
+}
+
+bool upscaleWriteApplicationFile(const std::vector<UpscaleApplication> &applications, const QString &path)
+{
+    QFile::remove(path);
+    KConfig file(path, KConfig::SimpleConfig);
+    for (const UpscaleApplication &application : applications) {
+        // Every field, against an entry that states nothing, so that the file
+        // stands on its own: whoever reads it has no package of ours beneath
+        // it, or a different one. A shipped entry's description travels too.
+        UpscaleApplication complete = application;
+        complete.shipped = false;
+        KConfigGroup group(&file, applicationGroupPrefix + application.id);
+        writeApplication(group, complete, UpscaleApplication{});
+    }
+    return file.sync();
+}
+
+std::vector<UpscaleApplication> upscaleReadApplicationFile(const QString &path)
+{
+    const KSharedConfig::Ptr file = KSharedConfig::openConfig(path, KConfig::SimpleConfig);
+    file->reparseConfiguration();
+    return readApplications(file);
 }
 
 void upscaleDeleteApplication(const QString &id)

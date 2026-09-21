@@ -493,17 +493,17 @@ void UpscaleApplicationEditorTest::reordersTheMatchingOrder()
     auto *list = editor->findChild<QListWidget *>(QStringLiteral("applicationList"));
     auto *up = editor->findChild<QPushButton *>(QStringLiteral("applicationMoveUp"));
     auto *down = editor->findChild<QPushButton *>(QStringLiteral("applicationMoveDown"));
-    QVERIFY(list && up && down && list->count() > 2);
-    const QString first = list->item(0)->text();
-    const QString second = list->item(1)->text();
-    list->setCurrentRow(0);
+    QVERIFY(list && up && down && list->count() > 3);
+    // The first row is "All applications", which nothing moves above.
+    const QString first = list->item(1)->text();
+    const QString second = list->item(2)->text();
+    list->setCurrentRow(1);
     QVERIFY(!up->isEnabled());
     QVERIFY(down->isEnabled());
-
     down->click();
-    QCOMPARE(list->currentRow(), 1);
-    QCOMPARE(list->item(0)->text(), second);
-    QCOMPARE(list->item(1)->text(), first);
+    QCOMPARE(list->currentRow(), 2);
+    QCOMPARE(list->item(1)->text(), second);
+    QCOMPARE(list->item(2)->text(), first);
     QVERIFY(module.needsSave());
     module.save();
     const std::vector<KWin::UpscaleApplication> &stored = KWin::upscaleApplications();

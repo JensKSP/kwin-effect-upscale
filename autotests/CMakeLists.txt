@@ -366,19 +366,25 @@ if(KWIN_BUILD_KCMS)
         ../src/plugins/upscale/settings.cpp
         ../src/plugins/upscale/legacysettings.cpp
         ../src/plugins/upscale/applicationeditor.cpp
+        ../src/plugins/upscale/applicationeditor_window.cpp
         ../src/plugins/upscale/settingcontrols.cpp
         ../src/plugins/upscale/identitycontrols.cpp
         ../src/plugins/upscale/methodcontrols.cpp
         ../src/plugins/upscale/placement.cpp
         ../src/plugins/upscale/upscale_config.cpp
         ../src/plugins/upscale/displaycontrols.cpp
+        ../src/plugins/upscale/applicationcontrols.cpp
         ../src/plugins/upscale/resolutionchoice.cpp
     )
     kconfig_add_kcfg_files(settings_module_SOURCES ../src/plugins/upscale/upscaleconfig.kcfgc)
     # Exercise both the upstream form without project identity and the packaged
     # settings module, which compares the full identity reported by KWin. The
     # application editor is its own page and is tested once.
-    foreach(variant IN ITEMS config config-buildinfo application-editor identity-controls)
+    foreach(
+        variant
+        IN
+        ITEMS config config-buildinfo application-editor identity-controls application-list
+    )
         set(test_target "upscale_${variant}_test")
         if(variant STREQUAL "application-editor")
             # The stand-ins for KWin and the effect are QObjects, so moc reads
@@ -386,6 +392,8 @@ if(KWIN_BUILD_KCMS)
             set(test_source application_editor_test.cpp editor_stand_ins.h)
         elseif(variant STREQUAL "identity-controls")
             set(test_source identity_controls_test.cpp editor_stand_ins.h)
+        elseif(variant STREQUAL "application-list")
+            set(test_source application_list_test.cpp)
         else()
             set(test_source config_test.cpp)
         endif()

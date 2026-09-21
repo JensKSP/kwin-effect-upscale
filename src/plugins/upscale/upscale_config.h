@@ -22,6 +22,7 @@ class QLabel;
 class QPushButton;
 class QSlider;
 class QSpinBox;
+class QTabWidget;
 
 namespace KWin
 {
@@ -51,8 +52,12 @@ private:
     void addThresholdControl(QFormLayout *layout);
     void addApplicationControls(QFormLayout *layout);
     void addUnlistedControls(QFormLayout *layout);
+    /** "All applications": the global settings, in the tabs a game's entry has. */
+    QTabWidget *buildAllPanel();
     static void alignLabels(const QList<QFormLayout *> &forms);
     void resetApplications();
+    void exportApplications();
+    void importApplications();
     static void reconfigureEffect();
     void updateApplicationSummary();
     void addAboutControls(QFormLayout *layout);
@@ -60,6 +65,7 @@ private:
     static QString installedVersion();
 
     QCheckBox *m_enabled;
+    QCheckBox *m_resolutionControl;
     QComboBox *m_output;
     QComboBox *m_preset;
     QSlider *m_percentage;

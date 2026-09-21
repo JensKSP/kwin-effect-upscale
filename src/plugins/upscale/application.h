@@ -130,6 +130,20 @@ void upscaleRestoreApplications();
 void upscaleSaveApplication(const UpscaleApplication &application, const UpscaleApplication &original);
 
 /**
+ * Write @p applications to the file at @p path, every field of each, replacing
+ * the file. The format is kwinupscalerc's own, so the file can be read back
+ * with upscaleReadApplicationFile() or dropped in as someone's own list.
+ */
+bool upscaleWriteApplicationFile(const std::vector<UpscaleApplication> &applications, const QString &path);
+
+/**
+ * The applications a file at @p path describes, read exactly as the list is:
+ * an entry that constrains no identity is dropped, and a previous release's
+ * keys are read under their old meaning.
+ */
+std::vector<UpscaleApplication> upscaleReadApplicationFile(const QString &path);
+
+/**
  * Remove one application the user added.
  *
  * An application the effect ships cannot be removed, because the next package

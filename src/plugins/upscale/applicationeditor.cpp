@@ -26,13 +26,16 @@
 #include <QPushButton>
 #include <QScopedValueRollback>
 #include <QSpinBox>
+#include <QStackedWidget>
 #include <QTabWidget>
 #include <QVBoxLayout>
 
 #include <algorithm>
 #include <array>
 #include <limits>
+#include <numeric>
 #include <ranges>
+#include <tuple>
 #include <utility>
 
 namespace KWin
@@ -62,7 +65,9 @@ void UpscaleApplicationEditor::buildDetails(QVBoxLayout *details)
     m_note->setTextFormat(Qt::PlainText);
     auto *tabs = new QTabWidget(this);
     tabs->setObjectName(QStringLiteral("applicationDetails"));
-    details->addWidget(tabs);
+    m_details = new QStackedWidget(this);
+    m_details->addWidget(tabs);
+    details->addWidget(m_details);
     QFormLayout *identification = addTab(tabs, i18n("Identification"));
     identification->addRow(i18n("Name:"), m_name);
     m_identity->build(identification, this);
@@ -94,9 +99,9 @@ void UpscaleApplicationEditor::connectControls()
         if (m_updating) {
             return;
         }
-        const int row = m_list->row(item);
-        if (row >= 0 && size_t(row) < m_applications.size()) {
-            m_applications[row].enabled = item->checkState() == Qt::Checked;
+        const int index = m_list->row(item) - rowOf(0);
+        if (index >= 0 && size_t(index) < m_applications.size()) {
+            m_applications[index].enabled = item->checkState() == Qt::Checked;
             showSelected();
             Q_EMIT changed();
         }
@@ -203,6 +208,13 @@ void UpscaleApplicationEditor::rebuildList()
     const QScopedValueRollback updating(m_updating, true);
     const int row = m_list->currentRow();
     m_list->clear();
+    // Not checkable: whether the global profile acts is its own switch, with
+    // a label that says what it means, in the panel it shows.
+    auto *all = new QListWidgetItem(i18n("All applications"), m_list);
+    all->setFlags(all->flags() & ~Qt::ItemIsUserCheckable);
+    QFont emphasis = all->font();
+    emphasis.setBold(true);
+    all->setFont(emphasis);
     for (const UpscaleApplication &application : m_applications) {
         // The name and nothing else. Where an entry came from is answered
         // where it matters - the note under the fields says "Added by you",
@@ -212,14 +224,25 @@ void UpscaleApplicationEditor::rebuildList()
         item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
         item->setCheckState(application.enabled ? Qt::Checked : Qt::Unchecked);
     }
-    m_list->setCurrentRow(m_applications.empty() ? -1 : std::clamp(row, 0, int(m_applications.size()) - 1));
+    m_list->setCurrentRow(std::clamp(row, 0, m_list->count() - 1));
+    showSelected();
+}
+
+int UpscaleApplicationEditor::rowOf(std::size_t index)
+{
+    return int(index) + 1;
+}
+
+void UpscaleApplicationEditor::setAllPanel(QWidget *panel)
+{
+    m_details->addWidget(panel);
     showSelected();
 }
 
 UpscaleApplication *UpscaleApplicationEditor::selected()
 {
-    const int row = m_list->currentRow();
-    return row >= 0 && size_t(row) < m_applications.size() ? &m_applications[row] : nullptr;
+    const int index = m_list->currentRow() - rowOf(0);
+    return index >= 0 && size_t(index) < m_applications.size() ? &m_applications[index] : nullptr;
 }
 
 void UpscaleApplicationEditor::showSelected()
@@ -227,14 +250,17 @@ void UpscaleApplicationEditor::showSelected()
     const QScopedValueRollback updating(m_updating, true);
     const UpscaleApplication *application = selected();
     const bool valid = application != nullptr;
+    // "All applications" shows its own panel; any other row a game's tabs.
+    m_details->setCurrentIndex(!valid && m_details->count() > 1 ? 1 : 0);
     m_name->setEnabled(valid);
     m_enabled->setEnabled(valid);
     m_identity->setEnabled(valid);
     // An entry this build ships comes back with the next package, so removing
     // it would not remove anything. Switching it off is what persists.
     m_delete->setEnabled(valid && !application->shipped);
+    // Nothing moves above "All applications", which is not a match to order.
     const int row = m_list->currentRow();
-    m_up->setEnabled(valid && row > 0);
+    m_up->setEnabled(valid && row > rowOf(0));
     m_down->setEnabled(valid && row + 1 < m_list->count());
     if (!valid) {
         m_note->clear();
@@ -300,96 +326,14 @@ void UpscaleApplicationEditor::addApplication()
     m_applications.push_back(application);
     m_original.push_back(UpscaleApplication{});
     rebuildList();
-    m_list->setCurrentRow(int(m_applications.size()) - 1);
-    m_name->setFocus();
-    Q_EMIT changed();
-}
-
-void UpscaleApplicationEditor::addFromWindow()
-{
-    if (m_selecting || m_programQuery) {
-        return;
-    }
-    m_selecting = true;
-    // Keep the settings event loop responsive during KWin's interactive picker.
-    // The watcher is owned by this editor; closing it cancels our reply handler.
-    // KWin performs the selection itself, for native and X11 windows alike.
-    const QDBusMessage message = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"), QStringLiteral("/KWin"),
-                                                                QStringLiteral("org.kde.KWin"), QStringLiteral("queryWindowInfo"));
-    auto *watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(message, 60000), this);
-    connect(watcher, &QDBusPendingCallWatcher::finished, this, [this, watcher]() {
-        const QDBusPendingReply<QVariantMap> reply = *watcher;
-        watcher->deleteLater();
-        m_selecting = false;
-        if (!reply.isValid()) {
-            // Cancelling the selection is an error reply, and not a failure worth
-            // a dialog. Anything else is worth saying out loud.
-            if (reply.error().name() != QLatin1String("org.kde.KWin.Error.UserCancel")) {
-                QMessageBox::warning(this, i18n("Add from Window"),
-                                     i18n("The window could not be identified: %1", reply.error().message()));
-            }
-            return;
-        }
-        m_picked = reply.value();
-        askForProgram();
-    });
-}
-
-void UpscaleApplicationEditor::askForProgram()
-{
-    // KWin's answer names the window but, in 6.3, not its process. The effect
-    // can ask KWin for that, so the page asks the effect; without the effect
-    // loaded nobody answers, and the window's identity is all there is to go
-    // on.
-    QDBusMessage message = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
-                                                          QStringLiteral("/org/kde/KWin/Effect/Upscale1"),
-                                                          QStringLiteral("org.kde.KWin.Effect.Upscale1"),
-                                                          QStringLiteral("executablePath"));
-    message << m_picked.value(QStringLiteral("uuid")).toString();
-    m_programQuery = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(message), this);
-    connect(m_programQuery.data(), &QDBusPendingCallWatcher::finished, this, [this]() {
-        const QDBusPendingReply<QString> executable = *m_programQuery;
-        m_programQuery->deleteLater();
-        addIdentified(m_picked, executable.isValid() ? executable.value() : QString());
-    });
-}
-
-void UpscaleApplicationEditor::addIdentified(const QVariantMap &information, const QString &executable)
-{
-    const QString windowClass = information.value(QStringLiteral("resourceClass")).toString();
-    const QString instance = information.value(QStringLiteral("resourceName")).toString();
-    UpscaleApplication application;
-    // The exact path names this copy of this program, and it is what a
-    // Wayland game is found by before its window exists. A runtime many games
-    // share names none of them, and neither does a path that did not resolve;
-    // then the window's identity is what names the game.
-    if (upscaleIdentifiesOneProgram(executable)) {
-        application.executable = executable;
-    } else {
-        application.windowClass = windowClass;
-        application.instance = instance;
-    }
-    if (application.executable.isEmpty() && application.windowClass.isEmpty() && application.instance.isEmpty()) {
-        QMessageBox::warning(this, i18n("Add from Window"), i18n("The window does not identify its application."));
-        return;
-    }
-    application.name = windowClass;
-    if (application.name.isEmpty()) {
-        application.name = instance.isEmpty() ? executable.section(QLatin1Char('/'), -1) : instance;
-    }
-    application.id = upscaleNewApplicationId(application.name, m_applications);
-    application.order = m_applications.empty() ? 100 : m_applications.back().order + 10;
-    m_applications.push_back(application);
-    m_original.push_back(UpscaleApplication{});
-    rebuildList();
-    m_list->setCurrentRow(int(m_applications.size()) - 1);
+    m_list->setCurrentRow(rowOf(m_applications.size() - 1));
     m_name->setFocus();
     Q_EMIT changed();
 }
 
 void UpscaleApplicationEditor::moveSelected(int step)
 {
-    const int row = m_list->currentRow();
+    const int row = m_list->currentRow() - rowOf(0);
     const int target = row + step;
     if (row < 0 || target < 0 || size_t(row) >= m_applications.size() || size_t(target) >= m_applications.size()) {
         return;
@@ -408,13 +352,13 @@ void UpscaleApplicationEditor::moveSelected(int step)
         }
     }
     rebuildList();
-    m_list->setCurrentRow(target);
+    m_list->setCurrentRow(rowOf(target));
     Q_EMIT changed();
 }
 
 void UpscaleApplicationEditor::deleteSelected()
 {
-    const int row = m_list->currentRow();
+    const int row = m_list->currentRow() - rowOf(0);
     if (row < 0 || size_t(row) >= m_applications.size() || m_applications[row].shipped) {
         return;
     }
@@ -436,7 +380,7 @@ bool UpscaleApplicationEditor::save()
         return !upscaleIdentityProblem(application).isEmpty();
     });
     if (unusable != m_applications.end()) {
-        m_list->setCurrentRow(int(std::ranges::distance(m_applications.begin(), unusable)));
+        m_list->setCurrentRow(rowOf(std::size_t(std::ranges::distance(m_applications.begin(), unusable))));
         const bool statesNothing =
             unusable->executable.isEmpty() && unusable->windowClass.isEmpty() && unusable->instance.isEmpty();
         QMessageBox::warning(this, i18n("Applications"),
@@ -456,6 +400,51 @@ bool UpscaleApplicationEditor::save()
     upscaleSyncApplications();
     load();
     return true;
+}
+
+bool UpscaleApplicationEditor::exportTo(const QString &path) const
+{
+    return upscaleWriteApplicationFile(m_applications, path);
+}
+
+int UpscaleApplicationEditor::importFrom(const QString &path)
+{
+    const std::vector<UpscaleApplication> imported = upscaleReadApplicationFile(path);
+    for (UpscaleApplication entry : imported) {
+        const auto existing = std::ranges::find(m_applications, entry.id, &UpscaleApplication::id);
+        if (existing == m_applications.end()) {
+            m_applications.push_back(entry);
+            m_original.push_back(UpscaleApplication{});
+            continue;
+        }
+        // The file's values replace the entry's; what the package says about
+        // it stays, so that saving stores only where the two now differ.
+        entry.shipped = existing->shipped;
+        if (entry.note.isEmpty()) {
+            entry.note = existing->note;
+        }
+        *existing = entry;
+    }
+    // In matching order again, the pairs of entry and original kept together.
+    std::vector<std::size_t> order(m_applications.size());
+    std::ranges::iota(order, std::size_t(0));
+    std::ranges::stable_sort(order, [this](std::size_t first, std::size_t second) {
+        return std::tie(m_applications[first].order, m_applications[first].id)
+            < std::tie(m_applications[second].order, m_applications[second].id);
+    });
+    std::vector<UpscaleApplication> applications;
+    std::vector<UpscaleApplication> originals;
+    for (const std::size_t index : order) {
+        applications.push_back(m_applications[index]);
+        originals.push_back(m_original[index]);
+    }
+    m_applications = std::move(applications);
+    m_original = std::move(originals);
+    rebuildList();
+    if (!imported.empty()) {
+        Q_EMIT changed();
+    }
+    return int(imported.size());
 }
 
 bool UpscaleApplicationEditor::customized()
