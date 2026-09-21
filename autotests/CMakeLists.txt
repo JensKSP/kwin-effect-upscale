@@ -366,6 +366,7 @@ if(KWIN_BUILD_KCMS)
         ../src/plugins/upscale/settings.cpp
         ../src/plugins/upscale/legacysettings.cpp
         ../src/plugins/upscale/applicationeditor.cpp
+        ../src/plugins/upscale/applicationeditor_details.cpp
         ../src/plugins/upscale/applicationeditor_window.cpp
         ../src/plugins/upscale/settingcontrols.cpp
         ../src/plugins/upscale/identitycontrols.cpp
@@ -375,6 +376,8 @@ if(KWIN_BUILD_KCMS)
         ../src/plugins/upscale/displaycontrols.cpp
         ../src/plugins/upscale/applicationcontrols.cpp
         ../src/plugins/upscale/resolutionchoice.cpp
+        ../src/plugins/upscale/resolutionpreview.cpp
+        ../src/plugins/upscale/sliderfield.cpp
     )
     kconfig_add_kcfg_files(settings_module_SOURCES ../src/plugins/upscale/upscaleconfig.kcfgc)
     # Exercise both the upstream form without project identity and the packaged

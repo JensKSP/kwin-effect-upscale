@@ -9,7 +9,9 @@
 #include "legacysettings.h"
 #include "methodcontrols.h"
 #include "resolutionchoice.h"
+#include "resolutionpreview.h"
 #include "settings.h"
+#include "sliderfield.h"
 
 #include "application.h"
 #include "applicationeditor.h"
@@ -44,7 +46,6 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
-#include <QScreen>
 #include <QSignalBlocker>
 #include <QSlider>
 #include <QSpinBox>
@@ -53,8 +54,6 @@
 
 #include <algorithm>
 
-#include <limits>
-
 K_PLUGIN_FACTORY(UpscaleEffectConfigFactory, registerPlugin<KWin::UpscaleEffectConfig>();)
 
 namespace KWin
@@ -62,16 +61,12 @@ namespace KWin
 
 UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData &data)
     : KCModule(parent, data)
-    , m_enabled(new QCheckBox(i18n("Upscale unlisted applications"), widget()))
-    , m_resolutionControl(new QCheckBox(i18n("Ask applications to render smaller"), widget()))
-    , m_output(new QComboBox(widget()))
     , m_preset(new QComboBox(widget()))
     , m_percentage(new QSlider(Qt::Horizontal, widget()))
     , m_minimumPixels(new QComboBox(widget()))
-    , m_preview(new QLabel(widget()))
+    , m_preview(new UpscaleResolutionPreview(this))
     , m_sharpening(new QCheckBox(i18n("Sharpen the image"), widget()))
     , m_strength(new QSlider(Qt::Horizontal, widget()))
-    , m_strengthLabel(new QLabel(widget()))
     , m_osdDetection(new QCheckBox(i18n("Show info at startup"), widget()))
     , m_osdSummary(new QCheckBox(i18n("Include details"), widget()))
     , m_osdStatistics(new QCheckBox(i18n("Show frame rate"), widget()))
@@ -82,13 +77,10 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     , m_osdTimeout(new QSpinBox(widget()))
     , m_build(new QLabel(widget()))
 {
-    m_enabled->setObjectName(QStringLiteral("enabled"));
     m_preset->setObjectName(QStringLiteral("preset"));
     m_percentage->setObjectName(QStringLiteral("percentage"));
-    m_preview->setObjectName(QStringLiteral("preview"));
     m_sharpening->setObjectName(QStringLiteral("sharpening"));
     m_strength->setObjectName(QStringLiteral("strength"));
-    m_resolutionControl->setObjectName(QStringLiteral("resolutionControl"));
     QTabWidget *all = buildAllPanel();
 
     // The page: the list with "All applications" first, then what this build
@@ -102,12 +94,19 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     };
     addApplicationControls(section(i18n("Applications")));
     m_editor->setAllPanel(all);
+    // One label column for "All applications" and a game's tabs alike, so
+    // that moving between tabs or entries moves no field.
+    alignLabels(m_editor->findChildren<QFormLayout *>());
     addAboutControls(section(i18n("About")));
     page->addStretch();
     connectControls();
-    connect(qGuiApp, &QGuiApplication::screenAdded, this, &UpscaleEffectConfig::updateOutputs);
-    connect(qGuiApp, &QGuiApplication::screenRemoved, this, &UpscaleEffectConfig::updateOutputs);
-    updateOutputs();
+    // A screen plugged in or unplugged changes which resolutions this system
+    // is showing, and the limit offers those first.
+    for (const auto signal : {&QGuiApplication::screenAdded, &QGuiApplication::screenRemoved}) {
+        connect(qGuiApp, signal, this, [this]() {
+            upscaleFillResolutions(m_minimumPixels);
+        });
+    }
     UpscaleEffectConfig::load();
 }
 
@@ -117,55 +116,50 @@ QTabWidget *UpscaleEffectConfig::buildAllPanel()
     // them as one: "All applications", the first entry of the list, with the
     // same sections as a game's. Every application follows these values
     // unless its own entry states one, so nothing of it is repeated anywhere
-    // else on the page.
+    // else on the page. Whether it acts at all is its check box in the list,
+    // as it is for every other entry.
     auto all = new QTabWidget(widget());
     all->setObjectName(QStringLiteral("allApplications"));
-    QList<QFormLayout *> forms;
-    const auto tab = [all, &forms](const QString &title) {
+    const auto tab = [all](const QString &title) {
         auto contents = new QWidget(all);
         auto form = new QFormLayout(contents);
         all->addTab(contents, title);
-        forms.append(form);
         return form;
     };
 
-    QFormLayout *general = tab(i18n("General"));
-    auto explanation = new QLabel(i18n("Every application follows these settings unless its own entry sets them."), widget());
-    explanation->setWordWrap(true);
-    general->addRow(explanation);
-    // An empty label rather than none, so that the check box takes the shared
-    // label column's place, the way a game's Enabled does.
-    general->addRow(new QLabel(widget()), m_enabled);
-
     QFormLayout *requests = tab(i18n("Resolution Request"));
-    requests->addRow(i18n("Resolution requests:"), m_resolutionControl);
     addUnlistedControls(requests);
 
     QFormLayout *resolution = tab(i18n("Resolution"));
     m_preset->addItems({i18n("Native"), i18n("Ultra Quality"), i18n("Quality"), i18n("Balanced"),
                         i18n("Performance"), i18n("Custom")});
     resolution->addRow(i18n("Render resolution:"), m_preset);
-    m_percentage->setRange(50, 100);
-    m_percentage->setSingleStep(1);
-    resolution->addRow(i18n("Resolution scale:"), m_percentage);
-    resolution->addRow(i18n("Screen:"), m_output);
-    m_preview->setWordWrap(true);
-    resolution->addRow(QString(), m_preview);
+    // In basis points, which can name 66.67 %, the share that renders
+    // 2560 × 1440 on a 3840 × 2160 screen; see resolutionRatio(). A step is
+    // still a whole percent, and the slider snaps to the scales that render a
+    // resolution people know on the largest screen.
+    m_percentage->setRange(5000, 10000);
+    m_percentage->setSingleStep(100);
+    m_percentage->setPageStep(1000);
+    m_scale = new UpscaleSliderField(m_percentage, widget(), 100);
+    m_scale->field()->setObjectName(QStringLiteral("percentageValue"));
+    m_scale->field()->setSuffix(i18nc("Suffix: a share of the screen's resolution", "%"));
+    resolution->addRow(i18n("Resolution scale:"), m_scale->layout());
+    m_preview->build(resolution, widget(), QStringLiteral("preview"));
     addThresholdControl(resolution);
 
     QFormLayout *sharpening = tab(i18n("Sharpening"));
     sharpening->addRow(QString(), m_sharpening);
     m_strength->setRange(0, 100);
-    // The value beside its slider, wide enough for the widest value so that
-    // moving the slider does not move the slider.
-    m_strengthLabel->setMinimumWidth(m_strengthLabel->fontMetrics().horizontalAdvance(i18nc("sharpening strength", "%1%", 100)));
-    auto strength = new QHBoxLayout;
-    strength->addWidget(m_strength, 1);
-    strength->addWidget(m_strengthLabel);
-    sharpening->addRow(i18n("Strength:"), strength);
+    m_strengthField = new UpscaleSliderField(m_strength, widget(), 1);
+    m_strengthField->field()->setObjectName(QStringLiteral("strengthValue"));
+    m_strengthField->field()->setSuffix(i18nc("Suffix: a share of the sharpening's full strength", "%"));
+    // Zero is a real bypass rather than the weakest setting, so it is named as
+    // one instead of being shown as a percentage.
+    m_strengthField->field()->setSpecialValueText(i18nc("sharpening strength", "Off"));
+    sharpening->addRow(i18n("Strength:"), m_strengthField->layout());
 
     addDisplayControls(tab(i18n("On-Screen Display")));
-    alignLabels(forms);
     return all;
 }
 
@@ -221,7 +215,6 @@ void UpscaleEffectConfig::addThresholdControl(QFormLayout *layout)
 
 void UpscaleEffectConfig::connectControls()
 {
-    connect(m_output, &QComboBox::currentIndexChanged, this, &UpscaleEffectConfig::updatePreview);
     connect(m_preset, &QComboBox::currentIndexChanged, this, [this]() {
         updatePreview();
         setNeedsSave(true);
@@ -231,11 +224,8 @@ void UpscaleEffectConfig::connectControls()
         updatePreview();
         setNeedsSave(true);
     });
-    connect(m_enabled, &QCheckBox::toggled, this, [this]() {
+    connect(m_editor, &UpscaleApplicationEditor::allEnabledChanged, this, [this]() {
         updatePreview();
-        setNeedsSave(true);
-    });
-    connect(m_resolutionControl, &QCheckBox::toggled, this, [this]() {
         setNeedsSave(true);
     });
     connect(m_sharpening, &QCheckBox::toggled, this, [this]() {
@@ -256,7 +246,8 @@ void UpscaleEffectConfig::connectControls()
 // The global profile's six answers, which unlike every other setting do not
 // reach the games in the list: a method is a measurement of one program, so a
 // game's unset slot means Automatic rather than this. They are asked of a
-// program only while unlisted programs are handled, and follow that switch.
+// program only while "All applications" is checked, and stay editable while it
+// is not, so that they can be set before it is.
 void UpscaleEffectConfig::addUnlistedControls(QFormLayout *layout)
 {
     auto scope = new QLabel(i18n("For applications not in the list:"), widget());
@@ -273,10 +264,10 @@ void UpscaleEffectConfig::addUnlistedControls(QFormLayout *layout)
     });
 }
 
-// One label column for the whole page, as a single form would have. Each group
-// box lays out a form of its own, and left alone each would align its labels
-// to its own longest one, so the fields would start at a different place in
-// every box.
+// One label column for the whole page, as a single form would have. Each tab
+// lays out a form of its own, and left alone each would align its labels to
+// its own longest one, so the fields would start at a different place in
+// every tab.
 void UpscaleEffectConfig::alignLabels(const QList<QFormLayout *> &forms)
 {
     QList<QLabel *> labels;
@@ -298,68 +289,55 @@ void UpscaleEffectConfig::alignLabels(const QList<QFormLayout *> &forms)
     }
 }
 
-void UpscaleEffectConfig::updateOutputs()
-{
-    const QString selected = m_output->currentText();
-    m_output->clear();
-    const auto screens = QGuiApplication::screens();
-    for (QScreen *screen : screens) {
-        m_output->addItem(screen->name());
-        connect(screen, &QScreen::geometryChanged, this, &UpscaleEffectConfig::updatePreview, Qt::UniqueConnection);
-        connect(screen, &QScreen::physicalDotsPerInchChanged, this, &UpscaleEffectConfig::updatePreview, Qt::UniqueConnection);
-    }
-    const int previous = m_output->findText(selected);
-    if (previous >= 0) {
-        m_output->setCurrentIndex(previous);
-    }
-    // A screen plugged in or unplugged changes which resolutions this system
-    // is showing, and the threshold offers those first.
-    upscaleFillResolutions(m_minimumPixels);
-    updatePreview();
-}
-
+// Everything on the page that follows another control: the scale follows the
+// preset, the preview both and the limit, and every game's Global choices
+// follow the lot.
+//
+// Nothing here is greyed out by a switch being off. Every value on this panel
+// is a default a game takes when it switches on what the global profile
+// leaves off - a game that sharpens takes this strength, one that shows the
+// frame rate takes this corner - so each has to stay editable whatever the
+// global switches say.
 void UpscaleEffectConfig::updatePreview()
 {
-    const auto screens = QGuiApplication::screens();
-    const int index = m_output->currentIndex();
-    if (index >= 0 && index < screens.size()) {
-        const QScreen *screen = screens[index];
-        const QSize pixels = (screen->geometry().size() * screen->devicePixelRatio());
-        const auto preset = static_cast<ResolutionPreset>(m_preset->currentIndex());
-        const double ratio = resolutionRatio(preset, m_percentage->value());
-        const UpscaleSize desired = desiredResolution({pixels.width(), pixels.height()}, preset, m_percentage->value());
+    const auto preset = static_cast<ResolutionPreset>(m_preset->currentIndex());
+    if (preset != ResolutionPreset::Custom) {
         const QSignalBlocker blocker(m_percentage);
-        if (preset != ResolutionPreset::Custom) {
-            m_percentage->setValue(qRound(ratio * 100));
-        }
-        m_preview->setText(preset == ResolutionPreset::Native
-                               ? i18n("Games render at full resolution and are not upscaled.")
-                               : i18nc("render resolution, then its share of the screen", "%2 × %3 (%1%)",
-                                       QString::number(ratio * 100, 'f', preset == ResolutionPreset::Custom || preset == ResolutionPreset::Native || preset == ResolutionPreset::Performance ? 0 : 1),
-                                       desired.width, desired.height));
-        if (!exceedsMinimumPixels({pixels.width(), pixels.height()}, upscaleResolutionPixels(m_minimumPixels, UpscaleConfig::minimumPixels()))) {
-            m_preview->setText(i18n("Not upscaled: this screen is at or below the resolution limit."));
-        }
+        m_percentage->setValue(qRound(resolutionRatio(preset, m_percentage->value()) * 10000));
+        m_scale->showSliderValue();
     }
-    m_strength->setEnabled(m_sharpening->isChecked());
-    m_strengthLabel->setEnabled(m_sharpening->isChecked());
-    if (m_methods) {
-        m_methods->setEnabled(m_enabled->isChecked());
+    const UpscaleScreen largest = upscaleLargestScreen();
+    m_scale->setSnapPoints(upscaleSnapScales(largest.pixels), m_percentage->singleStep());
+    m_percentage->setToolTip(i18n("Share of the screen's width and height the game renders at. Snaps to the "
+                                  "common resolutions of %1.",
+                                  largest.name));
+    m_preview->show(preset, m_percentage->value(), upscaleResolutionPixels(m_minimumPixels, UpscaleConfig::minimumPixels()));
+    if (m_editor) {
+        m_editor->setGlobalSettings(shownSettings());
     }
-    // Zero is a real bypass rather than the weakest setting, so it is named as
-    // one instead of being shown as a percentage.
-    m_strengthLabel->setText(m_strength->value() == 0 ? i18nc("sharpening strength", "Off")
-                                                      : i18nc("sharpening strength", "%1%", m_strength->value()));
-    // Each of the four displays is its own switch, so a control is enabled by
-    // the display it belongs to and by nothing above it. Turning all four off
-    // is what leaves nothing on screen; there is no separate way to say it.
-    // A corner is worth choosing only while the display that would occupy it
-    // is switched on. Each box follows its own display and nothing else.
-    const bool announcing = m_osdDetection->isChecked() || m_osdSummary->isChecked();
-    m_osdTimeout->setEnabled(announcing);
-    m_osdAnnouncementPosition->setEnabled(announcing);
-    m_osdStatisticsPosition->setEnabled(m_osdStatistics->isChecked());
-    m_osdDeveloperPosition->setEnabled(m_osdDeveloper->isChecked());
+}
+
+// What a game's Global choices name, which is what "All applications" shows
+// rather than what was last applied: a person who changes the preset there
+// and then looks at a game expects the game to follow the new one.
+UpscaleSettings UpscaleEffectConfig::shownSettings() const
+{
+    UpscaleSettings settings = upscaleGlobalSettings();
+    settings.setActs(m_editor->allEnabled());
+    settings.setValue(UpscaleSetting::Resolution, m_preset->currentIndex());
+    settings.setValue(UpscaleSetting::Percentage, m_percentage->value());
+    settings.setValue(UpscaleSetting::MinimumPixels, upscaleResolutionPixels(m_minimumPixels, UpscaleConfig::minimumPixels()));
+    settings.setValue(UpscaleSetting::Sharpening, m_sharpening->isChecked());
+    settings.setValue(UpscaleSetting::Strength, m_strength->value());
+    settings.setValue(UpscaleSetting::OsdDetection, m_osdDetection->isChecked());
+    settings.setValue(UpscaleSetting::OsdSummary, m_osdSummary->isChecked());
+    settings.setValue(UpscaleSetting::OsdStatistics, m_osdStatistics->isChecked());
+    settings.setValue(UpscaleSetting::OsdDeveloper, m_osdDeveloper->isChecked());
+    settings.setValue(UpscaleSetting::OsdTimeout, m_osdTimeout->value());
+    settings.setValue(UpscaleSetting::AnnouncementPosition, m_osdAnnouncementPosition->currentIndex());
+    settings.setValue(UpscaleSetting::StatisticsPosition, m_osdStatisticsPosition->currentIndex());
+    settings.setValue(UpscaleSetting::DeveloperPosition, m_osdDeveloperPosition->currentIndex());
+    return settings;
 }
 
 void UpscaleEffectConfig::showSettings()
@@ -367,9 +345,8 @@ void UpscaleEffectConfig::showSettings()
     // The global profile's own participation, read through the translation of
     // the previous release's key like every other global value on this page.
     const KConfigGroup global(UpscaleConfig::self()->config(), QStringLiteral("Effect-upscale"));
-    m_enabled->setChecked(UpscaleConfig::unlistedApplications() || upscaleLegacyUnlisted(global));
-    m_resolutionControl->setChecked(UpscaleConfig::resolutionControl());
-    m_percentage->setValue(UpscaleConfig::percentage());
+    m_editor->setAllEnabled(UpscaleConfig::unlistedApplications() || upscaleLegacyUnlisted(global));
+    m_percentage->setValue(qRound(UpscaleConfig::percentage() * 100));
     m_preset->setCurrentIndex(upscaleSettingInfo(UpscaleSetting::Resolution).global());
     upscaleSelectResolution(m_minimumPixels, UpscaleConfig::minimumPixels());
     m_sharpening->setChecked(UpscaleConfig::sharpening());
@@ -399,10 +376,9 @@ void UpscaleEffectConfig::showSettings()
 
 void UpscaleEffectConfig::applySettings()
 {
-    UpscaleConfig::setUnlistedApplications(m_enabled->isChecked());
-    UpscaleConfig::setResolutionControl(m_resolutionControl->isChecked());
+    UpscaleConfig::setUnlistedApplications(m_editor->allEnabled());
     UpscaleConfig::setResolution(m_preset->currentIndex());
-    UpscaleConfig::setPercentage(m_percentage->value());
+    UpscaleConfig::setPercentage(m_percentage->value() / 100.0);
     UpscaleConfig::setMinimumPixels(upscaleResolutionPixels(m_minimumPixels, UpscaleConfig::minimumPixels()));
     UpscaleConfig::setSharpening(m_sharpening->isChecked());
     UpscaleConfig::setStrength(m_strength->value());

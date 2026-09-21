@@ -186,8 +186,7 @@ static bool upscaleX11ResizeWanted(const UpscaleApplication &application, const 
         return false;
     }
     const UpscaleSettings settings = upscaleResolveSettings(&application);
-    if (!settings.acts() || !settings.switchedOn(UpscaleSetting::ResolutionControl)
-        || settings.resolution() == ResolutionPreset::Native) {
+    if (!settings.acts() || settings.resolution() == ResolutionPreset::Native) {
         return false;
     }
     const UpscaleMethod method = application.methods[std::size_t(presentation)];

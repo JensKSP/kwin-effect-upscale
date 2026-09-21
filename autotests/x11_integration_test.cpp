@@ -108,14 +108,21 @@ QString UpscaleX11IntegrationTest::status()
     return reply.isValid() ? reply.value() : reply.error().message();
 }
 
-// The window under test is claimed by the catalogue entry init() writes, so
-// the global profile's own participation does not decide whether it acts.
-// The entry states no resolution, so the global one reaches it.
+// The window under test is claimed by the catalogue entry init() writes while
+// @p enabled, so the global profile's own participation does not decide
+// whether it acts. Switching the entry off is how a case stops the requests:
+// the effect then acts on the window no more, which is the same condition the
+// request path tests, and the case's own edits to the entry stay as they are.
+// The entry states no resolution, so the global one each case sets reaches it.
 void UpscaleX11IntegrationTest::configure(bool enabled, Stored resolution)
 {
+    const KSharedConfig::Ptr catalogue = KSharedConfig::openConfig(QStringLiteral("kwinupscalerc"));
+    catalogue->reparseConfiguration();
+    KConfigGroup entry(catalogue, QStringLiteral("Application-test"));
+    entry.writeEntry("Enabled", enabled);
+    entry.sync();
     const KSharedConfig::Ptr config = KSharedConfig::openConfig(QStringLiteral("kwinrc"));
     KConfigGroup group(config, QStringLiteral("Effect-upscale"));
-    group.writeEntry("ResolutionControl", enabled);
     group.writeEntry("Osd", false);
     group.writeEntry("Resolution", int(resolution));
     group.writeEntry("MinimumPixels", 1920 * 1080);
@@ -136,6 +143,7 @@ void UpscaleX11IntegrationTest::init()
                             "MethodX11FullScreen=X11Resize\nMethodX11Borderless=X11Resize\n")
             > 0);
     catalogue.close();
+    KSharedConfig::openConfig(QStringLiteral("kwinupscalerc"))->reparseConfiguration();
     const QDBusReply<bool> loaded = m_effects.call(QStringLiteral("loadEffect"), QStringLiteral("upscale_test_driver"));
     QVERIFY(loaded.isValid() && loaded.value());
     configure(false);

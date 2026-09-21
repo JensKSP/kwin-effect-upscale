@@ -79,12 +79,14 @@ void UpscaleEffectConfig::addDisplayControls(QFormLayout *layout)
     }
     connect(m_osdTimeout, &QSpinBox::valueChanged, this, [this, unit](int seconds) {
         unit(seconds);
+        updatePreview();
         setNeedsSave(true);
     });
     const std::array<QComboBox *, 3> positions = positionControls();
     for (std::size_t display = 0; display < positions.size(); ++display) {
         connect(positions[display], &QComboBox::currentIndexChanged, this, [this, display]() {
             takeCorner(display);
+            updatePreview();
             setNeedsSave(true);
         });
     }

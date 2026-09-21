@@ -7,16 +7,11 @@
 #include "applicationeditor.h"
 
 #include "matching.h"
+#include "resolutionpreview.h"
 
 #include <KLocalizedString>
 
 #include <QCheckBox>
-#include <QComboBox>
-#include <QDBusConnection>
-#include <QDBusMessage>
-#include <QDBusPendingCallWatcher>
-#include <QDBusPendingReply>
-#include <QFormLayout>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QLabel>
@@ -25,14 +20,11 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QScopedValueRollback>
-#include <QSpinBox>
 #include <QStackedWidget>
-#include <QTabWidget>
 #include <QVBoxLayout>
 
 #include <algorithm>
 #include <array>
-#include <limits>
 #include <numeric>
 #include <ranges>
 #include <tuple>
@@ -41,55 +33,6 @@
 namespace KWin
 {
 
-// The lists this file used to carry - every method, every preset, and a label
-// for each - live in the tables now. A profile's fields are built from those
-// rather than written out here, which is what keeps this file able to take
-// another setting without passing the size limit.
-
-// One tab of the details. The editor sits inside the page's own Applications
-// box, and boxes inside a box are frames within frames; tabs keep the same
-// sections, show one at a time, and keep the editor as short as its list.
-static QFormLayout *addTab(QTabWidget *tabs, const QString &title)
-{
-    auto *page = new QWidget(tabs);
-    auto *form = new QFormLayout(page);
-    tabs->addTab(page, title);
-    return form;
-}
-
-// Sectioned as the settings page is, so that a game's form reads like the
-// global one with a Global choice added to each preference.
-void UpscaleApplicationEditor::buildDetails(QVBoxLayout *details)
-{
-    m_note->setWordWrap(true);
-    m_note->setTextFormat(Qt::PlainText);
-    auto *tabs = new QTabWidget(this);
-    tabs->setObjectName(QStringLiteral("applicationDetails"));
-    m_details = new QStackedWidget(this);
-    m_details->addWidget(tabs);
-    details->addWidget(m_details);
-    QFormLayout *identification = addTab(tabs, i18n("Identification"));
-    identification->addRow(i18n("Name:"), m_name);
-    m_identity->build(identification, this);
-    identification->addRow(QString(), m_enabled);
-    identification->addRow(QString(), m_note);
-    QFormLayout *requests = addTab(tabs, i18n("Resolution Request"));
-    m_settings->build(requests, this, {UpscaleSetting::ResolutionControl});
-    // What to ask for, per way the game can present itself. No Global choice
-    // here: a method is a measurement of this program and has nothing to
-    // inherit from anything else.
-    m_methods->build(requests, this);
-    // And what the user wants, every entry of which may follow the global
-    // value instead.
-    m_settings->build(addTab(tabs, i18n("Resolution")), this,
-                      {UpscaleSetting::Resolution, UpscaleSetting::Percentage, UpscaleSetting::MinimumPixels});
-    m_settings->build(addTab(tabs, i18n("Sharpening")), this, {UpscaleSetting::Sharpening, UpscaleSetting::Strength});
-    m_settings->build(addTab(tabs, i18n("On-Screen Display")), this,
-                      {UpscaleSetting::OsdDetection, UpscaleSetting::OsdSummary, UpscaleSetting::OsdStatistics,
-                       UpscaleSetting::OsdDeveloper, UpscaleSetting::OsdTimeout, UpscaleSetting::AnnouncementPosition,
-                       UpscaleSetting::StatisticsPosition, UpscaleSetting::DeveloperPosition});
-}
-
 void UpscaleApplicationEditor::connectControls()
 {
     connect(m_list, &QListWidget::currentRowChanged, this, [this]() {
@@ -97,6 +40,11 @@ void UpscaleApplicationEditor::connectControls()
     });
     connect(m_list, &QListWidget::itemChanged, this, [this](QListWidgetItem *item) {
         if (m_updating) {
+            return;
+        }
+        if (m_list->row(item) == 0) {
+            m_allEnabled = item->checkState() == Qt::Checked;
+            Q_EMIT allEnabledChanged(m_allEnabled);
             return;
         }
         const int index = m_list->row(item) - rowOf(0);
@@ -130,6 +78,7 @@ UpscaleApplicationEditor::UpscaleApplicationEditor(QWidget *parent)
     , m_identity(new UpscaleIdentityControls(this))
     , m_methods(new UpscaleMethodControls(this))
     , m_settings(new UpscaleSettingControls(this))
+    , m_preview(new UpscaleResolutionPreview(this))
     , m_enabled(new QCheckBox(i18nc("An application profile takes part in matching", "Enabled"), this))
     , m_note(new QLabel(this))
 {
@@ -208,10 +157,15 @@ void UpscaleApplicationEditor::rebuildList()
     const QScopedValueRollback updating(m_updating, true);
     const int row = m_list->currentRow();
     m_list->clear();
-    // Not checkable: whether the global profile acts is its own switch, with
-    // a label that says what it means, in the panel it shows.
+    // Checkable like every other row, with the same meaning: whether it acts
+    // for the windows it claims, which for the global profile are those no
+    // other entry matches. The tooltip says so, because the name alone
+    // suggests a switch for everything.
     auto *all = new QListWidgetItem(i18n("All applications"), m_list);
-    all->setFlags(all->flags() & ~Qt::ItemIsUserCheckable);
+    all->setFlags(all->flags() | Qt::ItemIsUserCheckable);
+    all->setCheckState(m_allEnabled ? Qt::Checked : Qt::Unchecked);
+    all->setToolTip(i18n("Every application follows these settings unless its own entry sets them. "
+                         "Checked, applications that are not in the list are upscaled as well."));
     QFont emphasis = all->font();
     emphasis.setBold(true);
     all->setFont(emphasis);
@@ -233,6 +187,20 @@ int UpscaleApplicationEditor::rowOf(std::size_t index)
     return int(index) + 1;
 }
 
+bool UpscaleApplicationEditor::allEnabled() const
+{
+    return m_allEnabled;
+}
+
+void UpscaleApplicationEditor::setAllEnabled(bool enabled)
+{
+    m_allEnabled = enabled;
+    const QScopedValueRollback updating(m_updating, true);
+    if (QListWidgetItem *all = m_list->item(0)) {
+        all->setCheckState(enabled ? Qt::Checked : Qt::Unchecked);
+    }
+}
+
 void UpscaleApplicationEditor::setAllPanel(QWidget *panel)
 {
     m_details->addWidget(panel);
@@ -243,74 +211,6 @@ UpscaleApplication *UpscaleApplicationEditor::selected()
 {
     const int index = m_list->currentRow() - rowOf(0);
     return index >= 0 && size_t(index) < m_applications.size() ? &m_applications[index] : nullptr;
-}
-
-void UpscaleApplicationEditor::showSelected()
-{
-    const QScopedValueRollback updating(m_updating, true);
-    const UpscaleApplication *application = selected();
-    const bool valid = application != nullptr;
-    // "All applications" shows its own panel; any other row a game's tabs.
-    m_details->setCurrentIndex(!valid && m_details->count() > 1 ? 1 : 0);
-    m_name->setEnabled(valid);
-    m_enabled->setEnabled(valid);
-    m_identity->setEnabled(valid);
-    // An entry this build ships comes back with the next package, so removing
-    // it would not remove anything. Switching it off is what persists.
-    m_delete->setEnabled(valid && !application->shipped);
-    // Nothing moves above "All applications", which is not a match to order.
-    const int row = m_list->currentRow();
-    m_up->setEnabled(valid && row > rowOf(0));
-    m_down->setEnabled(valid && row + 1 < m_list->count());
-    if (!valid) {
-        m_note->clear();
-        return;
-    }
-    m_name->setText(application->name);
-    m_identity->show(*application);
-    m_methods->show(application->methods);
-    m_settings->show(application->overrides, upscaleGlobalSettings());
-    m_enabled->setChecked(application->enabled);
-    showNote(*application);
-}
-
-void UpscaleApplicationEditor::showNote(const UpscaleApplication &application)
-{
-    // An entry that can never match says so where it is being edited, before
-    // anything else about it: nothing else it says applies while it cannot.
-    // One that is only incomplete says what it lacks, in the same place.
-    QString problem = upscaleIdentityProblem(application);
-    if (problem.isEmpty()) {
-        problem = upscaleAdvertisementProblem(application);
-    }
-    if (!problem.isEmpty()) {
-        m_note->setText(problem);
-    } else {
-        m_note->setText(application.shipped ? application.note : i18n("Added by you."));
-    }
-}
-
-void UpscaleApplicationEditor::applyToSelected()
-{
-    if (m_updating) {
-        return;
-    }
-    UpscaleApplication *application = selected();
-    if (!application) {
-        return;
-    }
-    application->name = m_name->text();
-    m_identity->store(*application);
-    showNote(*application);
-    m_methods->store(application->methods);
-    m_settings->store(application->overrides);
-    application->enabled = m_enabled->isChecked();
-    const QScopedValueRollback updating(m_updating, true);
-    if (QListWidgetItem *item = m_list->currentItem()) {
-        item->setText(application->name);
-        item->setCheckState(application->enabled ? Qt::Checked : Qt::Unchecked);
-    }
-    Q_EMIT changed();
 }
 
 void UpscaleApplicationEditor::addApplication()

@@ -35,7 +35,7 @@ namespace KWin
 // can be taken back, so this is where Auto asks and where it stops asking.
 static double autoRatio(EffectWindow *window, const UpscaleApplication *claimed, const UpscaleSettings &settings)
 {
-    if (!settings.acts() || !settings.switchedOn(UpscaleSetting::ResolutionControl)) {
+    if (!settings.acts()) {
         return 1.0;
     }
     const UpscalePresentation presentation = upscalePresentationOf(window);

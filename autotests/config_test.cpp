@@ -6,7 +6,9 @@
 
 #include "buildtype.h"
 #include "placement.h"
+#include "resolution.h"
 #include "resolutionchoice.h"
+#include "sliderfield.h"
 #include "upscale_config.h"
 
 #include "settings_fixture.h"
@@ -22,6 +24,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDBusConnection>
+#include <QDoubleSpinBox>
 #include <QLabel>
 #include <QPushButton>
 #include <QRegularExpression>
@@ -53,6 +56,7 @@ class UpscaleConfigTest : public QObject
 
 private Q_SLOTS:
     void presetsAndKeyboard();
+    void snapsToKnownResolutions();
     void saveAndRestore();
     void displayDefaults();
     void installedBuildVersion();
@@ -87,22 +91,58 @@ void UpscaleConfigTest::presetsAndKeyboard()
     preset->setCurrentIndex(0);
     QVERIFY2(preview->text().contains(QStringLiteral("full resolution")), qPrintable(preview->text()));
     preset->setCurrentIndex(2);
-    QCOMPARE(percentage->value(), 67);
-    QVERIFY(preview->text().contains(QStringLiteral("66.7%")));
+    // In basis points: Quality is two thirds, 66.67 %, which a whole percent
+    // could not say. The field beside the slider shows it as a percentage.
+    QCOMPARE(percentage->value(), 6667);
+    auto *value = module.widget()->findChild<QDoubleSpinBox *>(QStringLiteral("percentageValue"));
+    QVERIFY(value);
+    QCOMPARE(value->value(), 66.67);
+    // One line per screen, saying what a game renders at there.
     const QScreen *screen = QGuiApplication::screens().constFirst();
     const QSize output = screen->geometry().size() * screen->devicePixelRatio();
-    QVERIFY2(preview->text().contains(QStringLiteral("%1 × %2").arg(qRound(output.width() / 1.5)).arg(qRound(output.height() / 1.5))), qPrintable(preview->text()));
+    QVERIFY2(preview->text().contains(QStringLiteral("renders at %1 × %2").arg(qRound(output.width() / 1.5)).arg(qRound(output.height() / 1.5))),
+             qPrintable(preview->text()));
     QTest::keyClick(percentage, Qt::Key_Right);
-    // Moving the slider off a preset's exact ratio is choosing Custom.
+    // Moving the slider off a preset's exact ratio is choosing Custom, and a
+    // step lands on a whole percent.
     QCOMPARE(preset->currentIndex(), 5);
-    QCOMPARE(percentage->value(), 68);
-    QVERIFY(preview->text().contains(QStringLiteral("68%")));
-    percentage->setValue(50);
+    QCOMPARE(percentage->value(), 6800);
+    QCOMPARE(value->value(), 68.0);
+    // Typed, the value is exact.
+    value->setValue(72.35);
+    QCOMPARE(percentage->value(), 7235);
+    percentage->setValue(5000);
     QTest::keyClick(percentage, Qt::Key_Left);
-    QCOMPARE(percentage->value(), 50);
-    percentage->setValue(100);
+    QCOMPARE(percentage->value(), 5000);
+    percentage->setValue(10000);
     QTest::keyClick(percentage, Qt::Key_Right);
-    QCOMPARE(percentage->value(), 100);
+    QCOMPARE(percentage->value(), 10000);
+}
+
+// The slider stops at the scales that render a resolution people know, on
+// the largest screen, and moves in whole percents between them.
+void UpscaleConfigTest::snapsToKnownResolutions()
+{
+    const QList<int> scales = KWin::upscaleSnapScales(QSize(3840, 2160));
+    for (const int scale : {5000, 5333, 6667, 7500, 8333, 10000}) {
+        QVERIFY2(scales.contains(scale), qPrintable(QString::number(scale)));
+    }
+    QCOMPARE(KWin::desiredResolution({3840, 2160}, KWin::ResolutionPreset::Custom, 6667), (KWin::UpscaleSize{2560, 1440}));
+    QWidget parent;
+    auto *slider = new QSlider(Qt::Horizontal, &parent);
+    slider->setRange(5000, 10000);
+    slider->setSingleStep(100);
+    auto *field = new KWin::UpscaleSliderField(slider, &parent, 100);
+    field->setSnapPoints(scales, 100);
+    slider->setValue(6600);
+    QTest::keyClick(slider, Qt::Key_Right);
+    QCOMPARE(slider->value(), 6667);
+    QCOMPARE(field->field()->value(), 66.67);
+    QTest::keyClick(slider, Qt::Key_Right);
+    QCOMPARE(slider->value(), 6800);
+    // Typing is never snapped.
+    field->field()->setValue(66.5);
+    QCOMPARE(slider->value(), 6650);
 }
 
 void UpscaleConfigTest::saveAndRestore()
@@ -119,8 +159,10 @@ void UpscaleConfigTest::saveAndRestore()
     QVERIFY(sharpening);
     QVERIFY(strength);
     QVERIFY(!sharpening->isChecked());
-    QVERIFY(!strength->isEnabled());
-    percentage->setValue(73);
+    // Editable while sharpening is off: it is the strength a game that
+    // sharpens takes from here.
+    QVERIFY(strength->isEnabled());
+    percentage->setValue(7300);
     QComboBox *minimum = module.widget()->findChild<QComboBox *>(QStringLiteral("minimumPixels"));
     QVERIFY(minimum);
     // Typed the way a person writes it, with the x on their keyboard.
@@ -146,7 +188,7 @@ void UpscaleConfigTest::saveAndRestore()
     QCOMPARE(KWin::upscaleResolutionPixels(minimum, -1), 3686400);
     // Custom, which is the last of six presets now that Automatic is gone.
     QCOMPARE(preset->currentIndex(), 5);
-    QCOMPARE(percentage->value(), 73);
+    QCOMPARE(percentage->value(), 7300);
     QVERIFY(sharpening->isChecked());
     QVERIFY(strength->isEnabled());
     QCOMPARE(strength->value(), 0);
@@ -189,13 +231,13 @@ void UpscaleConfigTest::displayDefaults()
     QVERIFY(statistics->isEnabled());
     QVERIFY(developer->isEnabled());
     // Each display starts in its own corner, leaving the fourth free for the
-    // interactive panel, and a corner is worth choosing only while the display
-    // that would occupy it is switched on.
+    // interactive panel. A corner stays editable while its display is off: it
+    // is the corner a game that switches the display on takes from here.
     QCOMPARE(announcementPosition->currentIndex(), int(KWin::UpscaleCorner::TopLeft));
     QCOMPARE(position->currentIndex(), int(KWin::UpscaleCorner::TopRight));
     QCOMPARE(developerPosition->currentIndex(), int(KWin::UpscaleCorner::BottomRight));
     statistics->setChecked(false);
-    QVERIFY(!position->isEnabled());
+    QVERIFY(position->isEnabled());
     statistics->setChecked(true);
 
     // Choosing a corner another display holds moves that display to the next

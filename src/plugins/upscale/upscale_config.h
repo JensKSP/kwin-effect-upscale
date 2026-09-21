@@ -7,6 +7,7 @@
 #pragma once
 
 #include "methodcontrols.h"
+#include "settings.h"
 
 #include <KCModule>
 
@@ -28,6 +29,8 @@ namespace KWin
 {
 
 class UpscaleApplicationEditor;
+class UpscaleResolutionPreview;
+class UpscaleSliderField;
 
 class UpscaleEffectConfig : public KCModule
 {
@@ -41,7 +44,8 @@ public:
 
 private:
     void updatePreview();
-    void updateOutputs();
+    /** The global values as the page shows them, applied or not. */
+    UpscaleSettings shownSettings() const;
     void showSettings();
     void applySettings();
     void addDisplayControls(QFormLayout *layout);
@@ -64,16 +68,14 @@ private:
     void connectControls();
     static QString installedVersion();
 
-    QCheckBox *m_enabled;
-    QCheckBox *m_resolutionControl;
-    QComboBox *m_output;
     QComboBox *m_preset;
     QSlider *m_percentage;
     QComboBox *m_minimumPixels;
-    QLabel *m_preview;
+    UpscaleResolutionPreview *m_preview;
     QCheckBox *m_sharpening;
     QSlider *m_strength;
-    QLabel *m_strengthLabel;
+    UpscaleSliderField *m_scale = nullptr;
+    UpscaleSliderField *m_strengthField = nullptr;
     QCheckBox *m_osdDetection;
     QCheckBox *m_osdSummary;
     QCheckBox *m_osdStatistics;
@@ -83,7 +85,7 @@ private:
     QComboBox *m_osdDeveloperPosition;
     QSpinBox *m_osdTimeout;
     UpscaleMethodControls *m_methods = nullptr;
-    UpscaleApplicationEditor *m_editor;
+    UpscaleApplicationEditor *m_editor = nullptr;
     QLabel *m_applications;
     QPushButton *m_resetApplications;
     QLabel *m_build;

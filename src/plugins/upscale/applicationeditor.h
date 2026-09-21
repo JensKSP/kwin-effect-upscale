@@ -31,6 +31,8 @@ class QVBoxLayout;
 namespace KWin
 {
 
+class UpscaleResolutionPreview;
+
 /**
  * The list of applications the effect recognizes, and what it does for each.
  *
@@ -73,6 +75,28 @@ public:
      */
     void setAllPanel(QWidget *panel);
 
+    /**
+     * The global values as the settings page currently shows them.
+     *
+     * What a game's Global choices name and its preview is computed from.
+     * They are the page's, not the stored ones, so that a change made under
+     * "All applications" shows in every game before it is applied.
+     */
+    void setGlobalSettings(const UpscaleSettings &global);
+
+    /**
+     * Whether "All applications" is checked.
+     *
+     * Its check box is the one every row has, with the meaning it has there:
+     * whether this entry acts for the windows it claims. The global profile
+     * claims the windows no other entry matches, so unchecking it leaves the
+     * applications that are not in the list alone and none of those that are.
+     * The value belongs to the settings page, stored with its other global
+     * settings; the list only shows it.
+     */
+    bool allEnabled() const;
+    void setAllEnabled(bool enabled);
+
     /** Write the list as it stands, pending edits included, to @p path. */
     bool exportTo(const QString &path) const;
 
@@ -88,6 +112,8 @@ public:
 Q_SIGNALS:
     /** A field changed, so the settings page has something to apply. */
     void changed();
+    /** The user checked or unchecked "All applications". */
+    void allEnabledChanged(bool enabled);
 
 private:
     void buildDetails(QVBoxLayout *details);
@@ -95,6 +121,7 @@ private:
     void rebuildList();
     void showSelected();
     void showNote(const UpscaleApplication &application);
+    void updatePreview();
     void applyToSelected();
     void addApplication();
     void addFromWindow();
@@ -122,6 +149,8 @@ private:
     // by field, which is what keeps this file able to take another setting.
     UpscaleMethodControls *m_methods;
     UpscaleSettingControls *m_settings;
+    UpscaleResolutionPreview *m_preview;
+    UpscaleSettings m_global = upscaleGlobalSettings();
     QCheckBox *m_enabled;
     QLabel *m_note;
     QPushButton *m_delete;
@@ -133,6 +162,7 @@ private:
     QVariantMap m_picked;
     QPointer<QDBusPendingCallWatcher> m_programQuery;
     bool m_selecting = false;
+    bool m_allEnabled = false;
     bool m_updating = false;
 };
 

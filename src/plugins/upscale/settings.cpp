@@ -35,9 +35,35 @@ static int globalResolution()
     return upscaleLegacyResolution(globalGroup()).value_or(UpscaleConfig::resolution());
 }
 
+// The scale is held in basis points, hundredths of a percent, which is what
+// resolutionRatio() takes; see there why a whole percent is not enough.
 static int globalPercentage()
 {
-    return UpscaleConfig::percentage();
+    return qRound(UpscaleConfig::percentage() * 100);
+}
+
+// A file spells the scale as the percentage it is, with the decimals it needs
+// and no more: "66.67", "75". A whole percentage written by an earlier version
+// therefore reads as the same share it always meant.
+static QString percentageName(int basisPoints)
+{
+    QString text = QString::number(basisPoints / 100);
+    if (const int hundredths = basisPoints % 100) {
+        text += QStringLiteral(".%1").arg(hundredths, 2, 10, QLatin1Char('0'));
+        if (text.endsWith(QLatin1Char('0'))) {
+            text.chop(1);
+        }
+    }
+    return text;
+}
+
+static int percentageValue(const QString &name, int absent)
+{
+    // QString::toDouble() reads the C locale's decimal point whatever the
+    // user's locale is, which is what a configuration file is written in.
+    bool valid = false;
+    const double percentage = name.trimmed().toDouble(&valid);
+    return valid ? qRound(percentage * 100) : absent;
 }
 
 static int globalMinimumPixels()
@@ -53,11 +79,6 @@ static int globalSharpening()
 static int globalStrength()
 {
     return UpscaleConfig::strength();
-}
-
-static int globalResolutionControl()
-{
-    return int(UpscaleConfig::resolutionControl());
 }
 
 static int globalOsd()
@@ -137,11 +158,10 @@ static int resolutionValue(const QString &name, int absent)
 // no reader can observe it half built.
 static const std::array<UpscaleSettingInfo, upscaleSettingCount> settingTable{{
     {UpscaleSetting::Resolution, "Resolution", UpscaleSettingType::Choice, 0, int(ResolutionPreset::Custom), globalResolution, resolutionName, resolutionValue},
-    {UpscaleSetting::Percentage, "Percentage", UpscaleSettingType::Number, 50, 100, globalPercentage, nullptr, nullptr},
+    {UpscaleSetting::Percentage, "Percentage", UpscaleSettingType::Number, 5000, 10000, globalPercentage, percentageName, percentageValue},
     {UpscaleSetting::MinimumPixels, "MinimumPixels", UpscaleSettingType::Number, 0, std::numeric_limits<int>::max(), globalMinimumPixels, nullptr, nullptr},
     {UpscaleSetting::Sharpening, "Sharpening", UpscaleSettingType::Switch, 0, 1, globalSharpening, nullptr, nullptr},
     {UpscaleSetting::Strength, "Strength", UpscaleSettingType::Number, 0, 100, globalStrength, nullptr, nullptr},
-    {UpscaleSetting::ResolutionControl, "ResolutionControl", UpscaleSettingType::Switch, 0, 1, globalResolutionControl, nullptr, nullptr},
     {UpscaleSetting::Osd, "Osd", UpscaleSettingType::Switch, 0, 1, globalOsd, nullptr, nullptr},
     {UpscaleSetting::OsdDetection, "OsdDetection", UpscaleSettingType::Switch, 0, 1, globalOsdDetection, nullptr, nullptr},
     {UpscaleSetting::OsdSummary, "OsdSummary", UpscaleSettingType::Switch, 0, 1, globalOsdSummary, nullptr, nullptr},

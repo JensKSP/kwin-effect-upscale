@@ -42,7 +42,15 @@ inline bool exceedsMinimumPixels(UpscaleSize output, int minimumPixels)
         && int64_t(output.width) * output.height > std::max(0, minimumPixels);
 }
 
-inline double resolutionRatio(ResolutionPreset preset, int percentage)
+/**
+ * The share of the destination a preset asks for, from one to a half.
+ *
+ * Custom's share is given in basis points, hundredths of a percent, because a
+ * whole percent cannot name the shares that give the resolutions people know:
+ * 2560 × 1440 on a 3840 × 2160 screen is 66.67 %, and 67 % renders
+ * 2573 × 1447 instead.
+ */
+inline double resolutionRatio(ResolutionPreset preset, int basisPoints)
 {
     switch (preset) {
     case ResolutionPreset::UltraQuality:
@@ -54,15 +62,15 @@ inline double resolutionRatio(ResolutionPreset preset, int percentage)
     case ResolutionPreset::Performance:
         return 0.5;
     case ResolutionPreset::Custom:
-        return std::clamp(percentage, 50, 100) / 100.0;
+        return std::clamp(basisPoints, 5000, 10000) / 10000.0;
     default:
         return 1.0;
     }
 }
 
-inline UpscaleSize desiredResolution(UpscaleSize output, ResolutionPreset preset, int percentage)
+inline UpscaleSize desiredResolution(UpscaleSize output, ResolutionPreset preset, int basisPoints)
 {
-    const double ratio = resolutionRatio(preset, percentage);
+    const double ratio = resolutionRatio(preset, basisPoints);
     return {int(std::round(output.width * ratio)), int(std::round(output.height * ratio))};
 }
 
@@ -133,9 +141,9 @@ inline UpscaleSize scaledRequest(UpscaleSize outputPixels, double outputScale, i
  * what removes the third on a scale-3 screen: a third of the destination is
  * below the half that FSR 1 enlarges from.
  */
-inline int reachableScale(UpscaleSize outputPixels, double outputScale, ResolutionPreset preset, int percentage)
+inline int reachableScale(UpscaleSize outputPixels, double outputScale, ResolutionPreset preset, int basisPoints)
 {
-    const double wanted = resolutionRatio(preset, percentage);
+    const double wanted = resolutionRatio(preset, basisPoints);
     // Native asks for the whole output, which resolutionRatio() returns as
     // one, so the bound below covers it without naming it.
     if (wanted >= 1.0) {

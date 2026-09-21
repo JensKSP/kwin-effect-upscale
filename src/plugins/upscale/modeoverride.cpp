@@ -157,7 +157,7 @@ void UpscaleModeOverride::announce(OutputInterface *output, ClientConnection *cl
     }
     const UpscaleApplication *application = answer.application;
     const UpscaleSettings settings = upscaleResolveSettings(application);
-    if (!settings.acts() || !settings.switchedOn(UpscaleSetting::ResolutionControl)) {
+    if (!settings.acts()) {
         return;
     }
     // What is said before the window exists comes from the fullscreen slot;

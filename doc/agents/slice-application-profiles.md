@@ -1283,13 +1283,72 @@ Planned checks, not observed results:
       Settings' Defaults restores it and leaves the games alone; the list has
       its own Restore Defaults, Export and Import. The global panel keeps the
       page's richer controls - sliders, the screen preview, the resolution
-      list, the corner rule - which a game's tabs do not have yet. Tested in
+      list, the corner rule; a game's tabs gained all but the sliders and the
+      corner rule in the next item. Tested in
       `upscale-application-list`. New texts await the text review: "All
       applications", "Every application follows these settings unless its own
       entry sets them.", "For applications not in the list:", "Ask
       applications to render smaller", "Export…", "Import…" and their dialogs.
-- [ ] Give a game's tabs the global panel's richer controls, with the Global
-      choice added.
+- [x] Give a game's tabs the global panel's richer controls, with the Global
+      choice added, 2026-09-21. The resolution limit is the same list of
+      resolutions with **Global (1920 × 1080)** first; the screen preview is
+      one component (`resolutionpreview.{h,cpp}`) shown by both, a game's
+      computed from the values it would use. Stating a scale chooses Custom
+      and any other preset returns the scale to Global, as the global slider
+      does; stepping off **Global (67%)** starts at 67%. The On-Screen
+      Display tab is grouped by display as the global one is, and both panels
+      share one label column. A game's Global choices name what **All applications** shows, not
+      what was last applied, so a change there shows in every game before
+      Apply. Typing a resolution too large to count no longer wraps round:
+      it is held at the largest limit. No corner rule for games: the runtime
+      separates the displays. Tested by `aGameFollowsWhatAllApplicationsShows`
+      in `upscale-application-list`. New text: "Screens at or below this
+      resolution are left alone." as the game limit's tooltip.
+- [x] Give "All applications" the check box every row has and drop its
+      General tab, 2026-09-21, decided by Jens against the concern that an
+      unchecked "All applications" reads as a switch for everything: it means
+      what it means on every row, whether the entry acts for the windows it
+      claims, which for the global profile are those no other entry matches.
+      Its tooltip carries the General tab's sentence and says that. Nothing
+      on either panel greys out any more, at Jens's request: every global
+      value is a default a game takes when it switches on what the global
+      profile leaves off, so the strength, the display corners and timeout
+      and the six unlisted methods stay editable whatever the switches say.
+      Tested in `upscale-application-list` and `upscale-config`. New text for
+      the text review: the row's tooltip, "Every application follows these
+      settings unless its own entry sets them. Checked, applications that are
+      not in the list are upscaled as well."; "Upscale unlisted applications"
+      is gone.
+- [x] Remove **Ask applications to render smaller** (`ResolutionControl`),
+      2026-09-21, decided by Jens: Off in each of the six methods says the
+      same, per presentation. The three request paths now test only whether
+      the effect acts on the window. The integration tests stop a request by
+      removing the global method (Wayland) or by switching the test entry off
+      (X11), both of which reach the same condition the switch did. No
+      migration: the key only ever shipped in nightly builds, on by default; a
+      stored `ResolutionControl=false` is now ignored. Asked of Jens whether
+      he wants one.
+- [x] Snap the scale slider to well-known resolutions and let every slider's
+      value be typed, 2026-09-21, required by Jens. The scale is held in basis
+      points (`resolutionRatio()`), written as a decimal percentage, and the
+      global `Percentage` key is a Double; `sliderfield.{h,cpp}` pairs a slider
+      with its field and snaps; `upscaleSnapScales()` finds the snap points on
+      the largest screen. The Screen choice gave way to one preview line per
+      screen, decided by Jens. Tested by `snapsToKnownResolutions` and
+      `presetsAndKeyboard` (`upscale-config`), the scale field of a game in
+      `upscale-application-list`, basis points in `upscale-resolution`. The
+      running effect has to be reloaded after installing: an older effect
+      reads the decimal scale wrongly.
+- [ ] Apply the text review of 2026-09-21: sixty strings proposed to Jens in
+      a table, awaiting his answer by number.
+- [ ] Make Add from Window portable, per the handbook's
+      [portable lists and settings](../upscaling.md#portable-lists-and-settings),
+      required by Jens on 2026-09-21. It stores the full executable path as an
+      exact match today. It should store what stays the same wherever the game
+      is installed: the part after a library root such as `steamapps/common/`,
+      or the file name in any folder where there is no such root, as a
+      regular expression like the shipped entries. Then check an export from
+      one user's home imported under another's.
 - [ ] Review every user-facing text with Jens against KDE's naming, one batch
       at a time. Batch 1, the settings page, agreed and applied on 2026-09-21:
       group boxes like KWin's own effect pages, the status block and its

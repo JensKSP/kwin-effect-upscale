@@ -825,7 +825,7 @@ wording was reviewed with Jens string by string on 2026-09-21.
 
 | Section | Controls |
 | --- | --- |
-| Applications | The list, in matching order, with **All applications** pinned first: the global settings, shown as a profile with no identity, in the same tabs as a game's. Its **General** tab holds **Upscale unlisted applications**, the global profile's own switch, off by default and never a switch that stops the listed games; its **Resolution Request** tab **Resolution requests:** and the six methods, which apply only to applications not in the list, because a game's unset method means Automatic; **Resolution** holds the render resolution, the resolution scale, a screen and the size it would render there, and the resolution limit; **Sharpening** and **On-Screen Display** the rest, with no two displays sharing a corner. A game's tabs hold its identity, its six measured methods and a **Global (…)** choice for every preference, naming the value from **All applications** it would follow. **Add**, **Add from Window…**, **Remove** and two arrows edit the list; **Export…** and **Import…** move it as a file in `kwinupscalerc`'s format, an import being an edit that Apply stores; **Restore Defaults** returns the games to the list the package ships. System Settings' own **Defaults** restores **All applications** and leaves the games alone. |
+| Applications | The list, in matching order, with **All applications** pinned first: the global settings, shown as a profile with no identity, in the same tabs as a game's. Its check box in the list is the one every row has, with the same meaning: whether the entry acts for the windows it claims, which for the global profile are those no other entry matches. It is off by default and never stops the listed games, and its tooltip says so. Its **Resolution Request** tab holds the six methods, which apply only to applications not in the list, because a game's unset method means Automatic. There is no separate switch for asking at all: a profile that should be asked nothing says Off in each of its six methods, which is also what the global profile's unset methods mean; **Resolution** holds the render resolution, the resolution scale as a slider with a number field, one line per connected screen with the size a game would render at there, and the resolution limit; **Sharpening** and **On-Screen Display** the rest, with no two displays sharing a corner. A game's tabs hold its identity, its six measured methods and a **Global (…)** choice for every preference, naming the value **All applications** currently shows, applied or not. They behave as the global ones do: the limit is the same list of resolutions, the same preview shows the size the game would render at from the values it would use, and stating a scale chooses Custom. Nothing on either panel is greyed out by a switch being off: every global value is a default a game takes when it switches on what the global profile leaves off, and the methods for applications not in the list can be set before their check box is. **Add**, **Add from Window…**, **Remove** and two arrows edit the list; **Export…** and **Import…** move it as a file in `kwinupscalerc`'s format, an import being an edit that Apply stores; **Restore Defaults** returns the games to the list the package ships. System Settings' own **Defaults** restores **All applications** and leaves the games alone. |
 
 The page does not report what the running effect is doing: Jens decided on
 2026-09-21 that status and a refresh button do not belong in settings. That
@@ -944,6 +944,33 @@ Shipped entries and user changes are already stored this way, in
 configuration defaults. The model, code reuse findings,
 catalogue policy and required checks are in the
 [application profiles slice](agents/slice-application-profiles.md).
+
+### Portable lists and settings
+
+Required, laid down by Jens on 2026-09-21: the application list and the
+settings are portable. What a person sets up on one machine means the same on
+another - another user, another distribution, another architecture, a BSD -
+and a list exported on one and imported on the other finds the same games and
+asks them for the same things. Nothing stored may depend on where this machine
+keeps its files or which screens it has:
+
+- A program is identified by what stays the same wherever it is installed.
+  Home directories, user names, Steam library locations, Flatpak and Snap
+  prefixes, and `/usr` against `/usr/local`, are never part of a stored
+  identity. The shipped entries show the form: a program is its file name in
+  any folder, `.*/supertuxkart`, compared as a regular expression.
+- A resolution is stored as what it means on any screen: a preset, a share of
+  the screen or a pixel-count limit. A screen's name or one screen's mode is
+  never stored, and a control that offers this screen's resolutions for
+  convenience stores the share or the count they stand for.
+- What the settings page shows for one screen only - the preview and the
+  screen it is computed for - is not stored at all.
+
+Status on 2026-09-21: the shipped list, the export format and every preference
+meet this. **Add from Window does not yet**: it stores the program's full path
+as an exact match, which names this user's home directory and this machine's
+library location, so an exported entry would not match the same game
+elsewhere. It has to store a portable pattern instead.
 
 ### Game detection OSD
 
@@ -1265,11 +1292,26 @@ capture exclusion, focus, lock-screen and cleanup rules as ordinary statistics.
 The slider expresses the desired input size as a percentage of the covered
 output's physical pixel width and height, independently of Plasma's desktop
 scale. It ranges from 50% to 100% for the initial FSR path, and only the
-proposed supersampling mode would extend it above 100%, with one-percentage-
-point steps for custom values and keyboard operation. Both dimensions use the
-same factor; there are no independent width and height sliders. Show the
-rounded integer pixel dimensions beside the percentage before applying it.
-At 50%, each dimension is halved: the pixel count is one quarter, not one half.
+proposed supersampling mode would extend it above 100%. Both dimensions use the
+same factor; there are no independent width and height sliders. At 50%, each
+dimension is halved: the pixel count is one quarter, not one half.
+
+The scale is held in basis points, hundredths of a percent, because a whole
+percent cannot name the shares that give the resolutions people know: 2560 ×
+1440 on a 3840 × 2160 screen is 66.67%, and 67% renders 2573 × 1447. A
+configuration file spells it as the percentage it is, "66.67" or "75", so a
+whole percentage written by an earlier version reads as the same share, and it
+is stored as a share rather than a size so that it means the same on any
+screen ([portable](#portable-lists-and-settings)).
+
+Implemented on 2026-09-21, required by Jens: the slider has a number field
+beside it, where the exact value can be typed to the hundredth. Dragged or
+stepped, the slider moves in whole percents and snaps to the scales that render
+a well-known resolution of the largest connected screen's shape exactly -
+on 3840 × 2160, 1920 × 1080, 2048 × 1152, 2560 × 1440, 2880 × 1620, 3200 × 1800
+and the screen itself. Typing never snaps. The strength slider has a field as
+well. Below the slider the page lists every connected screen with the size a
+game would render at there; nothing about the preview is stored.
 
 Presets retain the exact scale ratio rather than deriving dimensions from the
 rounded percentage label. The familiar FSR names and ratios follow
@@ -2489,6 +2531,51 @@ open-source game cases and the benchmark stages pass, repeat identification,
 reduction and restoration with the selected Steam/Epic games under Valve Proton
 and standalone Wine. An unavailable control path remains an implementation or
 integration gap in this acceptance stage.
+
+#### SuperTuxKart in every presentation it offers
+
+Laid down by Jens, 2026-09-21, as a hard requirement. Vulkan is required
+exactly as OpenGL is, and resolution control is not met, and no release may
+claim SuperTuxKart, until every cell below passes.
+
+SuperTuxKart 1.4 reaches the compositor in six ways, and each is its own case
+because SDL takes a different path through each one
+(`CIrrDeviceSDL::createWindow()`): the display path SDL uses, native Wayland
+or X11 through Xwayland; the renderer, OpenGL or Vulkan; and, for Vulkan, the
+kind of fullscreen, borderless (SDL's `FULLSCREEN_DESKTOP`, the game's default
+for Vulkan) or exclusive. The OpenGL renderer offers exclusive fullscreen only,
+so there is no OpenGL borderless cell.
+
+| Display path | OpenGL, fullscreen | Vulkan, borderless | Vulkan, exclusive fullscreen |
+| --- | --- | --- | --- |
+| Native Wayland | Required | Required | Required |
+| X11 through Xwayland | Required | Required | Required |
+
+In every cell:
+
+- **The game is not reconfigured.** It starts with the settings a player would
+  have: fullscreen at the output's native size, with the renderer and the kind
+  of fullscreen that define the cell, and nothing else changed. Nothing the
+  game offers, its resolution, its render scale or its kind of fullscreen, is
+  changed to make a cell pass. The effect alone makes the game render smaller.
+- **The buffer is smaller.** On an unchanged 3840 × 2160 output the buffer KWin
+  receives is 2560 × 1440 at Quality and 1920 × 1080 at Performance: the
+  committed buffer, not the size that was asked for.
+- **A resolution changed during play is followed.** With the method on Auto,
+  choosing another resolution while the game runs changes the buffer it
+  commits, Native included, without restarting the game.
+- **It is enlarged correctly.** The effect reports that it scaled that window's
+  buffer, and the output shows the game's frame over the whole output, upright,
+  neither cropped nor offset, and not the small buffer in a corner. This is
+  established by comparing a capture of the output with the frame the game
+  drew, not by reading the status alone.
+- **An automated test proves it.** One command runs all six cells against KWin's
+  virtual backend on the minimum supported KWin and fails when any cell fails.
+  A cell that could not run is reported as not run, never as passed.
+
+A cell whose failure has been explained is still a failing cell. "The game
+keeps its resolution in this mode" is a defect to fix, not a limitation to
+record against the requirement.
 
 ### Benchmark performance comparisons
 

@@ -60,6 +60,8 @@ if (KWIN_BUILD_KCMS)
         displaycontrols.cpp
         applicationcontrols.cpp
         resolutionchoice.cpp
+        resolutionpreview.cpp
+        sliderfield.cpp
         application.cpp
         identitycontrols.cpp
         legacysettings.cpp
@@ -69,6 +71,7 @@ if (KWIN_BUILD_KCMS)
         settingcontrols.cpp
         methodcontrols.cpp
         applicationeditor.cpp
+        applicationeditor_details.cpp
         applicationeditor_window.cpp
         placement.cpp
     )

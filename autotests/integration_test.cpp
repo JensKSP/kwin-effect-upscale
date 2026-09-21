@@ -98,17 +98,18 @@ void UpscaleIntegrationTest::reconfigure()
     QVERIFY(reply.type() != QDBusMessage::ErrorMessage);
 }
 
-// Asking unlisted applications for a smaller image takes two things now: the
+// Asking unlisted applications for a smaller image takes two things: the
 // global profile acting on them, and the global profile having a method for
 // them. The advertised mode in the fullscreen slot is what the previous
 // release's single switch asked for, so that is what "unlisted" means here.
-void UpscaleIntegrationTest::configureResolution(bool control, bool unlisted, std::optional<Stored> resolution)
+// Not asking is the method Off, which is what an absent key means for the
+// global profile.
+void UpscaleIntegrationTest::configureResolution(bool asking, bool unlisted, std::optional<Stored> resolution)
 {
     const KSharedConfig::Ptr config = KSharedConfig::openConfig(QStringLiteral("kwinrc"));
     KConfigGroup group(config, QStringLiteral("Effect-upscale"));
-    group.writeEntry("ResolutionControl", control);
     group.writeEntry("UnlistedApplications", unlisted);
-    if (unlisted) {
+    if (unlisted && asking) {
         group.writeEntry("MethodWaylandFullScreen", QStringLiteral("AdvertisedMode"));
     } else {
         group.deleteEntry("MethodWaylandFullScreen");
@@ -148,7 +149,11 @@ void UpscaleIntegrationTest::selectedBorderlessPresentation()
     QVERIFY(client.show(QSize(64, 64)));
     QTRY_VERIFY2(status().contains(QStringLiteral("the window is not fullscreen")), qPrintable(status()));
 
-    writeCatalogue(integrationWindow(QStringLiteral("MethodWaylandFullScreen=Off\n")));
+    // Asking nothing in any Wayland presentation, so that what is observed is
+    // the presentation alone: an unset method is Automatic, which would ask
+    // this window for a smaller scale.
+    writeCatalogue(integrationWindow(QStringLiteral(
+        "MethodWaylandFullScreen=Off\nMethodWaylandBorderless=Off\nMethodWaylandWindowed=Off\n")));
     QTRY_VERIFY2(status().contains(QStringLiteral("FSR 1, sharpening")), qPrintable(status()));
     client.resize(QSize(96, 96));
     QTRY_VERIFY2(status().contains(QStringLiteral("the window is not fullscreen")), qPrintable(status()));

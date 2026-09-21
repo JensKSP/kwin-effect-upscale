@@ -11,6 +11,7 @@
 #include <QObject>
 #include <QString>
 
+#include <optional>
 #include <vector>
 
 class QFormLayout;
@@ -24,9 +25,14 @@ namespace KWin
  *
  * Every inheritable preference offers the same three-way choice: follow the
  * global value, or state one of this game's own. A switch therefore has three
- * positions rather than two, and a number reserves one step below its range
- * for the same purpose. Both show what the global value currently is, so that
- * choosing to follow it is an informed choice rather than a blank.
+ * positions rather than two, a number reserves one step below its range for
+ * the same purpose, and the resolution limit is a list of resolutions with
+ * the same choice first. All of them show what the global value currently
+ * is, so that choosing to follow it is an informed choice rather than a blank.
+ *
+ * Otherwise the controls behave as the global page's do: stating a scale
+ * chooses Custom. Nothing is greyed out by another setting being off, here or
+ * there: a value set while its switch is off is simply waiting for it.
  *
  * Built from upscaleSettingTable() rather than written out per preference.
  * That is not tidiness: the profile editor and the settings page would
@@ -60,19 +66,25 @@ public:
     /** Read the controls back into @p overrides. */
     void store(UpscaleSettingOverrides &overrides) const;
 
-    /** Whether any control is currently stating a value of its own. */
-    bool anyStated() const;
-
-    /** Put every control back to following the global value. */
-    void clear();
-
 Q_SIGNALS:
     /** A control changed, for the page's own dirty tracking. */
     void changed();
 
 private:
     struct Control;
+    const Control *find(UpscaleSetting setting) const;
+    /** What @p control states, or @p fallback where it states nothing it can read. */
+    static std::optional<int> stated(const Control &control, std::optional<int> fallback);
+    /** The value the entry would use: its own where it states one, the global one otherwise. */
+    int effective(UpscaleSetting setting) const;
+    void coupleScaleToPreset();
+
     std::vector<Control> m_controls;
+    // The global values the Global choices name, as last shown.
+    UpscaleSettings m_global;
+    // Set while show() fills the controls, whose own signals must not be
+    // taken for a person's choice.
+    bool m_showing = false;
 };
 
 /** The label for one value of a preference that offers a list of them. */

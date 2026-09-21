@@ -226,7 +226,7 @@ void UpscaleSnapshotTest::developerInformationCoversTheState()
 {
     UpscaleSnapshot snapshot = scaling();
     snapshot.preset = ResolutionPreset::Quality;
-    snapshot.percentage = 67;
+    snapshot.percentage = 6667;
     snapshot.desired = UpscaleSize{2560, 1440};
     const QString developer = upscaleDeveloperInformation(snapshot);
     for (const QString &group : {QStringLiteral("Build:"), QStringLiteral("Runtime:"), QStringLiteral("Window:"),

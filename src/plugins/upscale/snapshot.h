@@ -79,7 +79,8 @@ struct UpscaleSnapshot
     // Configuration
     bool enabled = true;
     ResolutionPreset preset = ResolutionPreset::Native;
-    int percentage = 100;
+    // Custom's share, in basis points as resolutionRatio() takes it.
+    int percentage = 10000;
     double sharpening = 0;
 
     // Geometry

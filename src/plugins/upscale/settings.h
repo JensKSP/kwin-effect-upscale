@@ -48,7 +48,6 @@ enum class UpscaleSetting {
     MinimumPixels,
     Sharpening,
     Strength,
-    ResolutionControl,
     Osd,
     OsdDetection,
     OsdSummary,
@@ -95,8 +94,9 @@ struct UpscaleSettingInfo
      * kwinupscalerc is meant to be read and edited by a person: its header
      * explains every field, and "Resolution=Quality" is a sentence where
      * "Resolution=2" is a puzzle whose answer changes if the enumeration ever
-     * gains a value. Null for the preferences that are genuinely numbers,
-     * which are stored as themselves.
+     * gains a value. The scale has one too, because it is held in basis
+     * points and written as the percentage it is. Null for the preferences
+     * that are genuinely numbers, which are stored as themselves.
      */
     QString (*name)(int value);
     int (*value)(const QString &name, int absent);

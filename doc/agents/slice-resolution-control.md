@@ -1221,6 +1221,57 @@ own emulation, which never changes the real root size either.
 
 ## Remaining work
 
+### SuperTuxKart in all six presentations, 2026-09-21
+
+This slice owns the handbook's hard requirement
+[SuperTuxKart in every presentation it offers](../upscaling.md#supertuxkart-in-every-presentation-it-offers):
+native Wayland and Xwayland, each with OpenGL fullscreen, Vulkan borderless
+and Vulkan exclusive fullscreen. The game keeps its own settings, the buffer
+KWin receives is smaller, the output capture shows it correctly enlarged, and
+one automated command runs all six cells.
+
+| Cell | Through the effect today | Evidence |
+| --- | --- | --- |
+| Wayland, OpenGL, fullscreen | Buffer reduced by `AdvertisedMode` | Runs of 2026-09-18 and 2026-09-19; never with an output-capture check |
+| Wayland, Vulkan, borderless | **Fails.** The entry names `AdvertisedMode`, which this cell ignores, and `autoRatio()` sends the fractional scale only for a slot on Auto | The lever works; see below |
+| Wayland, Vulkan, exclusive | Not run through the effect | The run of 2026-09-18 changed the game's own resolution, which the requirement excludes |
+| Xwayland, all three | Not run | — |
+
+**The earlier reading of SDL 2 was wrong.** This slice, application profiles and
+`waylandscale.h` say that SDL 2 never implemented `wp_fractional_scale_v1`. SDL
+2.32.4 binds it for every window (`SDL_waylandwindow.c`, `Wayland_CreateWindow`)
+and acts on it for a window created with `SDL_WINDOW_ALLOW_HIGHDPI`, which
+SuperTuxKart sets for both renderers. For a window that is not in exclusive
+fullscreen, `GetBufferSize()` makes the buffer the window size times the
+preferred scale, and `ConfigureWindowGeometry()` sets a viewport back to the
+window size. A changed scale sends `SDL_WINDOWEVENT_RESIZED`. SuperTuxKart's
+`CIrrDeviceSDL::handleNewSize()` then sees a new native scale, and
+`GEVulkanDriver::OnResize()` rebuilds the swapchain from
+`SDL_Vulkan_GetDrawableSize()`. Exclusive fullscreen takes its buffer from the
+selected mode and ignores the scale, so the OpenGL cell still needs the
+advertised mode. The earlier scale test, `stk-lever-scale`, ran the OpenGL
+renderer only, which is why it saw no effect.
+
+Observed on 2026-09-21 with the game probe, not yet with the effect: a nested
+KWin 6.3.6 on its virtual backend at 3840 × 2160 with the real GPU, and
+SuperTuxKart 1.4 with `render_driver="vulkan"`, `vulkan_fullscreen_desktop="true"`,
+fullscreen at 3840 × 2160 and `SDL_VIDEODRIVER=wayland`. The window committed
+3840 × 2160. After `Window::setNextTargetScale(0.5)` the client received
+`preferred_scale(60)`, kept its viewport destination at 3840 × 2160 and
+committed 1920 × 1080, and the window stayed fullscreen at 0,0 3840 × 2160.
+The log is `build/game-probe/stk-vk-scale.log`.
+
+Next, in order:
+
+1. A slot that names an advertisement falls back to the fractional scale for a
+   window the advertisement did not reach, one still drawing at full size. A
+   window whose buffer the advertisement already made smaller is never asked.
+2. A matrix test that runs all six cells with the production plugin in a
+   nested KWin and checks both the buffer and an output capture against the
+   frame the game drew.
+3. Correct the SDL 2 claim in `waylandscale.h`, in the handbook and in the
+   catalogue's note for SuperTuxKart.
+
 ### Auto, and the lever it would use
 
 The settings model in
@@ -1443,6 +1494,9 @@ no-external-patches, no-game-reconfiguration and Debian-delivery requirements.
   buffer with unchanged logical coverage and correct input. Test both KWin
   targets; toggling the game's fullscreen-desktop setting is a comparison,
   not a delivered fix. Do not generalize this failure to all Vulkan clients.
+  Answered for Wayland on 2026-09-21: the fractional scale reaches this cell;
+  the work continues under
+  [SuperTuxKart in all six presentations](#supertuxkart-in-all-six-presentations-2026-09-21).
 
 - [ ] **Integer-scale reachability — glmark2 2023.01 Wayland and vkmark 2025.01.**
   Read their Wayland output/configure handlers and the plugin's
@@ -1833,7 +1887,9 @@ and a real session on 6.6.
       iterations at 110-190 s, logs not kept - investigate the slow path:
       keep the full test output of such a run (`ctest --output-on-failure`
       drops it for a pass) and find what the X11 control or the session is
-      waiting on.
+      waiting on. Jens's hypothesis, 2026-09-21: the slow local runs coincided
+      with a language model running on this machine's GPU and CPU, so a slow
+      run on CI's otherwise idle runners would be the telling one.
 
 ### Production X11 integration
 

@@ -31,11 +31,10 @@ SPDX-License-Identifier: GPL-2.0-or-later
              Balanced to the old build and Performance to this one. A new key
              cannot be misread by either. -->
         <entry name="Resolution" type="Int"><default>2</default><min>0</min><max>5</max></entry>
-        <entry name="Percentage" type="Int"><default>67</default><min>50</min><max>100</max></entry>
+        <entry name="Percentage" type="Double"><default>66.67</default><min>50</min><max>100</max></entry>
         <entry name="MinimumPixels" type="Int"><default>2073600</default><min>0</min></entry>
         <entry name="Sharpening" type="Bool"><default>false</default></entry>
         <entry name="Strength" type="Int"><default>50</default><min>0</min><max>100</max></entry>
-        <entry name="ResolutionControl" type="Bool"><default>true</default></entry>
         <!-- What the global profile says to a program no profile claimed, one
              answer per way the program can present itself. Off throughout,
              because a method is a measurement and nobody has measured an

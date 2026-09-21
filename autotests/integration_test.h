@@ -47,7 +47,7 @@ private:
     void configure(bool unlisted, bool sharpening, std::optional<Stored> resolution = {});
     void configureColors(bool unsupported);
     void configureDisplay(bool enabled, bool statistics);
-    void configureResolution(bool control, bool unlisted, std::optional<Stored> resolution);
+    void configureResolution(bool asking, bool unlisted, std::optional<Stored> resolution);
     void writeCatalogue(const QString &contents);
     void reconfigure();
     QDBusInterface m_effects{QStringLiteral("org.kde.KWin"), QStringLiteral("/Effects"),

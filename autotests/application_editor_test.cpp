@@ -9,6 +9,7 @@
 #include "identitycontrols.h"
 #include "matching.h"
 #include "methodcontrols.h"
+#include "resolutionchoice.h"
 #include "upscale_config.h"
 
 #include "editor_stand_ins.h"
@@ -155,11 +156,13 @@ void UpscaleApplicationEditorTest::editsTheApplicationList()
     QTest::keyClick(preset, Qt::Key_Down);
     QVERIFY(preset->currentIndex() != inherited);
     const QString chosen = preset->currentText();
-    auto *minimum = editor->findChild<QSpinBox *>(QStringLiteral("MinimumPixels"));
+    auto *minimum = editor->findChild<QComboBox *>(QStringLiteral("MinimumPixels"));
     QVERIFY(minimum);
-    // One step below the range is "use global", which the spin box names.
-    QCOMPARE(minimum->value(), -1);
-    minimum->setValue(2073600);
+    // The limit is offered as resolutions, as on the global page, with "use
+    // global" first like every other list.
+    QCOMPARE(minimum->currentIndex(), 0);
+    QVERIFY2(minimum->currentText().startsWith(QStringLiteral("Global")), qPrintable(minimum->currentText()));
+    minimum->setCurrentText(QStringLiteral("2560x1440"));
     // Nothing is written before the page is applied.
     QVERIFY(!userConfig().contains(QStringLiteral("Application-supertuxkart")));
 
@@ -183,7 +186,7 @@ void UpscaleApplicationEditorTest::editsTheApplicationList()
     // typed, and the choice survives the round trip.
     list->setCurrentRow(kart);
     QCOMPARE(preset->currentText(), chosen);
-    QCOMPARE(minimum->value(), 2073600);
+    QCOMPARE(KWin::upscaleResolutionPixels(minimum, -1), 3686400);
 
     // The page says whether the list still follows the package.
     QLabel *summary = module.widget()->findChild<QLabel *>(QStringLiteral("applicationSummary"));
