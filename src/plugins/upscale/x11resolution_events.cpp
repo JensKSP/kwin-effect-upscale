@@ -14,6 +14,9 @@
 #include "effect/effectwindow.h"
 #include "x11window.h"
 
+#include <QPointer>
+#include <QTimer>
+
 #include <utility>
 
 namespace KWin
@@ -27,6 +30,7 @@ void UpscaleX11Resolution::forget(X11Window *window)
     m_requests.remove(window);
     m_scheduled.remove(window);
     m_waitingForBuffer.remove(window);
+    m_withdrawals.remove(window);
     // SFML can destroy one XID before mapping its replacement. Retain the
     // negotiation budget briefly, but never cache a departed PID indefinitely.
     m_expiration.start();
@@ -111,12 +115,48 @@ bool UpscaleX11Resolution::fullscreenRequest(X11Window *window, xcb_client_messa
     return false;
 }
 
+// Xwayland has changed the emulated mode it records for this window's client,
+// which is what a window in m_withdrawals waits for. Whether the client
+// withdrew its mode or chose another is apply()'s to read afterwards.
+void UpscaleX11Resolution::withdrawal(xcb_property_notify_event_t *property)
+{
+    if (m_withdrawals.isEmpty()) {
+        return;
+    }
+    if (m_emulationAtom == XCB_ATOM_NONE) {
+        m_emulationAtom = Xcb::Atom(QByteArrayLiteral("_XWAYLAND_RANDR_EMU_MONITOR_RECTS"));
+    }
+    if (property->atom != m_emulationAtom) {
+        return;
+    }
+    X11Window *window = findWindow(property->window);
+    if (!window || !m_withdrawals.contains(window)) {
+        return;
+    }
+    // KWin handles this event after this filter, and its handling is what
+    // sizes the window from the property. The request has to follow that, so
+    // it is scheduled for after the event has been dispatched.
+    const QPointer<X11Window> guarded = window;
+    QTimer::singleShot(0, this, [this, guarded]() {
+        if (guarded && m_withdrawals.remove(guarded)) {
+            schedule(guarded);
+        }
+    });
+}
+
 bool UpscaleX11Resolution::event(xcb_generic_event_t *generic)
 {
+    const uint8_t type = generic->response_type & ~0x80;
+    if (type == XCB_PROPERTY_NOTIFY) {
+        // Bookkeeping about the client, which control being off does not
+        // suspend: a withdrawal that arrives then still has to end its wait,
+        // or the wait outlives the reconfiguration that turns control on.
+        withdrawal(reinterpret_cast<xcb_property_notify_event_t *>(generic));
+        return false;
+    }
     if (!m_enabled || m_restoring) {
         return false;
     }
-    const uint8_t type = generic->response_type & ~0x80;
     if (type == XCB_CLIENT_MESSAGE) {
         auto message = reinterpret_cast<xcb_client_message_event_t *>(generic);
         X11Window *window = findWindow(message->window);

@@ -90,28 +90,34 @@ bool upscaleX11ModeAvailable(const QPoint &position, const QSize &size)
     return false;
 }
 
-bool upscaleX11ModeMatches(X11Window *window, const QPoint &position, const QSize &size)
+// The property holds one x, y, width, height entry per output on which the
+// client selected a mode.
+std::optional<QSize> upscaleX11EmulatedMode(X11Window *window, const QPoint &position)
 {
     xcb_connection_t *connection = kwinApp()->x11Connection();
     constexpr char name[] = "_XWAYLAND_RANDR_EMU_MONITOR_RECTS";
     const auto atom = UniqueCPtr<xcb_intern_atom_reply_t>(xcb_intern_atom_reply(connection,
                                                                                 xcb_intern_atom(connection, true, sizeof(name) - 1, name), nullptr));
     if (!atom || atom->atom == XCB_ATOM_NONE) {
-        return false;
+        return std::nullopt;
     }
     const auto property = UniqueCPtr<xcb_get_property_reply_t>(xcb_get_property_reply(connection,
                                                                                       xcb_get_property(connection, false, window->window(), atom->atom, XCB_ATOM_CARDINAL, 0, 1024), nullptr));
     if (!property || property->format != 32 || property->value_len % 4 != 0 || property->bytes_after != 0) {
-        return false;
+        return std::nullopt;
     }
     const auto values = static_cast<const uint32_t *>(xcb_get_property_value(property.get()));
     for (uint32_t index = 0; index < property->value_len; index += 4) {
-        if (values[index] == uint32_t(position.x()) && values[index + 1] == uint32_t(position.y())
-            && values[index + 2] == uint32_t(size.width()) && values[index + 3] == uint32_t(size.height())) {
-            return true;
+        if (values[index] == uint32_t(position.x()) && values[index + 1] == uint32_t(position.y())) {
+            return QSize(int(values[index + 2]), int(values[index + 3]));
         }
     }
-    return false;
+    return std::nullopt;
+}
+
+bool upscaleX11ModeMatches(X11Window *window, const QPoint &position, const QSize &size)
+{
+    return upscaleX11EmulatedMode(window, position) == size;
 }
 
 // Recent KWin manages the application window directly. Older KWin reparents

@@ -12,23 +12,53 @@
 #include <QDBusConnection>
 #include <QDBusInterface>
 #include <QDBusReply>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QSaveFile>
 #include <QTest>
 
-// Three hosted failures in this file have reported only that a wait timed out.
-// What actually decided the outcome is the effect, and it publishes its reasons
-// in the status the settings page reads; QTRY_COMPARE has no message form, so
-// none of that reached the log and each failure had to be guessed at. This says
-// what was seen, what was wanted, and what the effect thought, which is the
-// difference between a diagnosable failure and another round of guessing.
-#define UPSCALE_TRY_GEOMETRY(client, expected)                                           \
-    QTRY_VERIFY2_WITH_TIMEOUT((client).geometry() == (expected),                         \
-                              qPrintable(QStringLiteral("have %1, wanted %2\n%3")        \
-                                             .arg(QDebug::toString((client).geometry()), \
-                                                  QDebug::toString(expected),            \
-                                                  status())),                            \
-                              30000)
+// Waits for the window to reach a geometry, recording every geometry it passes
+// through on the way, so that a failure says what was seen rather than only
+// that a wait ran out.
+//
+// Not QTRY_*, and for a measured reason: its verdict counts 50 ms steps, not
+// time, and a condition that holds at one step and fails at the next is not
+// told apart from one that never held. Three hosted failures reported "the
+// requested timeout (30000 ms) was too short, 33050 ms would have been
+// sufficient" and were read as a slow machine; the same verdict, reproduced
+// on 2026-09-21 in a run whose whole suite took 63 s, came from a window that
+// changed size twice within 35 ms and settled 3.1 s later. Polling every
+// 10 ms keeps such a transient in the record.
+static bool waitForGeometry(const X11Client &client, const QRect &expected, QString *seen)
+{
+    QElapsedTimer clock;
+    clock.start();
+    QRect last;
+    while (true) {
+        const QRect now = client.geometry();
+        if (now != last) {
+            seen->append(QStringLiteral("%1 ms: %2\n").arg(clock.elapsed()).arg(QDebug::toString(now)));
+            last = now;
+        }
+        if (now == expected) {
+            return true;
+        }
+        if (clock.elapsed() >= 30000) {
+            return false;
+        }
+        QTest::qWait(10);
+    }
+}
+
+// What was wanted, what was seen and when, and what the effect thought: the
+// effect publishes its reasons in the status the settings page reads, and a
+// failure that does not carry them has to be guessed at.
+#define UPSCALE_TRY_GEOMETRY(client, expected)                                                                        \
+    do {                                                                                                              \
+        QString seen;                                                                                                 \
+        QVERIFY2(waitForGeometry((client), (expected), &seen),                                                        \
+                 qPrintable(QStringLiteral("wanted %1, saw\n%2%3").arg(QDebug::toString(expected), seen, status()))); \
+    } while (false)
 
 class UpscaleX11IntegrationTest : public QObject
 {
@@ -152,14 +182,13 @@ void UpscaleX11IntegrationTest::lifecycle()
     QCOMPARE(target.geometry(), QRect(position, QSize(1920, 1080)));
     QCOMPARE(other.geometry(), otherGeometry);
     configure(true, Stored::Quality);
-    // Changing the preset asks the client for another size, and on KWin 6.6
-    // that first request fails its validation: the documented single retry is
-    // what recovers it, and the retry costs the whole path - validation 3 s
-    // after the request, a restore and reschedule 250 ms later, and validation
-    // of the new request 3 s after that. Measured on Ubuntu 26.04 / KWin
-    // 6.6.6, where QtTest reported that 8300 ms would have sufficed against
-    // the 5000 ms default; KWin 6.3.6 satisfies the request immediately. Wait
-    // out the retry rather than the moment 6.3.6 happens to answer in.
+    // Changing the resolution releases the window and asks the client for
+    // another size. Until 2026-09-21 that request was undone on KWin 6.6 by the
+    // client's withdrawal of its previous mode reaching KWin after the
+    // request, and only the validation's retry held - 8.3 s measured against
+    // the 5000 ms default. The effect now waits for the withdrawal before it
+    // asks, so this is a round trip again; the bound stays generous because a
+    // generous bound costs a passing run nothing.
     UPSCALE_TRY_GEOMETRY(target, QRect(position, QSize(2560, 1440)));
     QTest::qWait(3500);
     QCOMPARE(target.geometry(), QRect(position, QSize(2560, 1440)));
@@ -389,7 +418,7 @@ void UpscaleX11IntegrationTest::independentOutputRules()
     QTRY_COMPARE(first.geometry().size(), QSize(3840, 2160));
     QTRY_COMPARE(other.geometry().size(), QSize(3840, 2160));
     configure(true); // A profile's own Native is its answer, whatever the global resolution.
-    QTRY_COMPARE(first.geometry().size(), QSize(1920, 1080));
+    UPSCALE_TRY_GEOMETRY(first, QRect(0, 0, 1920, 1080));
     QTRY_VERIFY(status().contains(QStringLiteral("captured: upscale-x11-test")));
     QCOMPARE(other.geometry(), QRect(3840, 0, 3840, 2160));
 
@@ -399,15 +428,13 @@ void UpscaleX11IntegrationTest::independentOutputRules()
     configure(true);
     // Reconfiguring restores every managed window before applying the rules
     // again, so the window this rule does not concern leaves its reduced mode
-    // and returns to it. On KWin 6.6 the request that follows that restore
-    // fails its validation and the documented single retry is what recovers
-    // it: validation runs 3 s after a request, the retry restores and
-    // reschedules 250 ms later, and that request is validated 3 s after that.
-    // Measured at about 8.1 s on Ubuntu 26.04, against well under 500 ms on
-    // 6.3.6. Allow the whole retry path rather than a fixed delay, then give
+    // and returns to it. The request that follows the restore waits for the
+    // client to withdraw its previous mode; before it did, KWin 6.6 undid it
+    // and only the validation's retry held, measured at about 8.1 s. Allow
+    // the whole retry path all the same rather than a fixed delay, then give
     // the rule its own delay to resize the other window wrongly, which is
     // what this is watching for.
-    QTRY_COMPARE_WITH_TIMEOUT(first.geometry().size(), QSize(1920, 1080), 30000);
+    UPSCALE_TRY_GEOMETRY(first, QRect(0, 0, 1920, 1080));
     QTest::qWait(500);
     QCOMPARE(other.geometry(), QRect(3840, 0, 3840, 2160));
     QCOMPARE(first.geometry().size(), QSize(1920, 1080));
@@ -415,8 +442,8 @@ void UpscaleX11IntegrationTest::independentOutputRules()
     second.writeEntry("MinimumPixels", 1920 * 1080);
     second.sync();
     configure(true);
-    QTRY_COMPARE(other.geometry(), QRect(3840, 0, 1920, 1080));
-    QTRY_COMPARE(first.geometry().size(), QSize(1920, 1080));
+    UPSCALE_TRY_GEOMETRY(other, QRect(3840, 0, 1920, 1080));
+    UPSCALE_TRY_GEOMETRY(first, QRect(0, 0, 1920, 1080));
     QTRY_VERIFY2(status().contains(QStringLiteral("captured: upscale-x11-test,second-x11-test"))
                      || status().contains(QStringLiteral("captured: second-x11-test,upscale-x11-test")),
                  qPrintable(status()));
@@ -427,8 +454,8 @@ void UpscaleX11IntegrationTest::independentOutputRules()
     second.writeEntry("Resolution", "Native");
     second.sync();
     configure(true);
-    QTRY_COMPARE(other.geometry(), QRect(3840, 0, 3840, 2160));
-    QTRY_COMPARE(first.geometry().size(), QSize(1920, 1080));
+    UPSCALE_TRY_GEOMETRY(other, QRect(3840, 0, 3840, 2160));
+    UPSCALE_TRY_GEOMETRY(first, QRect(0, 0, 1920, 1080));
 }
 
 QTEST_GUILESS_MAIN(UpscaleX11IntegrationTest)

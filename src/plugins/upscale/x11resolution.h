@@ -85,6 +85,8 @@ private:
     };
     bool event(xcb_generic_event_t *generic) override;
     bool fullscreenRequest(X11Window *window, xcb_client_message_event_t *message);
+    void awaitWithdrawal(X11Window *window);
+    void withdrawal(xcb_property_notify_event_t *property);
     void watch(EffectWindow *window);
     void forget(X11Window *window);
     void expireState();
@@ -110,14 +112,19 @@ private:
     QSet<X11Window *> m_watched;
     QSet<X11Window *> m_scheduled;
     QSet<X11Window *> m_waitingForBuffer;
+    // Windows whose client has yet to withdraw an emulated mode, each with
+    // the token of the wait that is current for it; see awaitWithdrawal().
+    QHash<X11Window *, int> m_withdrawals;
     QTimer m_expiration;
     std::unique_ptr<UpscaleX11Input> m_input;
     bool m_enabled = false;
     bool m_restoring = false;
     int m_generation = 0;
     int m_nextValidation = 0;
+    int m_nextWithdrawal = 0;
     xcb_atom_t m_stateAtom = XCB_ATOM_NONE;
     xcb_atom_t m_fullscreenAtom = XCB_ATOM_NONE;
+    xcb_atom_t m_emulationAtom = XCB_ATOM_NONE;
 #endif
 };
 }

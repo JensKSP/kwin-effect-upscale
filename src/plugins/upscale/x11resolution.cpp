@@ -28,6 +28,7 @@
 #include <QTimer>
 
 #include <algorithm>
+#include <optional>
 
 Q_DECLARE_LOGGING_CATEGORY(KWIN_UPSCALE)
 #endif
@@ -37,7 +38,7 @@ namespace KWin
 
 UpscaleX11Resolution::UpscaleX11Resolution()
 #if KWIN_BUILD_X11
-    : X11EventFilter(QList<int>{XCB_CLIENT_MESSAGE, XCB_CONFIGURE_REQUEST})
+    : X11EventFilter(QList<int>{XCB_CLIENT_MESSAGE, XCB_CONFIGURE_REQUEST, XCB_PROPERTY_NOTIFY})
 #endif
 {
 #if KWIN_BUILD_X11
@@ -54,8 +55,10 @@ UpscaleX11Resolution::UpscaleX11Resolution()
         m_retries.clear();
         m_validation.clear();
         m_waitingForBuffer.clear();
+        m_withdrawals.clear();
         m_stateAtom = XCB_ATOM_NONE;
         m_fullscreenAtom = XCB_ATOM_NONE;
+        m_emulationAtom = XCB_ATOM_NONE;
     });
     connect(kwinApp(), &Application::xwaylandScaleChanged, this, [this]() {
         reconfigure();
@@ -99,6 +102,10 @@ void UpscaleX11Resolution::reconfigure()
     m_retries.clear();
     m_validation.clear();
     m_waitingForBuffer.clear();
+    // m_withdrawals stays: it records what the clients are doing, which a
+    // change of configuration does not alter, and restoreAll() above has just
+    // added to it.
+    //
     // Nothing global is held any more: what to ask of a window comes from the
     // profile that claims it, resolved when the window is looked at. All this
     // still needs to know is whether there is an Xwayland to talk to.
@@ -338,8 +345,38 @@ void UpscaleX11Resolution::apply(X11Window *window)
         return;
     }
     const auto previous = m_requests.constFind(window);
-    if (previous != m_requests.cend() && previous->key == request.key
-        && previous->position == request.position && previous->size == request.size) {
+    if (previous != m_requests.cend()) {
+        if (previous->key == request.key && previous->position == request.position && previous->size == request.size) {
+            return;
+        }
+        // Released here rather than in begin(), so that the wait restore()
+        // starts is respected below: the client answers the release by
+        // withdrawing its mode, and that answer has to arrive first.
+        restore(window);
+    }
+    // Nothing is asked of the client until it has withdrawn the emulated mode
+    // of the request before this one. KWin 6.6 sizes the client window from
+    // the _XWAYLAND_RANDR_EMU_MONITOR_RECTS property whenever Xwayland changes
+    // it: to the mode it names, or to the full frame once it has gone. A
+    // client withdraws its mode in answer to a restore, and a request made
+    // before that answer reaches KWin is applied first and undone by it.
+    // Measured on KWin 6.6.6 with Xwayland 24.1 on 2026-09-21, polling the
+    // window every 10 ms after such a request: 3840 x 2160, 1920 x 1080 at
+    // 17 ms, 3840 x 2160 at 35 ms, and 1920 x 1080 again only at 3117 ms,
+    // when validation had failed and its retry - restore, 250 ms, request
+    // again - had put it right. Most preset changes and re-enables on 6.6
+    // cost that retry, and the integration test raced an 18 ms transient.
+    // restore() starts the wait and withdrawal() ends it. A mode the client
+    // holds that is neither the request nor being withdrawn, one it chose
+    // itself, is waited for the same way, for as long as the wait allows.
+    // KWin 6.3 never reads the property; there the wait costs only the
+    // milliseconds the withdrawal takes.
+    if (m_withdrawals.contains(window)) {
+        return;
+    }
+    const std::optional<QSize> held = upscaleX11EmulatedMode(window, request.position);
+    if (held && *held != request.size) {
+        awaitWithdrawal(window);
         return;
     }
     if (begin(request)) {
@@ -387,6 +424,27 @@ void UpscaleX11Resolution::refuse(const QString &key, const QString &reason)
     }
 }
 
+// The client holds an emulated mode this effect has just asked it to give up,
+// or one of its own: nothing more is asked of it until the property Xwayland
+// keeps for it changes. Not indefinitely, because a client that keeps a mode
+// its window no longer has never withdraws it: after the validation window
+// the request is made regardless, and validation says what became of it. The
+// token keeps an earlier wait's timer from ending a later wait on the same
+// window.
+void UpscaleX11Resolution::awaitWithdrawal(X11Window *window)
+{
+    const int token = ++m_nextWithdrawal;
+    m_withdrawals.insert(window, token);
+    qCDebug(KWIN_UPSCALE) << "Waiting for" << keyFor(window) << "to withdraw its emulated mode";
+    const QPointer<X11Window> guarded = window;
+    QTimer::singleShot(3000, this, [this, guarded, token]() {
+        if (guarded && m_withdrawals.value(guarded) == token) {
+            m_withdrawals.remove(guarded);
+            schedule(guarded);
+        }
+    });
+}
+
 void UpscaleX11Resolution::restore(X11Window *window)
 {
     m_waitingForBuffer.remove(window);
@@ -420,11 +478,17 @@ void UpscaleX11Resolution::restore(X11Window *window)
     if (window->isDeleted() || !kwinApp()->x11Connection()) {
         return;
     }
+    // Read before the window is handed back, so that what is read is the
+    // client's state from before it could have answered.
+    const bool held = upscaleX11EmulatedMode(window, request.position).has_value();
     const QScopedValueRollback restoring(m_restoring, true);
     // KWin's logical geometry remained authoritative throughout. Hand its
     // normal native size back before ceasing geometry interception. This also
     // brings the X server back into agreement with KWin's geometry caches.
     upscaleX11Configure(window, upscaleX11Position(window), upscaleX11NormalSize(window));
+    if (held) {
+        awaitWithdrawal(window);
+    }
 }
 
 void UpscaleX11Resolution::restoreAll()
