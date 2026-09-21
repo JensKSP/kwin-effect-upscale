@@ -1664,13 +1664,13 @@ Neither says anything about the lever itself.
 
 For a profiled program on an unscaled output, with the slot on Auto:
 
-1. **At bind, say nothing** - unless the profile already measured
-   `AdvertisedMode` on its other Wayland slot, which is evidence that the
-   program is a mode-list client whose borderless form is configure-sized and
-   unharmed. A Wine executable never gets the mode from Auto, because Wine is
-   class D and because it cannot be identified at bind at all: the connection
-   belongs to the Wine loader and the game's name arrives later as the
-   window's `app_id`.
+1. **At bind, say nothing.** Auto never borrows a measurement from the other
+   Wayland slot: review on 2026-09-20 rejected an earlier draft that did,
+   because one program can be a mode-list client in one presentation and a
+   configure-sized one in the next - SuperTuxKart is exactly that. Wine never
+   gets the mode from Auto in any case, because it is class D and because it
+   cannot be identified at bind at all: the connection belongs to the Wine
+   loader and the game's name arrives later as the window's `app_id`.
 2. **At the first commit**, with window, presentation and identity known and
    `upscalePresentation()` true, ask for the fractional scale equal to the wish
    and re-assert it on `nextTargetScaleChanged`. Then watch the next commits:
@@ -1680,6 +1680,21 @@ For a profiled program on an unscaled output, with the slot on Auto:
      the hint, so set 1.0 back and report that no method reached it;
    - the surface stopped covering: revert at once and report.
 3. **Windowed presentations: never.**
+
+**Why coverage is the input check as well, on this lever.** The handbook counts
+three things as success: the buffer got smaller, the image still covers the
+screen, and the pointer still lands where it looks. The third is checked
+separately for the X11 resize, because there the effect changes the window's
+size and has to map pointer input itself. The fractional scale changes nothing
+input is measured in. Pointer events reach a Wayland surface in its own
+logical coordinates, and the lever moves only the buffer behind that surface:
+a client that honours it renders `logical × scale` pixels and declares the
+viewport back to the logical size, which is what `wp_fractional_scale_v1`
+requires it to do. So while the logical size stays the output's, input lands
+where it looks by construction, and a client that changed its logical size
+instead is exactly the one the coverage check catches. That argument is the
+protocol's, not a measurement, and the bench below checks it with a pointer hit
+test rather than taking it on trust.
 
 #### Two other levers, and why they are not it
 
@@ -1726,6 +1741,21 @@ whether a pointer hit test still lands where it looks:
 6. vkmark with the mode plus a *fractional* scale in place of the integer one,
    to confirm the scale-1 gap actually closes for class D.
 7. A Qt Quick fullscreen sample as the negative control for the clamp.
+
+Beyond launch configurations, each of Auto's own transitions has an expected
+result, so that a run can fail rather than only record:
+
+| Transition | Passes when |
+| --- | --- |
+| The client honours the hint | the committed buffer shrinks within a few frames, the surface still covers its output, a pointer hit test at the centre and at one corner lands on the pixels drawn there, and the status reports the fractional scale as the method that reached it |
+| The client ignores the hint | within `patienceInFrames` the preferred scale is back at the value the window had before, and the status says that no method reached the client rather than reporting a pending request |
+| The surface stops covering its output | the preferred scale is restored on the next commit, not after the patience runs out, and the status names the lost coverage |
+| KWin reapplies the output's scale | after moving the window to another output, or changing that output's scale, `nextTargetScale()` returns to the requested value within one configure |
+| Configuration moves | after `reconfigure()` every window's preferred scale equals the value recorded before the request, with no request left standing |
+
+The Qt sample is the natural source of the second row, since Qt clamps the hint
+to one, and a GLFW program honours it, so it serves for the first, third and
+fourth.
 
 ## Remaining work on the X11 production integration
 

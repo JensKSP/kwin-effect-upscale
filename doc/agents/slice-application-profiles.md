@@ -43,12 +43,18 @@ learning anything about how it works. Concretely, all of the following hold:
   value-dependent precedence, and no setting that exists in one layer only.
 - **The global defaults are a profile with no identity**, disabled by default,
   which still supplies the values other profiles inherit while disabled.
-- **`Enabled` means the same thing on every profile**: this profile acts, or
-  this game is left alone.
+- **`Enabled` means the same thing on every profile**: this profile acts. A
+  profile that is switched off takes no part in matching, so its game falls
+  through to the global profile, which is off by default.
 - **Each profile answers per presentation** - Wayland and X11, fullscreen,
   borderless and windowed - with `Auto`, a method its protocol can carry, or
-  `Off`, and `Auto` is the default because an absent key means nobody measured
-  that presentation yet.
+  `Off`. **An absent slot reads as `Auto` on a game profile and as `Off` on the
+  global profile.** A game profile describes a game somebody looked at, so Auto
+  has something to stand on; the global profile answers for programs nobody
+  measured, which are asked for nothing until a person sets a slot. The two
+  results for the same absent key are deliberate, and each resolver implements
+  its own: `readMethods()` in `application.cpp` for profiles,
+  `upscaleGlobalMethods()` in `settings.cpp` for the global one.
 - **The settings page is two switches and a set of preferences.** Methods live
   in a profile's details, and a person who does not open them never meets one.
 - **The editor offers Use global on every inheritable item**, reorders
@@ -242,7 +248,8 @@ active shipped defaults, and matching permits an instance-only constraint.
   native ID and a verified Xwayland class. Identities are alternatives; fields
   within one identity must all match. Do not assume a Flatpak ID, desktop file
   and native ID are interchangeable.
-- Start without substring or regular-expression matching. Titles change during
+- Start without substring or regular-expression matching - superseded on
+  2026-09-21 by [matching by path and by pattern](#matching-by-path-and-by-pattern-2026-09-21). Titles change during
   play and are unsuitable as the default identity. Future role/title refinements
   must be explicit and cannot replace the required application identity.
 - Order profiles visibly; the first enabled matching profile wins as a whole.
@@ -612,19 +619,26 @@ sharpen-at-native mode as the explicit exception.
 nothing", and they must not be merged: setting a measured method to `Off` in
 order to express a preference destroys the measurement.
 
-### Disabling a profile means leaving that game alone
+### A disabled profile falls through
 
-Decided by Jens on 2026-09-20, changing what the field means. A disabled profile
-still matches, and its answer is that the effect does nothing for that window:
-no request, no enlargement, no display. The global profile does not pick it up
-either. `Enabled` then means the same thing on every profile, and it becomes the
-per-game off switch that did not exist before.
+Decided by Jens on 2026-09-21, reversing the decision of the day before. A
+profile that is switched off takes no part in matching, by window identity and
+by program alike, so a later profile can claim the window and, failing that,
+the global profile does.
 
-A shipped entry is replaced by ordering rather than by disabling it: the user's
-own entry takes a lower `Order` and claims the window first. This changes
-behaviour for anyone who disabled a shipped entry so that their own would match,
-and belongs in the release notes. Previously the window fell through to the next
-profile; now the disabled entry claims it and stops.
+It still reads as leaving the game alone, and that is the argument that
+decided it: the global profile is off by default, so a window that falls all
+the way through is acted on by nothing. Someone who has deliberately switched
+unlisted applications on has asked for exactly the windows no profile claims,
+and a game whose profile they switched off is then one of them. Falling through
+also keeps the one way a person could already shadow an entry this package
+ships: switch the shipped one off, and their own entry claims the window.
+
+A window left alone this way is refused with its own reason, "the application
+is not in the list, and unlisted applications are switched off", rather than
+the bare "disabled" it used to get. That line is what tells being left alone
+apart from being broken, and it names both halves of the rule so that the
+person reading it knows there are two ways to change the answer.
 
 ### The global profile is off by default
 
@@ -647,11 +661,13 @@ Two consequences, recorded rather than argued:
   program committed on its own. That case cannot break a window, and it is one
   switch away.
 - When it is switched on it reaches fullscreen and borderless windows alike,
-  decided by Jens on 2026-09-20. Borderless eligibility currently requires a
-  profile, which `upscalePresentation()` explains as keeping ordinary desktop
-  windows out of that path. With the global profile off by default, that path
-  stays unreachable until the user asks for it. It never reaches windowed
-  applications: see below.
+  decided by Jens on 2026-09-20 and implemented on 2026-09-21:
+  `upscalePresentation()` accepts a borderless window covering one output when a
+  profile describes it or when the global profile acts. Something still has to
+  have asked for that path, because an undecorated window covering an output is
+  also what a desktop's own surfaces can look like; with the global profile off
+  by default it stays unreachable until the user asks for it. It never reaches
+  windowed applications: see below.
 
 ### One method is six
 
@@ -739,12 +755,15 @@ Wayland that mechanism is not an advertisement at all.
 | X11 fullscreen, X11 borderless | Resize, verify coverage and pointer mapping, put it back where it did not work |
 | Wayland windowed, X11 windowed | Nothing. Auto is never loose on ordinary windows |
 
-**Auto never makes a blind advertisement.** A mode sent at bind cannot be taken
-back, and the review below shows it harms two classes of client. The one
-exception is evidence rather than a guess: where the profile has already
-measured `AdvertisedMode` on its other Wayland slot, the program is known to be
-a mode-list client, whose borderless form is configure-sized and unharmed, so
-the bind-time advertisement may be made for both slots.
+**Auto never makes a blind advertisement, and never borrows one.** A mode sent at
+bind cannot be taken back, and the review below shows it harms two classes of
+client. An earlier draft let Auto advertise where the profile had measured
+`AdvertisedMode` on its other Wayland slot; review on 2026-09-20 rejected that,
+rightly. A measurement on one slot is not evidence about another: SuperTuxKart
+is one program whose two renderers ask for different window kinds, so the same
+game is a mode-list client in one presentation and a configure-sized one in
+the next. Only an explicit method in the fullscreen slot is said at bind, and
+that is a measurement of that slot.
 
 **Auto and the measured methods reach different clients, which is why both
 exist.** The fractional hint reaches GLFW, SDL 3, Godot and Wine. It does not
@@ -856,23 +875,51 @@ become indistinguishable.
 
 ### What an existing installation loses
 
-| Stored today | Becomes | Note |
-| --- | --- | --- |
-| `Preset=0`, Automatic | the enum loses `Automatic`; absence means inherit | The key is renamed so that an old value is never read as a new one, and translated once: `Automatic` and `Native` both become `Native`, the rest keep their meaning |
-| `MinimumPixels=-1` in a profile | an absent key | `0` still disables the threshold |
-| `UnknownApplications` | the global profile's Wayland fullscreen and borderless slots: advertised mode where it was on, `Off` where it was off | |
-| `Method` in a profile | the slot for the presentation it was measured under | Each shipped entry names one; a user entry is translated the same way and the rest stay absent, which is Auto |
-| `Enabled=false` globally | **undecided** | See below |
-| A disabled shipped entry | claims the window and does nothing | Previously it fell through to the next profile |
+Every row names the file and group it is read from and the key it is read
+as. `kwinrc [Effect-upscale]` is the global profile; `kwinupscalerc
+[Application-<id>]` is one game profile, in the user's layer. Nothing moves
+between the two files, and nothing is written into the package's layer.
+
+| Read from | Old key and value | Read as | Replaced on disk when |
+| --- | --- | --- | --- |
+| `kwinrc [Effect-upscale]` | `Preset=<n>`, numbered from `Automatic=0` | `Resolution=<n - 1>` in the same group; `Automatic` reads as no `Resolution`, which is the default | the settings page applies: it writes `Resolution` and removes `Preset` |
+| `kwinrc [Effect-upscale]` | `UnknownApplications=true` | `UnlistedApplications=true`, and `MethodWaylandFullScreen=AdvertisedMode` in the same group | the settings page applies |
+| `kwinrc [Effect-upscale]` | `Enabled=false` | nothing acts, profiles included | never: see below |
+| `kwinupscalerc [Application-<id>]` | `Preset=<name>` | `Resolution=<name>` in the same group; `Automatic` reads as no `Resolution`, which follows the global one | that profile is saved: `upscaleRetireLegacyProfileKeys()` writes `Resolution` and then removes `Preset` |
+| `kwinupscalerc [Application-<id>]` | `MinimumPixels=-1` | no `MinimumPixels`, which inherits the global threshold. Read as a number it would clamp to `0`, which disables the threshold, the opposite of what it said | read as absent; left on disk, where it stays harmless |
+| `kwinupscalerc [Application-<id>]` | `Method=<name>` | the one slot it can have been measured under - `MethodWaylandFullScreen` for an advertisement, `MethodX11FullScreen` for the resize - and every slot `Off` for `None` | that profile is saved: every translated slot is written before `Method` is removed |
+
+Corrected on 2026-09-21: this table first said a global `Automatic` becomes
+`Native`, which would have stopped the effect reducing the very games it ships
+profiles for.
+
+The "replaced on disk" column is the part review on 2026-09-20 was right to ask
+for, because it hid a defect. The editor writes only the fields a person
+changed, and an old key's value, read into the profile, is unchanged by
+definition - so deleting the old key on save, as first written, dropped it: the
+first save after an upgrade would have lost a profile's measured method and its
+chosen resolution. Each value is now written under its current key before the
+old one goes. `LegacySettingsTest` asserts the exact stored and resolved result
+for every row, including that a profile saved unchanged keeps both.
+
+**All of this is read, never written.** Implemented on 2026-09-21 in
+`legacysettings.cpp`: an old key is translated each time it is read, for as
+long as no new key has replaced it, so the compositor never rewrites a person's
+configuration on its own. The settings page replaces the old keys on Apply,
+after it has written the new ones, and until then the effect and the page read
+the same translation. The file is temporary by nature and can be deleted whole
+once no installation can carry the old keys.
 
 The global master switch has no successor. With a switch on every profile and a
 catalogue that ships enabled, nothing stops the effect single-handedly except
-KWin's own Desktop Effects entry, so a user who had turned the page's switch off
-would find the shipped games enlarged after the upgrade. The proposal is that
-the migration writes `Enabled=false` into every profile as well, which honours
-the intent exactly and is visible in the editor afterwards. **Jens has not
-decided this**, and it is the one open question in this section besides the
-Wayland measurement above.
+KWin's own Desktop Effects entry, so reading a stored `Enabled=false` as
+anything else would switch upscaling on for someone who had turned it off. **As
+implemented it is honoured**: nothing acts while it is stored, and Apply keeps
+it, because no new key can say "everything off" and removing it would be the
+page quietly switching upscaling back on. The consequence Jens has still to
+decide is what the page shows such a person: at present nothing on it explains
+why no profile acts, and that is the one open question in this section besides
+the Wayland measurement.
 
 ### Storage
 
@@ -906,6 +953,113 @@ the table-driven form has to shrink the page rather than grow it. An editor that
 hand-writes a control, a read and a write per item cannot take thirteen
 inheritable items and six method slots; one that builds its controls from the
 table can.
+
+## Matching by path and by pattern, 2026-09-21
+
+Jens observed that an executable's file name does not tell games apart: every
+native Source title runs as `hl2_linux`, which is why the shipped entry for it
+cannot be made specific to one game. He asked for the full executable path
+with pattern matching, and for it in every case, X11 included. Decided the same
+day: the path with a match type is the first gate for every entry, the window
+identity an optional second, implemented on this branch once the settings work
+is green.
+
+### What a path can and cannot tell apart
+
+| Kind of game | Its program identity | Does the full path tell games apart | What does instead |
+| --- | --- | --- | --- |
+| Native Wayland | the game's own binary | yes: `…/common/Left 4 Dead 2/hl2_linux` is not `…/common/Portal 2/…` | - |
+| X11 through Xwayland | the connection is Xwayland's, shared by every X11 game, but the window's own PID resolves to the game's executable | yes, once the window exists, through KWin's `executablePathFromPid()` - with the PID caveat below | - |
+| Proton and Wine | the Wine loader, in the same Proton directory for every game | no | the window class: Steam sets `steam_app_<id>` on each Proton game |
+| Python, Java, Mono | the interpreter | no, and the script is only in the command line, which is process inspection | window identity |
+| AppImage | a mount point with a random name under `/tmp/.mount_…` | only by pattern | a regular expression |
+| Flatpak | a path inside the sandbox | not reliably | `ClientConnection::securityContextAppId()`, the sandbox's app ID, on the connection before any window exists - to be verified against a real Flatpak game before it is relied on |
+
+So the path answers exactly one case, but the one where it matters most:
+native Wayland, where the advertisement is made at bind and the program is the
+only identity there is. KWin already resolves the full path,
+`ClientConnection::executablePath()` from `executablePathFromPid()`, and the
+effect has so far dropped the directory on purpose. Nothing here reads a
+process and nothing here is Linux-only: the path is KWin's.
+
+### The design: two gates
+
+Decided by Jens on 2026-09-21, replacing a first proposal that kept the file
+name and added a path beside it.
+
+**Gate 1 is the executable path, with a match type, for every entry.** It
+replaces `Program`. A file-name match is simply the pattern `.*/supertuxkart`,
+so today's field becomes one case of the new one rather than a second field
+beside it, and the shipped catalogue, which has to match wherever a game is
+installed, states exactly that pattern. A person's own entry may state an exact
+path instead, which *Add from window* fills from the running game.
+
+**Gate 2 is the window identity, optional**: window class and instance, as
+now. An entry matches a window when gate 1 matches and, where it states one,
+gate 2 matches too. Profiles are tried in their order, as now, and the first
+enabled match wins as a whole.
+
+**Match types follow KWin's own Window Rules**, which give each property
+`Exact`, `Substring` or `RegularExpression` (`Rules::StringMatch` in KWin's
+`rules.h`): `ExecutableMatch`, `WindowClassMatch` and `InstanceMatch`, each
+absent meaning `Exact`. That also removes a workaround the catalogue already
+carries: Extreme Tux Racer puts its version in its window class, so its entry
+matches the instance instead, where `Extreme Tux Racer .*` would say what is
+meant.
+
+**Where the path comes from**, in both protocols, is KWin and never our own
+reading of a process:
+
+- a native Wayland client: `ClientConnection::executablePath()`, resolved by
+  KWin from the connection's own credentials;
+- an X11 window: `executablePathFromPid()`, exported by KWin in
+  `utils/executable_path.h`, given `X11Window::pid()`. That PID is the
+  window's `_NET_WM_PID`, which the client sets and the X server does not
+  verify, and a client inside its own process namespace - Flatpak uses one;
+  Steam's runtime is to be checked - reports a number that means another
+  process on the host. A PID that does not resolve therefore makes gate 1 not
+  match, and never matches something by accident.
+
+### Four consequences the implementation has to carry
+
+1. **Wine and interpreters need gate 2 in practice.** Their executable is the
+   loader or the interpreter, so gate 1 alone says only "some Wine game"; gate
+   2 names the game, and for Proton the window class `steam_app_<id>` does so
+   uniquely. *Add from window* states gate 2 by itself when gate 1 is a loader
+   or interpreter shared by many programs.
+2. **Before a window exists, only gate 1 can be checked**, and that is when a
+   Wayland advertisement is made. At bind, only an entry that states no gate 2
+   may advertise: one that does cannot yet be known to match, and an
+   advertisement cannot be taken back.
+3. **A per-window identity cache.** Eligibility asks which profile claims a
+   window for every window of every frame, which is affordable while it
+   compares strings. Resolving a PID to a path is a system call and a pattern
+   is a regular-expression match per entry, and neither belongs in a frame. A
+   window's path and the profile it matches are resolved once - when it
+   appears, when its class changes, and on reconfiguration - and frames read
+   the cached answer.
+4. **An entry with only gate 2 stays allowed**, so that a game whose PID does
+   not resolve can still be given a profile rather than none.
+
+### What a pattern has to be held to
+
+1. **Compiled when configuration is read**, into `QRegularExpression`, and
+   never in a frame.
+2. **Anchored to the whole value.** `hl2_linux` must not match
+   `…/hl2_linux_old`; a pattern that wants part of a value says so.
+3. **A pattern that matches everything is refused.** An entry constraining no
+   identity is already dropped because it would claim the desktop's own
+   windows, and `.*` is the same hazard in another form. A pattern that
+   matches the empty string is refused, and the editor names the entry.
+4. **An invalid pattern disables its entry and says why.** It never silently
+   matches nothing, and never everything.
+
+### Not decided yet
+
+Whether a Proton game's `steam_app_<id>` should be offered by *Add from window*
+as the natural identity, which it is, or left to the person. And whether the
+Flatpak app ID is worth a field of its own once it has been seen on a real
+Flatpak game.
 
 ## Acceptance criteria
 
@@ -950,16 +1104,29 @@ Planned checks, not observed results:
 - [ ] Validate the recommended values on real applications in a real session.
 - [x] Implement catalogue model, layered persistence, editor and preset/pixel policy.
 - [x] Specify the settings model: item table, inheritance, method slots, 2026-09-20.
-- [ ] Implement the item table and resolution, replacing the static
-      `UpscaleConfig` reads, `effectiveResolutionPreset()` and the `-1` sentinel.
-- [ ] Implement the six method slots and their migration from the single field.
-- [ ] Implement Auto as its own method per protocol, once
-      [resolution control](slice-resolution-control.md#a-reversible-wayland-lever-for-auto-2026-09-20)
-      has measured the Wayland lever.
-- [ ] Implement the editor's **Use global** controls and profile reordering.
+- [x] Implement the item table and resolution, replacing the static
+      `UpscaleConfig` reads, `effectiveResolutionPreset()` and the `-1` sentinel,
+      2026-09-21: `settings.{h,cpp}`.
+- [x] Implement the six method slots and their migration from the single field,
+      2026-09-21: `presentation.h`, the reader in `application.cpp`.
+- [x] Implement Auto as its own method per protocol, 2026-09-21: the resize with
+      verification on X11 in `x11resolution.cpp`, the fractional scale in
+      `waylandscale.{h,cpp}` and the decision that uses it in `autorequest.cpp`.
+      Reported working by Jens on a real session on 2026-09-21; which game, which
+      protocol and what buffer arrived are still to be recorded here. The
+      [resolution-control bench](slice-resolution-control.md#a-reversible-wayland-lever-for-auto-2026-09-20)
+      remains the measurement that moves Wayland Auto into the supported scope.
+- [x] Implement the editor's **Use global** controls, 2026-09-21: built from the
+      table by `settingcontrols.{h,cpp}` and `methodcontrols.{h,cpp}`.
+- [ ] Profile reordering in the editor.
+- [ ] Match by executable path and by pattern, per
+      [matching by path and by pattern](#matching-by-path-and-by-pattern-2026-09-21).
+- [x] Read a previous release's global keys under their old meaning, 2026-09-21:
+      `legacysettings.{h,cpp}`, read-side only.
+- [ ] Decide what the settings page shows a person whose stored `Enabled=false`
+      is keeping every profile from acting.
 - [ ] Update the handbook's settings page, per-application overrides and
       resolution-control sections to the implemented model.
-- [ ] Decide what an upgrade does with a stored global `Enabled=false`.
 - [ ] Run acceptance tests, both compiler/container builds and TV checks.
 
 Observed documentation validation, 2026-09-18: `pre-commit run --all-files`

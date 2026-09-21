@@ -887,8 +887,10 @@ but it is worth mentioning if any of this is ever submitted.
 
 Implemented and verified: the metadata declares the author and the new
 description, validates against the KDE schema, and reaches the binary in one
-build. The native suite passes 17 of 17 with the change in place, and the
-Debug build is installed on wzpc.
+build. The native suite passed 17 of 17 with the change in place, on the tree
+before the display split added `upscale-placement`; the 18 of 18 recorded for
+the display work above is the same suite after it. Both were observed, and on
+different revisions. The Debug build is installed on wzpc.
 
 Open: the website field, and reading the result on the television — that the
 settings list shows the author and the new description is still unconfirmed by
