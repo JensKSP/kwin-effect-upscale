@@ -174,9 +174,6 @@ void UpscaleEffectConfig::addAboutControls(QFormLayout *layout)
     m_build->setTextInteractionFlags(Qt::TextSelectableByMouse);
     m_build->setText(installedVersion());
     layout->addRow(i18n("Version:"), m_build);
-    // What does the upscaling. Not a choice, so it is told here rather than
-    // offered with the settings.
-    layout->addRow(i18n("Scaler:"), new QLabel(i18n("AMD FSR 1"), widget()));
     // Read from the effect's own metadata, which is where the author is
     // maintained, rather than repeated here. This module is built without
     // metadata of its own, so it looks the effect up by its plugin ID the way

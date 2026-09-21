@@ -37,6 +37,10 @@ int main()
     assert((desiredResolution(output, ResolutionPreset::Performance, 9900) == UpscaleSize{1920, 1080}));
     assert((desiredResolution(output, ResolutionPreset::Native, 5000) == output));
     assert((desiredResolution(output, ResolutionPreset::Custom, 7500) == UpscaleSize{2880, 1620}));
+    // The share a whole percent cannot name, which is why the scale is held in
+    // basis points; see resolutionRatio().
+    assert((desiredResolution(output, ResolutionPreset::Custom, 6667) == UpscaleSize{2560, 1440}));
+    assert((desiredResolution(output, ResolutionPreset::Custom, 6700) != UpscaleSize{2560, 1440}));
     assert((desiredResolution({101, 101}, ResolutionPreset::Custom, 5000) == UpscaleSize{51, 51}));
     assert((desiredResolution(output, ResolutionPreset::Custom, -1) == UpscaleSize{1920, 1080}));
     assert((desiredResolution(output, ResolutionPreset::Custom, 99999) == output));

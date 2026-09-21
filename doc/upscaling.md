@@ -802,14 +802,15 @@ the GPU synchronously.
 Configuration follows KWin's own pattern:
 `upscaleconfig.kcfg` and a page registered as `X-KDE-ConfigModule` in System
 Settings. The page implements the controls below. A recognized application is
-asked for a resolution by its recorded method: at output binding for Wayland,
-or after its window appears for X11. Unlisted programs receive no request by
-default. The optional “Try other applications too” setting tries native Wayland
-mode advertisement; it does not provide generic X11 control. The status can be refreshed
-explicitly and reports supplied buffer dimensions, not internal game rendering
-resolution. What was requested is reported apart from what the application
-committed, and neither a saved preference nor a made request is ever presented
-as a successfully applied client resolution.
+asked for a resolution by its recorded methods: at output binding for Wayland,
+or after its window appears for X11. Applications that are not in the list are
+left alone by default. Checking **All applications** has them upscaled and
+asked by the global profile's own six methods, each Off until someone chooses
+one. The page shows no runtime status: what the effect is doing is reported by
+the on-screen displays and the log, which give supplied buffer dimensions, not
+internal game rendering resolution. What was requested is reported apart from
+what the application committed, and neither a saved preference nor a made
+request is ever presented as a successfully applied client resolution.
 
 The page has two boxes, the way KWin's own effect pages group theirs: the
 application list and About. The global settings are not a section of their
