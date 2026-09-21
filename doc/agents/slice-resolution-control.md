@@ -1825,6 +1825,16 @@ and a real session on 6.6.
 
 ## Remaining work on the X11 production integration
 
+- [ ] Watch how long the X11 test takes after the KWin 6.6 fix of 2026-09-21,
+      agreed with Jens the same day. The pull request's CI runs it only on
+      Trixie (KWin 6.3.6); Ubuntu 26.04 (KWin 6.6.6) runs it only in the
+      nightly's resolute package jobs, amd64 and arm64. A normal run takes
+      about 60 s. If runs there take markedly longer - Fable saw three passing
+      iterations at 110-190 s, logs not kept - investigate the slow path:
+      keep the full test output of such a run (`ctest --output-on-failure`
+      drops it for a pass) and find what the X11 control or the session is
+      waiting on.
+
 ### Production X11 integration
 
 Jens requested integration of the demonstrated mechanism into the actual effect
