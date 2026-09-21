@@ -11,6 +11,7 @@
 #include "resolution.h"
 
 #include <array>
+#include <cstddef>
 #include <optional>
 
 class KConfigGroup;

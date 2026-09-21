@@ -12,6 +12,7 @@
 #include <QString>
 
 #include <array>
+#include <vector>
 
 class QComboBox;
 class QFormLayout;

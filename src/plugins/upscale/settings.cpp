@@ -13,6 +13,7 @@
 #include <KConfigGroup>
 
 #include <algorithm>
+#include <limits>
 
 namespace KWin
 {
