@@ -4,7 +4,7 @@
 # CMake 3.24 introduced CMAKE_COMPILE_WARNING_AS_ERROR; Trixie ships 3.31.6.
 cmake_minimum_required(VERSION 3.24)
 
-project(kwin-effect-upscale VERSION 0.1.0 LANGUAGES CXX)
+project(kwin-effect-upscale VERSION 0.2.0 LANGUAGES CXX)
 
 # One build directory beside the sources, never inside them. An in-source
 # configure scatters generated files through the tree, and from there they end
