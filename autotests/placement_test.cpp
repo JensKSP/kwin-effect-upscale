@@ -179,6 +179,15 @@ void UpscalePlacementTest::blocksStayInTheirQuarter()
     QVERIFY(!overlay.size().isEmpty());
     QVERIFY2(overlay.size().width() <= budget.width() && overlay.size().height() <= budget.height(),
              "a block that could not be shrunk to fit was not cropped to its quarter");
+
+    // No room is its own answer: nothing is drawn. A crop to a rectangle of no
+    // size is a null rectangle, which QImage::copy() reads as "copy it all",
+    // so without a case of its own this drew the whole block into a corner
+    // that had none to give.
+    UpscaleOverlay nowhere;
+    nowhere.setText(texts[2], 1, 1);
+    nowhere.fit(QSizeF(0, 0));
+    QVERIFY2(nowhere.size().isEmpty(), "a block given no room was drawn anyway");
 }
 
 QTEST_MAIN(UpscalePlacementTest)

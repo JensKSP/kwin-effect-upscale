@@ -104,6 +104,13 @@ static QImage renderFitted(const QString &text, double factor, double scale, con
     // The budget is in the output's coordinates and the image in destination
     // pixels, which is what the block is measured and drawn in.
     const QSize allowed(int(std::floor(budget.width() * scale)), int(std::floor(budget.height() * scale)));
+    // No room is an answer of its own: nothing is drawn. It cannot be left to
+    // the crop below, because a rectangle of no size is a null rectangle and
+    // QImage::copy() copies the whole image for one, which would draw the
+    // block at full size into a corner that has none to give.
+    if (allowed.isEmpty()) {
+        return QImage();
+    }
     if (image.width() > allowed.width() || image.height() > allowed.height()) {
         image = image.copy(QRect(QPoint(), image.size().boundedTo(allowed)));
     }
