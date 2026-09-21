@@ -62,7 +62,6 @@ if (KWIN_BUILD_KCMS)
         methodcontrols.cpp
         applicationeditor.cpp
         placement.cpp
-        supportinformation.cpp
     )
     kconfig_add_kcfg_files(kwin_upscale_config_SRCS upscaleconfig.kcfgc)
     kwin_add_effect_config(kwin_upscale_config ${kwin_upscale_config_SRCS})

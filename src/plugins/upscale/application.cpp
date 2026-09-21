@@ -410,12 +410,12 @@ const UpscaleApplication *upscaleApplicationForProgram(const QString &executable
 
 QString describeControlMethod(UpscaleMethod method)
 {
-    // The phrases these methods always had are kept word for word: they are
-    // what reports and translations already say, and a report that renamed a
-    // method between releases would read as a different method.
+    // Each names what is asked of the client, never what happens to the
+    // window: the window keeps the place and size the system gave it, and
+    // what the effect decides is the size the client renders at.
     switch (method) {
     case UpscaleMethod::X11Resize:
-        return i18n("X11 window resize");
+        return i18n("X11 buffer request");
     case UpscaleMethod::Off:
         return i18n("no resolution request");
     case UpscaleMethod::AdvertisedMode:

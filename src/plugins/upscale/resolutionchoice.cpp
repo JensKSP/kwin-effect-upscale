@@ -47,7 +47,7 @@ void upscaleFillResolutions(QComboBox *box)
     const QSignalBlocker blocker(box);
     const int selected = upscaleResolutionPixels(box, 0);
     box->clear();
-    box->addItem(i18n("Every output (no threshold)"), 0);
+    box->addItem(i18n("Any screen"), 0);
     // The screens this system is showing right now come first and carry their
     // names, because a threshold is nearly always about one of them. A screen
     // reports its size in layout pixels, which a scaled desktop shrinks; the

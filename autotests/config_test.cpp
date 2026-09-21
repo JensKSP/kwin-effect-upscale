@@ -7,7 +7,6 @@
 #include "buildtype.h"
 #include "placement.h"
 #include "resolutionchoice.h"
-#include "supportinformation.h"
 #include "upscale_config.h"
 
 #include "settings_fixture.h"
@@ -57,8 +56,6 @@ private Q_SLOTS:
     void saveAndRestore();
     void displayDefaults();
     void installedBuildVersion();
-    void runningBuildStatus();
-    void readsWhatTheCompositorReported();
 };
 
 void UpscaleConfigTest::presetsAndKeyboard()
@@ -86,9 +83,9 @@ void UpscaleConfigTest::presetsAndKeyboard()
     QVERIFY2(minimum->currentText().contains(QStringLiteral("1920 × 1080")), qPrintable(minimum->currentText()));
     QVERIFY2(minimum->itemData(0).toInt() == 0, "the first entry is every output");
     minimum->setCurrentIndex(0);
-    // Native is the preset that asks for nothing, and it says so.
+    // Native is the preset that asks for nothing, and says what that means.
     preset->setCurrentIndex(0);
-    QVERIFY2(preview->text().contains(QStringLiteral("asks for nothing")), qPrintable(preview->text()));
+    QVERIFY2(preview->text().contains(QStringLiteral("full resolution")), qPrintable(preview->text()));
     preset->setCurrentIndex(2);
     QCOMPARE(percentage->value(), 67);
     QVERIFY(preview->text().contains(QStringLiteral("66.7%")));
@@ -255,114 +252,22 @@ void UpscaleConfigTest::installedBuildVersion()
     const QLabel *build = module.widget()->findChild<QLabel *>(QStringLiteral("build"));
     QVERIFY(build);
 #if __has_include("buildinfo.h")
-    // Check the visible footer, including its field order and full base version.
-    // A snapshot package version is deliberately not the first field here.
-    const QString text = build->text();
-    QVERIFY(QRegularExpression(QStringLiteral("^[0-9]+\\.[0-9]+\\.[0-9]+ ")).match(text).hasMatch());
-    const QString revision = KWin::UpscaleBuildInfo::revision();
-    const QString branch = KWin::UpscaleBuildInfo::branch();
-    QCOMPARE(text, QStringLiteral("%1 %2 %3 %4").arg(KWin::UpscaleBuildInfo::baseVersion(), revision.isEmpty() ? QStringLiteral("unknown revision") : revision, KWin::UpscaleBuildInfo::buildDate(), branch.isEmpty() ? QStringLiteral("no branch or tag recorded") : branch));
+    // The version exactly as this repository's version rule names the build,
+    // and nothing else: the full record belongs to the log and the developer
+    // view, not to the settings page.
+    QCOMPARE(build->text(), KWin::UpscaleBuildInfo::version());
+    QVERIFY(QRegularExpression(QStringLiteral("^[0-9]+\\.[0-9]+\\.[0-9]+")).match(build->text()).hasMatch());
 #else
-    QCOMPARE(build->text(), QStringLiteral("unknown"));
+    QCOMPARE(build->text(), QStringLiteral("Unknown"));
 #endif
-}
-
-void UpscaleConfigTest::runningBuildStatus()
-{
-    TestEffects effects;
-    QDBusConnection bus = QDBusConnection::sessionBus();
-    QVERIFY(bus.isConnected());
-    QVERIFY(bus.registerService(QStringLiteral("org.kde.KWin")));
-    QVERIFY(bus.registerObject(QStringLiteral("/Effects"), &effects, QDBusConnection::ExportAllSlots));
-    effects.information = QStringLiteral("upscale:\nbuild: older-running-build\nstatus: Supplied input: 1280 × 720\nDestination: 2560 × 1440");
-    QWidget host;
-    KWin::UpscaleEffectConfig module(&host, KPluginMetaData());
-    QLabel *build = module.widget()->findChild<QLabel *>(QStringLiteral("build"));
-    QLabel *status = module.widget()->findChild<QLabel *>(QStringLiteral("status"));
-    QPushButton *refresh = module.widget()->findChild<QPushButton *>(QStringLiteral("refreshStatus"));
-    QVERIFY(build);
-    QVERIFY(status);
-    QVERIFY(refresh);
-    QTRY_VERIFY(build->text().contains(QStringLiteral("Running in KWin: older-running-build")));
-    QCOMPARE(status->text(), QStringLiteral("Supplied input: 1280 × 720\nDestination: 2560 × 1440"));
-
-#if __has_include("buildinfo.h")
-    const QString installed = KWin::UpscaleBuildInfo::describe();
-    effects.information = QStringLiteral("upscale:\nbuild: %1\nstatus: Matching build").arg(installed);
-    refresh->click();
-    QTRY_COMPARE(status->text(), QStringLiteral("Matching build"));
-    QVERIFY(!build->text().contains(QStringLiteral("Running in KWin:")));
-    // A rebuild can keep the version while changing other identity fields.
-    // None of those builds may be mistaken for the installed module.
-    const QStringList alternatives = {
-        installed + QStringLiteral(" (other branch)"),
-        installed + QStringLiteral(", built another day"),
-        installed + QStringLiteral(", Qt another version"),
-    };
-    for (const QString &identity : alternatives) {
-        effects.information = QStringLiteral("upscale:\nbuild: %1\nstatus: %1").arg(identity);
-        refresh->click();
-        QTRY_COMPARE(status->text(), identity);
-        QVERIFY(build->text().contains(QStringLiteral("Running in KWin: %1").arg(identity)));
-    }
-#endif
-
-    // Older effects can return status without a build property. That does not
-    // establish that the running effect matches the package now installed.
-    effects.information = QStringLiteral("upscale:\nstatus: No build identity available");
-    refresh->click();
-    QTRY_COMPARE(status->text(), QStringLiteral("No build identity available"));
-    QVERIFY(build->text().contains(QStringLiteral("Running in KWin: unknown")));
-    QVERIFY(!build->text().contains(QStringLiteral("older-running-build")));
-
-    effects.information = QStringLiteral("upscale:\nbuild: refreshed-running-build\nstatus: Updated");
-    refresh->click();
-    QTRY_COMPARE(status->text(), QStringLiteral("Updated"));
-    QVERIFY(build->text().contains(QStringLiteral("refreshed-running-build")));
-    effects.information.clear();
-    refresh->click();
-    QTRY_VERIFY(status->text().startsWith(QStringLiteral("Live status unavailable")));
-    QVERIFY(build->text().contains(QStringLiteral("Running in KWin: unknown")));
-    QVERIFY(!build->text().contains(QStringLiteral("refreshed-running-build")));
-
-    // Losing the service after a successful reply must clear the old identity
-    // just as an empty reply does.
-    effects.information = QStringLiteral("upscale:\nbuild: stale-running-build\nstatus: Available");
-    refresh->click();
-    QTRY_COMPARE(status->text(), QStringLiteral("Available"));
-    bus.unregisterObject(QStringLiteral("/Effects"));
-    QVERIFY(bus.unregisterService(QStringLiteral("org.kde.KWin")));
-    refresh->click();
-    QTRY_VERIFY(status->text().startsWith(QStringLiteral("Live status unavailable")));
-    QVERIFY(build->text().contains(QStringLiteral("Running in KWin: unknown")));
-    QVERIFY(!build->text().contains(QStringLiteral("stale-running-build")));
-}
-
-void UpscaleConfigTest::readsWhatTheCompositorReported()
-{
-    // Exactly the shape KWin's supportInformation produces for this effect.
-    const QString reported = QStringLiteral("upscale:\nbuild: upscale 0.1.0 (branch test), built now\n"
-                                            "status: Desired: Automatic (no request)\nSupplied input: 1280 × 720\n"
-                                            "Inactive: the window is not fullscreen.\n");
-    QString loaded;
-    const QString status = KWin::upscaleReportedStatus(reported, &loaded);
-    QCOMPARE(loaded, QStringLiteral("upscale 0.1.0 (branch test), built now"));
-    QVERIFY2(status.startsWith(QStringLiteral("Desired: Automatic")), qPrintable(status));
-    QVERIFY(status.contains(QStringLiteral("Inactive: the window is not fullscreen.")));
-    // Neither the effect's name nor the property names belong on the page.
-    QVERIFY(!status.contains(QStringLiteral("upscale:")));
-    QVERIFY(!status.contains(QStringLiteral("status:")));
-    QVERIFY(!status.contains(QStringLiteral("build:")));
-
-    // An effect built without the generated identity reports no build, and the
-    // status still has to come through.
-    QCOMPARE(KWin::upscaleReportedStatus(QStringLiteral("upscale:\nstatus: nothing to report\n"), &loaded),
-             QStringLiteral("nothing to report"));
-    QVERIFY(loaded.isEmpty());
-    loaded = QStringLiteral("stale build identity");
-    QCOMPARE(KWin::upscaleReportedStatus(QString(), &loaded), QString());
-    QVERIFY(loaded.isEmpty());
-    QCOMPARE(KWin::upscaleReportedStatus(QString(), nullptr), QString());
+    // The author comes from the effect's metadata, found by plugin ID beside
+    // this test in the build tree, and is not repeated in the page's code.
+    const QLabel *author = module.widget()->findChild<QLabel *>(QStringLiteral("author"));
+    QVERIFY2(author, "no author row: the effect's metadata was not found");
+    QCOMPARE(author->text(), QStringLiteral("Jens Köhler"));
+    // Nothing reports the running effect any more.
+    QVERIFY(!module.widget()->findChild<QLabel *>(QStringLiteral("status")));
+    QVERIFY(!module.widget()->findChild<QPushButton *>(QStringLiteral("refreshStatus")));
 }
 
 int main(int argc, char **argv)

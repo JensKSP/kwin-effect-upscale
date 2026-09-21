@@ -215,7 +215,7 @@ void UpscaleApplicationEditorTest::editsTheApplicationList()
     // The page says whether the list still follows the package.
     QLabel *summary = module.widget()->findChild<QLabel *>(QStringLiteral("applicationSummary"));
     QVERIFY(summary);
-    QVERIFY2(summary->text().contains(QStringLiteral("differs")), qPrintable(summary->text()));
+    QVERIFY2(summary->text().contains(QStringLiteral("your changes")), qPrintable(summary->text()));
 }
 
 void UpscaleApplicationEditorTest::addsApplicationsAndRemovesOnlyItsOwn()
@@ -334,7 +334,7 @@ void UpscaleApplicationEditorTest::restoresTheShippedApplicationList()
     // Nothing to restore while the list is the one this build ships.
     QVERIFY(!KWin::UpscaleApplicationEditor::customized());
     QVERIFY(!reset->isEnabled());
-    QVERIFY2(summary->text().contains(QStringLiteral("follows every update")), qPrintable(summary->text()));
+    QVERIFY2(summary->text().contains(QStringLiteral("Default list")), qPrintable(summary->text()));
 
     const int shipped = list->count();
     add->click();
@@ -356,7 +356,7 @@ void UpscaleApplicationEditorTest::restoresTheShippedApplicationList()
     reset->click();
     QCOMPARE(list->count(), shipped);
     QVERIFY(!KWin::UpscaleApplicationEditor::customized());
-    QVERIFY2(summary->text().contains(QStringLiteral("follows every update")), qPrintable(summary->text()));
+    QVERIFY2(summary->text().contains(QStringLiteral("Default list")), qPrintable(summary->text()));
     // Restoring must leave the shipped entries reachable rather than suppress
     // them, so the page can still read them afterwards.
     QVERIFY(list->count() > 1);

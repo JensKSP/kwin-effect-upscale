@@ -11,6 +11,8 @@
 #include <QComboBox>
 #include <QFormLayout>
 
+#include <algorithm>
+
 namespace KWin
 {
 
@@ -18,17 +20,17 @@ QString upscalePresentationLabel(UpscalePresentation presentation)
 {
     switch (presentation) {
     case UpscalePresentation::WaylandFullScreen:
-        return i18n("Wayland, fullscreen:");
+        return i18n("Wayland fullscreen:");
     case UpscalePresentation::WaylandBorderless:
-        return i18n("Wayland, borderless:");
+        return i18n("Wayland borderless:");
     case UpscalePresentation::WaylandWindowed:
-        return i18n("Wayland, windowed:");
+        return i18n("Wayland windowed:");
     case UpscalePresentation::X11FullScreen:
-        return i18n("X11, fullscreen:");
+        return i18n("X11 fullscreen:");
     case UpscalePresentation::X11Borderless:
-        return i18n("X11, borderless:");
+        return i18n("X11 borderless:");
     case UpscalePresentation::X11Windowed:
-        return i18n("X11, windowed:");
+        return i18n("X11 windowed:");
     }
     return QString();
 }
@@ -39,15 +41,15 @@ QString upscaleMethodLabel(UpscaleMethod method)
     case UpscaleMethod::Auto:
         return i18n("Automatic");
     case UpscaleMethod::Off:
-        return i18n("Ask for nothing");
+        return i18nc("A resolution request method", "Off");
     case UpscaleMethod::AdvertisedMode:
-        return i18n("Advertise a smaller screen mode");
+        return i18n("Smaller screen mode");
     case UpscaleMethod::AdvertisedScale:
-        return i18n("Advertise a smaller screen scale");
+        return i18n("Smaller screen scale");
     case UpscaleMethod::AdvertisedModeAndScale:
-        return i18n("Advertise a smaller mode and scale");
+        return i18n("Smaller mode and scale");
     case UpscaleMethod::X11Resize:
-        return i18n("Resize the window");
+        return i18n("Smaller X11 buffer");
     }
     return QString();
 }

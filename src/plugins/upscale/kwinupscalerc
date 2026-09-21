@@ -43,7 +43,9 @@
 #                          offers such a client nothing.
 #   AdvertisedModeAndScale Both together, for clients that take their size from
 #                          the mode but declare the output's scale themselves.
-#   X11Resize              Resize a selected X11 fullscreen window. Requires
+#   X11Resize              Give a selected X11 window a smaller drawable and
+#                          present it at the size the system gave the window;
+#                          the window itself keeps its place and size. Requires
 #                          a client which follows resizing and RandR modes.
 #
 # Every other setting the effect has may also appear here, and each one absent

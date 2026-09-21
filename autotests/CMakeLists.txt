@@ -332,7 +332,6 @@ if(KWIN_BUILD_KCMS)
         ../src/plugins/upscale/settingcontrols.cpp
         ../src/plugins/upscale/methodcontrols.cpp
         ../src/plugins/upscale/placement.cpp
-        ../src/plugins/upscale/supportinformation.cpp
         ../src/plugins/upscale/upscale_config.cpp
         ../src/plugins/upscale/displaycontrols.cpp
         ../src/plugins/upscale/resolutionchoice.cpp

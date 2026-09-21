@@ -38,7 +38,6 @@ public:
 
 private:
     void updatePreview();
-    void refreshStatus();
     void updateOutputs();
     void showSettings();
     void applySettings();
@@ -52,10 +51,9 @@ private:
     void resetApplications();
     static void reconfigureEffect();
     void updateApplicationSummary();
-    void addStatusControls(QFormLayout *layout);
+    void addAboutControls(QFormLayout *layout);
     void connectControls();
-    void showSupportInformation(const QString &information);
-    static QString installedBuild();
+    static QString installedVersion();
 
     QCheckBox *m_enabled;
     QComboBox *m_output;
@@ -79,7 +77,6 @@ private:
     QLabel *m_applications;
     QPushButton *m_resetApplications;
     QLabel *m_build;
-    QLabel *m_status;
 };
 
 } // namespace KWin

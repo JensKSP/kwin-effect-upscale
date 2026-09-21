@@ -12,6 +12,7 @@
 #include <QFormLayout>
 #include <QSpinBox>
 
+#include <algorithm>
 #include <array>
 
 namespace KWin
@@ -21,37 +22,53 @@ QString upscaleSettingLabel(UpscaleSetting setting)
 {
     switch (setting) {
     case UpscaleSetting::Resolution:
-        return i18n("Resolution:");
+        return i18n("Render resolution:");
     case UpscaleSetting::Percentage:
-        return i18n("Custom resolution:");
+        return i18n("Resolution scale:");
     case UpscaleSetting::MinimumPixels:
-        return i18n("Biggest output not to scale, in pixels:");
+        return i18n("Upscale on screens larger than:");
     case UpscaleSetting::Sharpening:
-        return i18n("Sharpening:");
+        return i18n("Sharpen the image:");
     case UpscaleSetting::Strength:
-        return i18n("Sharpening strength:");
+        return i18n("Strength:");
     case UpscaleSetting::ResolutionControl:
-        return i18n("Ask the application to render smaller:");
+        return i18n("Resolution requests:");
     case UpscaleSetting::Osd:
         return i18n("On-screen display:");
     case UpscaleSetting::OsdDetection:
-        return i18n("Announce this application:");
+        return i18n("Show info at startup:");
     case UpscaleSetting::OsdSummary:
-        return i18n("Include a summary:");
+        return i18n("Include details:");
     case UpscaleSetting::OsdStatistics:
-        return i18n("Show the frame rate:");
+        return i18n("Show frame rate:");
     case UpscaleSetting::OsdDeveloper:
-        return i18n("Developer information:");
+        return i18n("Show developer information:");
     case UpscaleSetting::OsdTimeout:
-        return i18n("Announcement timeout:");
+        return i18n("Show startup info for:");
     case UpscaleSetting::AnnouncementPosition:
-        return i18n("Announcement position:");
+        return i18n("Startup info position:");
     case UpscaleSetting::StatisticsPosition:
         return i18n("Frame rate position:");
     case UpscaleSetting::DeveloperPosition:
         return i18n("Developer information position:");
     }
     return QString();
+}
+
+// The unit a number is counted in, the same one the settings page shows.
+// Appended to the digits, so that a translation can put a space before it.
+static QString upscaleSettingSuffix(UpscaleSetting setting, int value)
+{
+    switch (setting) {
+    case UpscaleSetting::Percentage:
+        return i18nc("Suffix: a share of the screen's resolution", "%");
+    case UpscaleSetting::MinimumPixels:
+        return i18ncp("Suffix", " pixel", " pixels", value);
+    case UpscaleSetting::OsdTimeout:
+        return i18ncp("Suffix", " second", " seconds", value);
+    default:
+        return QString();
+    }
 }
 
 int upscaleSettingChoiceCount(UpscaleSetting setting)
@@ -68,9 +85,7 @@ QString upscaleSettingChoiceLabel(UpscaleSetting setting, int value)
         }
         switch (ResolutionPreset(value)) {
         case ResolutionPreset::Native:
-            // Named for what it does rather than for what it is called
-            // elsewhere: a person choosing it is choosing to be left alone.
-            return i18n("Native — do not reduce");
+            return i18n("Native");
         case ResolutionPreset::UltraQuality:
             return i18n("Ultra Quality");
         case ResolutionPreset::Quality:
@@ -139,6 +154,13 @@ void UpscaleSettingControls::build(QFormLayout *form, QWidget *parent, const std
             // table's, so a control can never offer a value storage would
             // clamp away.
             control.spin->setRange(info.minimum - 1, info.maximum);
+            // The plural of a unit depends on the number, so it follows it.
+            QSpinBox *spin = control.spin;
+            const auto unit = [spin, setting]() {
+                spin->setSuffix(upscaleSettingSuffix(setting, spin->value()));
+            };
+            unit();
+            connect(control.spin, &QSpinBox::valueChanged, control.spin, unit);
             connect(control.spin, &QSpinBox::valueChanged, this, &UpscaleSettingControls::changed);
             form->addRow(upscaleSettingLabel(setting), control.spin);
         } else {
@@ -154,6 +176,14 @@ void UpscaleSettingControls::build(QFormLayout *form, QWidget *parent, const std
     }
 }
 
+// The first choice of every inheritable control. KDE's own pattern for
+// following something else is "Default (Breeze)", but Default already names
+// the page's Restore Defaults, which means something different.
+static QString globalChoice(const QString &inherited)
+{
+    return i18nc("A profile's setting that follows the global value, named in brackets", "Global (%1)", inherited);
+}
+
 void UpscaleSettingControls::show(const UpscaleSettingOverrides &overrides, const UpscaleSettings &global)
 {
     for (const Control &control : m_controls) {
@@ -162,15 +192,16 @@ void UpscaleSettingControls::show(const UpscaleSettingOverrides &overrides, cons
         const int inherited = global.value(control.setting);
         if (control.spin) {
             // Naming the inherited value in the special text is the whole
-            // point: "use global" on its own tells a person nothing about
-            // what they would get.
-            control.spin->setSpecialValueText(i18n("Use global (%1)", inherited));
+            // point: "Global" on its own tells a person nothing about what
+            // they would get.
+            control.spin->setSpecialValueText(
+                globalChoice(QString::number(inherited) + upscaleSettingSuffix(control.setting, inherited)));
             control.spin->setValue(stated ? *stated : info.minimum - 1);
             continue;
         }
         control.box->clear();
         if (info.type == UpscaleSettingType::Switch) {
-            control.box->addItem(inherited ? i18n("Use global (on)") : i18n("Use global (off)"));
+            control.box->addItem(globalChoice(inherited ? i18n("On") : i18n("Off")));
             control.box->addItem(i18n("On"));
             control.box->addItem(i18n("Off"));
             // Use global, On, Off, in that order.
@@ -181,7 +212,7 @@ void UpscaleSettingControls::show(const UpscaleSettingOverrides &overrides, cons
             control.box->setCurrentIndex(index);
             continue;
         }
-        control.box->addItem(i18n("Use global (%1)", upscaleSettingChoiceLabel(control.setting, inherited)));
+        control.box->addItem(globalChoice(upscaleSettingChoiceLabel(control.setting, inherited)));
         for (int value = info.minimum; value <= info.maximum; ++value) {
             control.box->addItem(upscaleSettingChoiceLabel(control.setting, value));
         }

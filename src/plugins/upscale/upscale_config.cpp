@@ -15,7 +15,6 @@
 #include "applicationeditor.h"
 #include "placement.h"
 #include "resolution.h"
-#include "supportinformation.h"
 #include "upscaleconfig.h"
 
 // Kept out of the plugin folder, because that folder has to stay a folder KDE
@@ -28,16 +27,18 @@
 #define UPSCALE_BUILD_INFO 0
 #endif
 
+#include <KAboutData>
 #include <KLocalizedString>
 #include <KPluginFactory>
+#include <KPluginMetaData>
 
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDBusConnection>
 #include <QDBusMessage>
-#include <QDBusPendingCallWatcher>
-#include <QDBusPendingReply>
+#include <QDBusPendingCall>
 #include <QFormLayout>
+#include <QGroupBox>
 #include <QGuiApplication>
 #include <QLabel>
 #include <QMessageBox>
@@ -46,6 +47,7 @@
 #include <QSignalBlocker>
 #include <QSlider>
 #include <QSpinBox>
+#include <QVBoxLayout>
 
 #include <limits>
 
@@ -56,25 +58,24 @@ namespace KWin
 
 UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData &data)
     : KCModule(parent, data)
-    , m_enabled(new QCheckBox(i18n("Also upscale applications that are not in the list"), widget()))
+    , m_enabled(new QCheckBox(i18n("Upscale unlisted applications"), widget()))
     , m_output(new QComboBox(widget()))
     , m_preset(new QComboBox(widget()))
     , m_percentage(new QSlider(Qt::Horizontal, widget()))
     , m_minimumPixels(new QComboBox(widget()))
     , m_preview(new QLabel(widget()))
-    , m_sharpening(new QCheckBox(i18n("Enable RCAS sharpening"), widget()))
+    , m_sharpening(new QCheckBox(i18n("Sharpen the image"), widget()))
     , m_strength(new QSlider(Qt::Horizontal, widget()))
     , m_strengthLabel(new QLabel(widget()))
-    , m_osdDetection(new QCheckBox(i18n("Announce the selected application"), widget()))
-    , m_osdSummary(new QCheckBox(i18n("Include a short summary in the announcement"), widget()))
-    , m_osdStatistics(new QCheckBox(i18n("Show the frame rate on screen"), widget()))
-    , m_osdDeveloper(new QCheckBox(i18n("Add developer information"), widget()))
+    , m_osdDetection(new QCheckBox(i18n("Show info at startup"), widget()))
+    , m_osdSummary(new QCheckBox(i18n("Include details"), widget()))
+    , m_osdStatistics(new QCheckBox(i18n("Show frame rate"), widget()))
+    , m_osdDeveloper(new QCheckBox(i18n("Show developer information"), widget()))
     , m_osdAnnouncementPosition(new QComboBox(widget()))
     , m_osdStatisticsPosition(new QComboBox(widget()))
     , m_osdDeveloperPosition(new QComboBox(widget()))
     , m_osdTimeout(new QSpinBox(widget()))
     , m_build(new QLabel(widget()))
-    , m_status(new QLabel(widget()))
 {
     m_enabled->setObjectName(QStringLiteral("enabled"));
     m_preset->setObjectName(QStringLiteral("preset"));
@@ -82,26 +83,41 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     m_preview->setObjectName(QStringLiteral("preview"));
     m_sharpening->setObjectName(QStringLiteral("sharpening"));
     m_strength->setObjectName(QStringLiteral("strength"));
-    auto layout = new QFormLayout(widget());
-    layout->addRow(m_enabled);
-    layout->addRow(i18n("Scaler:"), new QLabel(i18n("FSR 1 (EASU)"), widget()));
-    layout->addRow(i18n("Preview output:"), m_output);
-    m_preset->addItems({i18n("Native \u2014 do not reduce"), i18n("Ultra Quality"), i18n("Quality"),
-                        i18n("Balanced"), i18n("Performance"), i18n("Custom")});
-    layout->addRow(i18n("Preferred game resolution:"), m_preset);
+    // Grouped the way KWin's own effect pages group theirs: a box per topic
+    // with a form inside it, and each box titled in title case.
+    auto page = new QVBoxLayout(widget());
+    const auto section = [this, page](const QString &title) {
+        auto box = new QGroupBox(title, widget());
+        page->addWidget(box);
+        return new QFormLayout(box);
+    };
+
+    QFormLayout *general = section(i18n("General"));
+    general->addRow(m_enabled);
+    general->addRow(i18n("Scaler:"), new QLabel(i18n("AMD FSR 1"), widget()));
+
+    QFormLayout *resolution = section(i18n("Resolution"));
+    m_preset->addItems({i18n("Native"), i18n("Ultra Quality"), i18n("Quality"), i18n("Balanced"),
+                        i18n("Performance"), i18n("Custom")});
+    resolution->addRow(i18n("Render resolution:"), m_preset);
     m_percentage->setRange(50, 100);
     m_percentage->setSingleStep(1);
-    layout->addRow(i18n("Input size:"), m_percentage);
+    resolution->addRow(i18n("Resolution scale:"), m_percentage);
+    resolution->addRow(i18n("Screen:"), m_output);
     m_preview->setWordWrap(true);
-    layout->addRow(m_preview);
-    addThresholdControl(layout);
-    layout->addRow(m_sharpening);
+    resolution->addRow(QString(), m_preview);
+    addThresholdControl(resolution);
+
+    QFormLayout *sharpening = section(i18n("Sharpening"));
+    sharpening->addRow(m_sharpening);
     m_strength->setRange(0, 100);
-    layout->addRow(i18n("Sharpening strength:"), m_strength);
-    layout->addRow(m_strengthLabel);
-    addDisplayControls(layout);
-    addApplicationControls(layout);
-    addStatusControls(layout);
+    sharpening->addRow(i18n("Strength:"), m_strength);
+    sharpening->addRow(QString(), m_strengthLabel);
+
+    addDisplayControls(section(i18n("On-Screen Display")));
+    addApplicationControls(section(i18n("Applications")));
+    addAboutControls(section(i18n("About")));
+    page->addStretch();
     connectControls();
     connect(qGuiApp, &QGuiApplication::screenAdded, this, &UpscaleEffectConfig::updateOutputs);
     connect(qGuiApp, &QGuiApplication::screenRemoved, this, &UpscaleEffectConfig::updateOutputs);
@@ -109,23 +125,34 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     UpscaleEffectConfig::load();
 }
 
-void UpscaleEffectConfig::addStatusControls(QFormLayout *layout)
+// The version this build calls itself and who wrote it, and nothing else: the
+// full build record - branch, revision, build date - is in the log the effect
+// writes when KWin loads it and in the developer information on screen, and
+// the licence and project address are in the About that System Settings builds
+// from the plugin's metadata.
+void UpscaleEffectConfig::addAboutControls(QFormLayout *layout)
 {
     m_build->setObjectName(QStringLiteral("build"));
-    m_build->setWordWrap(true);
     m_build->setTextFormat(Qt::PlainText);
     m_build->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    m_build->setText(installedBuild());
+    m_build->setText(installedVersion());
     layout->addRow(i18n("Version:"), m_build);
-    m_status->setObjectName(QStringLiteral("status"));
-    m_status->setWordWrap(true);
-    m_status->setTextFormat(Qt::PlainText);
-    m_status->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    layout->addRow(m_status);
-    auto refresh = new QPushButton(i18n("Refresh supplied-buffer status"), widget());
-    refresh->setObjectName(QStringLiteral("refreshStatus"));
-    layout->addRow(refresh);
-    connect(refresh, &QPushButton::clicked, this, &UpscaleEffectConfig::refreshStatus);
+    // Read from the effect's own metadata, which is where the author is
+    // maintained, rather than repeated here. This module is built without
+    // metadata of its own, so it looks the effect up by its plugin ID the way
+    // System Settings does.
+    const KPluginMetaData effect = KPluginMetaData::findPluginById(QStringLiteral("kwin/effects/plugins"),
+                                                                   QStringLiteral("upscale"));
+    QStringList names;
+    for (const KAboutPerson &person : effect.authors()) {
+        names.append(person.name());
+    }
+    if (!names.isEmpty()) {
+        auto author = new QLabel(names.join(QStringLiteral(", ")), widget());
+        author->setObjectName(QStringLiteral("author"));
+        author->setTextFormat(Qt::PlainText);
+        layout->addRow(names.size() > 1 ? i18n("Authors:") : i18n("Author:"), author);
+    }
 }
 
 void UpscaleEffectConfig::addThresholdControl(QFormLayout *layout)
@@ -136,9 +163,9 @@ void UpscaleEffectConfig::addThresholdControl(QFormLayout *layout)
     // anybody might want a threshold at.
     m_minimumPixels->setEditable(true);
     m_minimumPixels->setInsertPolicy(QComboBox::NoInsert);
-    m_minimumPixels->setToolTip(i18n("Each output is checked independently, by pixel count: width times height. An output with this many pixels or fewer is left alone; only a larger one is scaled, whatever its shape. Choose one of your screens, or type a resolution such as 1920x1080. Application rules can override it."));
+    m_minimumPixels->setToolTip(i18n("Screens at or below this resolution are left alone. An application can set its own limit."));
     upscaleFillResolutions(m_minimumPixels);
-    layout->addRow(i18n("Biggest resolution not to scale:"), m_minimumPixels);
+    layout->addRow(i18n("Upscale on screens larger than:"), m_minimumPixels);
     connect(m_minimumPixels, &QComboBox::currentTextChanged, this, [this]() {
         updatePreview();
         setNeedsSave(true);
@@ -200,7 +227,7 @@ void UpscaleEffectConfig::addApplicationControls(QFormLayout *layout)
     m_applications->setTextFormat(Qt::PlainText);
     m_applications->setWordWrap(true);
     layout->addRow(QString(), m_applications);
-    m_resetApplications = new QPushButton(i18n("Restore the shipped application list"), widget());
+    m_resetApplications = new QPushButton(i18n("Restore Defaults"), widget());
     m_resetApplications->setObjectName(QStringLiteral("resetApplications"));
     layout->addRow(QString(), m_resetApplications);
     connect(m_resetApplications, &QPushButton::clicked, this, &UpscaleEffectConfig::resetApplications);
@@ -211,8 +238,8 @@ void UpscaleEffectConfig::updateApplicationSummary()
 {
     const bool customized = UpscaleApplicationEditor::customized();
     m_applications->setText(customized
-                                ? i18n("The list differs from the one this version ships.")
-                                : i18n("The list is the one this version ships, and follows every update."));
+                                ? i18n("Contains your changes.")
+                                : i18n("Default list, updated with each release."));
     m_resetApplications->setEnabled(customized);
 }
 
@@ -265,16 +292,19 @@ void UpscaleEffectConfig::updatePreview()
             m_percentage->setValue(qRound(ratio * 100));
         }
         m_preview->setText(preset == ResolutionPreset::Native
-                               ? i18n("Native asks for nothing and leaves the supplied buffer as it is.")
-                               : i18n("%1% — %2 × %3 physical pixels. Select this resolution in the game. Scaling follows the actual supplied buffer, even when it differs.",
-                                      QString::number(ratio * 100, 'f', preset == ResolutionPreset::Custom || preset == ResolutionPreset::Native || preset == ResolutionPreset::Performance ? 0 : 1),
-                                      desired.width, desired.height));
+                               ? i18n("Games render at full resolution and are not upscaled.")
+                               : i18nc("render resolution, then its share of the screen", "%2 × %3 (%1%)",
+                                       QString::number(ratio * 100, 'f', preset == ResolutionPreset::Custom || preset == ResolutionPreset::Native || preset == ResolutionPreset::Performance ? 0 : 1),
+                                       desired.width, desired.height));
         if (!exceedsMinimumPixels({pixels.width(), pixels.height()}, upscaleResolutionPixels(m_minimumPixels, UpscaleConfig::minimumPixels()))) {
-            m_preview->setText(i18n("This output is at or below the pixel threshold: no resolution request or upscaling, unless an application overrides the threshold."));
+            m_preview->setText(i18n("Not upscaled: this screen is at or below the resolution limit."));
         }
     }
     m_strength->setEnabled(m_sharpening->isChecked());
-    m_strengthLabel->setText(i18n("%1% (0% bypasses sharpening)", m_strength->value()));
+    // Zero is a real bypass rather than the weakest setting, so it is named as
+    // one instead of being shown as a percentage.
+    m_strengthLabel->setText(m_strength->value() == 0 ? i18nc("sharpening strength", "Off")
+                                                      : i18nc("sharpening strength", "%1%", m_strength->value()));
     // Each of the four displays is its own switch, so a control is enabled by
     // the display it belongs to and by nothing above it. Turning all four off
     // is what leaves nothing on screen; there is no separate way to say it.
@@ -361,7 +391,6 @@ void UpscaleEffectConfig::load()
     m_editor->load();
     updateApplicationSummary();
     setNeedsSave(false);
-    refreshStatus();
 }
 
 void UpscaleEffectConfig::defaults()
@@ -393,60 +422,18 @@ void UpscaleEffectConfig::save()
     applySettings();
     setNeedsSave(!stored);
     reconfigureEffect();
-    refreshStatus();
 }
 
-// Whether the identity the running effect reported is this build's own. The
-// same commit can be rebuilt with another branch, date or Qt version.
-static bool sameAsInstalled(const QString &loaded)
+QString UpscaleEffectConfig::installedVersion()
 {
 #if UPSCALE_BUILD_INFO
-    return loaded == UpscaleBuildInfo::describe();
+    // Exactly what the version rule of this repository calls the build:
+    // "0.1.0" on a release tag, "0.1.0+git<date>.<hash>" with "-dirty" for
+    // local changes anywhere else.
+    return UpscaleBuildInfo::version();
 #else
-    Q_UNUSED(loaded)
-    return false;
+    return i18n("Unknown");
 #endif
-}
-
-QString UpscaleEffectConfig::installedBuild()
-{
-#if UPSCALE_BUILD_INFO
-    const QString branch = UpscaleBuildInfo::branch();
-    const QString revision = UpscaleBuildInfo::revision();
-    return QStringLiteral("%1 %2 %3 %4").arg(UpscaleBuildInfo::baseVersion(), revision.isEmpty() ? i18n("unknown revision") : revision, UpscaleBuildInfo::buildDate(), branch.isEmpty() ? i18n("no branch or tag recorded") : branch);
-#else
-    return i18n("unknown");
-#endif
-}
-
-void UpscaleEffectConfig::refreshStatus()
-{
-    QDBusMessage message = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"), QStringLiteral("/Effects"),
-                                                          QStringLiteral("org.kde.kwin.Effects"), QStringLiteral("supportInformation"));
-    message << QStringLiteral("upscale");
-    auto watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(message), this);
-    connect(watcher, &QDBusPendingCallWatcher::finished, this, [this, watcher]() {
-        const QDBusPendingReply<QString> reply = *watcher;
-        if (reply.isError() || reply.value().isEmpty()) {
-            m_build->setText(i18n("%1\nRunning in KWin: unknown", installedBuild()));
-            m_status->setText(i18n("Live status unavailable. Enable Upscale in Desktop Effects, then refresh while the game is running."));
-        } else {
-            showSupportInformation(reply.value());
-        }
-        watcher->deleteLater();
-    });
-}
-
-void UpscaleEffectConfig::showSupportInformation(const QString &information)
-{
-    QString loaded;
-    m_status->setText(upscaleReportedStatus(information, &loaded));
-    // The compositor keeps a plugin it has already loaded, so an installed
-    // update is not the build that is running until the session restarts.
-    // Saying so is the only honest way to report the difference.
-    m_build->setText(!loaded.isEmpty() && sameAsInstalled(loaded)
-                         ? installedBuild()
-                         : i18n("%1\nRunning in KWin: %2", installedBuild(), loaded.isEmpty() ? i18n("unknown") : loaded));
 }
 
 } // namespace KWin

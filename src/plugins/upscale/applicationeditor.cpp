@@ -15,6 +15,7 @@
 #include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
 #include <QFormLayout>
+#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -38,33 +39,48 @@ namespace KWin
 // rather than written out here, which is what keeps this file able to take
 // another setting without passing the size limit.
 
-void UpscaleApplicationEditor::buildDetails(QFormLayout *form)
+// One titled group of the details, the way the settings page groups its own.
+static QFormLayout *addGroup(QVBoxLayout *details, QWidget *parent, const QString &title)
 {
+    auto *group = new QGroupBox(title, parent);
+    auto *form = new QFormLayout(group);
+    details->addWidget(group);
+    return form;
+}
 
+// Grouped as the settings page is, so that a game's form reads like the
+// global one with a Global choice added to each preference.
+void UpscaleApplicationEditor::buildDetails(QVBoxLayout *details)
+{
     m_note->setWordWrap(true);
     m_note->setTextFormat(Qt::PlainText);
     m_windowClass->setPlaceholderText(i18n("Any"));
     m_instance->setPlaceholderText(i18n("Any"));
-    m_program->setPlaceholderText(i18n("File name of the program"));
-    form->addRow(i18n("Name:"), m_name);
-    form->addRow(i18n("Window class:"), m_windowClass);
-    form->addRow(i18n("Window instance:"), m_instance);
-    form->addRow(i18n("Program:"), m_program);
-    // What to ask for, per way the game can present itself. No "use global"
+    m_program->setPlaceholderText(i18n("Program file name"));
+    QFormLayout *identification = addGroup(details, this, i18n("Identification"));
+    identification->addRow(i18n("Name:"), m_name);
+    identification->addRow(i18n("Window class:"), m_windowClass);
+    identification->addRow(i18n("Window instance:"), m_instance);
+    identification->addRow(i18n("Program:"), m_program);
+    identification->addRow(QString(), m_enabled);
+    identification->addRow(QString(), m_note);
+    QFormLayout *requests = addGroup(details, this, i18n("Resolution Request"));
+    m_settings->build(requests, this, {UpscaleSetting::ResolutionControl});
+    // What to ask for, per way the game can present itself. No Global choice
     // here: a method is a measurement of this program and has nothing to
     // inherit from anything else.
-    m_methods->build(form, this);
+    m_methods->build(requests, this);
     // And what the user wants, every entry of which may follow the global
     // value instead.
-    m_settings->build(form, this,
-                      {UpscaleSetting::Resolution, UpscaleSetting::Percentage, UpscaleSetting::MinimumPixels,
-                       UpscaleSetting::Sharpening, UpscaleSetting::Strength, UpscaleSetting::ResolutionControl,
-                       UpscaleSetting::OsdDetection, UpscaleSetting::OsdSummary, UpscaleSetting::OsdStatistics,
-                       UpscaleSetting::OsdDeveloper, UpscaleSetting::OsdTimeout,
-                       UpscaleSetting::AnnouncementPosition, UpscaleSetting::StatisticsPosition,
-                       UpscaleSetting::DeveloperPosition});
-    form->addRow(QString(), m_enabled);
-    form->addRow(QString(), m_note);
+    m_settings->build(addGroup(details, this, i18n("Resolution")), this,
+                      {UpscaleSetting::Resolution, UpscaleSetting::Percentage, UpscaleSetting::MinimumPixels});
+    m_settings->build(addGroup(details, this, i18n("Sharpening")), this,
+                      {UpscaleSetting::Sharpening, UpscaleSetting::Strength});
+    m_settings->build(addGroup(details, this, i18n("On-Screen Display")), this,
+                      {UpscaleSetting::OsdDetection, UpscaleSetting::OsdSummary, UpscaleSetting::OsdStatistics,
+                       UpscaleSetting::OsdDeveloper, UpscaleSetting::OsdTimeout, UpscaleSetting::AnnouncementPosition,
+                       UpscaleSetting::StatisticsPosition, UpscaleSetting::DeveloperPosition});
+    details->addStretch();
 }
 
 void UpscaleApplicationEditor::connectControls()
@@ -108,14 +124,17 @@ UpscaleApplicationEditor::UpscaleApplicationEditor(QWidget *parent)
     , m_program(new QLineEdit(this))
     , m_methods(new UpscaleMethodControls(this))
     , m_settings(new UpscaleSettingControls(this))
-    , m_enabled(new QCheckBox(i18n("Recognize this application"), this))
+    , m_enabled(new QCheckBox(i18nc("An application profile takes part in matching", "Enabled"), this))
     , m_note(new QLabel(this))
 {
-    auto *form = new QFormLayout;
-    buildDetails(form);
+    auto *details = new QVBoxLayout;
+    buildDetails(details);
 
-    auto *add = new QPushButton(i18n("Add…"), this);
-    auto *detect = new QPushButton(i18n("Add from window…"), this);
+    // No ellipsis on Add: it adds an entry at once, and KDE keeps the
+    // ellipsis for a button that asks for more before it acts. Picking a
+    // window is such a step.
+    auto *add = new QPushButton(i18n("Add"), this);
+    auto *detect = new QPushButton(i18n("Add from Window…"), this);
     m_delete = new QPushButton(i18n("Remove"), this);
     // Named as the rest of the settings page names its controls, so that the
     // tests reach them the way they reach everything else on it.
@@ -142,7 +161,7 @@ UpscaleApplicationEditor::UpscaleApplicationEditor(QWidget *parent)
     auto *layout = new QHBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addLayout(left, 1);
-    layout->addLayout(form, 1);
+    layout->addLayout(details, 1);
 
     connectControls();
     connect(add, &QPushButton::clicked, this, &UpscaleApplicationEditor::addApplication);
@@ -209,8 +228,7 @@ void UpscaleApplicationEditor::showSelected()
     m_enabled->setChecked(application->enabled);
     m_note->setText(application->shipped
                         ? application->note
-                        : i18n("Added by you. A request this application does not follow will not make it "
-                               "render less, and can stop its window covering the screen."));
+                        : i18n("Added by you."));
 }
 
 void UpscaleApplicationEditor::applyToSelected()
@@ -275,7 +293,7 @@ void UpscaleApplicationEditor::addFromWindow()
             // Cancelling the selection is an error reply, and not a failure worth
             // a dialog. Anything else is worth saying out loud.
             if (reply.error().name() != QLatin1String("org.kde.KWin.Error.UserCancel")) {
-                QMessageBox::warning(this, i18n("Add from window"),
+                QMessageBox::warning(this, i18n("Add from Window"),
                                      i18n("The window could not be identified: %1", reply.error().message()));
             }
             return;
@@ -286,8 +304,7 @@ void UpscaleApplicationEditor::addFromWindow()
         application.windowClass = application.name;
         application.instance = information.value(QStringLiteral("resourceName")).toString();
         if (application.windowClass.isEmpty() && application.instance.isEmpty()) {
-            QMessageBox::warning(this, i18n("Add from window"),
-                                 i18n("That window reports no application identity, so it cannot be recognized."));
+            QMessageBox::warning(this, i18n("Add from Window"), i18n("The window does not identify its application."));
             return;
         }
         application.id = upscaleNewApplicationId(application.name.isEmpty() ? application.instance : application.name,
@@ -330,9 +347,7 @@ bool UpscaleApplicationEditor::save()
         m_list->setCurrentRow(int(std::ranges::distance(m_applications.begin(), nameless)));
         m_windowClass->setFocus();
         QMessageBox::warning(this, i18n("Applications"),
-                             i18n("“%1” states neither a window class nor a window instance, so nothing could ever "
-                                  "match it. Give it one of them, or remove it.",
-                                  nameless->name));
+                             i18n("“%1” needs a window class or instance.", nameless->name));
         return false;
     }
     for (const QString &id : m_removed) {
@@ -354,9 +369,8 @@ bool UpscaleApplicationEditor::customized()
 
 void UpscaleApplicationEditor::restoreDefaults()
 {
-    const auto answer = QMessageBox::question(this, i18n("Restore the shipped application list"),
-                                              i18n("Discard your own applications and every change you made to the shipped ones? "
-                                                   "The list becomes the one this version of the effect ships."),
+    const auto answer = QMessageBox::question(this, i18n("Restore Defaults"),
+                                              i18n("Remove your applications and changes, and restore the default list?"),
                                               QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
     if (answer != QMessageBox::Yes) {
         return;

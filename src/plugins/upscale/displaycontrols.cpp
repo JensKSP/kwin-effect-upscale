@@ -40,19 +40,21 @@ void UpscaleEffectConfig::addDisplayControls(QFormLayout *layout)
     // The order is the stored one in upscaleconfig.kcfg.
     for (QComboBox *position : positionControls()) {
         position->addItems({i18n("Top left"), i18n("Top right"), i18n("Bottom left"), i18n("Bottom right")});
-        position->setToolTip(i18n("Which corner of the game's screen this display occupies. Each display has a "
-                                  "corner to itself: choosing one that is taken moves the display that held it "
-                                  "to the next free corner."));
+        position->setToolTip(i18n("Each display uses its own corner. Choosing a corner in use moves the other "
+                                  "display to the next free one."));
     }
     m_osdTimeout->setRange(1, 60);
-    m_osdTimeout->setSuffix(i18n(" s"));
+    // The unit is written out and follows the number, the way KWin's own
+    // effect pages write theirs, so the suffix is set again as the value moves.
+    const auto unit = [this](int seconds) {
+        m_osdTimeout->setSuffix(i18ncp("Suffix", " second", " seconds", seconds));
+    };
+    unit(m_osdTimeout->value());
     layout->addRow(m_osdDetection);
     layout->addRow(m_osdSummary);
-    layout->addRow(i18n("Announcement timeout:"), m_osdTimeout);
-    layout->addRow(i18n("Announcement position:"), m_osdAnnouncementPosition);
-    m_osdStatistics->setToolTip(i18n("Keeps the frame rate the screen actually presented on screen while a game is "
-                                     "running, with the slowest frames beside the average, because an average alone "
-                                     "hides stutter."));
+    layout->addRow(i18n("Show startup info for:"), m_osdTimeout);
+    layout->addRow(i18n("Startup info position:"), m_osdAnnouncementPosition);
+    m_osdStatistics->setToolTip(i18n("Shows the average frame rate and the slowest frames while a game is running."));
     layout->addRow(m_osdStatistics);
     layout->addRow(i18n("Frame rate position:"), m_osdStatisticsPosition);
     layout->addRow(m_osdDeveloper);
@@ -66,7 +68,8 @@ void UpscaleEffectConfig::addDisplayControls(QFormLayout *layout)
             setNeedsSave(true);
         });
     }
-    connect(m_osdTimeout, &QSpinBox::valueChanged, this, [this]() {
+    connect(m_osdTimeout, &QSpinBox::valueChanged, this, [this, unit](int seconds) {
+        unit(seconds);
         setNeedsSave(true);
     });
     const std::array<QComboBox *, 3> positions = positionControls();

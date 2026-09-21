@@ -16,12 +16,12 @@
 
 class QCheckBox;
 class QComboBox;
-class QFormLayout;
 class QLabel;
 class QLineEdit;
 class QListWidget;
 class QPushButton;
 class QSpinBox;
+class QVBoxLayout;
 
 namespace KWin
 {
@@ -63,7 +63,7 @@ Q_SIGNALS:
     void changed();
 
 private:
-    void buildDetails(QFormLayout *form);
+    void buildDetails(QVBoxLayout *details);
     void connectControls();
     void rebuildList();
     void showSelected();
