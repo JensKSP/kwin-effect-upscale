@@ -55,14 +55,6 @@ public:
     UpscaleModeOverride();
     ~UpscaleModeOverride() override;
 
-    /**
-     * Apply the current settings.
-     *
-     * @p preset and @p percentage are the global values. A recognized
-     * application whose global preset is Automatic uses the size recorded for
-     * it in the catalogue instead, so that installing the effect is enough for
-     * a known game; an application's Native opt-out overrides a global choice.
-     */
     /** Configuration moved. Nothing is cached, so this only gives back what was announced. */
     void reconfigure();
 
