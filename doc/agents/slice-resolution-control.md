@@ -2255,3 +2255,72 @@ hosted runs now report what they saw, what they wanted, and the effect's own
 status, through `UPSCALE_TRY_GEOMETRY`. `QTRY_COMPARE` has no message form, so
 three hosted failures in a row reported only that a wait expired, and each had
 to be guessed at. The next one will say what the effect decided.
+
+### What it was: KWin 6.6 undoes a request the client's withdrawal overtakes, 2026-09-21
+
+Reproduced and fixed. **It was a real defect of the effect on KWin 6.6, not a
+timeout and not a slow runner**, and it cannot occur on the minimum supported
+KWin, which is why Trixie never showed it.
+
+**The verdict had been misread.** QtTest's "N ms would have been sufficient"
+counts the 50 ms steps of its polling loop, not time, and it is also printed
+when a condition holds at one step and fails at the next: the first loop ends
+early and the report adds the whole bound to the second loop's count. A probe
+in the Ubuntu 26.04 image showed a 2000 ms bound at 100 ms per step reporting
+"2800" while 5.9 s of wall time passed. So the 5 s, 15 s and 30 s bounds all
+reporting "bound plus about 3.1 s" meant **the wait lasted about 3.1 s every
+time**, and the hosted amd64 runner was fast, not slow: its whole X11 suite
+took 59.5 s while "containing" a 33 s wait that never happened.
+
+**Reproduced from the PR head `f8577f4`** in `localhost/upscale-package:resolute`
+(KWin 6.6.6, Xwayland 24.1.10): the first run failed
+`lifecycle(primary-fullscreen)` with "33100 ms would have been sufficient", and
+`--repeat until-fail:6` failed on the third iteration, both fullscreen rows.
+
+**The mechanism**, from a timestamped effect log with the geometry polled every
+10 ms:
+
+    after configure(true)                       geometry 3840x2160
+    [+14 ms]   effect requests 1920x1080
+    [+17 ms]                                    geometry 1920x1080
+    [+35 ms]                                    geometry 3840x2160   <- undone
+    [+3.1 s]   validation retry requests 1920x1080
+    [+3117 ms]                                  geometry 1920x1080
+
+KWin 6.6's `X11Window::propertyNotifyEvent` answers a PropertyNotify for
+`_XWAYLAND_RANDR_EMU_MONITOR_RECTS` - the atom KWin calls
+`xwayland_xrandr_emulation` - with `configure(m_bufferGeometry)`, and
+`X11Window::configure()` sizes the client to the emulated mode the property
+names, or to the whole frame when the property is gone. Present in KWin master
+and in 6.6.0, absent in 6.3.6, 6.4.0 and 6.5.0; checked in the sources, not
+assumed. Xwayland sets or deletes that property on every RandR mode change. So
+the effect's restore sizes the window back to native, the client withdraws its
+emulated mode as a real client does, Xwayland deletes the property - and the
+effect's next request goes out before KWin has processed the notification.
+KWin then sizes the client to the full frame, undoing the request; the client
+answers that by withdrawing again, overwriting its own new mode too.
+Validation fails three seconds later, the retry restores and re-requests
+250 ms after that, and that one holds. The same mechanism explains the 8.1 to
+8.3 s this document recorded on 6.6 as an open question - 5 s plus about
+3.2 s - and the 18 350 ms case. A 50 ms poll sometimes sampled inside the 18 ms
+the first request stood, which is why it only failed sometimes.
+
+**The fix waits for the withdrawal before asking again.** `restore()` notes
+whether the client held an emulated mode when the window was handed back and,
+if so, the next request waits for the property to change, with a 3000 ms
+fallback so that a client which never withdraws still gets its request and
+validation says what happened. The event filter takes `XCB_PROPERTY_NOTIFY` for
+it and schedules the request after KWin's own handling of the same event. The
+test's `UPSCALE_TRY_GEOMETRY` no longer uses a QTRY loop: it polls every 10 ms,
+records every geometry it saw, and on failure prints that trace and the
+effect's status. No bound was raised, and none is needed.
+
+**Observed on `f8577f4` with the fix**, all in detached containers: on Ubuntu
+26.04 with GCC, `ctest -R upscale-x11-integration --repeat until-fail:8` passed
+8 of 8, then the whole suite 17 of 17, the X11 suite about 5 s shorter than
+before because the retries are gone; on Trixie, GCC and Clang, 17 of 17 each.
+The same fix carried onto the settings redesign is verified separately.
+
+**Not verifiable here: the hosted runner itself.** The next nightly or package
+run on `resolute` is what confirms it; a failure there now prints the geometry
+trace and the effect's status instead of a misleading bound.

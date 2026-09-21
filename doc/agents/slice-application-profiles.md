@@ -964,6 +964,33 @@ day: the path with a match type is the first gate for every entry, the window
 identity an optional second, implemented on this branch once the settings work
 is green.
 
+### Two extremes, and the default between them
+
+Stated by Jens on 2026-09-21, and the principle the matching serves. Two
+extremes must both be possible, and which one applies is the user's choice:
+
+- **Very broad and simple**: the global profile switched on and applied to
+  everything drawn, as soon as it exceeds the resolution limit.
+- **Very narrow and targeted**: a rule that matches a single game precisely,
+  so that the effect is applied to that game and to nothing else.
+
+**The default is the middle ground**: the shipped catalogue, a good list of
+measured games, with the global profile off. So precision is not a nicety.
+A rule that matches more than it says would make the narrow extreme
+impossible, which is why a pattern that matches everything is refused, an
+advertisement goes to a program only when the executable path alone decides,
+and the editor should show which running windows a rule matches as it is
+written.
+
+The broad extreme is more than a switch. Applying the global profile to every
+window above a limit means more than one scaled window per output, per-window
+scaler state, and a limit measured on the window rather than on the output. It
+also means watching windows resize, without making resizing any slower: every
+decision is taken when a window appears, when its class or geometry changes
+and on reconfiguration, never per frame, and while a person drags a window the
+effect steps aside entirely. That is rendering and eligibility rather than
+matching, and is to be specified in a slice of its own.
+
 ### What a path can and cannot tell apart
 
 | Kind of game | Its program identity | Does the full path tell games apart | What does instead |
