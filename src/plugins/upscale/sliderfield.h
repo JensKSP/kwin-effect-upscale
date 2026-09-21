@@ -10,7 +10,6 @@
 #include <QObject>
 
 class QDoubleSpinBox;
-class QHBoxLayout;
 class QSlider;
 class QWidget;
 
@@ -35,11 +34,16 @@ class UpscaleSliderField : public QObject
     Q_OBJECT
 
 public:
-    /** Pair @p slider with a field showing its value divided by @p divisor. */
+    /**
+     * Pair @p slider with a field showing its value divided by @p divisor.
+     *
+     * Both move into one widget, a child of @p parent, so that the pair has
+     * an owner whether or not a form ever takes it.
+     */
     UpscaleSliderField(QSlider *slider, QWidget *parent, int divisor);
 
     /** The slider and the field, side by side, for a form's field column. */
-    QHBoxLayout *layout() const;
+    QWidget *widget() const;
 
     /** The field, for naming and for its special text. */
     QDoubleSpinBox *field() const;
@@ -53,9 +57,9 @@ public:
 private:
     void snap();
 
+    QWidget *m_widget;
     QSlider *m_slider;
     QDoubleSpinBox *m_field;
-    QHBoxLayout *m_layout;
     int m_divisor;
     QList<int> m_points;
     int m_step = 1;

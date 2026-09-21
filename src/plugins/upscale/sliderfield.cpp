@@ -19,9 +19,9 @@ namespace KWin
 
 UpscaleSliderField::UpscaleSliderField(QSlider *slider, QWidget *parent, int divisor)
     : QObject(slider)
+    , m_widget(new QWidget(parent))
     , m_slider(slider)
-    , m_field(new QDoubleSpinBox(parent))
-    , m_layout(new QHBoxLayout)
+    , m_field(new QDoubleSpinBox(m_widget))
     , m_divisor(divisor)
 {
     // As many decimals as the divisor makes meaningful: two for a value held
@@ -29,9 +29,13 @@ UpscaleSliderField::UpscaleSliderField(QSlider *slider, QWidget *parent, int div
     m_field->setDecimals(divisor >= 100 ? 2 : 0);
     m_field->setRange(double(slider->minimum()) / divisor, double(slider->maximum()) / divisor);
     m_field->setSingleStep(1);
-    m_layout->setContentsMargins(0, 0, 0, 0);
-    m_layout->addWidget(m_slider, 1);
-    m_layout->addWidget(m_field);
+    // Across the form's field column, as a slider on its own would be: a form
+    // in KDE's style widens only the fields that ask to expand.
+    m_widget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    auto *layout = new QHBoxLayout(m_widget);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->addWidget(m_slider, 1);
+    layout->addWidget(m_field);
     showSliderValue();
     connect(m_slider, &QSlider::rangeChanged, this, [this](int minimum, int maximum) {
         m_field->setRange(double(minimum) / m_divisor, double(maximum) / m_divisor);
@@ -45,9 +49,9 @@ UpscaleSliderField::UpscaleSliderField(QSlider *slider, QWidget *parent, int div
     connect(m_slider, &QSlider::actionTriggered, this, &UpscaleSliderField::snap);
 }
 
-QHBoxLayout *UpscaleSliderField::layout() const
+QWidget *UpscaleSliderField::widget() const
 {
-    return m_layout;
+    return m_widget;
 }
 
 QDoubleSpinBox *UpscaleSliderField::field() const

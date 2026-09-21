@@ -42,7 +42,6 @@
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QGuiApplication>
-#include <QHBoxLayout>
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
@@ -144,7 +143,7 @@ QTabWidget *UpscaleEffectConfig::buildAllPanel()
     m_scale = new UpscaleSliderField(m_percentage, widget(), 100);
     m_scale->field()->setObjectName(QStringLiteral("percentageValue"));
     m_scale->field()->setSuffix(i18nc("Suffix: a share of the screen's resolution", "%"));
-    resolution->addRow(i18n("Resolution scale:"), m_scale->layout());
+    resolution->addRow(i18n("Resolution scale:"), m_scale->widget());
     m_preview->build(resolution, widget(), QStringLiteral("preview"));
     addThresholdControl(resolution);
 
@@ -157,7 +156,7 @@ QTabWidget *UpscaleEffectConfig::buildAllPanel()
     // Zero is a real bypass rather than the weakest setting, so it is named as
     // one instead of being shown as a percentage.
     m_strengthField->field()->setSpecialValueText(i18nc("sharpening strength", "Off"));
-    sharpening->addRow(i18n("Strength:"), m_strengthField->layout());
+    sharpening->addRow(i18n("Strength:"), m_strengthField->widget());
 
     addDisplayControls(tab(i18n("On-Screen Display")));
     return all;
