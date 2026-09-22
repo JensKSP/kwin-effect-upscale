@@ -283,6 +283,12 @@ public:
         // Continue the real QPainter scene once, with a current offscreen GL
         // target for the injected scaler and the diagnostic display. Keep one
         // streaming-buffer frame around the entire screen, including the OSD.
+        // Asked here, before the effect's own paint begins, because that is
+        // where KWin asks. Asked from drawWindow instead, inside the effect's
+        // paint, it resolved the candidate for the painted output as a side
+        // effect, and that hid an effect that asked nothing unless something
+        // else resolved it: Auto with the display switched off.
+        m_active = m_effect->isActive();
         m_context->makeCurrent();
         GLFramebuffer::pushFramebuffer(m_framebuffer.get());
         GLVertexBuffer::streamingBuffer()->beginFrame();
@@ -295,7 +301,7 @@ public:
                     int mask, const UpscaleRegion &region, WindowPaintData &data) override
     {
         m_context->makeCurrent();
-        if (m_effect->isActive()) {
+        if (m_active) {
             // A zero luminance range is a colour description no transfer
             // function can be decoded from, standing in for an output whose
             // colour handling this effect does not support.
@@ -338,6 +344,7 @@ public:
 
 private:
     CaptureRenderer m_renderer;
+    bool m_active = false;
     TestPointer m_pointer;
     bool m_unsupportedColors = false;
     std::unique_ptr<EglDisplay> m_display;

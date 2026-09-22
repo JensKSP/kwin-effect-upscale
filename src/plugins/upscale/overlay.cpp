@@ -6,6 +6,8 @@
 
 #include "overlay.h"
 
+#include "warningtext.h"
+
 #include "opengl/glshader.h"
 #include "opengl/glshadermanager.h"
 #include "opengl/gltexture.h"
@@ -42,6 +44,43 @@ static QFont displayFont(double scale)
     return font;
 }
 
+// The colour a marked part of a line is drawn in: Breeze's negative text,
+// which is how KDE shows a value that is wrong. The overlay is drawn inside
+// the compositor with no palette of its own to take it from.
+static const QColor s_warningColor(0xda, 0x44, 0x53);
+
+static QString withoutWarningMarks(QString line)
+{
+    line.remove(upscaleWarningStart);
+    line.remove(upscaleWarningEnd);
+    return line;
+}
+
+// One line, white, with any part between warning marks in the warning colour.
+static void drawLine(QPainter &painter, const QFontMetricsF &metrics, QPointF origin, const QString &line)
+{
+    QString run;
+    bool warning = false;
+    const auto flush = [&]() {
+        if (run.isEmpty()) {
+            return;
+        }
+        painter.setPen(warning ? s_warningColor : QColor(255, 255, 255));
+        painter.drawText(origin, run);
+        origin.rx() += metrics.horizontalAdvance(run);
+        run.clear();
+    };
+    for (const QChar character : line) {
+        if (character == upscaleWarningStart || character == upscaleWarningEnd) {
+            flush();
+            warning = character == upscaleWarningStart;
+        } else {
+            run.append(character);
+        }
+    }
+    flush();
+}
+
 // Text is measured and drawn at destination pixels rather than drawn small and
 // enlarged, because the whole point of this overlay is to stay readable beside
 // a game that is being enlarged.
@@ -54,7 +93,7 @@ static QImage renderText(const QString &text, double scale)
     const double lineHeight = std::ceil(metrics.height());
     double width = 0;
     for (const QString &line : lines) {
-        width = std::max(width, metrics.horizontalAdvance(line));
+        width = std::max(width, metrics.horizontalAdvance(withoutWarningMarks(line)));
     }
     const double textHeight = double(lines.size()) * lineHeight;
     const QSize size(int(std::ceil(width + (2 * padding))), int(std::ceil(textHeight + (2 * padding))));
@@ -67,11 +106,10 @@ static QImage renderText(const QString &text, double scale)
     image.fill(QColor(0, 0, 0, 190));
     QPainter painter(&image);
     painter.setFont(font);
-    painter.setPen(QColor(255, 255, 255));
     painter.setRenderHint(QPainter::TextAntialiasing);
     double baseline = padding + metrics.ascent();
     for (const QString &line : lines) {
-        painter.drawText(QPointF(padding, baseline), line);
+        drawLine(painter, metrics, QPointF(padding, baseline), line);
         baseline += lineHeight;
     }
     painter.end();

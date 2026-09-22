@@ -34,10 +34,10 @@
 # There is one Method entry per way the application can present itself, and
 # each is a separate measurement: MethodWaylandFullScreen,
 # MethodWaylandBorderless, MethodWaylandWindowed, MethodX11FullScreen,
-# MethodX11Borderless and MethodX11Windowed. An entry that is absent means Auto
-# - nobody has run the application that way yet - which is not the same as Off,
-# which records that the question was asked and the answer is to ask for
-# nothing. Each name below acts on one protocol only: the advertisements reach
+# MethodX11Borderless and MethodX11Windowed. An entry that is absent follows
+# the user's global method, which is Auto unless they chose another - nobody has
+# run the application that way yet - and that is not the same as Off, which
+# records that the question was asked and the answer is to ask for nothing. Each name below acts on one protocol only: the advertisements reach
 # a native Wayland client, and the resize reaches an X11 window.
 #
 # Method is one of:
@@ -62,10 +62,7 @@
 # follows the global value the user chose. This file states only what was
 # measured about the application, never what somebody would prefer: a
 # Resolution here would pin that game and stop the user's own global setting
-# ever reaching it. The two benchmarks are the exception and state Native,
-# because a benchmark exists to measure a machine and reporting a number for a
-# reduced one is wrong whatever anybody prefers. That is a fact about the
-# program, not a taste.
+# ever reaching it. So no entry states one, the benchmarks included.
 
 [General]
 FormatVersion=1
@@ -78,7 +75,7 @@ Executable=.*/supertuxkart
 ExecutableMatch=RegularExpression
 MethodWaylandFullScreen=AdvertisedMode
 Order=10
-Note=Follows the advertised screen mode with its OpenGL renderer. Its Vulkan renderer keeps the full resolution.
+Note=Follows the advertised screen mode in exclusive fullscreen, which its OpenGL renderer always uses. In the borderless fullscreen its Vulkan renderer uses by default it follows the surface scale instead.
 
 [Application-extremetuxracer]
 Name=Extreme Tux Racer
@@ -94,22 +91,40 @@ X11PrimaryOutputOnly=true
 Order=20
 Note=Follows X11 resize requests on the primary display. Its SFML mode selection always uses that display, so requests on other displays are refused. Requested sizes must match an available mode.
 
-[Application-hl2_linux]
-Name=Left 4 Dead 2 and other native Source games
+[Application-left4dead2]
+Name=Left 4 Dead 2
 MeasuredVersion=Steam build 23990068
 # hl2_linux is the Source engine binary, not the game: every native Source
-# title presents this class and instance, so this entry cannot be made specific
-# to one of them. The window title does name the game, but a title carries
-# save-game and player names and is never used as an identity here.
-# Its program is hl2_linux, in each game's own folder, which is what a
-# person's own entry for one of these games can state to tell them apart. Not
-# stated here, for the reason given for Extreme Tux Racer, and because Steam's
-# runtime may give the game a PID that means another process out here.
+# title presents this class and instance, and runs a program of that name. The
+# folder the program is in is what names the game, in whichever Steam library
+# it is installed, so that is what the program pattern states. The window
+# title also names the game, but a title carries save-game and player names and
+# is never used as an identity here.
+# To be confirmed on a running game: an X11 window's program comes from the PID
+# the client reports, and whether that PID means the game out here under
+# Steam's pressure-vessel runtime has not been observed. Where it does not, the
+# path does not resolve and this entry does not match.
+Executable=.*/Left 4 Dead 2/hl2_linux
+ExecutableMatch=RegularExpression
 WindowClass=hl2_linux
 Instance=hl2_linux
 MethodX11FullScreen=X11Resize
 Order=50
 Note=Takes its fullscreen size from the window manager and never asks Xwayland for a mode, so the effect presents the resized window itself and maps pointer input to it. Measured through Steam's pressure-vessel runtime.
+
+[Application-wreckfest]
+Name=Wreckfest
+MeasuredVersion=Steam build 16986367
+# A Windows game run through Proton, which sets the window's class and
+# instance to steam_app_ and the game's Steam ID: 228380. That is the identity:
+# the PID its windows report is Wine's explorer.exe /desktop, run by Proton's
+# wine64-preloader, which every Proton game shares. Read off the running game
+# with Proton Experimental on 2026-09-21. No method is stated: the X11
+# presentation has not been measured, so it follows the global method.
+WindowClass=steam_app_228380
+Instance=steam_app_228380
+Order=60
+Note=Recognized by the window class Proton gives it. In exclusive fullscreen Wine keeps its window at the monitor's size and ignores resize requests, so it still supplies the full resolution.
 
 [Application-glmark2]
 Name=glmark2
@@ -118,9 +133,6 @@ MeasuredVersion=2023.01
 Executable=.*/glmark2-wayland
 ExecutableMatch=RegularExpression
 MethodWaylandFullScreen=AdvertisedScale
-# A benchmark measures a machine. Reducing what it renders without being asked
-# would make it report a number for something nobody chose.
-Resolution=Native
 Order=30
 Note=Follows the advertised screen scale. A screen without a scale above one offers it no reduction.
 
@@ -131,6 +143,5 @@ MeasuredVersion=2025.01
 Executable=.*/vkmark
 ExecutableMatch=RegularExpression
 MethodWaylandFullScreen=AdvertisedModeAndScale
-Resolution=Native
 Order=40
 Note=Follows the advertised screen mode and scale together. A screen without a scale above one offers it no reduction.

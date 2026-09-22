@@ -99,14 +99,21 @@ void MatchingTest::requiresEveryStatedGate()
                                                  QStringLiteral("hl2_linux"));
     QVERIFY(portal);
     QCOMPARE(portal->id, QStringLiteral("portal2"));
-    // Another Source game fails gate 1 and falls through to the shipped entry,
-    // which states the window alone.
-    const UpscaleApplication *other = forWindow(QStringLiteral("/games/common/Left 4 Dead 2/hl2_linux"),
-                                                QStringLiteral("hl2_linux"), QStringLiteral("hl2_linux"));
-    QVERIFY(other);
-    QCOMPARE(other->id, QStringLiteral("hl2_linux"));
-    // So does the same game when its PID did not resolve to a path.
-    QCOMPARE(forWindow(QString(), QStringLiteral("hl2_linux"), QStringLiteral("hl2_linux"))->id, QStringLiteral("hl2_linux"));
+    // Left 4 Dead 2 fails gate 1 and is the shipped entry's, which states the
+    // game's folder in any Steam library.
+    for (const QString &library : {QStringLiteral("/games/common"), QStringLiteral("/home/u/.local/share/Steam/steamapps/common"),
+                                   QStringLiteral("/mnt/Steam Library/steamapps/common")}) {
+        const UpscaleApplication *other = forWindow(library + QStringLiteral("/Left 4 Dead 2/hl2_linux"),
+                                                    QStringLiteral("hl2_linux"), QStringLiteral("hl2_linux"));
+        QVERIFY2(other, qPrintable(library));
+        QCOMPARE(other->id, QStringLiteral("left4dead2"));
+    }
+    // Any other Source game is nobody's: the engine binary names no game.
+    QVERIFY(!forWindow(QStringLiteral("/games/common/Half-Life 2/hl2_linux"), QStringLiteral("hl2_linux"),
+                       QStringLiteral("hl2_linux")));
+    // Nor is a window whose PID did not resolve to a path, now that the shipped
+    // entry states its path.
+    QVERIFY(!forWindow(QString(), QStringLiteral("hl2_linux"), QStringLiteral("hl2_linux")));
     // Its path with another window fails gate 2.
     QVERIFY(!forWindow(QStringLiteral("/games/common/Portal 2/hl2_linux"), QStringLiteral("launcher"), QString()));
     // Before the window exists only gate 1 can be checked. It matches, but the

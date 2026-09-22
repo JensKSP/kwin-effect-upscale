@@ -488,6 +488,12 @@ UpscalePaintResult UpscaleEffect::paintScreen(const RenderTarget &target, const 
     const QScopedValueRollback painting(m_inPaint, true);
     const QScopedValueRollback output(m_paintOutput, screen);
     m_candidateCached = false;
+    // Resolve this output's candidate now rather than leaving it to whoever
+    // asks first. Resolving is where a window drawing at full size is asked
+    // for a smaller buffer, and such a window is never eligible, so drawWindow
+    // never asks for it; with the display switched off nothing else would, and
+    // the request would never be made.
+    candidate(nullptr, screen);
     // The display is drawn after the screen pass, which is after the scaler
     // captured the game's surface. That ordering is what keeps this text out
     // of the captured image and out of the enlargement.

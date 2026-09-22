@@ -60,6 +60,19 @@ void UpscaleIntegrationTest::asksApplicationsForASmallerImage()
         QVERIFY(unlisted.initialize());
         QCOMPARE(unlisted.advertisedMode(), QSize(128, 128));
     }
+    // With them switched on, the global profile's Auto tells a program the
+    // smaller mode when it connects, as an entry's Auto does: Auto means the
+    // same wherever it comes from.
+    {
+        KConfigGroup group(KSharedConfig::openConfig(QStringLiteral("kwinrc")), QStringLiteral("Effect-upscale"));
+        group.writeEntry("UnlistedApplications", true);
+        group.deleteEntry("MethodWaylandFullScreen");
+        group.sync();
+        reconfigure();
+        WaylandClient unlisted;
+        QVERIFY(unlisted.initialize());
+        QCOMPARE(unlisted.advertisedMode(), QSize(85, 85));
+    }
 
     // A catalogue entry reaches the same client through its program's path,
     // which is the only identity that exists before it has a window.
@@ -101,8 +114,10 @@ void UpscaleIntegrationTest::asksApplicationsForASmallerImage()
         WaylandClient later;
         QVERIFY(later.initialize());
         QCOMPARE(later.advertisedMode(), QSize(64, 64));
-        QVERIFY2(status().contains(QStringLiteral("85 × 85 requested from Upscale integration test")),
-                 qPrintable(status()));
+        // The running one keeps what it was told, and the new wish waits for
+        // its next start, which is what the report says.
+        const QString waiting = QStringLiteral("64 × 64 from the next start; Upscale integration test was told 85 × 85 as its screen mode");
+        QVERIFY2(status().contains(waiting), qPrintable(status()));
 
         // Changing a setting while the effect stays enabled moves what it
         // would ask for, so the resources of a client that was told otherwise
@@ -114,8 +129,7 @@ void UpscaleIntegrationTest::asksApplicationsForASmallerImage()
         QCOMPARE(chosen.advertisedMode(), QSize(128, 128));
         // What that program was told is still what explains the size it is
         // rendering, so the report of it outlives the resources.
-        QVERIFY2(status().contains(QStringLiteral("85 × 85 requested from Upscale integration test")),
-                 qPrintable(status()));
+        QVERIFY2(status().contains(waiting), qPrintable(status()));
     }
 
     // An entry that also names the window cannot be known to match before the
@@ -175,4 +189,64 @@ void UpscaleIntegrationTest::asksApplicationsForASmallerImage()
     configureResolution(true, false, {});
     m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
     QCOMPARE(status(), QString());
+}
+
+// An advertised mode reaches a client that takes its buffer from the modes it
+// was told, and nothing else. The same program presenting another way sizes
+// its buffer from the configure and ignores it, as SuperTuxKart's Vulkan
+// renderer does in its default borderless fullscreen. That window is asked for
+// the surface scale instead; a window the advertisement did reach is not.
+void UpscaleIntegrationTest::anAdvertisementThatDidNotReachFallsBackToTheSurfaceScale()
+{
+    const QDBusReply<bool> loaded = m_effects.call(QStringLiteral("loadEffect"), QStringLiteral("upscale_test_driver"));
+    QVERIFY(loaded.isValid() && loaded.value());
+    writeCatalogue(integrationEntry(QStringLiteral("MethodWaylandFullScreen=AdvertisedMode\nMinimumPixels=0\nOrder=1\n")));
+    configureResolution(true, false, Stored::Quality);
+    configureDisplay(false, false);
+    const auto pump = [this](WaylandClient &client, QSocketNotifier &notifier) {
+        connect(&notifier, &QSocketNotifier::activated, this, [&client]() {
+            client.dispatch();
+        });
+    };
+    {
+        WaylandClient configureSized;
+        QVERIFY(configureSized.initialize());
+        QCOMPARE(configureSized.advertisedMode(), QSize(85, 85));
+        QSocketNotifier notifier(configureSized.descriptor(), QSocketNotifier::Read);
+        pump(configureSized, notifier);
+        QVERIFY(configureSized.show(QSize(128, 128)));
+        QTRY_VERIFY2(configureSized.preferredScale() == 80,
+                     qPrintable(QString::number(configureSized.preferredScale()) + QLatin1Char('\n') + status()));
+        // The report names the request the window is answering, not the
+        // advertisement it ignored.
+        QTRY_VERIFY2(status().contains(QStringLiteral("85 × 85 requested from Upscale integration test as its surface scale")),
+                     qPrintable(status()));
+        QVERIFY(configureSized.show(QSize(85, 85)));
+        for (int frame = 0; frame < 40; ++frame) {
+            configureSized.commit();
+            QTest::qWait(10);
+        }
+        // Answered, and so still asked: giving the scale back would make it
+        // grow again.
+        QCOMPARE(configureSized.preferredScale(), 80);
+        QTRY_VERIFY2(status().contains(QStringLiteral("Supplied input: 85 × 85")), qPrintable(status()));
+    }
+    {
+        WaylandClient modeList;
+        QVERIFY(modeList.initialize());
+        QCOMPARE(modeList.advertisedMode(), QSize(85, 85));
+        QSocketNotifier notifier(modeList.descriptor(), QSocketNotifier::Read);
+        pump(modeList, notifier);
+        QVERIFY(modeList.show(QSize(85, 85)));
+        QTRY_VERIFY2(status().contains(QStringLiteral("85 × 85 requested from Upscale integration test as its screen mode")),
+                     qPrintable(status()));
+        for (int frame = 0; frame < 40; ++frame) {
+            modeList.commit();
+            QTest::qWait(10);
+        }
+        QCOMPARE(modeList.preferredScale(), 120);
+    }
+    writeCatalogue(QString());
+    configureResolution(true, false, {});
+    m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
 }

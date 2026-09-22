@@ -244,6 +244,7 @@ add_test(NAME upscale-application COMMAND upscale_application_test)
 
 set(snapshot_test_sources
     snapshot_test.cpp
+    snapshot_request_test.cpp
     ../src/plugins/upscale/application.cpp
     ../src/plugins/upscale/matching.cpp
     ../src/plugins/upscale/pattern.cpp
@@ -369,6 +370,7 @@ if(KWIN_BUILD_KCMS)
         ../src/plugins/upscale/applicationeditor_details.cpp
         ../src/plugins/upscale/applicationeditor_window.cpp
         ../src/plugins/upscale/settingcontrols.cpp
+        ../src/plugins/upscale/inheritedmark.cpp
         ../src/plugins/upscale/identitycontrols.cpp
         ../src/plugins/upscale/methodcontrols.cpp
         ../src/plugins/upscale/placement.cpp

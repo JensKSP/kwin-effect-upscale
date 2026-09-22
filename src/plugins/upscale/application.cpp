@@ -107,14 +107,14 @@ const char *upscalePresentationKey(UpscalePresentation presentation)
 // has exactly one slot it can have come from. Off is the exception and fills
 // every slot, because it recorded a decision about the program rather than
 // about one way of running it.
-static UpscaleMethods readMethods(const KConfigGroup &group)
+static UpscaleStatedMethods readMethods(const KConfigGroup &group)
 {
-    UpscaleMethods methods;
-    methods.fill(UpscaleMethod::Auto);
-    const UpscaleMethod single = upscaleMethodFromKey(group.readEntry("Method", QString()), UpscaleMethod::Auto);
-    if (single == UpscaleMethod::Off) {
+    UpscaleStatedMethods methods;
+    const QString old = group.readEntry("Method", QString());
+    const UpscaleMethod single = upscaleMethodFromKey(old, UpscaleMethod::Auto);
+    if (!old.isEmpty() && single == UpscaleMethod::Off) {
         methods.fill(UpscaleMethod::Off);
-    } else if (single != UpscaleMethod::Auto) {
+    } else if (!old.isEmpty() && single != UpscaleMethod::Auto) {
         const UpscalePresentation migrated = single == UpscaleMethod::X11Resize
             ? UpscalePresentation::X11FullScreen
             : UpscalePresentation::WaylandFullScreen;
@@ -124,17 +124,26 @@ static UpscaleMethods readMethods(const KConfigGroup &group)
         const auto presentation = UpscalePresentation(slot);
         const QString stated = group.readEntry(upscalePresentationKey(presentation), QString());
         if (!stated.isEmpty()) {
-            methods[slot] = upscaleMethodFromKey(stated, methods[slot]);
+            methods[slot] = upscaleMethodFromKey(stated, methods[slot].value_or(UpscaleMethod::Auto));
         }
         // A method the presentation cannot carry is a file naming an
         // advertisement for an X11 window, or a resize for a Wayland one.
         // Neither can be acted on, and neither is worth refusing the whole
         // entry over.
-        if (!upscaleMethodApplies(presentation, methods[slot])) {
+        if (methods[slot] && !upscaleMethodApplies(presentation, *methods[slot])) {
             methods[slot] = UpscaleMethod::Off;
         }
     }
     return methods;
+}
+
+UpscaleMethod upscaleMethodFor(const UpscaleApplication *application, UpscalePresentation presentation)
+{
+    const auto slot = std::size_t(presentation);
+    if (application && application->methods[slot]) {
+        return *application->methods[slot];
+    }
+    return upscaleGlobalMethods()[slot];
 }
 
 static const QHash<QString, ResolutionPreset> &presetNames()
@@ -183,6 +192,11 @@ static std::vector<UpscaleApplication> readApplications(const KSharedConfig::Ptr
         application.instance = group.readEntry("Instance", QString());
         application.instanceMatch = upscaleStringMatchFromKey(group.readEntry("InstanceMatch", QString()));
         application.methods = readMethods(group);
+        // The installed package's own answers, read from its layer alone: what
+        // a reset returns a slot to. A file of its own has no such layer.
+        config->setReadDefaults(true);
+        application.measured = readMethods(group);
+        config->setReadDefaults(false);
         // After the methods: what an old Program key meant depended on them.
         upscaleReadLegacyProgram(group, application);
         application.overrides = upscaleReadOverrides(group);
@@ -329,7 +343,20 @@ static void writeApplication(KConfigGroup &group, const UpscaleApplication &appl
                upscaleStringMatchKey(original.instanceMatch));
     for (std::size_t slot = 0; slot < upscalePresentationCount; ++slot) {
         const char *key = upscalePresentationKey(UpscalePresentation(slot));
-        writeField(group, key, upscaleMethodKey(application.methods[slot]), upscaleMethodKey(original.methods[slot]));
+        const std::optional<UpscaleMethod> &stated = application.methods[slot];
+        if (stated == original.methods[slot]) {
+            continue;
+        }
+        if (stated && stated != application.measured[slot]) {
+            group.writeEntry(key, upscaleMethodKey(*stated));
+        } else if (group.hasDefault(key)) {
+            // Back to what the installed package says, by reverting rather
+            // than by deleting: a deletion would hide the package's value,
+            // and every later package's as well.
+            group.revertToDefault(key);
+        } else {
+            group.deleteEntry(key);
+        }
     }
     // What a previous release stored under its own keys, rewritten under the
     // current ones before those keys go. See upscaleRetireLegacyProfileKeys()

@@ -31,6 +31,7 @@ private Q_SLOTS:
     void outputPixelPolicy();
     void answersWhichWindowsAnEntryMatches();
     void autoAsksTheWindowForAFractionalScale();
+    void anAdvertisementThatDidNotReachFallsBackToTheSurfaceScale();
 
 private:
     // The global resolution as kwinrc stores it. Spelled out here rather than

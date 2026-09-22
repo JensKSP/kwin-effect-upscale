@@ -59,10 +59,21 @@ struct UpscaleApplication
      * One answer per presentation, because the request that works is a
      * property of how the program is running and not only of the program: the
      * advertisements act on wl_output, which an Xwayland game never sees, and
-     * the resize acts on an X11 window. A slot nobody has measured holds Auto,
-     * which is also what an absent key reads as.
+     * the resize acts on an X11 window.
+     *
+     * A slot the entry states nothing for follows the global profile's answer,
+     * which is Auto unless a person chose another; upscaleMethodFor() resolves
+     * it. Before Auto existed a method was only ever a measurement, and a game
+     * inherited nothing; with Auto there is a sensible answer to inherit.
      */
-    UpscaleMethods methods{};
+    UpscaleStatedMethods methods{};
+    /**
+     * What the installed package states for each slot, empty for an entry the
+     * package does not ship. What the settings page returns a slot to when a
+     * person resets it: the package's measurement where there is one, and
+     * otherwise nothing, which follows the global profile.
+     */
+    UpscaleStatedMethods measured{};
     /**
      * The preferences this profile states, of those in the settings table.
      *
@@ -101,6 +112,13 @@ quint64 upscaleApplicationsGeneration();
 void upscaleReloadApplications();
 
 /** The file holding the effect's own defaults and the user's changes to them. */
+/**
+ * The method @p application uses when presenting as @p presentation: its own
+ * where it states one, the global profile's otherwise, and the global
+ * profile's for a window no entry claimed, which is what a null entry means.
+ */
+UpscaleMethod upscaleMethodFor(const UpscaleApplication *application, UpscalePresentation presentation);
+
 KSharedConfig::Ptr upscaleApplicationConfig();
 
 /**

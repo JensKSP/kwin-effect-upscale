@@ -69,6 +69,7 @@ if (KWIN_BUILD_KCMS)
         pattern.cpp
         settings.cpp
         settingcontrols.cpp
+        inheritedmark.cpp
         methodcontrols.cpp
         applicationeditor.cpp
         applicationeditor_details.cpp

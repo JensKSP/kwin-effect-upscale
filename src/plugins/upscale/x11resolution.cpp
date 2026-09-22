@@ -163,7 +163,10 @@ QString UpscaleX11Resolution::failure(const Window *window) const
 // the geometry only decides between the other two.
 static UpscalePresentation x11PresentationOf(const Window *window)
 {
-    const bool coversOutput = window->output() && window->frameGeometry() == window->output()->geometryF();
+    // In whole pixels, as the scaler judges coverage: an exact comparison of
+    // logical rectangles refuses a window a rounding off the output's edge.
+    const EffectWindow *effectWindow = window->effectWindow();
+    const bool coversOutput = window->output() && effectWindow && upscaleCoversOutput(effectWindow);
     return upscalePresentationFor(true, window->isFullScreen(), !window->isDecorated() && coversOutput);
 }
 
@@ -179,17 +182,20 @@ static UpscalePresentation x11PresentationOf(const Window *window)
 // only makes it smaller: the destination is the window's own size, so there is
 // no gap left to enlarge into, and holding the frame while the client renders
 // below it is not something any implemented path does.
-static bool upscaleX11ResizeWanted(const UpscaleApplication &application, const Window *window)
+//
+// A window no entry claims is the global profile's, which asks it as well once
+// All applications is checked; @p application is null then.
+static bool upscaleX11ResizeWanted(const UpscaleApplication *application, const Window *window)
 {
     const UpscalePresentation presentation = x11PresentationOf(window);
     if (upscaleIsWindowed(presentation)) {
         return false;
     }
-    const UpscaleSettings settings = upscaleResolveSettings(&application);
+    const UpscaleSettings settings = upscaleResolveSettings(application);
     if (!settings.acts() || settings.resolution() == ResolutionPreset::Native) {
         return false;
     }
-    const UpscaleMethod method = application.methods[std::size_t(presentation)];
+    const UpscaleMethod method = upscaleMethodFor(application, presentation);
     return method == UpscaleMethod::Auto || method == UpscaleMethod::X11Resize;
 }
 
@@ -204,9 +210,14 @@ QString UpscaleX11Resolution::keyFor(const Window *window)
     // those replacements. PID is only a grouping hint, not a launch identity:
     // expire orphaned state after a replacement grace period. Use KWin's
     // identity, not /proc.
-    return application && upscaleX11ResizeWanted(*application, window)
-        ? application->id + QLatin1Char('/') + window->output()->name() + QLatin1Char('/') + QString::number(window->pid())
-        : QString();
+    // A window the global profile answers for is keyed by an empty entry
+    // name, which no entry has: a name that reduces to nothing is stored as
+    // "application".
+    if (!upscaleX11ResizeWanted(application, window)) {
+        return QString();
+    }
+    return (application ? application->id : QString()) + QLatin1Char('/') + window->output()->name() + QLatin1Char('/')
+        + QString::number(window->pid());
 }
 
 void UpscaleX11Resolution::watch(EffectWindow *effectWindow)
@@ -285,7 +296,9 @@ UpscaleX11Resolution::Request UpscaleX11Resolution::requestFor(X11Window *window
     // presented by the effect, not answered by the client, and no verdict
     // until begin() sets one. Naming them keeps -Wmissing-field-initializers
     // satisfied without an initializer on the timer that says nothing.
-    return {window, key, position, QSize(size.width, size.height), application->x11PrimaryOutputOnly, false, false, {}};
+    // The global profile has no primary-output rule: that is measured per game.
+    const bool primaryOnly = application && application->x11PrimaryOutputOnly;
+    return {window, key, position, QSize(size.width, size.height), primaryOnly, false, false, {}};
 }
 
 bool UpscaleX11Resolution::begin(const Request &request)

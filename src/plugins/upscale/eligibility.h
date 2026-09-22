@@ -65,7 +65,6 @@ enum class UpscaleRefusal {
 
     Disabled,
     Unlisted,
-    NativeRule,
     BelowMinimumPixels,
     ResourceFailure,
     ScreenLocked,
@@ -125,7 +124,7 @@ bool upscalePresentation(EffectWindow *window);
  * because it presents full-screen has to ask this as well, or it acts on a
  * window that presents nothing of the kind.
  */
-bool upscaleCoversOutput(EffectWindow *window);
+bool upscaleCoversOutput(const EffectWindow *window);
 
 /**
  * Why this window cannot be scaled, or None when only the effect's own state

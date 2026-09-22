@@ -133,9 +133,9 @@ void UpscaleWaylandScale::request(EffectWindow *effectWindow, double ratio)
     }
     if (++entry->frames >= patienceInFrames) {
         // The client read the hint and did nothing with it, which is what Qt
-        // and SDL 2 do: neither honours a fractional scale. Give the scale
-        // back so nothing carries a request the client is not acting on, and
-        // let the status say no method reached it.
+        // does, and SDL 2 in exclusive fullscreen. Give the scale back so
+        // nothing carries a request the client is not acting on, and let the
+        // status say no method reached it.
         entry->ignored = true;
         window->setNextTargetScale(entry->original);
     }

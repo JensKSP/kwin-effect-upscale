@@ -701,18 +701,23 @@ pointless or harmful here. That keeps the distinction the catalogue header
 already draws, that an entry asking for nothing still records that the question
 was asked.
 
-**These are the only settings with no Use global.** Every other setting has one,
-because every other setting is a preference; a method is a measurement of one
-program and has nothing to inherit. `X11PrimaryOutputOnly` stops being a
-property of the profile and becomes a property of the X11 presentations.
+**Methods inherit too, since Auto exists.** Decided by Jens on 2026-09-21: the
+earlier rule that methods alone had no Use global predates Auto, when a method
+was only ever a measurement and there was nothing sensible to inherit. A slot
+a game states nothing for now follows the package's measurement where there is
+one and the global profile's answer otherwise, which is Auto by default; a
+slot the game states is its own, marked as its other settings are.
+`X11PrimaryOutputOnly` stops being a property of the profile and becomes a
+property of the X11 presentations.
 
-**On the global profile the same six slots default to `Off` rather than `Auto`.**
-For a game in the catalogue somebody measured it, so Auto has ground to stand
-on; for a program nobody has ever run it has none. Switching on "also upscale
-applications that are not in the list" therefore enlarges the buffers such
-programs commit by themselves and does not begin experimenting on them until a
-slot is set to Auto deliberately. This preserves the line the previous
-`UnknownApplications` setting drew.
+**On the global profile the same six slots default to `Auto` too.** Decided by
+Jens on 2026-09-21, reversing an earlier default of `Off`, which had kept
+"also upscale applications that are not in the list" from experimenting on
+programs nobody measured until a slot was set to Auto deliberately. Now ticking
+All applications also asks such programs by Auto: the X11 resize with its
+verification and revert, and the surface scale on Wayland, which is taken back
+when it does not work; nothing is said at bind. What keeps an unmeasured
+program untouched by default is the global profile's switch, which stays off.
 
 **The editor offers only what the current screen can do**, with a reason for the
 rest, as the handbook already requires. On an unscaled output the two
@@ -771,13 +776,16 @@ the next. Only an explicit method in the fullscreen slot is said at bind, and
 that is a measurement of that slot.
 
 **Auto and the measured methods reach different clients, which is why both
-exist.** The fractional hint reaches GLFW, SDL 3, Godot and Wine. It does not
-reach SDL 2, which never implemented the protocol, or Qt, which clamps the
-value to 1.0. SDL 2 is a large share of Linux games and includes SuperTuxKart,
-so a measured advertisement is the only thing that moves those - and it also
-starts the game at the right size instead of changing it after the first frame.
-Auto failing is therefore not a dead end but the case a catalogue entry exists
-for, and Auto reports it rather than falling back to something unsafe.
+exist.** The fractional hint reaches GLFW, SDL 3, Godot and Wine, and SDL 2 for
+a window created high-DPI aware and not in exclusive fullscreen: corrected on
+2026-09-21 from the source of SDL 2.32.4 and a SuperTuxKart run, where this
+document had said SDL 2 never implemented the protocol. It does not reach SDL
+2's exclusive fullscreen, whose buffer is the mode it selected, or Qt, which
+clamps the value to 1.0. A measured advertisement is the only thing that moves
+an exclusive-fullscreen SDL 2 game - and it also starts the game at the right
+size instead of changing it after the first frame. Auto failing is therefore
+not a dead end but the case a catalogue entry exists for, and Auto reports it
+rather than falling back to something unsafe.
 
 ### What a Wayland client actually reads, source review 2026-09-20
 
@@ -865,7 +873,7 @@ window then, and no ordering or binding signature predicts it: every toolkit
 binds every global it knows regardless of intent. A toolkit fingerprint is
 possible from the resources a client has bound - a client with no
 `zxdg_output_v1` is GLFW or Godot, a client with
-`wp_fractional_scale_manager_v1` is not SDL 2 - and the class, not the
+`wp_fractional_scale_manager_v1` is not an old SDL 2 - and the class, not the
 presentation, is what predicts harm. That is a refinement to consider once Auto
 works, not a prerequisite.
 

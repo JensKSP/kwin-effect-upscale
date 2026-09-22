@@ -224,8 +224,8 @@ Implemented today:
 - selected borderless-window handling when content exactly covers one output;
 - per-display application rules;
 - configurable global output threshold and per-application overrides;
-- a Native application rule that bypasses upscaling when the global Native
-  preset is selected.
+- a Native resolution that asks a game for nothing smaller, while a buffer that
+  arrives smaller anyway is still upscaled with FSR.
 
 By default, outputs at or below 2,073,600 physical pixels (Full HD) bypass
 upscaling.
@@ -599,7 +599,8 @@ an internal render scale.
 Left 4 Dead 2 is the native Source engine title this effect's X11 path was
 developed against, launched normally from Steam through pressure-vessel. Its
 window identifies itself as `hl2_linux`, which is the engine binary rather than
-the game, so the profile the package ships covers every native Source title.
+the game, so the profile the package ships recognizes it by the folder its
+program is in, `Left 4 Dead 2/hl2_linux`.
 Source takes its fullscreen size from the window manager and never asks
 Xwayland for a mode, which is the case the effect has to present and map
 pointer input for itself.

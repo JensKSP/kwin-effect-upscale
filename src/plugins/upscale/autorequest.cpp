@@ -19,6 +19,8 @@
 
 #include "effect/effecthandler.h"
 #include "effect/effectwindow.h"
+#include "scene/surfaceitem.h"
+#include "scene/windowitem.h"
 #include "window.h"
 
 #include <algorithm>
@@ -26,14 +28,26 @@
 namespace KWin
 {
 
+// Whether @p window already draws smaller than its output.
+static bool drawsSmaller(EffectWindow *window)
+{
+    SurfaceItem *surface = window->windowItem() ? window->windowItem()->surfaceItem() : nullptr;
+    const QSize buffer = surface ? surface->bufferSize() : QSize();
+    const QSize output = window->screen() ? window->screen()->pixelSize() : QSize();
+    return !buffer.isEmpty() && buffer.width() < output.width() && buffer.height() < output.height();
+}
+
 // The fraction of its output to ask this window to render, or one to ask for
-// nothing and give back anything asked before.
+// nothing and give back anything asked before. @p reached says that the window
+// already draws smaller without anything asked of it from here, which is how an
+// advertisement that worked shows itself.
 //
-// The advertisement methods are not reachable from here: they were made when
-// the client bound the output, long before this window existed. What is
+// The advertisements themselves are not reachable from here: they were made
+// when the client bound the output, long before this window existed. What is
 // reachable is the preferred fractional scale, which is sent per surface and
 // can be taken back, so this is where Auto asks and where it stops asking.
-static double autoRatio(EffectWindow *window, const UpscaleApplication *claimed, const UpscaleSettings &settings)
+static double autoRatio(EffectWindow *window, const UpscaleApplication *claimed, const UpscaleSettings &settings,
+                        bool reached)
 {
     if (!settings.acts()) {
         return 1.0;
@@ -45,15 +59,26 @@ static double autoRatio(EffectWindow *window, const UpscaleApplication *claimed,
     if (upscaleIsWindowed(presentation)) {
         return 1.0;
     }
-    // A profile that names an advertisement was answered at bind or not at
-    // all. Only Auto is this mechanism's to act on, and an unmeasured slot is
-    // Auto, which is the case that matters: a game nobody has measured. With
-    // no profile, the global profile's own answer applies, which is Off unless
-    // a person set it, so nothing is tried on an unmeasured program by default.
-    const auto slot = std::size_t(presentation);
-    const UpscaleMethod method = claimed ? claimed->methods[slot] : upscaleGlobalMethods()[slot];
+    // An unmeasured slot follows the global profile's answer, Auto unless a
+    // person chose another, which is the case that matters: a game nobody has
+    // measured. With no profile the global answer applies too; nothing is
+    // tried on an unmeasured program by default all the same, because the
+    // global profile acts only once All applications is switched on.
+    //
+    // A slot that names an advertisement is asked too, when the advertisement
+    // did not reach the window. An advertised mode reaches only a client that
+    // takes its buffer from the modes it was told, as SDL's exclusive
+    // fullscreen does. The same program presenting another way ignores it:
+    // SuperTuxKart's Vulkan renderer, in the borderless fullscreen it uses by
+    // default, keeps drawing at full size, and follows the fractional scale
+    // instead. A window that already draws smaller without anything asked of
+    // it from here is left alone, under Auto as well: an advertisement Auto
+    // made at bind reached it, or the game renders smaller on its own, and
+    // asking again would change nothing and claim its buffer for the wrong
+    // request.
+    const UpscaleMethod method = upscaleMethodFor(claimed, presentation);
     UpscaleOutput *output = window->screen();
-    if (method != UpscaleMethod::Auto || !output) {
+    if (reached || !output || (method != UpscaleMethod::Auto && !upscaleIsAdvertisement(method))) {
         return 1.0;
     }
     const QSize pixels = output->pixelSize();
@@ -82,7 +107,7 @@ bool UpscaleEffect::autoWaiting() const
             return false;
         }
         const UpscaleApplication *claimed = upscaleApplicationForWindow(window->window());
-        return autoRatio(window, claimed, upscaleResolveSettings(claimed)) < 1.0;
+        return autoRatio(window, claimed, upscaleResolveSettings(claimed), drawsSmaller(window)) < 1.0;
     });
 }
 
@@ -99,7 +124,10 @@ void UpscaleEffect::askForSmallerBuffer(UpscaleOutput *output, EffectWindow *can
         return;
     }
     const UpscaleApplication *asked = window == candidate ? claimed : upscaleApplicationForWindow(window->window());
-    m_waylandScale->request(window, autoRatio(window, asked, upscaleResolveSettings(asked)));
+    // A window that answered a request from here draws smaller too, and has to
+    // go on being asked, or its scale would be given back and it would grow.
+    const bool reached = drawsSmaller(window) && !m_waylandScale->known(window->window());
+    m_waylandScale->request(window, autoRatio(window, asked, upscaleResolveSettings(asked), reached));
 }
 
 } // namespace KWin

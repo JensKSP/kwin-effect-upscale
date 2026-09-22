@@ -1230,12 +1230,59 @@ and Vulkan exclusive fullscreen. The game keeps its own settings, the buffer
 KWin receives is smaller, the output capture shows it correctly enlarged, and
 one automated command runs all six cells.
 
-| Cell | Through the effect today | Evidence |
+| Cell | Through the effect, nested session, 2026-09-21 | Real session, 2026-09-21 |
 | --- | --- | --- |
-| Wayland, OpenGL, fullscreen | Buffer reduced by `AdvertisedMode` | Runs of 2026-09-18 and 2026-09-19; never with an output-capture check |
-| Wayland, Vulkan, borderless | **Fails.** The entry names `AdvertisedMode`, which this cell ignores, and `autoRatio()` sends the fractional scale only for a slot on Auto | The lever works; see below |
-| Wayland, Vulkan, exclusive | Not run through the effect | The run of 2026-09-18 changed the game's own resolution, which the requirement excludes |
-| Xwayland, all three | Not run | — |
+| Wayland, OpenGL, fullscreen | 2560 × 1440 by the advertised mode; FSR 1 to 3840 × 2160 | Passed: 2560 × 1440 by the mode Auto told at bind, FSR 1, 110/s; picture and pointer confirmed by Jens |
+| Wayland, Vulkan, borderless | 2560 × 1440 by the surface scale the advertisement falls back to; FSR 1 | Passed: 2560 × 1440 by the surface scale, FSR 1, 111/s |
+| Wayland, Vulkan, exclusive | 2560 × 1440 by the advertised mode, not asked for a scale; FSR 1 | Passed: 2560 × 1440 by the mode, FSR 1, 110/s |
+| Xwayland, OpenGL, fullscreen | 2560 × 1440 by the X11 resize (Auto); FSR 1, pointer mapped | Passed: 2560 × 1440 by the X11 resize, presented by the effect with pointer mapped, FSR 1, 110/s; confirmed by Jens |
+| Xwayland, Vulkan, borderless | The same | Passed, the same; confirmed by Jens |
+| Xwayland, Vulkan, exclusive | The same | Passed, the same |
+
+The real-session runs: Jens's KWin 6.3.6 session, build 2026-09-21T20:17:41Z, a
+3840 × 2160 output, SuperTuxKart 1.4 with its entry's Wayland fullscreen slot
+on Auto (Jens's own list), resolution Custom at the global 66.67 %. Before each
+run the game's own settings were put back to fullscreen at 3840 × 2160, with
+only the renderer (command line) and `vulkan_fullscreen_desktop` differing per
+cell. No output capture was compared yet.
+
+**Open: the game stores what it was told.** SuperTuxKart writes the mode it
+ran at back into its own configuration on exit (`irr_driver.cpp:439-451` picks
+the closest offered mode to its stored size, `622-627` stores the size it
+renders at, `main.cpp:2791` saves). After cell 1 it stored 2560 × 1440, after
+cell 2 `real_width` 1280 × 720 with 2560 × 1440 rendered, and the renderer the
+command line named. The next start then asks for that size: at Native it would
+stay small, and after Performance it would stay at 1920 × 1080 under Quality,
+because SDL offers that size among its emulated modes. The effect never writes
+to a game, so this has to be answered from the compositor side.
+
+These runs used the production plugin with the shipped catalogue, the display
+switched off, SuperTuxKart's own settings at fullscreen 3840 × 2160 and only
+the renderer and `vulkan_fullscreen_desktop` changed per cell, in a nested KWin
+6.3.6 on its virtual backend with the real GPU. They checked the committed
+buffer and the effect's status, not yet an output capture against the game's
+frame, which the requirement also asks for.
+
+Changing the resolution during play, Quality to Performance to Native to
+Quality: the Vulkan borderless cell followed each step without a restart. The
+OpenGL cell kept 2560 × 1440, as a bind-time advertisement must, and until this
+change the status still named the old request as current; it now says which
+size applies from the next start.
+
+Two defects in shipped code stood between this cell and a smaller buffer, and
+are fixed in the working tree:
+
+1. **Auto asked only while the display was shown.** A window drawing at full
+   size is resolved as the candidate only when something asks for the
+   candidate during a paint, and for such a window only the display did. The
+   effect now resolves the candidate at the start of every output's paint.
+   The integration test missed it because its driver asked `isActive()` from
+   inside the effect's paint, which resolved the candidate as a side effect;
+   the driver now asks where KWin asks.
+2. **An advertisement shut the surface scale out.** `autoRatio()` acted only on
+   Auto. A slot that names an advertisement now falls back to the surface scale
+   for a window the advertisement did not reach, and never asks a window it did
+   reach. The status names the surface scale when that is the request standing.
 
 **The earlier reading of SDL 2 was wrong.** This slice, application profiles and
 `waylandscale.h` say that SDL 2 never implemented `wp_fractional_scale_v1`. SDL
@@ -1263,14 +1310,34 @@ The log is `build/game-probe/stk-vk-scale.log`.
 
 Next, in order:
 
-1. A slot that names an advertisement falls back to the fractional scale for a
-   window the advertisement did not reach, one still drawing at full size. A
-   window whose buffer the advertisement already made smaller is never asked.
+1. The six cells in Jens's real session, one by one, with the installed build.
 2. A matrix test that runs all six cells with the production plugin in a
    nested KWin and checks both the buffer and an output capture against the
    frame the game drew.
-3. Correct the SDL 2 claim in `waylandscale.h`, in the handbook and in the
-   catalogue's note for SuperTuxKart.
+3. Changes made inside the game while it runs: fullscreen off and on, and the
+   Vulkan renderer's live switch between borderless and windowed.
+4. Asked by Jens on 2026-09-21, for later: the test runs bring their own game
+   lists with the configurations each needs, loaded through the settings
+   page's import, instead of depending on the list the package ships.
+
+### Auto announces the mode to identified programs, 2026-09-21
+
+Cell 1 in Jens's session, with SuperTuxKart's Wayland fullscreen slot on Auto,
+stayed at 3840 × 2160: Auto said nothing at bind, and SDL 2's exclusive
+fullscreen fixes its buffer from the mode it saw at start (window->fullscreen_mode,
+`SDL_video.c:1791-1801`) and ignores the fractional scale Auto asked for after.
+Jens: Auto has to do the right thing, without knowing the game, and means the
+same whether an entry or the global profile answers. Decided: Auto tells the
+program the smaller mode at bind, as the advertised mode does, and keeps the
+fractional scale for a window that still draws at full size. KWin's own
+clients are excepted: Xwayland, one connection for every X11 program, and the
+input method and screen locker. The global profile's Auto now also resizes an
+unlisted X11 window once All applications is checked, which keyFor() had
+never allowed (CodeRabbit on 88b96c6). A
+window that already draws smaller without anything asked of it is not asked at
+all, under Auto as under an advertisement. Still to do: a program that sizes a
+plain window from the mode, now told a smaller one, has to be presented over
+its screen rather than left small.
 
 ### Auto, and the lever it would use
 
@@ -1706,13 +1773,13 @@ Which clients act on it, from the same source reading:
 | Acts on a preferred fractional scale | Does not |
 | --- | --- |
 | GLFW, by resizing the framebuffer; on by default in 3.4 | Qt, which clamps the value to 1.0 |
-| SDL 3, but only for a window with high pixel density or scale-to-display | SDL 2, which never implemented the protocol |
+| SDL 3, but only for a window with high pixel density or scale-to-display | SDL 2 in exclusive fullscreen; outside it, SDL 2.32.4 acts on it for a window created high-DPI aware (corrected 2026-09-21, see [all six presentations](#supertuxkart-in-all-six-presentations-2026-09-21)) |
 | Godot, which updates the window state | |
 | Wine, which remaps the window - but only coherently if the mode half was falsified as well | |
 
 The handbook's earlier note that a fractional scale hint failed was measured on
-SDL 2, which cannot honour it, and the Qt result is explained by the clamp.
-Neither says anything about the lever itself.
+SDL 2 in exclusive fullscreen, which does not honour it, and the Qt result is
+explained by the clamp. Neither says anything about the lever itself.
 
 #### The ladder Auto would follow
 

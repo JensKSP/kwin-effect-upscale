@@ -17,7 +17,6 @@
 
 #include <vector>
 
-class QCheckBox;
 class QDBusPendingCallWatcher;
 class QComboBox;
 class QLabel;
@@ -76,13 +75,13 @@ public:
     void setAllPanel(QWidget *panel);
 
     /**
-     * The global values as the settings page currently shows them.
+     * The global values and methods as the settings page currently shows them.
      *
-     * What a game's Global choices name and its preview is computed from.
+     * What a game's controls follow and its preview is computed from.
      * They are the page's, not the stored ones, so that a change made under
      * "All applications" shows in every game before it is applied.
      */
-    void setGlobalSettings(const UpscaleSettings &global);
+    void setGlobalSettings(const UpscaleSettings &global, const UpscaleMethods &methods);
 
     /**
      * Whether "All applications" is checked.
@@ -151,7 +150,7 @@ private:
     UpscaleSettingControls *m_settings;
     UpscaleResolutionPreview *m_preview;
     UpscaleSettings m_global = upscaleGlobalSettings();
-    QCheckBox *m_enabled;
+    UpscaleMethods m_globalMethods = upscaleGlobalMethods();
     QLabel *m_note;
     QPushButton *m_delete;
     QPushButton *m_up;

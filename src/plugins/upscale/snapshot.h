@@ -58,6 +58,10 @@ struct UpscaleSnapshot
     // it told it nothing. Never confuse it with the committed buffer: the
     // application is free to ignore it.
     QSize advertised;
+    // Whether the program would be told a mode when it next starts: its path
+    // selects the entry before it has a window. An entry that also names the
+    // window cannot, because it is not known to match until the window exists.
+    bool advertisableAtStart = false;
     // A live X11 request is a window size, not a Wayland mode advertisement.
     QSize requested;
     QString requestFailure;
@@ -183,6 +187,13 @@ QString upscaleDeveloperInformation(const UpscaleSnapshot &snapshot);
  * runs to a decimal place does not depend on the session's language.
  */
 QString upscaleMetrics(const UpscaleSnapshot &snapshot);
+
+/**
+ * Whether the game draws at the size chosen for it, @p snapshot's desired
+ * size, or at one of its own - a resolution a game stored from an earlier run,
+ * for instance. True where there is nothing to compare yet.
+ */
+bool upscaleDrawsTheChosenSize(const UpscaleSnapshot &snapshot);
 
 /** The settings page's status text, in the words that page has always used. */
 QString upscaleStatusText(const UpscaleSnapshot &snapshot);

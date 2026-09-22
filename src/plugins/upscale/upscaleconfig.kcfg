@@ -44,12 +44,12 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
              Spelled as names rather than numbers so that this file reads the
              way kwinupscalerc does, and parsed by the same reader. -->
-        <entry name="MethodWaylandFullScreen" type="String"><default>Off</default></entry>
-        <entry name="MethodWaylandBorderless" type="String"><default>Off</default></entry>
-        <entry name="MethodWaylandWindowed" type="String"><default>Off</default></entry>
-        <entry name="MethodX11FullScreen" type="String"><default>Off</default></entry>
-        <entry name="MethodX11Borderless" type="String"><default>Off</default></entry>
-        <entry name="MethodX11Windowed" type="String"><default>Off</default></entry>
+        <entry name="MethodWaylandFullScreen" type="String"><default>Auto</default></entry>
+        <entry name="MethodWaylandBorderless" type="String"><default>Auto</default></entry>
+        <entry name="MethodWaylandWindowed" type="String"><default>Auto</default></entry>
+        <entry name="MethodX11FullScreen" type="String"><default>Auto</default></entry>
+        <entry name="MethodX11Borderless" type="String"><default>Auto</default></entry>
+        <entry name="MethodX11Windowed" type="String"><default>Auto</default></entry>
         <!-- Kept on, and not offered in the settings: the four displays below
              each switch themselves, and all four off already means nothing is
              drawn, so a switch above them only said the same thing twice. It

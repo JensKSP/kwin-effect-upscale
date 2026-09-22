@@ -45,12 +45,9 @@ void UpscaleEffectConfig::addDisplayControls(QFormLayout *layout)
                                   "display to the next free one."));
     }
     m_osdTimeout->setRange(1, 60);
-    // The unit is written out and follows the number, the way KWin's own
-    // effect pages write theirs, so the suffix is set again as the value moves.
-    const auto unit = [this](int seconds) {
-        m_osdTimeout->setSuffix(i18ncp("Suffix", " second", " seconds", seconds));
-    };
-    unit(m_osdTimeout->value());
+    // The unit's symbol follows the number, as KDE writes short units in
+    // narrow fields; a symbol has no plural, so it is set once.
+    m_osdTimeout->setSuffix(i18nc("Suffix: the unit symbol for seconds", " s"));
     // Three displays, each a switch and what it decides, set a little apart:
     // the switches sit in the field column like every other value, and the
     // space says where one display ends and the next begins.
@@ -77,8 +74,7 @@ void UpscaleEffectConfig::addDisplayControls(QFormLayout *layout)
             setNeedsSave(true);
         });
     }
-    connect(m_osdTimeout, &QSpinBox::valueChanged, this, [this, unit](int seconds) {
-        unit(seconds);
+    connect(m_osdTimeout, &QSpinBox::valueChanged, this, [this]() {
         updatePreview();
         setNeedsSave(true);
     });

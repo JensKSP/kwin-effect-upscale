@@ -36,11 +36,13 @@ class Window;
  * scale-based advertisements can say nothing; a fractional scale is a fraction
  * with no such floor.
  *
- * What it does not reach: a client that ignores the hint. Qt clamps it to one
- * and SDL 2 never implemented the protocol, so a game built on either is not
- * moved by this and needs a measured method instead. That is reported rather
- * than retried, because a client that did not answer the first time will not
- * answer the same question again.
+ * What it does not reach: a client that ignores the hint, or whose buffer
+ * does not follow its surface's scale. Qt clamps the hint to one. SDL 2 acts on
+ * it only for a window created high-DPI aware, and not in exclusive
+ * fullscreen, where the buffer is the display mode it selected when the window
+ * was made; that window needs the advertised mode, said when the client binds
+ * its output. A client that did not answer is reported rather than asked
+ * again, because it will not answer the same question the second time.
  */
 class UpscaleWaylandScale : public QObject
 {

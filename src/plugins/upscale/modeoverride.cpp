@@ -145,6 +145,15 @@ void UpscaleModeOverride::announce(OutputInterface *output, ClientConnection *cl
     if (!client || !resource) {
         return;
     }
+    // KWin's own helper clients are never told anything. Xwayland above all:
+    // it is one connection for every X11 program, so a smaller screen told to
+    // it would be a smaller screen for all of them, and X11 games are asked
+    // through their windows instead. The input method and the screen locker
+    // are KWin's too, and neither is a game.
+    if (client == waylandServer()->xWaylandConnection() || client == waylandServer()->inputMethodConnection()
+        || client == waylandServer()->screenLockerClientConnection()) {
+        return;
+    }
     // The profile the program's path selects, or none. With none, the global
     // profile answers - which is what switching on unlisted applications and
     // giving the global profile a method is for - through the same code. A
@@ -162,11 +171,22 @@ void UpscaleModeOverride::announce(OutputInterface *output, ClientConnection *cl
     }
     // What is said before the window exists comes from the fullscreen slot;
     // upscaleAdvertisedPresentation() carries why that one and not a coin
-    // toss between the two Wayland answers. Auto says nothing here at all: an
-    // advertisement made before the window exists cannot be taken back, so
-    // Auto waits and uses the lever that can be undone.
-    const auto slot = std::size_t(upscaleAdvertisedPresentation());
-    const UpscaleMethod method = application ? application->methods[slot] : upscaleGlobalMethods()[slot];
+    // toss between the two Wayland answers.
+    //
+    // Auto tells the program a smaller screen mode here, whatever the program
+    // is and whether an entry or the global profile answers for it: Auto means
+    // the same wherever it comes from. A game in SDL's exclusive fullscreen
+    // takes its buffer from the mode it is told now and from nothing said
+    // later, so an Auto that waited for the window would leave it at full size
+    // for the whole run. A program that sizes its buffer from the configure
+    // instead ignores the mode, and is asked for a fractional scale once its
+    // window exists (autorequest.cpp). Laid down by Jens on 2026-09-21. Only a
+    // program the effect acts on hears it: one an entry claims, or any once
+    // All applications is checked, which settings.acts() said above.
+    UpscaleMethod method = upscaleMethodFor(application, upscaleAdvertisedPresentation());
+    if (method == UpscaleMethod::Auto) {
+        method = UpscaleMethod::AdvertisedMode;
+    }
     if (method == UpscaleMethod::Auto || method == UpscaleMethod::Off
         || method == UpscaleMethod::X11Resize) {
         return;
