@@ -47,6 +47,7 @@ private Q_SLOTS:
     void presentsOnlyWhatItPrepared();
     void resetsItsDesktop();
     void remembersNever();
+    void writesALostDesktopAgain();
 
 private:
     std::unique_ptr<QProcess> startGame() const;
@@ -230,6 +231,35 @@ void WineDesktopHelperTest::remembersNever()
     QCOMPARE(unknown.offer, QString());
     QCOMPARE(values(), WineDesktopValues{});
     QVERIFY(!m_helper->busy());
+}
+
+void WineDesktopHelperTest::writesALostDesktopAgain()
+{
+    QSignalSpy finished(&*m_helper, &WineDesktopHelper::jobFinished);
+    {
+        auto server = startServer();
+        const std::unique_ptr<QProcess> game = startGame();
+        QVERIFY(!acceptOffer(*game).isEmpty());
+        game->kill();
+        game->waitForFinished();
+    }
+    QTRY_COMPARE(finished.size(), 1);
+    // A server that overlapped the write saved its own copy on exit.
+    QFile registry(m_prefix + QStringLiteral("/user.reg"));
+    QVERIFY(registry.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    registry.write(s_registry);
+    registry.close();
+    {
+        auto server = startServer();
+        const std::unique_ptr<QProcess> desktop = startGame();
+        QCOMPARE(m_helper->present(desktop->processId(), s_class), QSize());
+        QCOMPARE(m_helper->present(desktop->processId(), s_class), QSize());
+        desktop->kill();
+        desktop->waitForFinished();
+    }
+    QTRY_COMPARE(finished.size(), 2);
+    QCOMPARE(finished.last().at(1).value<WineWriteResult>(), WineWriteResult::Written);
+    QCOMPARE(values().defaultSize, QStringLiteral("2560x1440"));
 }
 
 QTEST_GUILESS_MAIN(WineDesktopHelperTest)

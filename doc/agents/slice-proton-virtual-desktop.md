@@ -153,13 +153,23 @@ prefix and its server lock.
   lost, because the server rewrites `user.reg` on exit and every 30 seconds
   (`server/registry.c:1894-1979`, `2164-2219`).
 - Under Proton, also hold its own `compatdata/<appid>/pfx.lock` while writing,
-  so a launch in the meantime waits (proton script `FileLock(..., timeout=-1)`).
-  Other flavours have no such lock; there the server lock is checked again
-  after the write, and the write is repeated after the next exit if a server
-  started in between.
-- Replace the file atomically (temporary file, then rename), change only the
-  two keys, leave every other byte alone, and check the server lock again
-  afterwards.
+  so a Proton launch waits (proton script `FileLock(..., timeout=-1)`).
+- Reach the prefix through its directory, held open since it was proven while
+  the game ran and checked against the proven device and inode before every
+  write. The registry is read, written as a new file and renamed over the old
+  one relative to that directory (`openat`, `renameat`), so the write reaches
+  the proven directory whatever paths the host has, and a directory removed in
+  the meantime is refused. Without a held directory, for a reset after the
+  helper restarted, the game's path is opened and checked the same way.
+- The lock test and the rename are not one step: a server of another launch
+  can start in between. Two things cover that. The lock is tested again after
+  the rename, and where a server is seen the write is repeated after that run.
+  And every time the prepared game starts, the helper checks that the prefix
+  still holds the desktop; one that was lost, because an overlapping server
+  saved its own copy on exit or a Proton downgrade rebuilt the prefix, is
+  written again after that run. Taking the server lock instead would make the
+  overlapping launch fail, since a server that finds its lock taken exits.
+- Change only the two keys and leave every other byte alone.
 - Never overwrite a `Desktop` value the user set (winecfg, protontricks). The
   companion keeps its own record of the prefixes it changed, in
   `$XDG_STATE_HOME`, and undoes only its own change.

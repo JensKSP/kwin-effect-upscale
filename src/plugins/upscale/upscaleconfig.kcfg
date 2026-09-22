@@ -36,11 +36,11 @@ SPDX-License-Identifier: GPL-2.0-or-later
         <entry name="Sharpening" type="Bool"><default>false</default></entry>
         <entry name="Strength" type="Int"><default>50</default><min>0</min><max>100</max></entry>
         <!-- What the global profile says to a program no profile claimed, one
-             answer per way the program can present itself. Off throughout,
-             because a method is a measurement and nobody has measured an
-             unlisted program: the global profile enlarges what such a program
-             commits by itself and asks it for nothing. Auto here is a
-             deliberate choice a person makes, not a default they inherit.
+             answer per way the program can present itself. Auto throughout,
+             so that All applications asks every program it answers for in the
+             way that suits how the program presents itself. A game inherits
+             these where it states no method of its own and the package has no
+             measurement for it.
 
              Spelled as names rather than numbers so that this file reads the
              way kwinupscalerc does, and parsed by the same reader. -->

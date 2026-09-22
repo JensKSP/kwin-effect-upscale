@@ -78,6 +78,7 @@ WineDesktopTarget targetFor(const WinePrefix &prefix, const QProcessEnvironment 
         .identity = prefix.identity,
         .steamCompatData = prefix.steamAppId.isEmpty() ? QString() : QDir::cleanPath(environment.value(QStringLiteral("STEAM_COMPAT_DATA_PATH"))),
         .temporaryDirectory = s_hostTemporary,
+        .directory = nullptr,
     };
 }
 
@@ -132,9 +133,16 @@ WineDesktopHelper::Offered WineDesktopHelper::offer(uint pid, const QString &win
     if (record.never || record.written == size) {
         return {};
     }
+    // Held from now on: after the game has gone, it still reaches the
+    // directory proven now, whatever paths the host has.
+    const std::shared_ptr<WineDirectory> directory = WineDirectory::open(prefix->path, prefix->identity);
+    if (!directory) {
+        return {};
+    }
     record.id = id;
     record.title = title;
     record.target = targetFor(*prefix, process->environment);
+    record.target.directory = directory;
     record.steamAppId = prefix->steamAppId;
     record.wanted = size;
     const QString offer = QUuid::createUuid().toString(QUuid::WithoutBraces);
@@ -168,6 +176,7 @@ QString WineDesktopHelper::answer(const QString &offer, const QString &answer)
         .relaunch = false,
         .closeDeadline = {},
         .terminated = false,
+        .directory = pending.record.target.directory,
     });
     return pending.record.steamAppId.isEmpty() ? QString() : restartQuestion(pending.record.title);
 }
@@ -184,7 +193,7 @@ bool WineDesktopHelper::restart(const QString &offer)
     return false;
 }
 
-QSize WineDesktopHelper::present(uint pid, const QString &windowClass) const
+QSize WineDesktopHelper::present(uint pid, const QString &windowClass)
 {
     const std::optional<WineProcess> process = wineProcess(pid);
     if (!process) {
@@ -195,7 +204,40 @@ QSize WineDesktopHelper::present(uint pid, const QString &windowClass) const
         return {};
     }
     const std::optional<WineDesktopRecord> record = m_records->find(wineRecordId(prefix->identity));
-    return record && record->written ? *record->written : QSize();
+    if (!record || !record->written) {
+        return {};
+    }
+    // The prefix may have lost the desktop since it was written: a Wine server
+    // that overlapped the write saves its own copy when it exits, and Proton
+    // rebuilds a prefix it is downgraded to. Then this run has none, and it is
+    // written again after the run.
+    const std::shared_ptr<WineDirectory> directory = WineDirectory::open(prefix->path, prefix->identity);
+    if (directory && wineIsDesktop(wineDesktopValuesIn(*directory), *record->written)) {
+        return *record->written;
+    }
+    const std::optional<pid_t> server = wineServerProcess(wineServerLockPath(prefix->temporaryDirectory, ::getuid(), prefix->identity));
+    if (directory && server && !hasJob(record->id)) {
+        startJob({
+            .id = record->id,
+            .offer = {},
+            .game = static_cast<pid_t>(pid),
+            .server = *server,
+            .clear = false,
+            .size = *record->written,
+            .relaunch = false,
+            .closeDeadline = {},
+            .terminated = false,
+            .directory = directory,
+        });
+    }
+    return {};
+}
+
+bool WineDesktopHelper::hasJob(const QString &id) const
+{
+    return std::any_of(m_jobs.cbegin(), m_jobs.cend(), [&id](const Job &job) {
+        return job.id == id;
+    });
 }
 
 QList<WineDesktopRecord> WineDesktopHelper::prepared() const
@@ -230,6 +272,7 @@ bool WineDesktopHelper::reset(const QString &id)
         .relaunch = false,
         .closeDeadline = {},
         .terminated = false,
+        .directory = nullptr,
     });
     return true;
 }
@@ -285,6 +328,7 @@ bool WineDesktopHelper::advance(Job &job)
     if (!record) {
         return true;
     }
+    record->target.directory = job.directory;
     const WineWriteResult result = job.clear ? wineClearDesktop(record->target, ::getuid(), job.size)
                                              : wineSetDesktop(record->target, ::getuid(), job.size, record->written, QDateTime::currentSecsSinceEpoch());
     if (result == WineWriteResult::Busy) {
@@ -303,6 +347,12 @@ bool WineDesktopHelper::advance(Job &job)
         }
     } else {
         qCWarning(WINEDESKTOP) << "Left the prefix of" << record->title << "unchanged, result" << static_cast<int>(result);
+        // The user has a desktop of their own there now; this one is theirs
+        // to keep, and nothing of it is this companion's to undo any more.
+        if (result == WineWriteResult::DesktopOfTheUser && !job.clear) {
+            record->written.reset();
+            m_records->store(*record);
+        }
     }
     Q_EMIT jobFinished(job.id, result);
     return true;

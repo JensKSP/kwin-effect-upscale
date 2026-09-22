@@ -167,7 +167,13 @@ void removeValue(QList<QByteArray> &lines, const QByteArray &key, const QByteArr
 
 bool wineIsRegistry(const QByteArray &text)
 {
-    return text.startsWith(s_header);
+    // The whole first line: "Version 20" would be another format.
+    const qsizetype end = text.indexOf('\n');
+    QByteArrayView line = end < 0 ? QByteArrayView(text) : QByteArrayView(text).first(end);
+    if (line.endsWith('\r')) {
+        line.chop(1);
+    }
+    return line == s_header;
 }
 
 WineDesktopValues wineDesktopValues(const QByteArray &text)

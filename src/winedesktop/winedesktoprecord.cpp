@@ -27,6 +27,7 @@ WineDesktopRecord readRecord(QSettings &settings, const QString &id)
                     },
                 .steamCompatData = settings.value(QStringLiteral("SteamCompatData")).toString(),
                 .temporaryDirectory = settings.value(QStringLiteral("TemporaryDirectory")).toString(),
+                .directory = nullptr,
             },
         .steamAppId = settings.value(QStringLiteral("SteamAppId")).toString(),
         .wanted = settings.value(QStringLiteral("Wanted")).toSize(),

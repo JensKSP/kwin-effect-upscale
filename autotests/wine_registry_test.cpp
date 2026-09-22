@@ -53,6 +53,10 @@ void WineRegistryTest::recognisesOnlyWinesOwnHeader()
 {
     QVERIFY(wineIsRegistry(s_prefix));
     QVERIFY(!wineIsRegistry(QByteArrayLiteral("REGEDIT4\n")));
+    QVERIFY(!wineIsRegistry(QByteArrayLiteral("WINE REGISTRY Version 20\n")));
+    QVERIFY(!wineIsRegistry(QByteArrayLiteral("WINE REGISTRY Version 2 beta\n")));
+    QVERIFY(wineIsRegistry(QByteArrayLiteral("WINE REGISTRY Version 2\r\n")));
+    QVERIFY(wineIsRegistry(QByteArrayLiteral("WINE REGISTRY Version 2")));
     QVERIFY(!wineWithVirtualDesktop(QByteArrayLiteral("[x]\n"), QSize(2560, 1440), 0));
     QVERIFY(!wineWithoutVirtualDesktop(QByteArray()));
 }

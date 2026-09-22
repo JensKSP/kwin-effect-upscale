@@ -6,22 +6,50 @@
 
 #pragma once
 
+#include "wineregistry.h"
 #include "wineserverlock.h"
 
 #include <QSize>
 #include <QString>
 
+#include <memory>
 #include <optional>
 
 /*
  * Setting and removing the virtual desktop in a prefix whose game has exited.
  *
- * The prefix was located and proven while the game ran. Afterwards the game's
- * view of the file system may be gone, so the file is reached by the path the
- * game used, and only if that path still leads to the very directory that was
- * proven: same device, same inode. Where a container gave the game other paths
- * than the host has, that check fails and nothing is written.
+ * The prefix was located and proven while the game ran, and is reached through
+ * the directory held open since then. Without that, it is reached by the path
+ * the game used, and only if that path still leads to the very directory that
+ * was proven: same device, same inode.
  */
+
+/*
+ * A prefix directory held open. Opened while the game runs, through the game's
+ * own view of the file system, it keeps reaching the very directory that was
+ * proven: after the game and its view have gone, and where a container gave
+ * the game other paths than the host has. Everything is read and written
+ * relative to it.
+ */
+class WineDirectory
+{
+public:
+    // Nothing unless the path leads to a directory with that identity.
+    static std::shared_ptr<WineDirectory> open(const QString &path, const WinePrefixIdentity &identity);
+    ~WineDirectory();
+
+    WineDirectory(const WineDirectory &) = delete;
+    WineDirectory &operator=(const WineDirectory &) = delete;
+
+    int descriptor() const;
+    // Whether it is still that directory and has not been removed since.
+    bool isStill(const WinePrefixIdentity &identity) const;
+
+private:
+    explicit WineDirectory(int descriptor);
+
+    int m_descriptor;
+};
 
 struct WineDesktopTarget
 {
@@ -34,6 +62,9 @@ struct WineDesktopTarget
     // The host's temporary directory, where a server started since would hold
     // its lock if its /tmp is the host's; checked again after writing.
     QString temporaryDirectory;
+    // The directory held open since it was proven, when there is one; without
+    // it the path is opened and checked against the identity instead.
+    std::shared_ptr<WineDirectory> directory;
 };
 
 enum class WineWriteResult {
@@ -55,6 +86,18 @@ enum class WineWriteResult {
  * any other one is the user's.
  */
 WineWriteResult wineSetDesktop(const WineDesktopTarget &target, uid_t user, const QSize &size, const std::optional<QSize> &ours, qint64 modifiedSeconds);
+
+/*
+ * Whether the values are a virtual desktop of that size, as this companion
+ * writes one.
+ */
+bool wineIsDesktop(const WineDesktopValues &values, const QSize &size);
+
+/*
+ * The two values as the prefix holds them now; empty when the registry cannot
+ * be read.
+ */
+WineDesktopValues wineDesktopValuesIn(const WineDirectory &directory);
 
 /*
  * Removes the desktop this companion set, `ours`. A desktop the user changed

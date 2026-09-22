@@ -26,11 +26,10 @@ namespace KWin
 /**
  * The six answers a profile gives, one per way its game can present itself.
  *
- * These are the only fields in the editor with no "use global": a method is a
- * measurement of one program, so there is nothing for it to inherit. What they
- * offer instead is Auto, which is also what an unmeasured slot reads as, and
- * Off, which records that the question was asked and the answer is to ask this
- * program for nothing.
+ * The global profile's six default to Auto. A game's row states a method of
+ * its own, or inherits the package's measurement, or, without one, the global
+ * profile's method, and shows which of them it is. Off records that the
+ * question was asked and the answer is to ask the program for nothing.
  *
  * Each slot lists only the methods its protocol can carry, because an
  * advertisement cannot reach an X11 window and a resize cannot reach a Wayland

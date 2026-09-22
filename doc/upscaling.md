@@ -1485,10 +1485,12 @@ that a smaller drawable fixes an uncooperative renderer.
 
 Implemented as six slots per profile, one per presentation: Wayland and X11,
 each fullscreen, borderless and windowed. Each slot is **Automatic**, one of
-the methods its protocol can carry, or **Off**. A method is a measurement of a
-program, so a slot has no **Global** choice. An absent slot reads as Automatic
-on a game profile and as Off on the global profile, which answers for unlisted
-applications only while it is switched on and never reaches a windowed window.
+the methods its protocol can carry, or **Off**. A game's slot that states no
+method inherits the package's measurement, and without one the global
+profile's method, shown in italics with a reset button like every other
+inherited value. The global profile's slots default to Automatic; it answers
+for unlisted applications only while it is switched on and never reaches a
+windowed window.
 Game detection selects the profile; it does not by itself establish that
 resolution control succeeded.
 

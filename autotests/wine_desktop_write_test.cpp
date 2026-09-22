@@ -43,6 +43,8 @@ private Q_SLOTS:
     void waitsForARunningServer();
     void waitsForProton();
     void refusesADirectoryThatIsNoLongerTheProvenOne();
+    void writesTheHeldDirectoryWhereverItsPathLeads();
+    void refusesAHeldDirectoryThatWasRemoved();
     void keepsTheFilesPermissions();
 
 private:
@@ -64,6 +66,7 @@ void WineDesktopWriteTest::init()
         .identity = {},
         .steamCompatData = m_root->filePath(QStringLiteral("compatdata/228380")),
         .temporaryDirectory = m_root->filePath(QStringLiteral("tmp")),
+        .directory = nullptr,
     };
     m_target.identity = winePrefixIdentity(m_target.prefix).value_or(WinePrefixIdentity{});
     writeRegistry(s_registry);
@@ -150,6 +153,34 @@ void WineDesktopWriteTest::refusesADirectoryThatIsNoLongerTheProvenOne()
     writeRegistry(s_registry);
     QCOMPARE(wineSetDesktop(m_target, ::getuid(), s_size, std::nullopt, 1790000000), WineWriteResult::Unreachable);
     QCOMPARE(registry(), s_registry);
+}
+
+void WineDesktopWriteTest::writesTheHeldDirectoryWhereverItsPathLeads()
+{
+    // As a container's path that the host does not have: the directory was
+    // opened while the game ran, and its path now leads somewhere else.
+    m_target.directory = WineDirectory::open(m_target.prefix, m_target.identity);
+    QVERIFY(m_target.directory);
+    const QString moved = m_target.prefix + QStringLiteral("-moved");
+    QVERIFY(QDir().rename(m_target.prefix, moved));
+    QVERIFY(QDir().mkpath(m_target.prefix));
+    writeRegistry(s_registry);
+    QCOMPARE(wineSetDesktop(m_target, ::getuid(), s_size, std::nullopt, 1790000000), WineWriteResult::Written);
+    QCOMPARE(registry(), s_registry);
+    QCOMPARE(wineDesktopValuesIn(*m_target.directory).defaultSize, QStringLiteral("2560x1440"));
+    QFile held(moved + QStringLiteral("/user.reg"));
+    QVERIFY(held.open(QIODevice::ReadOnly));
+    QCOMPARE(wineDesktopValues(held.readAll()).desktop, QStringLiteral("Default"));
+    QCOMPARE(QDir(moved).entryList(QDir::Files), QStringList{QStringLiteral("user.reg")});
+}
+
+void WineDesktopWriteTest::refusesAHeldDirectoryThatWasRemoved()
+{
+    m_target.directory = WineDirectory::open(m_target.prefix, m_target.identity);
+    QVERIFY(m_target.directory);
+    QVERIFY(QDir(m_target.prefix).removeRecursively());
+    QCOMPARE(wineSetDesktop(m_target, ::getuid(), s_size, std::nullopt, 1790000000), WineWriteResult::Unreachable);
+    QVERIFY(!WineDirectory::open(m_root->filePath(QStringLiteral("compatdata")), m_target.identity));
 }
 
 void WineDesktopWriteTest::keepsTheFilesPermissions()

@@ -45,7 +45,7 @@ public:
     Offered offer(uint pid, const QString &windowClass, const QString &title, const QSize &size);
     QString answer(const QString &offer, const QString &answer);
     bool restart(const QString &offer);
-    QSize present(uint pid, const QString &windowClass) const;
+    QSize present(uint pid, const QString &windowClass);
     QList<WineDesktopRecord> prepared() const;
     bool reset(const QString &id);
 
@@ -81,11 +81,14 @@ private:
         bool relaunch = false;
         QDeadlineTimer closeDeadline;
         bool terminated = false;
+        // Held since the prefix was proven, while the game ran.
+        std::shared_ptr<WineDirectory> directory;
     };
 
     void poll();
     bool advance(Job &job);
     void startJob(const Job &job);
+    bool hasJob(const QString &id) const;
 
     WineDesktopRecords *m_records;
     QHash<QString, Pending> m_offers;
