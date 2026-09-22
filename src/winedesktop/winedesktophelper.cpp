@@ -34,6 +34,11 @@ const QString hostTemporaryDirectory = QStringLiteral("/tmp");
 // An offer nobody answered does not keep the service alive for ever.
 constexpr std::chrono::hours offerLifetime{1};
 
+// How long a write waits for a prefix that stays busy after its program has
+// gone: long enough for the game to be played again in between, and not for
+// ever, since a lock that cannot be tested also reads as busy.
+constexpr std::chrono::hours busyLimit{12};
+
 bool launchThroughSteam(const WineDesktopRecord &record)
 {
     if (record.steamAppId.isEmpty()) {
@@ -177,6 +182,7 @@ QString WineDesktopHelper::answer(const QString &offer, const QString &answer)
         .closeDeadline = {},
         .terminated = false,
         .directory = pending.record.target.directory,
+        .giveUp = std::nullopt,
     });
     return pending.record.steamAppId.isEmpty() ? QString() : restartQuestion(pending.record.title);
 }
@@ -257,6 +263,7 @@ void WineDesktopHelper::afterRun(const WineDesktopRecord &record, uint pid, pid_
         .closeDeadline = {},
         .terminated = false,
         .directory = directory,
+        .giveUp = std::nullopt,
     });
 }
 
@@ -300,6 +307,7 @@ bool WineDesktopHelper::reset(const QString &id)
         .closeDeadline = {},
         .terminated = false,
         .directory = nullptr,
+        .giveUp = std::nullopt,
     });
     return true;
 }
@@ -363,10 +371,22 @@ bool WineDesktopHelper::advance(Job &job)
     record->target.directory = job.directory;
     const WineWriteResult result = job.clear ? wineClearDesktop(record->target, ::getuid(), job.size)
                                              : wineSetDesktop(record->target, ::getuid(), job.size, record->written, QDateTime::currentSecsSinceEpoch());
-    if (result == WineWriteResult::Busy) {
+    if (result == WineWriteResult::WrittenMeanwhile) {
+        // Recorded as written, so that the next write knows it as this
+        // companion's own, and written again once that server has gone.
+        record->written = job.clear ? std::nullopt : std::optional<QSize>(job.size);
+        m_records->store(*record);
+    }
+    if (result == WineWriteResult::Busy || result == WineWriteResult::WrittenMeanwhile) {
         // A new run started meanwhile; wait for its server if the host sees it.
         job.server = hostServer(*record).value_or(0);
-        return false;
+        if (!job.giveUp) {
+            job.giveUp = QDeadlineTimer(busyLimit);
+        }
+        if (!job.giveUp->hasExpired()) {
+            return false;
+        }
+        qCWarning(KWIN_UPSCALE_WINEDESKTOP) << "Gave up waiting for the prefix of" << record->title;
     }
     settle(job, *record, result);
     Q_EMIT jobFinished(job.id, result);

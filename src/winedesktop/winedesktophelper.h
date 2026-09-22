@@ -89,6 +89,9 @@ private:
         bool terminated = false;
         // Held since the prefix was proven, while the game ran.
         std::shared_ptr<WineDirectory> directory;
+        // Set when the write first finds the prefix busy after the program has
+        // gone; a job does not wait on a prefix for ever.
+        std::optional<QDeadlineTimer> giveUp;
     };
 
     void poll();

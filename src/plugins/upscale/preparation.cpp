@@ -10,6 +10,7 @@
 #include "windowidentity.h"
 #include "x11resolution.h"
 
+#include "effect/effecthandler.h"
 #include "effect/effectwindow.h"
 #include "window.h"
 
@@ -27,6 +28,11 @@ UpscalePreparation::UpscalePreparation(Effect *owner, UpscaleX11Resolution *x11)
     : m_owner(owner)
     , m_x11(x11)
 {
+    // A question on an output that goes away is taken away with it, keyboard
+    // and pointer included.
+    connect(effects, &EffectsHandler::screenRemoved, this, [this](UpscaleOutput *output) {
+        m_question.outputRemoved(output);
+    });
 }
 
 UpscaleQuestion &UpscalePreparation::question()
@@ -56,13 +62,18 @@ void UpscalePreparation::askToSetUp(const QPointer<EffectWindow> &window, const 
         {laterAnswer, i18nc("@action:button in the question in the middle of the screen", "Not now")},
         {neverAnswer, i18nc("@action:button in the question in the middle of the screen", "Never for this game")},
     };
-    m_question.ask(m_owner, window->screen(), question, answers, laterAnswer, [this, window, offer](const QString &answer) {
+    const bool shown = m_question.ask(m_owner, window->screen(), question, answers, laterAnswer, [this, window, offer](const QString &answer) {
         m_helper.answer(offer, answer, [this, window, offer](const QString &restart) {
             if (window && !restart.isEmpty()) {
                 askToRestart(window, offer, restart);
             }
         });
     });
+    // Another question was open, or another effect holds the keyboard. Nothing
+    // was asked, so the window may be asked about the next time.
+    if (!shown) {
+        m_asked.removeAll(window);
+    }
 }
 
 void UpscalePreparation::askToRestart(const QPointer<EffectWindow> &window, const QString &offer, const QString &question)

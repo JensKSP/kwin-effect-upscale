@@ -145,8 +145,18 @@ void UpscaleQuestion::close()
     effects->addRepaintFull();
 }
 
+void UpscaleQuestion::outputRemoved(UpscaleOutput *output)
+{
+    if (isOpen() && (!m_output || m_output == output)) {
+        close();
+    }
+}
+
 void UpscaleQuestion::paint(const RenderTarget &target, const RenderViewport &viewport, UpscaleOutput *screen)
 {
+    if (isOpen() && !m_output) {
+        close();
+    }
     if (!isOpen() || screen != m_output) {
         return;
     }

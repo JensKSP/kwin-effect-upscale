@@ -64,8 +64,10 @@ public:
     /** Where the answers were last drawn, in global logical coordinates. */
     QList<QRectF> answerAreas() const;
     void paint(const RenderTarget &target, const RenderViewport &viewport, UpscaleOutput *screen);
-    /** Takes the question away unanswered, as when its output goes. */
+    /** Takes the question away unanswered. */
     void close();
+    /** Closes the question if it is on @p output, which is going away. */
+    void outputRemoved(UpscaleOutput *output);
 
 private:
     void select(int index);

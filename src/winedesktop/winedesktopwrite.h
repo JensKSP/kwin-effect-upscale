@@ -69,6 +69,10 @@ struct WineDesktopTarget
 
 enum class WineWriteResult {
     Written,
+    // The file was replaced, but a Wine server started in the meantime and may
+    // write its old copy back when it exits: the caller records the change and
+    // writes it again after that run.
+    WrittenMeanwhile,
     // A Wine server holds the prefix, or Proton is preparing it: try again
     // after it has finished.
     Busy,

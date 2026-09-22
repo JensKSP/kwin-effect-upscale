@@ -169,9 +169,9 @@ WineWriteResult replace(const WineDesktopTarget &target, uid_t user, const std::
         return WineWriteResult::WriteFailed;
     }
     // A server that started between the check and the rename may have read
-    // the old file and will write it back when it exits; the caller tries again
-    // after that run.
-    return serverRunning(target, user) ? WineWriteResult::Busy : WineWriteResult::Written;
+    // the old file and will write it back when it exits; the caller records the
+    // change and writes it again after that run.
+    return serverRunning(target, user) ? WineWriteResult::WrittenMeanwhile : WineWriteResult::Written;
 }
 
 } // namespace
