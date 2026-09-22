@@ -126,7 +126,7 @@ CheckOptions:
   # accessor keeps the macro's upper-case name rather than the function style.
   - key: readability-identifier-naming.FunctionIgnoredRegexp
     value: 'KWIN_[A-Z0-9_]+'
-  # Abbreviations are out per AGENTS.md, so short names are not exempt.
+  # Abbreviations are out per doc/conventions.md, so short names are not exempt.
   - key: readability-identifier-naming.IgnoreMainLikeFunctions
     value: 'false'
 

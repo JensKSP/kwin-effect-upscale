@@ -18,8 +18,6 @@
 #include "x11window.h"
 
 #include <KLocalizedString>
-
-#include <utility>
 #endif
 
 namespace KWin
@@ -79,10 +77,13 @@ void UpscaleX11Resolution::validate(const QString &key, int generation, int revi
         return;
     }
     bool observed = false;
-    for (const Request &request : std::as_const(m_requests)) {
+    for (Request &request : m_requests) {
         if (request.key != key || !request.window || request.window->isDeleted()) {
             continue;
         }
+        // Whatever the client did with its time, it is not waited for any
+        // longer: a release of this request no longer needs its answer.
+        request.answered = true;
         const QString unmet = unmetCondition(request);
         if (!unmet.isEmpty()) {
             if (retry(key, generation)) {

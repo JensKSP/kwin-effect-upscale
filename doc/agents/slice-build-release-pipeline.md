@@ -516,3 +516,22 @@ Linux host, because containers share the host kernel; the nightly uses QEMU
 through `vmactions/freebsd-vm`. QEMU and KVM are present on the development
 machine, so a local FreeBSD guest is possible and would move this class of
 failure earlier than the nightly. Not set up; recorded as an option.
+
+### The first FreeBSD package, 2026-09-21
+
+The first nightly with a FreeBSD package job, at `db0009a` (#19), published
+nothing: [run 35580665035](https://github.com/JensKSP/kwin-effect-upscale/actions/runs/35580665035)
+failed in `Build / FreeBSD amd64 Package`, and publication waits for every
+package. The build, install and staging succeeded; `pkg create` then reported
+every file missing at `stage/usr/local/usr/local/...`. The packing list names
+files relative to the manifest's `prefix: /usr/local`, and pkg reads each one at
+root directory + prefix + entry, but `build_pkg()` passed the staged prefix as
+the root. It now passes the stage. Jens noticed the missing FreeBSD package in
+the release list; he chose to carry the fix in PR #20.
+
+`tools/test_build_recipe_package.py` resolves the packing list the way pkg
+does, with `cmake` and `pkg` stood in for, so this runs at push time without
+FreeBSD. Observed: it passes with the fix, and against the old argument it
+fails naming `etc/xdg/kwinupscalerc`. Not yet observed: a real FreeBSD
+`pkg create` and the in-machine package test, which the next nightly after the
+merge runs, or a manual verify-only nightly dispatch before it.

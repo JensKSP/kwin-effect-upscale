@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """What counts as an agent leftover, written down once.
 
-Both checkers of AGENTS.md's first two rules read their patterns from here.
+Both checkers of AGENTS.md's attribution and artifact rules read their
+patterns from here.
 Before, each spelled them out for itself and the two had drifted: the commit
 scan matched without regard to case and the file scan did not, so a file
 carrying `Co-Authored-By: Claude` passed one check and failed the other. They

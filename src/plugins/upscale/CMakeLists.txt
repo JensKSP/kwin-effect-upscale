@@ -3,12 +3,18 @@
 
 set(upscale_SOURCES
     application.cpp
+    autorequest.cpp
     display.cpp
     eligibility.cpp
     refusaltext.cpp
     framestatistics.cpp
     main.cpp
+    matching.cpp
     modeoverride.cpp
+    legacysettings.cpp
+    pattern.cpp
+    settings.cpp
+    waylandscale.cpp
     observation.cpp
     overlay.cpp
     placement.cpp
@@ -16,6 +22,7 @@ set(upscale_SOURCES
     snapshot.cpp
     snapshot_metrics.cpp
     upscale.cpp
+    windowidentity.cpp
     x11geometry.cpp
     x11input.cpp
     x11resolution.cpp
@@ -36,6 +43,7 @@ kwin_add_builtin_effect(upscale ${upscale_SOURCES})
 target_link_libraries(upscale PRIVATE
     kwin
 
+    Qt::DBus
     KF6::ConfigGui
     KF6::I18n
     Libdrm::Libdrm
@@ -49,11 +57,23 @@ target_link_libraries(upscale PRIVATE
 if (KWIN_BUILD_KCMS)
     set(kwin_upscale_config_SRCS
         upscale_config.cpp
+        displaycontrols.cpp
+        applicationcontrols.cpp
         resolutionchoice.cpp
+        resolutionpreview.cpp
+        sliderfield.cpp
         application.cpp
+        identitycontrols.cpp
+        legacysettings.cpp
+        matching.cpp
+        pattern.cpp
+        settings.cpp
+        settingcontrols.cpp
+        methodcontrols.cpp
         applicationeditor.cpp
+        applicationeditor_details.cpp
+        applicationeditor_window.cpp
         placement.cpp
-        supportinformation.cpp
     )
     kconfig_add_kcfg_files(kwin_upscale_config_SRCS upscaleconfig.kcfgc)
     kwin_add_effect_config(kwin_upscale_config ${kwin_upscale_config_SRCS})

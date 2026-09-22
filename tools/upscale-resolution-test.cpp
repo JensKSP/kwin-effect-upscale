@@ -25,18 +25,25 @@ int main()
     assert(!exceedsMinimumPixels({0, 1080}, 0));
     assert(!exceedsMinimumPixels({-1, -1}, 0));
     assert(exceedsMinimumPixels({std::numeric_limits<int>::max(), std::numeric_limits<int>::max()}, std::numeric_limits<int>::max()));
-    assert(effectiveResolutionPreset(ResolutionPreset::Custom, ResolutionPreset::Native) == ResolutionPreset::Native);
-    assert(effectiveResolutionPreset(ResolutionPreset::Native, ResolutionPreset::Quality) == ResolutionPreset::Native);
-    assert(effectiveResolutionPreset(ResolutionPreset::Automatic, ResolutionPreset::Quality) == ResolutionPreset::Quality);
-    assert((desiredResolution(output, ResolutionPreset::UltraQuality, 50) == UpscaleSize{2954, 1662}));
-    assert((desiredResolution(output, ResolutionPreset::Quality, 50) == UpscaleSize{2560, 1440}));
-    assert((desiredResolution(output, ResolutionPreset::Balanced, 50) == UpscaleSize{2259, 1271}));
-    assert((desiredResolution(output, ResolutionPreset::Performance, 99) == UpscaleSize{1920, 1080}));
-    assert((desiredResolution(output, ResolutionPreset::Native, 50) == output));
-    assert((desiredResolution(output, ResolutionPreset::Custom, 75) == UpscaleSize{2880, 1620}));
-    assert((desiredResolution({101, 101}, ResolutionPreset::Custom, 50) == UpscaleSize{51, 51}));
+    // There is no negotiation between a global preset and a profile's any
+    // more: a profile either states a resolution or inherits one. Native is
+    // the opt-out and says so by asking for the whole output.
+    assert(resolutionRatio(ResolutionPreset::Native, 5000) == 1.0);
+    assert(resolutionRatio(ResolutionPreset::Performance, 10000) == 0.5);
+    assert(reachableScale({3840, 2160}, 1, ResolutionPreset::Native, 10000) == 0);
+    assert((desiredResolution(output, ResolutionPreset::UltraQuality, 5000) == UpscaleSize{2954, 1662}));
+    assert((desiredResolution(output, ResolutionPreset::Quality, 5000) == UpscaleSize{2560, 1440}));
+    assert((desiredResolution(output, ResolutionPreset::Balanced, 5000) == UpscaleSize{2259, 1271}));
+    assert((desiredResolution(output, ResolutionPreset::Performance, 9900) == UpscaleSize{1920, 1080}));
+    assert((desiredResolution(output, ResolutionPreset::Native, 5000) == output));
+    assert((desiredResolution(output, ResolutionPreset::Custom, 7500) == UpscaleSize{2880, 1620}));
+    // The share a whole percent cannot name, which is why the scale is held in
+    // basis points; see resolutionRatio().
+    assert((desiredResolution(output, ResolutionPreset::Custom, 6667) == UpscaleSize{2560, 1440}));
+    assert((desiredResolution(output, ResolutionPreset::Custom, 6700) != UpscaleSize{2560, 1440}));
+    assert((desiredResolution({101, 101}, ResolutionPreset::Custom, 5000) == UpscaleSize{51, 51}));
     assert((desiredResolution(output, ResolutionPreset::Custom, -1) == UpscaleSize{1920, 1080}));
-    assert((desiredResolution(output, ResolutionPreset::Custom, 999) == output));
+    assert((desiredResolution(output, ResolutionPreset::Custom, 99999) == output));
     assert(canUpscale({1920, 1080}, output));
     assert(canUpscale({2560, 1440}, output));
     assert(canUpscale({2259, 1271}, output));
@@ -65,8 +72,8 @@ int main()
     const int maximum = std::numeric_limits<int>::max();
     assert(canUpscale({maximum / 2 + 1, maximum / 2 + 1}, {maximum, maximum}));
     for (const UpscaleSize destination : std::array{output, UpscaleSize{2560, 1440}, UpscaleSize{3440, 1440}}) {
-        for (int percentage = 50; percentage < 100; ++percentage) {
-            assert(canUpscale(desiredResolution(destination, ResolutionPreset::Custom, percentage), destination));
+        for (int basisPoints = 5000; basisPoints < 10000; basisPoints += 100) {
+            assert(canUpscale(desiredResolution(destination, ResolutionPreset::Custom, basisPoints), destination));
         }
     }
     // A client whose buffer is the logical screen times an integer scale can
@@ -74,29 +81,28 @@ int main()
     // size nearest to it. An upright 4K screen at scale 1 offers no step at
     // all; at scale 2 the only one is a half; at scale 3 a third is below what
     // FSR 1 enlarges from, which leaves two thirds.
-    assert(reachableScale(output, 1, ResolutionPreset::Performance, 50) == 0);
-    assert(reachableScale(output, 2, ResolutionPreset::Performance, 50) == 1);
+    assert(reachableScale(output, 1, ResolutionPreset::Performance, 5000) == 0);
+    assert(reachableScale(output, 2, ResolutionPreset::Performance, 5000) == 1);
     assert((scaledRequest(output, 2, 1) == UpscaleSize{1920, 1080}));
-    assert(reachableScale(output, 3, ResolutionPreset::Performance, 50) == 2);
+    assert(reachableScale(output, 3, ResolutionPreset::Performance, 5000) == 2);
     assert((scaledRequest(output, 3, 2) == UpscaleSize{2560, 1440}));
     assert((scaledRequest(output, 3, 1) == UpscaleSize{1280, 720}));
     assert(upscaleSizing(scaledRequest(output, 3, 1), output) == UpscaleSizing::BelowHalf);
     // A quality wish on a screen that can only halve is answered with the half
     // rather than refused, and the caller reports what was asked for.
-    assert(reachableScale(output, 2, ResolutionPreset::Quality, 50) == 1);
+    assert(reachableScale(output, 2, ResolutionPreset::Quality, 5000) == 1);
     // Asking for no reduction asks for no scale.
-    assert(reachableScale(output, 2, ResolutionPreset::Automatic, 50) == 0);
-    assert(reachableScale(output, 2, ResolutionPreset::Native, 50) == 0);
-    assert(reachableScale(output, 2, ResolutionPreset::Custom, 100) == 0);
+    assert(reachableScale(output, 2, ResolutionPreset::Native, 5000) == 0);
+    assert(reachableScale(output, 2, ResolutionPreset::Custom, 10000) == 0);
     // A fractional desktop scale still offers whole steps below it.
-    assert(reachableScale(output, 1.5, ResolutionPreset::Quality, 50) == 1);
+    assert(reachableScale(output, 1.5, ResolutionPreset::Quality, 5000) == 1);
     assert((scaledRequest(output, 1.5, 1) == UpscaleSize{2560, 1440}));
     assert(scaledRequest(output, 0, 1).width == 0);
     assert(scaledRequest(output, 2, 0).width == 0);
     // Whatever is reachable must be something the scaler then accepts.
     for (const double scale : {1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0}) {
         for (const UpscaleSize destination : std::array{output, UpscaleSize{2560, 1440}, UpscaleSize{1920, 1080}}) {
-            const int step = reachableScale(destination, scale, ResolutionPreset::Performance, 50);
+            const int step = reachableScale(destination, scale, ResolutionPreset::Performance, 5000);
             assert(step == 0 || canUpscale(scaledRequest(destination, scale, step), destination));
         }
     }

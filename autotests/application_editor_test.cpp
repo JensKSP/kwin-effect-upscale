@@ -6,8 +6,13 @@
 
 #include "application.h"
 #include "applicationeditor.h"
+#include "identitycontrols.h"
+#include "matching.h"
+#include "methodcontrols.h"
+#include "resolutionchoice.h"
 #include "upscale_config.h"
 
+#include "editor_stand_ins.h"
 #include "settings_fixture.h"
 
 #include <KPluginMetaData>
@@ -27,42 +32,6 @@
 #include <QTimer>
 
 #include <initializer_list>
-
-// KWin picks the window itself and hands back its identity. Only this private
-// bus answers here, and each case the settings page has to handle is selected
-// by the reply this stands in for.
-class TestWindowPicker : public QObject, protected QDBusContext
-{
-    Q_OBJECT
-    Q_CLASSINFO("D-Bus Interface", "org.kde.KWin")
-
-public:
-    enum Outcome {
-        Identified,
-        WithoutIdentity,
-        Cancelled,
-        Refused,
-    };
-    Outcome outcome = Identified;
-
-public Q_SLOTS:
-    QVariantMap queryWindowInfo()
-    {
-        if (outcome == Cancelled) {
-            sendErrorReply(QStringLiteral("org.kde.KWin.Error.UserCancel"), QStringLiteral("Cancelled"));
-            return {};
-        }
-        if (outcome == Refused) {
-            sendErrorReply(QStringLiteral("org.kde.KWin.Error.InvalidWindow"), QStringLiteral("No such window"));
-            return {};
-        }
-        if (outcome == WithoutIdentity) {
-            return {{QStringLiteral("resourceClass"), QString()}, {QStringLiteral("resourceName"), QString()}};
-        }
-        return {{QStringLiteral("resourceClass"), QStringLiteral("hedgewars")},
-                {QStringLiteral("resourceName"), QStringLiteral("hedgewars")}};
-    }
-};
 
 // The page's confirmations and warnings are modal, and a test that waited for
 // a person would hang rather than fail. This answers the next one that opens.
@@ -104,6 +73,7 @@ private Q_SLOTS:
     void givesEveryPendingApplicationItsOwnIdentifier();
     void refusesAnEntryNothingCouldEverMatch();
     void resetDiscardsThePendingApplicationEdits();
+    void reordersTheMatchingOrder();
 
 private:
     static QString userConfig();
@@ -135,8 +105,10 @@ void UpscaleApplicationEditorTest::editsTheApplicationList()
     auto *windowClass = editor->findChild<QLineEdit *>(QStringLiteral("applicationWindowClass"));
     auto *instance = editor->findChild<QLineEdit *>(QStringLiteral("applicationInstance"));
     auto *program = editor->findChild<QLineEdit *>(QStringLiteral("applicationProgram"));
-    auto *method = editor->findChild<QComboBox *>(QStringLiteral("applicationMethod"));
-    auto *preset = editor->findChild<QComboBox *>(QStringLiteral("applicationPreset"));
+    auto *method = editor->findChild<QComboBox *>(QStringLiteral("method0"));
+    // Built from the settings table, so each control is named by the key it
+    // stores rather than by a name chosen per field.
+    auto *preset = editor->findChild<QComboBox *>(QStringLiteral("Resolution"));
     auto *enabled = editor->findChild<QCheckBox *>(QStringLiteral("applicationEnabled"));
     auto *note = editor->findChild<QLabel *>(QStringLiteral("applicationNote"));
     auto *remove = editor->findChild<QPushButton *>(QStringLiteral("applicationRemove"));
@@ -160,9 +132,14 @@ void UpscaleApplicationEditorTest::editsTheApplicationList()
     // Selecting an entry shows what it says, including the description that
     // records why it looks the way it does.
     QCOMPARE(name->text(), QStringLiteral("SuperTuxKart"));
-    QCOMPARE(windowClass->text(), QStringLiteral("supertuxkart"));
-    QCOMPARE(program->text(), QStringLiteral("supertuxkart"));
-    QCOMPARE(method->currentText(), KWin::describeControlMethod(KWin::UpscaleControlMethod::AdvertisedMode));
+    // It states its program alone, as the file name in any folder, because
+    // its method is said before the window exists.
+    QVERIFY(windowClass->text().isEmpty());
+    QCOMPARE(program->text(), QStringLiteral(".*/supertuxkart"));
+    auto *programMatch = editor->findChild<QComboBox *>(QStringLiteral("applicationProgramMatch"));
+    QVERIFY(programMatch);
+    QCOMPARE(programMatch->currentIndex(), int(KWin::UpscaleStringMatch::RegularExpression));
+    QCOMPARE(method->currentText(), KWin::upscaleMethodLabel(KWin::UpscaleMethod::AdvertisedMode));
     QVERIFY(enabled->isChecked());
     QVERIFY(!note->text().isEmpty());
     // An entry this build ships comes back with the next package, so removing
@@ -171,14 +148,21 @@ void UpscaleApplicationEditorTest::editsTheApplicationList()
 
     // A combo box reports a choice only when the user makes it, so the keyboard
     // drives it here rather than setCurrentIndex.
-    const int automatic = preset->currentIndex();
+    // A profile that states nothing shows "use global" first, naming the value
+    // it follows, so that following it is a choice made knowingly.
+    QCOMPARE(preset->currentIndex(), 0);
+    QVERIFY2(preset->currentText().contains(QStringLiteral("Quality")), qPrintable(preset->currentText()));
+    const int inherited = preset->currentIndex();
     QTest::keyClick(preset, Qt::Key_Down);
-    QVERIFY(preset->currentIndex() != automatic);
+    QVERIFY(preset->currentIndex() != inherited);
     const QString chosen = preset->currentText();
-    auto *minimum = editor->findChild<QSpinBox *>(QStringLiteral("applicationMinimumPixels"));
+    auto *minimum = editor->findChild<QComboBox *>(QStringLiteral("MinimumPixels"));
     QVERIFY(minimum);
-    QCOMPARE(minimum->value(), -1);
-    minimum->setValue(2073600);
+    // The limit is offered as resolutions, as on the global page, with "use
+    // global" first like every other list.
+    QCOMPARE(minimum->currentIndex(), 0);
+    QVERIFY2(minimum->currentText().startsWith(QStringLiteral("Global")), qPrintable(minimum->currentText()));
+    minimum->setCurrentText(QStringLiteral("2560x1440"));
     // Nothing is written before the page is applied.
     QVERIFY(!userConfig().contains(QStringLiteral("Application-supertuxkart")));
 
@@ -192,21 +176,22 @@ void UpscaleApplicationEditorTest::editsTheApplicationList()
     module.save();
     const QString stored = userConfig();
     QVERIFY2(stored.contains(QStringLiteral("[Application-supertuxkart]")), qPrintable(stored));
-    QVERIFY2(stored.contains(QStringLiteral("Preset=")), qPrintable(stored));
-    // Everything the user did not touch keeps following the installed package.
-    QVERIFY2(!stored.contains(QStringLiteral("Method=")), qPrintable(stored));
+    QVERIFY2(stored.contains(QStringLiteral("Resolution=")), qPrintable(stored));
+    // Everything the user did not touch keeps following the installed package,
+    // including all six measured answers.
+    QVERIFY2(!stored.contains(QStringLiteral("Method")), qPrintable(stored));
     QVERIFY(!stored.contains(QStringLiteral("WindowClass=")));
 
     // Saving reloads, so the page shows what was stored rather than what was
     // typed, and the choice survives the round trip.
     list->setCurrentRow(kart);
     QCOMPARE(preset->currentText(), chosen);
-    QCOMPARE(minimum->value(), 2073600);
+    QCOMPARE(KWin::upscaleResolutionPixels(minimum, -1), 3686400);
 
     // The page says whether the list still follows the package.
     QLabel *summary = module.widget()->findChild<QLabel *>(QStringLiteral("applicationSummary"));
     QVERIFY(summary);
-    QVERIFY2(summary->text().contains(QStringLiteral("differs")), qPrintable(summary->text()));
+    QVERIFY2(summary->text().contains(QStringLiteral("your changes")), qPrintable(summary->text()));
 }
 
 void UpscaleApplicationEditorTest::addsApplicationsAndRemovesOnlyItsOwn()
@@ -242,6 +227,7 @@ void UpscaleApplicationEditorTest::addsApplicationsAndRemovesOnlyItsOwn()
 
     module.save();
     QVERIFY2(userConfig().contains(QStringLiteral("Instance=hedgewars")), qPrintable(userConfig()));
+    QVERIFY2(userConfig().contains(QStringLiteral("Executable=hedgewars")), qPrintable(userConfig()));
     QCOMPARE(list->count(), shipped + 1);
 
     // Removing takes effect on the file only once the page is applied, the
@@ -273,8 +259,9 @@ void UpscaleApplicationEditorTest::addsAnApplicationFromAWindow()
     QVERIFY(list && windowClass && instance && detect);
     const int shipped = list->count();
 
-    // KWin reports the identity; the effect records it and asks for nothing
-    // until the user says which program is behind it.
+    // KWin reports the window's identity. The effect is not loaded, so nobody
+    // says which program is behind it, and the identity is what the entry
+    // states.
     detect->click();
     QTRY_COMPARE(list->count(), shipped + 1);
     QCOMPARE(windowClass->text(), QStringLiteral("hedgewars"));
@@ -302,6 +289,31 @@ void UpscaleApplicationEditorTest::addsAnApplicationFromAWindow()
     QTRY_VERIFY(editor->findChildren<QDBusPendingCallWatcher *>().isEmpty());
     QTRY_COMPARE(list->count(), shipped + 1);
 
+    // With the effect answering, the entry states the exact path of this
+    // copy, which is what finds it before its window exists, and nothing else.
+    TestProgramLookup lookup;
+    lookup.path = QStringLiteral("/usr/games/hedgewars");
+    QVERIFY(bus.registerObject(QStringLiteral("/org/kde/KWin/Effect/Upscale1"), &lookup, QDBusConnection::ExportAllSlots));
+    auto *program = editor->findChild<QLineEdit *>(QStringLiteral("applicationProgram"));
+    QVERIFY(program);
+    picker.outcome = TestWindowPicker::Identified;
+    detect->click();
+    QTRY_COMPARE(list->count(), shipped + 2);
+    QCOMPARE(lookup.askedFor, QStringLiteral("{0b4a6c3e-8f0e-4a55-9d2c-1d1f5e3b7a90}"));
+    QCOMPARE(program->text(), QStringLiteral("/usr/games/hedgewars"));
+    QVERIFY(windowClass->text().isEmpty() && instance->text().isEmpty());
+
+    // A runtime many games share names none of them, so the window's
+    // identity is stated instead of its path.
+    lookup.path = QStringLiteral("/steam/common/Proton 9.0/files/bin/wine64-preloader");
+    detect->click();
+    QTRY_COMPARE(list->count(), shipped + 3);
+    QVERIFY(program->text().isEmpty());
+    QCOMPARE(windowClass->text(), QStringLiteral("hedgewars"));
+    QVERIFY(!KWin::upscaleIdentifiesOneProgram(QStringLiteral("/usr/bin/python3.12")));
+    QVERIFY(!KWin::upscaleIdentifiesOneProgram(QString()));
+    bus.unregisterObject(QStringLiteral("/org/kde/KWin/Effect/Upscale1"));
+
     bus.unregisterObject(QStringLiteral("/KWin"));
     QVERIFY(bus.unregisterService(QStringLiteral("org.kde.KWin")));
 }
@@ -325,7 +337,7 @@ void UpscaleApplicationEditorTest::restoresTheShippedApplicationList()
     // Nothing to restore while the list is the one this build ships.
     QVERIFY(!KWin::UpscaleApplicationEditor::customized());
     QVERIFY(!reset->isEnabled());
-    QVERIFY2(summary->text().contains(QStringLiteral("follows every update")), qPrintable(summary->text()));
+    QVERIFY2(summary->text().contains(QStringLiteral("Default list")), qPrintable(summary->text()));
 
     const int shipped = list->count();
     add->click();
@@ -347,7 +359,7 @@ void UpscaleApplicationEditorTest::restoresTheShippedApplicationList()
     reset->click();
     QCOMPARE(list->count(), shipped);
     QVERIFY(!KWin::UpscaleApplicationEditor::customized());
-    QVERIFY2(summary->text().contains(QStringLiteral("follows every update")), qPrintable(summary->text()));
+    QVERIFY2(summary->text().contains(QStringLiteral("Default list")), qPrintable(summary->text()));
     // Restoring must leave the shipped entries reachable rather than suppress
     // them, so the page can still read them afterwards.
     QVERIFY(list->count() > 1);
@@ -385,8 +397,8 @@ void UpscaleApplicationEditorTest::givesEveryPendingApplicationItsOwnIdentifier(
     const QString stored = userConfig();
     QVERIFY2(stored.contains(QStringLiteral("Instance=first")), qPrintable(stored));
     QVERIFY2(stored.contains(QStringLiteral("Instance=second")), qPrintable(stored));
-    QVERIFY(KWin::upscaleApplicationForIdentity(QString(), QStringLiteral("first")));
-    QVERIFY(KWin::upscaleApplicationForIdentity(QString(), QStringLiteral("second")));
+    QVERIFY(KWin::upscaleApplicationFor({QString(), QString(), QStringLiteral("first")}));
+    QVERIFY(KWin::upscaleApplicationFor({QString(), QString(), QStringLiteral("second")}));
 }
 
 // An entry stating no identity would match every window on the screen, so the
@@ -408,23 +420,37 @@ void UpscaleApplicationEditorTest::refusesAnEntryNothingCouldEverMatch()
     add->click();
     name->clear();
     QTest::keyClicks(name, QStringLiteral("Nameless"));
-    // A program alone recognizes a connection but never a window, so this
-    // entry could not match anything the list is matched against.
-    QTest::keyClicks(program, QStringLiteral("nameless"));
-
+    // A name is not an identity: with no program, window class or instance
+    // the entry would match every window.
     answerNextDialog(QMessageBox::Ok);
     module.save();
     // Kept here rather than written and then silently dropped, and the page
     // stays applicable so the user can correct it.
     QCOMPARE(list->count(), shipped + 1);
     QCOMPARE(list->currentRow(), shipped);
-    QVERIFY2(!userConfig().contains(QStringLiteral("nameless")), qPrintable(userConfig()));
+    QVERIFY2(!userConfig().contains(QStringLiteral("Nameless")), qPrintable(userConfig()));
     QVERIFY(module.needsSave());
 
-    // Given an identity, the same entry applies.
-    QTest::keyClicks(instance, QStringLiteral("nameless"));
+    // A pattern that cannot be used is refused the same way, and the entry
+    // says why where it is being edited.
+    auto *programMatch = editor->findChild<QComboBox *>(QStringLiteral("applicationProgramMatch"));
+    auto *note = editor->findChild<QLabel *>(QStringLiteral("applicationNote"));
+    QVERIFY(programMatch && note);
+    QTest::keyClicks(program, QStringLiteral("(nameless"));
+    programMatch->setCurrentIndex(int(KWin::UpscaleStringMatch::RegularExpression));
+    Q_EMIT programMatch->activated(programMatch->currentIndex());
+    QVERIFY2(note->text().contains(QStringLiteral("(nameless")), qPrintable(note->text()));
+    answerNextDialog(QMessageBox::Ok);
     module.save();
-    QVERIFY2(userConfig().contains(QStringLiteral("Instance=nameless")), qPrintable(userConfig()));
+    QVERIFY2(!userConfig().contains(QStringLiteral("Nameless")), qPrintable(userConfig()));
+    QVERIFY(module.needsSave());
+
+    // A program alone is an identity: it finds the program before and after
+    // its window exists.
+    program->clear();
+    QTest::keyClicks(program, QStringLiteral(".*/nameless"));
+    module.save();
+    QVERIFY2(userConfig().contains(QStringLiteral("Executable=.*/nameless")), qPrintable(userConfig()));
     QVERIFY(!module.needsSave());
 }
 
@@ -455,7 +481,44 @@ void UpscaleApplicationEditorTest::resetDiscardsThePendingApplicationEdits()
     // And a later Apply must not bring it back.
     module.save();
     QVERIFY2(!userConfig().contains(QStringLiteral("discarded")), qPrintable(userConfig()));
-    QVERIFY(!KWin::upscaleApplicationForIdentity(QString(), QStringLiteral("discarded")));
+    QVERIFY(!KWin::upscaleApplicationFor({QString(), QString(), QStringLiteral("discarded")}));
+}
+
+// The list's order is the matching order, so moving an entry is what lets a
+// narrow entry win over a broad one. Only the two entries that changed
+// places are stored as changed.
+void UpscaleApplicationEditorTest::reordersTheMatchingOrder()
+{
+    QWidget host;
+    KWin::UpscaleEffectConfig module(&host, KPluginMetaData());
+    auto *editor = module.widget()->findChild<KWin::UpscaleApplicationEditor *>();
+    QVERIFY(editor);
+    auto *list = editor->findChild<QListWidget *>(QStringLiteral("applicationList"));
+    auto *up = editor->findChild<QPushButton *>(QStringLiteral("applicationMoveUp"));
+    auto *down = editor->findChild<QPushButton *>(QStringLiteral("applicationMoveDown"));
+    QVERIFY(list && up && down && list->count() > 3);
+    // The first row is "All applications", which nothing moves above.
+    const QString first = list->item(1)->text();
+    const QString second = list->item(2)->text();
+    list->setCurrentRow(1);
+    QVERIFY(!up->isEnabled());
+    QVERIFY(down->isEnabled());
+    down->click();
+    QCOMPARE(list->currentRow(), 2);
+    QCOMPARE(list->item(1)->text(), second);
+    QCOMPARE(list->item(2)->text(), first);
+    QVERIFY(module.needsSave());
+    module.save();
+    const std::vector<KWin::UpscaleApplication> &stored = KWin::upscaleApplications();
+    QCOMPARE(stored[0].name, second);
+    QCOMPARE(stored[1].name, first);
+    // Two groups carry an Order now, and nothing else was written.
+    QCOMPARE(userConfig().count(QStringLiteral("Order=")), 2);
+    QVERIFY2(!userConfig().contains(QStringLiteral("Name=")), qPrintable(userConfig()));
+
+    list->setCurrentRow(list->count() - 1);
+    QVERIFY(!down->isEnabled());
+    QVERIFY(up->isEnabled());
 }
 
 int main(int argc, char **argv)

@@ -6,7 +6,10 @@
 
 #pragma once
 
+#include "pattern.h"
+#include "presentation.h"
 #include "resolution.h"
+#include "settings.h"
 
 #include <KSharedConfig>
 
@@ -16,58 +19,6 @@
 
 namespace KWin
 {
-
-/**
- * How the effect asks an application for a smaller image.
- *
- * The effect cannot make a program render differently. It can only change what
- * the program is told, and a program acts only on what it happens to read, so
- * every method names a specific thing said to a specific application rather
- * than a promise about the result. Which one applies was read in that
- * program's source and then confirmed by running it; it cannot be guessed from
- * the outside, because all of them look alike until the request is made.
- */
-enum class UpscaleControlMethod {
-    /** Say nothing. The supplied buffer is scaled at whatever size it arrives. */
-    None,
-    /**
-     * Tell this application alone that its screen has a smaller current mode,
-     * at the moment it binds the output and before it enumerates displays.
-     *
-     * For clients that select a display mode and then present it through a
-     * viewport that still covers the screen, which is what SDL 2 does in
-     * exclusive fullscreen. Any calculated size can be asked for.
-     */
-    AdvertisedMode,
-    /**
-     * Tell this application alone that its screen has a smaller scale.
-     *
-     * For clients that render the logical screen size multiplied by the scale
-     * they were told and declare that scale on their surface. Their image
-     * still covers the screen, because the compositor divides the buffer by
-     * the scale the client declared. Only whole steps of the output's own
-     * scale are reachable, so an unscaled screen offers such a client nothing.
-     */
-    AdvertisedScale,
-    /**
-     * Tell this application alone about both a smaller mode and a smaller
-     * scale.
-     *
-     * For clients that take their fullscreen size from the mode in pixels but
-     * declare the output's scale on their surface. Either alone leaves the two
-     * disagreeing: the mode alone shrinks the window away from the screen
-     * edges, and the scale alone stretches it past them.
-     */
-    AdvertisedModeAndScale,
-    /**
-     * Resize a selected X11 client which follows resize events.
-     *
-     * A client that then selects a matching RandR mode on its own connection
-     * is enlarged to the output by Xwayland; any other is enlarged by the
-     * effect, which also maps pointer input to the smaller window.
-     */
-    X11Resize,
-};
 
 /**
  * One application the effect recognizes, as it was read from configuration.
@@ -84,24 +35,42 @@ struct UpscaleApplication
     QString name;
     /** The package this identity was read from, so a later mismatch is traceable. */
     QString version;
-    /** Exact match against Window::resourceClass(), or empty to not constrain it. */
+    /**
+     * Gate 1: the executable path of the program behind the window, or empty
+     * to not constrain it.
+     *
+     * KWin resolves it, from the connection's own credentials for a native
+     * Wayland client and from the window's PID for an X11 one. The shipped
+     * entries state a regular expression matching the file name in any
+     * directory, because a game is installed in different places; a person's
+     * own entry may state the exact path of their copy.
+     */
+    QString executable;
+    UpscaleStringMatch executableMatch = UpscaleStringMatch::Exact;
+    /** Gate 2: compared with Window::resourceClass(), or empty to not constrain it. */
     QString windowClass;
-    /** Exact match against Window::resourceName(), or empty to not constrain it. */
+    UpscaleStringMatch windowClassMatch = UpscaleStringMatch::Exact;
+    /** Gate 2: compared with Window::resourceName(), or empty to not constrain it. */
     QString instance;
+    UpscaleStringMatch instanceMatch = UpscaleStringMatch::Exact;
     /**
-     * Exact match against the file name of ClientConnection::executablePath().
-     * Used by Wayland advertisement methods before the application has a
-     * window. X11 resizing uses the window identity instead.
+     * What to say to this program in each way it can present itself.
+     *
+     * One answer per presentation, because the request that works is a
+     * property of how the program is running and not only of the program: the
+     * advertisements act on wl_output, which an Xwayland game never sees, and
+     * the resize acts on an X11 window. A slot nobody has measured holds Auto,
+     * which is also what an absent key reads as.
      */
-    QString program;
-    UpscaleControlMethod method = UpscaleControlMethod::None;
+    UpscaleMethods methods{};
     /**
-     * The resolution this application gets while the global preset is
-     * Automatic. Native is an explicit opt-out even with a global preset.
+     * The preferences this profile states, of those in the settings table.
+     *
+     * Absent means the global value applies. There is no sentinel and no
+     * negotiation: a key present here is this game's answer, whatever the
+     * global layer says and whether or not the two happen to agree.
      */
-    ResolutionPreset preset = ResolutionPreset::Automatic;
-    /** Physical output pixel threshold; -1 inherits the global setting. */
-    int minimumPixels = -1;
+    UpscaleSettingOverrides overrides;
     /** Why this entry looks the way it does, for the settings page. */
     QString note;
     /** Matching order; the first enabled match wins as a whole. */
@@ -116,6 +85,12 @@ struct UpscaleApplication
 
 /** The applications this session recognizes, in matching order. */
 const std::vector<UpscaleApplication> &upscaleApplications();
+
+/**
+ * How often the list has been read, so that anything derived from it knows
+ * when to derive it again. It is at least one once the list has been read.
+ */
+quint64 upscaleApplicationsGeneration();
 
 /**
  * Read the applications again.
@@ -146,38 +121,6 @@ bool upscaleApplicationsCustomized();
 void upscaleRestoreApplications();
 
 /**
- * The application matching a window class and instance name, or null.
- *
- * Fields left empty in an entry do not constrain the match; every field it
- * does state has to be equal, case included. Window titles are never used:
- * they change while a game is running. This takes the two strings rather than
- * a window so that the matching rules can be tested without a compositor, and
- * so that the settings module can match without KWin's effect interfaces.
- */
-const UpscaleApplication *upscaleApplicationForIdentity(const QString &windowClass, const QString &instance);
-
-/**
- * The application for a program path, matched on the file name alone.
- *
- * The directory is deliberately ignored: the same game is at /usr/games on
- * Debian and elsewhere in a Flatpak or a user build, and the file name is the
- * part that stayed the same. An empty path matches nothing.
- */
-const UpscaleApplication *upscaleApplicationForProgram(const QString &executablePath);
-
-/**
- * The entry to use for an application the list does not describe, or null.
- *
- * Off unless the user asks for it. Nothing can be known in advance about a
- * program nobody measured, so this asks every client that connects for the
- * same thing and reports what each one did with it.
- */
-const UpscaleApplication *upscaleUnknownApplication();
-
-/** Whether unlisted applications are asked for a resolution at all. */
-void upscaleSetUnknownApplications(bool enabled, ResolutionPreset preset);
-
-/**
  * Store one application, writing only the fields that differ from @p original.
  *
  * Everything else keeps following the installed package. A field the user set
@@ -185,6 +128,20 @@ void upscaleSetUnknownApplications(bool enabled, ResolutionPreset preset);
  * that has to survive the package changing its mind.
  */
 void upscaleSaveApplication(const UpscaleApplication &application, const UpscaleApplication &original);
+
+/**
+ * Write @p applications to the file at @p path, every field of each, replacing
+ * the file. The format is kwinupscalerc's own, so the file can be read back
+ * with upscaleReadApplicationFile() or dropped in as someone's own list.
+ */
+bool upscaleWriteApplicationFile(const std::vector<UpscaleApplication> &applications, const QString &path);
+
+/**
+ * The applications a file at @p path describes, read exactly as the list is:
+ * an entry that constrains no identity is dropped, and a previous release's
+ * keys are read under their old meaning.
+ */
+std::vector<UpscaleApplication> upscaleReadApplicationFile(const QString &path);
 
 /**
  * Remove one application the user added.
@@ -208,12 +165,21 @@ void upscaleSyncApplications();
 QString upscaleNewApplicationId(const QString &name, const std::vector<UpscaleApplication> &pending = {});
 
 /** The configuration name of a method, as the stored file spells it. */
-QString upscaleMethodKey(UpscaleControlMethod method);
+QString upscaleMethodKey(UpscaleMethod method);
+
+/** A method from the name a file spells, or @p absent where it says nothing. */
+UpscaleMethod upscaleMethodFromKey(const QString &name, UpscaleMethod absent);
+
+/** The configuration key for one presentation's answer, in either layer. */
+const char *upscalePresentationKey(UpscalePresentation presentation);
 
 /** The configuration name of a preset, as the stored file spells it. */
 QString upscalePresetKey(ResolutionPreset preset);
 
+/** A preset from the name a file spells, or @p absent where it is unknown. */
+ResolutionPreset upscalePresetFromKey(const QString &name, ResolutionPreset absent);
+
 /** One sentence naming what the effect does for this application. */
-QString describeControlMethod(UpscaleControlMethod method);
+QString describeControlMethod(UpscaleMethod method);
 
 } // namespace KWin

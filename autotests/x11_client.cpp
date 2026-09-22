@@ -6,6 +6,7 @@
 
 #include "x11_client.h"
 
+#include <QCoreApplication>
 #include <QSocketNotifier>
 #include <QTimer>
 
@@ -59,6 +60,7 @@ bool X11Client::show(const QByteArray &identity, const QRect &geometry, bool ful
     // window the window manager can already see but whose hints are not set
     // yet, and the placement it deserves decided from what was there then.
     const xcb_atom_t motif = atom(QByteArrayLiteral("_MOTIF_WM_HINTS"));
+    const xcb_atom_t owner = m_reportsProcess ? atom(QByteArrayLiteral("_NET_WM_PID")) : xcb_atom_t(XCB_NONE);
     m_window = xcb_generate_id(m_connection);
     const uint32_t values[] = {0xff0000, XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_POINTER_MOTION};
     xcb_create_window(m_connection, XCB_COPY_FROM_PARENT, m_window, m_screen->root,
@@ -68,6 +70,10 @@ bool X11Client::show(const QByteArray &identity, const QRect &geometry, bool ful
     const QByteArray windowClass = identity + '\0' + identity + '\0';
     xcb_change_property(m_connection, XCB_PROP_MODE_REPLACE, m_window, XCB_ATOM_WM_CLASS,
                         XCB_ATOM_STRING, 8, windowClass.size(), windowClass.constData());
+    if (owner != XCB_NONE) {
+        const auto process = uint32_t(QCoreApplication::applicationPid());
+        xcb_change_property(m_connection, XCB_PROP_MODE_REPLACE, m_window, owner, XCB_ATOM_CARDINAL, 32, 1, &process);
+    }
     // An explicit position makes the two-output case independent of placement
     // policy. Motif decorations=0 models a normal managed borderless window.
     const uint32_t hints[] = {1U << 1, 0, 0, 0, 0};
@@ -154,9 +160,19 @@ void X11Client::resize(const QSize &size)
     xcb_flush(m_connection);
 }
 
+void X11Client::reportProcess()
+{
+    m_reportsProcess = true;
+}
+
 QPoint X11Client::lastMotion() const
 {
     return m_lastMotion;
+}
+
+int X11Client::configureNotifies() const
+{
+    return m_configureNotifies;
 }
 
 QRect X11Client::geometry() const
@@ -243,6 +259,7 @@ void X11Client::dispatch()
         if (type == XCB_CONFIGURE_NOTIFY) {
             const auto configure = reinterpret_cast<xcb_configure_notify_event_t *>(event);
             const QSize size(configure->width, configure->height);
+            ++m_configureNotifies;
             if (size != m_size) {
                 m_size = size;
                 // Commit the resized buffer first, before anything that can

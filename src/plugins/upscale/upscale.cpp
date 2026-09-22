@@ -12,8 +12,11 @@
 #include "modeoverride.h"
 #include "resolution.h"
 #include "scaler.h"
+#include "settings.h"
 #include "snapshot.h"
 #include "upscaleconfig.h"
+#include "waylandscale.h"
+#include "windowidentity.h"
 #include "x11resolution.h"
 
 // The build identity lives outside the plugin folder, because that folder has
@@ -60,6 +63,8 @@ UpscaleEffect::UpscaleEffect(ItemRenderer *renderer)
     // that is already connected can no longer be told anything.
     m_modeOverride = std::make_unique<UpscaleModeOverride>();
     m_x11Resolution = std::make_unique<UpscaleX11Resolution>();
+    m_waylandScale = std::make_unique<UpscaleWaylandScale>();
+    new UpscaleIdentityService(this);
 #if !UPSCALE_RENDER_DEVICE_API
     if (!m_renderer) {
         m_renderer = effects->scene()->renderer();
@@ -103,6 +108,7 @@ void UpscaleEffect::prePaintScreen(ScreenPrePaintData &data)
 
 UpscaleEffect::~UpscaleEffect()
 {
+    m_waylandScale.reset();
     m_x11Resolution.reset();
     effects->makeOpenGLContextCurrent();
     m_scaler.reset();
@@ -179,17 +185,19 @@ void UpscaleEffect::reconfigure(ReconfigureFlags flags)
     UpscaleConfig::self()->read();
     // Configuration is disk work, so it happens here and never in a frame.
     upscaleReloadApplications();
-    upscaleSetUnknownApplications(UpscaleConfig::unknownApplications(),
-                                  static_cast<ResolutionPreset>(UpscaleConfig::preset()));
-    m_enabled = UpscaleConfig::enabled();
-    m_strength = sharpeningAmount(UpscaleConfig::sharpening(), UpscaleConfig::strength());
+    // Nothing global is cached here any more. Both controllers resolve what
+    // to ask of a program from the profile that claims it, so all they need
+    // is to be told the configuration moved underneath them.
     if (m_modeOverride) {
-        m_modeOverride->reconfigure(m_enabled && UpscaleConfig::resolutionControl(),
-                                    static_cast<ResolutionPreset>(UpscaleConfig::preset()),
-                                    UpscaleConfig::percentage());
+        m_modeOverride->reconfigure();
     }
-    m_x11Resolution->reconfigure(m_enabled && UpscaleConfig::resolutionControl(),
-                                 static_cast<ResolutionPreset>(UpscaleConfig::preset()), UpscaleConfig::percentage());
+    m_x11Resolution->reconfigure();
+    // Every request this had outstanding was made from configuration that has
+    // just moved. Give them all back rather than work out which ones still
+    // stand; the next frame asks again for the ones that do.
+    if (m_waylandScale) {
+        m_waylandScale->releaseAll();
+    }
     m_failed = false;
     m_candidateCached = false;
     m_renderedInputs.clear();
@@ -242,7 +250,7 @@ bool UpscaleEffect::supported()
 
 bool UpscaleEffect::isActive() const
 {
-    if (candidate()) {
+    if (candidate() || autoWaiting()) {
         return true;
     }
     // KWin only calls the paint hooks of effects that say they are active, so
@@ -252,6 +260,11 @@ bool UpscaleEffect::isActive() const
     EffectWindow *window = effects->activeWindow();
     return !effects->isScreenLocked() && window && upscalePresentation(window)
         && !window->isDeleted() && m_display.activeFor(window);
+}
+
+bool UpscaleEffect::x11RequestsSettled() const
+{
+    return m_x11Resolution->settled();
 }
 
 bool UpscaleEffect::blocksDirectScanout() const
@@ -304,6 +317,14 @@ EffectWindow *UpscaleEffect::candidate(UpscaleRefusal *refusal, UpscaleOutput *o
     }
     if (!m_candidateCached || m_candidateOutput != output) {
         m_candidate = findCandidate(&m_candidateRefusal, output);
+        // Resolve once, here, where the window was chosen. Every value the
+        // frame then needs - the sharpening strength, the wish, the display's
+        // choices - comes from this one answer, so a frame never asks which
+        // layer a setting came from and never reads configuration at all.
+        const Window *internal = m_candidate ? m_candidate->window() : nullptr;
+        const UpscaleApplication *claimed = upscaleApplicationForWindow(internal);
+        m_settings = upscaleResolveSettings(claimed);
+        askForSmallerBuffer(output, m_candidate, claimed);
         m_candidateOutput = output;
         m_candidateCached = true;
     }
@@ -321,9 +342,10 @@ EffectWindow *UpscaleEffect::findCandidate(UpscaleRefusal *refusal, UpscaleOutpu
         }
         return nullptr;
     };
-    if (!m_enabled) {
-        return refuse(UpscaleRefusal::Disabled);
-    }
+    // Whether the effect acts is now a question about one window: the global
+    // profile answers for a window no profile claimed, and a profile answers
+    // for the game it claimed. windowRefusal() asks it per window, so there is
+    // nothing to refuse here before a window has been looked at.
     if (m_failed) {
         return refuse(UpscaleRefusal::ResourceFailure);
     }
@@ -400,7 +422,7 @@ UpscalePaintResult UpscaleEffect::drawWindow(const RenderTarget &target, const R
 #else
             const UpscaleRegion clip = region == infiniteRegion() ? region : viewport.mapToRenderTarget(region);
 #endif
-            if (!m_failed && m_scaler->render(target, viewport, window->windowItem()->surfaceItem(), window->frameGeometry(), clip, m_strength)) {
+            if (!m_failed && m_scaler->render(target, viewport, window->windowItem()->surfaceItem(), window->frameGeometry(), clip, m_settings.sharpening())) {
                 m_renderedInputs.insert(window, window->windowItem()->surfaceItem()->bufferSize());
 #if UPSCALE_RENDER_DEVICE_API
                 return true;

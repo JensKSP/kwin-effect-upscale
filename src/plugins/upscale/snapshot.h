@@ -8,6 +8,7 @@
 
 #include "application.h"
 #include "eligibility.h"
+#include "presentation.h"
 #include "resolution.h"
 
 #include <QSize>
@@ -49,7 +50,10 @@ struct UpscaleSnapshot
     // effect does not recognize it. A recognized application is not a claim
     // that anything was done for it: the method says that.
     QString recognized;
-    UpscaleControlMethod method = UpscaleControlMethod::None;
+    // The answer for the way this window is actually presenting, not the
+    // profile's whole set: a report names what applies here and now.
+    UpscaleMethod method = UpscaleMethod::Off;
+    UpscalePresentation presentedAs = UpscalePresentation::WaylandFullScreen;
     // The size this effect told the application its screen has, invalid when
     // it told it nothing. Never confuse it with the committed buffer: the
     // application is free to ignore it.
@@ -57,6 +61,9 @@ struct UpscaleSnapshot
     // A live X11 request is a window size, not a Wayland mode advertisement.
     QSize requested;
     QString requestFailure;
+    // The share of its output Auto asked a Wayland window's surface to render
+    // at, zero when it asks nothing - including once the client ignored it.
+    double scaleRequested = 0;
     // Who enlarges the resized window to the output, read from its geometry
     // rather than from what was planned: Xwayland when the client established
     // an emulated mode, otherwise this effect, with pointer input mapped.
@@ -71,8 +78,9 @@ struct UpscaleSnapshot
 
     // Configuration
     bool enabled = true;
-    ResolutionPreset preset = ResolutionPreset::Automatic;
-    int percentage = 100;
+    ResolutionPreset preset = ResolutionPreset::Native;
+    // Custom's share, in basis points as resolutionRatio() takes it.
+    int percentage = 10000;
     double sharpening = 0;
 
     // Geometry

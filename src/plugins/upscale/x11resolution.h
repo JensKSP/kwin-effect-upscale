@@ -10,6 +10,7 @@
 #include "config-kwin.h"
 #include "eligibility.h"
 
+#include <QDeadlineTimer>
 #include <QHash>
 #include <QObject>
 #include <QPoint>
@@ -42,8 +43,21 @@ class UpscaleX11Resolution : public QObject
 public:
     UpscaleX11Resolution();
     ~UpscaleX11Resolution() override;
-    void reconfigure(bool enabled, ResolutionPreset preset, int percentage);
+    /** Configuration moved: give everything back and work it out again. */
+    void reconfigure();
     QSize requested(const Window *window) const;
+
+    /**
+     * Whether nothing is in flight: no window waiting to be looked at, for its
+     * client to answer a request before it is released, to withdraw a mode,
+     * or for a buffer, and no restore under way.
+     *
+     * A request that has been made and is only awaiting its validation counts
+     * as settled, because what it asked for is already on its way to the
+     * client. This is what a caller waits for before judging what a
+     * reconfiguration did, rather than a delay that may or may not cover it.
+     */
+    bool settled() const;
     QString failure(const Window *window) const;
     /** Who is enlarging this window's buffer to the output right now. */
     UpscaleX11Presentation presentation(const Window *window) const;
@@ -71,6 +85,13 @@ public:
         // the client supplied the requested buffer without establishing an
         // emulated mode. Decided once, when that buffer first arrives.
         bool presentedByEffect = false;
+        // Whether the client has answered: it established the emulated mode
+        // of this request, or it had the whole validation window to do so.
+        // Until then a release waits; see release().
+        bool answered = false;
+        // When validation judges this request, which is also how long a
+        // release waits for the answer at most. Set by begin().
+        QDeadlineTimer verdict;
     };
 #endif
 
@@ -82,13 +103,21 @@ private:
         QPointer<X11Window> window;
         int count = 0;
     };
+    // How long a client has to answer a request before validation judges it.
+    // It bounds every wait on the client here as well: for its answer before
+    // a release, and for its withdrawal before the next request.
+    static constexpr int s_validationWindow = 3000;
     bool event(xcb_generic_event_t *generic) override;
     bool fullscreenRequest(X11Window *window, xcb_client_message_event_t *message);
+    void awaitWithdrawal(X11Window *window);
+    void emulatedModeChanged(xcb_property_notify_event_t *property);
+    void release(X11Window *window);
     void watch(EffectWindow *window);
     void forget(X11Window *window);
     void expireState();
     void schedule(X11Window *window);
     void apply(X11Window *window);
+    void ask(X11Window *window, const Request &request);
     void present(X11Window *window);
     Request requestFor(X11Window *window) const;
     static QString keyFor(const Window *window);
@@ -109,16 +138,24 @@ private:
     QSet<X11Window *> m_watched;
     QSet<X11Window *> m_scheduled;
     QSet<X11Window *> m_waitingForBuffer;
+    // Windows whose client has yet to withdraw an emulated mode, each with
+    // the token of the wait that is current for it; see awaitWithdrawal().
+    QHash<X11Window *, int> m_withdrawals;
+    // Windows whose wait for a withdrawal ran out: asked once regardless.
+    QSet<X11Window *> m_overdue;
+    // Windows whose request is released as soon as the client has answered
+    // it, each with the token of the release that is current; see release().
+    QHash<X11Window *, int> m_releases;
     QTimer m_expiration;
     std::unique_ptr<UpscaleX11Input> m_input;
     bool m_enabled = false;
     bool m_restoring = false;
-    ResolutionPreset m_preset = ResolutionPreset::Automatic;
-    int m_percentage = 100;
     int m_generation = 0;
     int m_nextValidation = 0;
+    int m_nextWait = 0;
     xcb_atom_t m_stateAtom = XCB_ATOM_NONE;
     xcb_atom_t m_fullscreenAtom = XCB_ATOM_NONE;
+    xcb_atom_t m_emulationAtom = XCB_ATOM_NONE;
 #endif
 };
 }

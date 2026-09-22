@@ -12,6 +12,8 @@
 #include <QPoint>
 #include <QSize>
 
+#include <optional>
+
 namespace KWin
 {
 class X11Window;
@@ -21,6 +23,12 @@ QSize upscaleX11NormalSize(const X11Window *window);
 bool upscaleX11ModeAvailable(const QPoint &position, const QSize &size);
 bool upscaleX11PrimaryOutput(const QPoint &position);
 bool upscaleX11ModeMatches(X11Window *window, const QPoint &position, const QSize &size);
+/**
+ * The emulated mode the client holds for the output at @p position, read
+ * from the property Xwayland keeps on the client's windows, or nothing where
+ * it holds none there.
+ */
+std::optional<QSize> upscaleX11EmulatedMode(X11Window *window, const QPoint &position);
 void upscaleX11Configure(X11Window *window, const QPoint &position, const QSize &size, bool notify = false);
 }
 #endif

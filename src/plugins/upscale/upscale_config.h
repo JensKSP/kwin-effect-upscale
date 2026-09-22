@@ -6,7 +6,15 @@
 
 #pragma once
 
+#include "methodcontrols.h"
+#include "settings.h"
+
 #include <KCModule>
+
+#include <QList>
+
+#include <array>
+#include <cstddef>
 
 class QCheckBox;
 class QComboBox;
@@ -15,11 +23,14 @@ class QLabel;
 class QPushButton;
 class QSlider;
 class QSpinBox;
+class QTabWidget;
 
 namespace KWin
 {
 
 class UpscaleApplicationEditor;
+class UpscaleResolutionPreview;
+class UpscaleSliderField;
 
 class UpscaleEffectConfig : public KCModule
 {
@@ -33,42 +44,51 @@ public:
 
 private:
     void updatePreview();
-    void refreshStatus();
-    void updateOutputs();
+    /** The global values as the page shows them, applied or not. */
+    UpscaleSettings shownSettings() const;
     void showSettings();
     void applySettings();
     void addDisplayControls(QFormLayout *layout);
+    /** The three position boxes, in the order the stored corners are kept. */
+    std::array<QComboBox *, 3> positionControls();
+    /** Applies a corner the user just chose, moving whoever held it. */
+    void takeCorner(std::size_t display);
     void addThresholdControl(QFormLayout *layout);
     void addApplicationControls(QFormLayout *layout);
+    void addUnlistedControls(QFormLayout *layout);
+    /** "All applications": the global settings, in the tabs a game's entry has. */
+    QTabWidget *buildAllPanel();
+    static void alignLabels(const QList<QFormLayout *> &forms);
     void resetApplications();
+    void exportApplications();
+    void importApplications();
     static void reconfigureEffect();
     void updateApplicationSummary();
-    void addStatusControls(QFormLayout *layout);
+    void addAboutControls(QFormLayout *layout);
     void connectControls();
-    void showSupportInformation(const QString &information);
-    static QString installedBuild();
+    static QString installedVersion();
 
-    QCheckBox *m_enabled;
-    QComboBox *m_output;
     QComboBox *m_preset;
     QSlider *m_percentage;
     QComboBox *m_minimumPixels;
-    QLabel *m_preview;
+    UpscaleResolutionPreview *m_preview;
     QCheckBox *m_sharpening;
     QSlider *m_strength;
-    QLabel *m_strengthLabel;
+    UpscaleSliderField *m_scale = nullptr;
+    UpscaleSliderField *m_strengthField = nullptr;
     QCheckBox *m_osdDetection;
     QCheckBox *m_osdSummary;
     QCheckBox *m_osdStatistics;
     QCheckBox *m_osdDeveloper;
-    QComboBox *m_osdPosition;
+    QComboBox *m_osdAnnouncementPosition;
+    QComboBox *m_osdStatisticsPosition;
+    QComboBox *m_osdDeveloperPosition;
     QSpinBox *m_osdTimeout;
-    QCheckBox *m_unknown;
-    UpscaleApplicationEditor *m_editor;
+    UpscaleMethodControls *m_methods = nullptr;
+    UpscaleApplicationEditor *m_editor = nullptr;
     QLabel *m_applications;
     QPushButton *m_resetApplications;
     QLabel *m_build;
-    QLabel *m_status;
 };
 
 } // namespace KWin

@@ -127,13 +127,14 @@ private:
     void releaseBlocks();
     void resetSampling();
 
-    // Three blocks in three places. The announcement keeps the corner a
-    // message has always appeared in, the developer dump goes out of the way
-    // at the bottom, and the persistent view goes where the user put it.
+    // Three blocks in three places, each one the user's to choose and no two
+    // of them the same. The defaults are where each block has always been.
     UpscaleOverlay m_announcementOverlay;
     UpscaleOverlay m_statisticsOverlay;
     UpscaleOverlay m_developerOverlay;
+    UpscaleCorner m_announcementCorner = UpscaleCorner::TopLeft;
     UpscaleCorner m_statisticsCorner = UpscaleCorner::TopRight;
+    UpscaleCorner m_developerCorner = UpscaleCorner::BottomRight;
     UpscaleSnapshot m_snapshot;
     bool m_enabled = true;
     bool m_detection = true;

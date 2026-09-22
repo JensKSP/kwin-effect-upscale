@@ -26,6 +26,20 @@ public:
     void resize(const QSize &size);
     /** Where the last pointer motion landed, in the window's own coordinates. */
     QPoint lastMotion() const;
+    /**
+     * How many ConfigureNotify events the window has received, synthetic
+     * ones included. A resize the window manager refuses is still answered
+     * with one (ICCCM 4.1.5), so this is how a test waits for the answer to
+     * its own resize rather than for a delay it hopes covers it.
+     */
+    int configureNotifies() const;
+    /**
+     * Report this process as the window's owner, in _NET_WM_PID, when shown.
+     *
+     * Off unless asked: KWin groups a process's windows by it, and the cases
+     * that do not ask are about windows whose program is not known.
+     */
+    void reportProcess();
 
 private:
     xcb_atom_t atom(const QByteArray &name) const;
@@ -38,7 +52,9 @@ private:
     QPoint m_position;
     QSize m_size;
     QPoint m_lastMotion{-1, -1};
+    int m_configureNotifies = 0;
     bool m_cooperative;
     int m_ignoredResizes = 0;
     bool m_fullscreenOnMap = false;
+    bool m_reportsProcess = false;
 };

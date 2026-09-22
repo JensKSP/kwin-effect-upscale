@@ -6,9 +6,13 @@
 
 #include "application.h"
 
+#include "legacysettings.h"
+
 #include <KConfig>
 #include <KConfigGroup>
 #include <KLocalizedString>
+
+#include <QFile>
 
 #include <algorithm>
 #include <ranges>
@@ -31,41 +35,106 @@ KSharedConfig::Ptr upscaleApplicationConfig()
     return KSharedConfig::openConfig(QLatin1String(applicationFileName));
 }
 
-static UpscaleControlMethod readMethod(const QString &name)
+UpscaleMethod upscaleMethodFromKey(const QString &name, UpscaleMethod absent)
 {
-    if (name == QLatin1String("X11Resize")) {
-        return UpscaleControlMethod::X11Resize;
+    static const QHash<QString, UpscaleMethod> s_names = {
+        {QStringLiteral("Auto"), UpscaleMethod::Auto},
+        {QStringLiteral("Off"), UpscaleMethod::Off},
+        {QStringLiteral("AdvertisedMode"), UpscaleMethod::AdvertisedMode},
+        {QStringLiteral("AdvertisedScale"), UpscaleMethod::AdvertisedScale},
+        {QStringLiteral("AdvertisedModeAndScale"), UpscaleMethod::AdvertisedModeAndScale},
+        {QStringLiteral("X11Resize"), UpscaleMethod::X11Resize},
+        // What "ask for nothing" was called before there was an Auto to tell
+        // it apart from "nobody has measured this yet".
+        {QStringLiteral("None"), UpscaleMethod::Off},
+    };
+    if (name.isEmpty()) {
+        return absent;
     }
-    if (name == QLatin1String("AdvertisedMode")) {
-        return UpscaleControlMethod::AdvertisedMode;
-    }
-    if (name == QLatin1String("AdvertisedScale")) {
-        return UpscaleControlMethod::AdvertisedScale;
-    }
-    if (name == QLatin1String("AdvertisedModeAndScale")) {
-        return UpscaleControlMethod::AdvertisedModeAndScale;
-    }
-    // Includes "None" and anything a later version of this file may name.
-    // Recognizing the application while asking it for nothing is the safe
-    // reading of a method this build does not implement.
-    return UpscaleControlMethod::None;
+    // A name this build does not know comes from a later version of the file.
+    // Asking for nothing is the safe reading: acting on a method we have not
+    // implemented is the one outcome that can move a window off the screen.
+    return s_names.value(name, UpscaleMethod::Off);
 }
 
-QString upscaleMethodKey(UpscaleControlMethod method)
+QString upscaleMethodKey(UpscaleMethod method)
 {
     switch (method) {
-    case UpscaleControlMethod::X11Resize:
-        return QStringLiteral("X11Resize");
-    case UpscaleControlMethod::AdvertisedMode:
+    case UpscaleMethod::Auto:
+        return QStringLiteral("Auto");
+    case UpscaleMethod::AdvertisedMode:
         return QStringLiteral("AdvertisedMode");
-    case UpscaleControlMethod::AdvertisedScale:
+    case UpscaleMethod::AdvertisedScale:
         return QStringLiteral("AdvertisedScale");
-    case UpscaleControlMethod::AdvertisedModeAndScale:
+    case UpscaleMethod::AdvertisedModeAndScale:
         return QStringLiteral("AdvertisedModeAndScale");
-    case UpscaleControlMethod::None:
+    case UpscaleMethod::X11Resize:
+        return QStringLiteral("X11Resize");
+    case UpscaleMethod::Off:
         break;
     }
-    return QStringLiteral("None");
+    return QStringLiteral("Off");
+}
+
+// The configuration key for one presentation's answer. Both layers spell
+// these the same way, which is why the global profile's entries in
+// upscaleconfig.kcfg carry these names too.
+const char *upscalePresentationKey(UpscalePresentation presentation)
+{
+    switch (presentation) {
+    case UpscalePresentation::WaylandFullScreen:
+        return "MethodWaylandFullScreen";
+    case UpscalePresentation::WaylandBorderless:
+        return "MethodWaylandBorderless";
+    case UpscalePresentation::WaylandWindowed:
+        return "MethodWaylandWindowed";
+    case UpscalePresentation::X11FullScreen:
+        return "MethodX11FullScreen";
+    case UpscalePresentation::X11Borderless:
+        return "MethodX11Borderless";
+    case UpscalePresentation::X11Windowed:
+        return "MethodX11Windowed";
+    }
+    return "MethodWaylandFullScreen";
+}
+
+// The six answers, and the one answer a previous release stored.
+//
+// That release had a single Method per profile, which was necessarily a
+// measurement of one presentation: an advertisement can only have been
+// observed on a native Wayland client, and a resize on an X11 one, and both
+// were only ever tried against a game presenting full screen. Each therefore
+// has exactly one slot it can have come from. Off is the exception and fills
+// every slot, because it recorded a decision about the program rather than
+// about one way of running it.
+static UpscaleMethods readMethods(const KConfigGroup &group)
+{
+    UpscaleMethods methods;
+    methods.fill(UpscaleMethod::Auto);
+    const UpscaleMethod single = upscaleMethodFromKey(group.readEntry("Method", QString()), UpscaleMethod::Auto);
+    if (single == UpscaleMethod::Off) {
+        methods.fill(UpscaleMethod::Off);
+    } else if (single != UpscaleMethod::Auto) {
+        const UpscalePresentation migrated = single == UpscaleMethod::X11Resize
+            ? UpscalePresentation::X11FullScreen
+            : UpscalePresentation::WaylandFullScreen;
+        methods[std::size_t(migrated)] = single;
+    }
+    for (std::size_t slot = 0; slot < upscalePresentationCount; ++slot) {
+        const auto presentation = UpscalePresentation(slot);
+        const QString stated = group.readEntry(upscalePresentationKey(presentation), QString());
+        if (!stated.isEmpty()) {
+            methods[slot] = upscaleMethodFromKey(stated, methods[slot]);
+        }
+        // A method the presentation cannot carry is a file naming an
+        // advertisement for an X11 window, or a resize for a Wayland one.
+        // Neither can be acted on, and neither is worth refusing the whole
+        // entry over.
+        if (!upscaleMethodApplies(presentation, methods[slot])) {
+            methods[slot] = UpscaleMethod::Off;
+        }
+    }
+    return methods;
 }
 
 static const QHash<QString, ResolutionPreset> &presetNames()
@@ -86,10 +155,12 @@ QString upscalePresetKey(ResolutionPreset preset)
     return presetNames().key(preset, QStringLiteral("Automatic"));
 }
 
-static ResolutionPreset readPreset(const QString &name)
+ResolutionPreset upscalePresetFromKey(const QString &name, ResolutionPreset absent)
 {
-    // Automatic asks for nothing, so it is also what an unreadable name gets.
-    return presetNames().value(name, ResolutionPreset::Automatic);
+    // A name this build does not know is a file from a later version. Falling
+    // back to what the caller would have used anyway is the honest reading:
+    // it neither invents a resolution nor refuses the whole entry.
+    return presetNames().value(name, absent);
 }
 
 static std::vector<UpscaleApplication> readApplications(const KSharedConfig::Ptr &config)
@@ -105,22 +176,28 @@ static std::vector<UpscaleApplication> readApplications(const KSharedConfig::Ptr
         application.id = name.mid(applicationGroupPrefix.size());
         application.name = group.readEntry("Name", application.id);
         application.version = group.readEntry("MeasuredVersion", QString());
+        application.executable = group.readEntry("Executable", QString());
+        application.executableMatch = upscaleStringMatchFromKey(group.readEntry("ExecutableMatch", QString()));
         application.windowClass = group.readEntry("WindowClass", QString());
+        application.windowClassMatch = upscaleStringMatchFromKey(group.readEntry("WindowClassMatch", QString()));
         application.instance = group.readEntry("Instance", QString());
-        application.program = group.readEntry("Program", QString());
-        application.method = readMethod(group.readEntry("Method", QString()));
-        application.preset = readPreset(group.readEntry("Preset", QString()));
-        application.minimumPixels = std::max(-1, group.readEntry("MinimumPixels", -1));
+        application.instanceMatch = upscaleStringMatchFromKey(group.readEntry("InstanceMatch", QString()));
+        application.methods = readMethods(group);
+        // After the methods: what an old Program key meant depended on them.
+        upscaleReadLegacyProgram(group, application);
+        application.overrides = upscaleReadOverrides(group);
         application.note = group.readEntry("Note", QString());
         application.order = group.readEntry("Order", 0);
         application.enabled = group.readEntry("Enabled", true);
         application.x11PrimaryOutputOnly = group.readEntry("X11PrimaryOutputOnly", false);
         // An entry the effect's own defaults still describe. A user's addition
         // has no default behind it, which is how restoring tells the two apart.
-        application.shipped = group.hasDefault("Name") || group.hasDefault("Method");
+        application.shipped = group.hasDefault("Name") || group.hasDefault("Method")
+            || group.hasDefault(upscalePresentationKey(UpscalePresentation::WaylandFullScreen))
+            || group.hasDefault(upscalePresentationKey(UpscalePresentation::X11FullScreen));
         // An entry that constrains no identity would match every window,
         // including the desktop. Dropping it is the only safe reading.
-        if (application.windowClass.isEmpty() && application.instance.isEmpty()) {
+        if (application.executable.isEmpty() && application.windowClass.isEmpty() && application.instance.isEmpty()) {
             continue;
         }
         applications.push_back(std::move(application));
@@ -137,13 +214,20 @@ static std::vector<UpscaleApplication> readApplications(const KSharedConfig::Ptr
 // assembled, and neither may touch the disk. upscaleReloadApplications() is
 // what a reconfiguration calls to pick up an edit.
 static std::optional<std::vector<UpscaleApplication>> cachedApplications;
+static quint64 applicationsGeneration = 0;
 
 const std::vector<UpscaleApplication> &upscaleApplications()
 {
     if (!cachedApplications) {
         cachedApplications = readApplications(upscaleApplicationConfig());
+        ++applicationsGeneration;
     }
     return *cachedApplications;
+}
+
+quint64 upscaleApplicationsGeneration()
+{
+    return applicationsGeneration;
 }
 
 void upscaleReloadApplications()
@@ -151,6 +235,7 @@ void upscaleReloadApplications()
     const KSharedConfig::Ptr config = upscaleApplicationConfig();
     config->reparseConfiguration();
     cachedApplications = readApplications(config);
+    ++applicationsGeneration;
 }
 
 bool upscaleApplicationsCustomized()
@@ -193,33 +278,6 @@ void upscaleRestoreApplications()
     upscaleReloadApplications();
 }
 
-// The application used for a program nobody measured, when the user has asked
-// for that. It is not stored: it describes a setting, not an entry, and it
-// must never appear in the list the editor writes back.
-static std::optional<UpscaleApplication> unknownApplication;
-
-void upscaleSetUnknownApplications(bool enabled, ResolutionPreset preset)
-{
-    if (!enabled) {
-        unknownApplication.reset();
-        return;
-    }
-    UpscaleApplication application;
-    application.name = i18n("Unlisted application");
-    // The mode is the one request that was observed to leave a client's window
-    // covering the screen whether or not the client acts on it. A scale told
-    // to a program that reads it differently moves its window off the screen,
-    // which is not something to do to an application nobody measured.
-    application.method = UpscaleControlMethod::AdvertisedMode;
-    application.preset = preset;
-    unknownApplication = application;
-}
-
-const UpscaleApplication *upscaleUnknownApplication()
-{
-    return unknownApplication ? &*unknownApplication : nullptr;
-}
-
 QString upscaleNewApplicationId(const QString &name, const std::vector<UpscaleApplication> &pending)
 {
     // Readable, stable, and free of anything a configuration group cannot
@@ -256,19 +314,28 @@ static void writeField(KConfigGroup &group, const char *key, const QString &valu
     }
 }
 
-void upscaleSaveApplication(const UpscaleApplication &application, const UpscaleApplication &original)
+static void writeApplication(KConfigGroup &group, const UpscaleApplication &application,
+                             const UpscaleApplication &original)
 {
-    const KSharedConfig::Ptr config = upscaleApplicationConfig();
-    KConfigGroup group(config, applicationGroupPrefix + application.id);
     writeField(group, "Name", application.name, original.name);
+    writeField(group, "Executable", application.executable, original.executable);
+    writeField(group, "ExecutableMatch", upscaleStringMatchKey(application.executableMatch),
+               upscaleStringMatchKey(original.executableMatch));
     writeField(group, "WindowClass", application.windowClass, original.windowClass);
+    writeField(group, "WindowClassMatch", upscaleStringMatchKey(application.windowClassMatch),
+               upscaleStringMatchKey(original.windowClassMatch));
     writeField(group, "Instance", application.instance, original.instance);
-    writeField(group, "Program", application.program, original.program);
-    writeField(group, "Method", upscaleMethodKey(application.method), upscaleMethodKey(original.method));
-    writeField(group, "Preset", upscalePresetKey(application.preset), upscalePresetKey(original.preset));
-    if (application.minimumPixels != original.minimumPixels) {
-        group.writeEntry("MinimumPixels", application.minimumPixels);
+    writeField(group, "InstanceMatch", upscaleStringMatchKey(application.instanceMatch),
+               upscaleStringMatchKey(original.instanceMatch));
+    for (std::size_t slot = 0; slot < upscalePresentationCount; ++slot) {
+        const char *key = upscalePresentationKey(UpscalePresentation(slot));
+        writeField(group, key, upscaleMethodKey(application.methods[slot]), upscaleMethodKey(original.methods[slot]));
     }
+    // What a previous release stored under its own keys, rewritten under the
+    // current ones before those keys go. See upscaleRetireLegacyProfileKeys()
+    // for why simply deleting them would lose the values.
+    upscaleRetireLegacyProfileKeys(group, application);
+    upscaleWriteOverrides(group, application.overrides, original.overrides);
     if (application.enabled != original.enabled) {
         group.writeEntry("Enabled", application.enabled);
     }
@@ -282,6 +349,36 @@ void upscaleSaveApplication(const UpscaleApplication &application, const Upscale
     if (!application.shipped && !application.note.isEmpty() && application.note != original.note) {
         group.writeEntry("Note", application.note);
     }
+}
+
+void upscaleSaveApplication(const UpscaleApplication &application, const UpscaleApplication &original)
+{
+    const KSharedConfig::Ptr config = upscaleApplicationConfig();
+    KConfigGroup group(config, applicationGroupPrefix + application.id);
+    writeApplication(group, application, original);
+}
+
+bool upscaleWriteApplicationFile(const std::vector<UpscaleApplication> &applications, const QString &path)
+{
+    QFile::remove(path);
+    KConfig file(path, KConfig::SimpleConfig);
+    for (const UpscaleApplication &application : applications) {
+        // Every field, against an entry that states nothing, so that the file
+        // stands on its own: whoever reads it has no package of ours beneath
+        // it, or a different one. A shipped entry's description travels too.
+        UpscaleApplication complete = application;
+        complete.shipped = false;
+        KConfigGroup group(&file, applicationGroupPrefix + application.id);
+        writeApplication(group, complete, UpscaleApplication{});
+    }
+    return file.sync();
+}
+
+std::vector<UpscaleApplication> upscaleReadApplicationFile(const QString &path)
+{
+    const KSharedConfig::Ptr file = KSharedConfig::openConfig(path, KConfig::SimpleConfig);
+    file->reparseConfiguration();
+    return readApplications(file);
 }
 
 void upscaleDeleteApplication(const QString &id)
@@ -303,70 +400,24 @@ void upscaleSyncApplications()
     upscaleReloadApplications();
 }
 
-static bool matches(const UpscaleApplication &application, const QString &windowClass, const QString &instance)
+QString describeControlMethod(UpscaleMethod method)
 {
-    if (!application.enabled) {
-        return false;
-    }
-    if (!application.windowClass.isEmpty() && application.windowClass != windowClass) {
-        return false;
-    }
-    return application.instance.isEmpty() || application.instance == instance;
-}
-
-const UpscaleApplication *upscaleApplicationForIdentity(const QString &windowClass, const QString &instance)
-{
-    if (windowClass.isEmpty() && instance.isEmpty()) {
-        // Identity can arrive after the window does. Nothing matches yet, and
-        // windowClassChanged will bring the effect back here when it does.
-        return nullptr;
-    }
-    for (const UpscaleApplication &application : upscaleApplications()) {
-        if (matches(application, windowClass, instance)) {
-            return &application;
-        }
-    }
-    return nullptr;
-}
-
-const UpscaleApplication *upscaleApplicationForProgram(const QString &executablePath)
-{
-    if (executablePath.isEmpty()) {
-        return nullptr;
-    }
-    // Compare the file name only: the same program sits in a different
-    // directory depending on how it was installed.
-    const QString program = executablePath.section(QLatin1Char('/'), -1);
-    if (program.isEmpty()) {
-        return nullptr;
-    }
-    for (const UpscaleApplication &application : upscaleApplications()) {
-        if (application.program.isEmpty() || application.program != program) {
-            continue;
-        }
-        // A listed application the user switched off is not an unlisted one.
-        // Falling through to the entry below would ask it for a resolution
-        // anyway, which is the opposite of what switching it off means.
-        return application.enabled ? &application : nullptr;
-    }
-    // Only once nothing in the list describes this program, so that neither a
-    // measured entry nor a deliberate refusal is replaced by a guess.
-    return upscaleUnknownApplication();
-}
-
-QString describeControlMethod(UpscaleControlMethod method)
-{
+    // Each names what is asked of the client, never what happens to the
+    // window: the window keeps the place and size the system gave it, and
+    // what the effect decides is the size the client renders at.
     switch (method) {
-    case UpscaleControlMethod::X11Resize:
-        return i18n("X11 window resize");
-    case UpscaleControlMethod::None:
+    case UpscaleMethod::X11Resize:
+        return i18n("X11 buffer request");
+    case UpscaleMethod::Off:
         return i18n("no resolution request");
-    case UpscaleControlMethod::AdvertisedMode:
+    case UpscaleMethod::AdvertisedMode:
         return i18n("advertised screen mode");
-    case UpscaleControlMethod::AdvertisedScale:
+    case UpscaleMethod::AdvertisedScale:
         return i18n("advertised screen scale");
-    case UpscaleControlMethod::AdvertisedModeAndScale:
+    case UpscaleMethod::AdvertisedModeAndScale:
         return i18n("advertised screen mode and scale");
+    case UpscaleMethod::Auto:
+        return i18n("automatic, verified against what the application commits");
     }
     return QString();
 }

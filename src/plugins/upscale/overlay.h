@@ -42,12 +42,38 @@ public:
      * heads-up display read at a glance during play needs to be larger than a
      * diagnostic dump read by leaning towards the screen, and both are drawn
      * by this class.
+     *
+     * Nothing is laid out here. The room this block is allowed is known only
+     * to whoever is painting an output, and laying the text out twice for one
+     * snapshot would cost more than the throttling that produced it saves.
+     * It happens on the first question that needs an answer instead, so a
+     * caller with no output to place against still gets a sized block.
      */
     void setText(const QString &text, double scale, double emphasis = 1);
+
+    /**
+     * Lays the text out to fit within @p budget logical pixels.
+     *
+     * The block is drawn at the size it asked for when that fits. When it does
+     * not, it is laid out again at the largest fraction of that size which
+     * does, down to the smallest readable font; whatever still falls outside
+     * is cropped. The budget is therefore a bound and not a preference, which
+     * is what lets the caller promise that two blocks never meet.
+     *
+     * A default-constructed budget means no bound, for a caller that has no
+     * output to measure against. A budget of no size means no room, which is
+     * a different answer and leaves nothing drawn.
+     */
+    void fit(const QSizeF &budget);
 
     /** The logical size the text occupies, for placement and repaints. */
     QSizeF size() const;
 
+private:
+    /** Lays the text out for the current budget, if that has not happened. */
+    void layOut() const;
+
+public:
     /** The text as it was last laid out. */
     QString text() const;
 
@@ -67,7 +93,13 @@ private:
     QString m_text;
     double m_scale = 1;
     double m_emphasis = 1;
-    QImage m_image;
+    // The budget the current image was laid out for, so that a repeated frame
+    // on an unchanged output does not lay the same text out again.
+    QSizeF m_budget;
+    // Laying out is deferred to the first question that needs the answer, so
+    // that a block whose budget arrives after its text is built only once.
+    mutable bool m_fitted = false;
+    mutable QImage m_image;
     std::unique_ptr<GLTexture> m_texture;
 };
 

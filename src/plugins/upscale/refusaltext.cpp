@@ -20,7 +20,15 @@ static QString describeEffectRefusal(UpscaleRefusal refusal)
 {
     switch (refusal) {
     case UpscaleRefusal::Disabled:
-        return i18n("disabled.");
+        // Only a previous release's own off switch reaches here now: a profile
+        // that is switched off takes no part in matching, so its window is
+        // unlisted instead, and says so below.
+        return i18n("upscaling was switched off.");
+    case UpscaleRefusal::Unlisted:
+        // The one line that tells being left alone apart from being broken. It
+        // names both halves of the rule, so that the person reading it knows
+        // there are two ways to change the answer.
+        return i18n("the application is not in the list, and unlisted applications are switched off.");
     case UpscaleRefusal::NativeRule:
         return i18n("the resolution rule selects Native.");
     case UpscaleRefusal::BelowMinimumPixels:
@@ -90,6 +98,7 @@ QString describeRefusal(UpscaleRefusal refusal)
     case UpscaleRefusal::None:
         return QString();
     case UpscaleRefusal::Disabled:
+    case UpscaleRefusal::Unlisted:
     case UpscaleRefusal::NativeRule:
     case UpscaleRefusal::BelowMinimumPixels:
     case UpscaleRefusal::ResourceFailure:

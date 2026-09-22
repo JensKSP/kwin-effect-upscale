@@ -23,7 +23,13 @@ WaylandClient::~WaylandClient()
         xdg_toplevel_destroy(m_toplevel);
         xdg_surface_destroy(m_shellSurface);
         wp_viewport_destroy(m_viewport);
+        if (m_fractionalScale) {
+            wp_fractional_scale_v1_destroy(m_fractionalScale);
+        }
         wl_surface_destroy(m_surface);
+    }
+    if (m_fractionalScaleManager) {
+        wp_fractional_scale_manager_v1_destroy(m_fractionalScaleManager);
     }
     if (m_viewporter) {
         wp_viewporter_destroy(m_viewporter);
@@ -71,6 +77,9 @@ void WaylandClient::global(void *data, wl_registry *registry, uint32_t name, con
             nullptr,
         };
         wl_output_add_listener(client->m_output, &listener, client);
+    } else if (std::strcmp(interface, "wp_fractional_scale_manager_v1") == 0) {
+        client->m_fractionalScaleManager = static_cast<wp_fractional_scale_manager_v1 *>(
+            wl_registry_bind(registry, name, &wp_fractional_scale_manager_v1_interface, 1));
     } else if (std::strcmp(interface, "wp_viewporter") == 0) {
         client->m_viewporter = static_cast<wp_viewporter *>(wl_registry_bind(registry, name, &wp_viewporter_interface, 1));
     } else if (std::strcmp(interface, "xdg_wm_base") == 0) {
@@ -101,6 +110,15 @@ bool WaylandClient::initialize(bool fullscreen)
     }
     m_surface = wl_compositor_create_surface(m_compositor);
     m_viewport = wp_viewporter_get_viewport(m_viewporter, m_surface);
+    // Bound and listened to, never honoured on its own: what the client draws
+    // is what each case shows, so a case decides whether it follows the scale.
+    if (m_fractionalScaleManager) {
+        m_fractionalScale = wp_fractional_scale_manager_v1_get_fractional_scale(m_fractionalScaleManager, m_surface);
+        static const wp_fractional_scale_v1_listener fractionalListener{[](void *data, wp_fractional_scale_v1 *, uint32_t scale) {
+            static_cast<WaylandClient *>(data)->m_preferredScale = int(scale);
+        }};
+        wp_fractional_scale_v1_add_listener(m_fractionalScale, &fractionalListener, this);
+    }
     m_shellSurface = xdg_wm_base_get_xdg_surface(m_shell, m_surface);
     static const xdg_surface_listener surfaceListener{configure};
     xdg_surface_add_listener(m_shellSurface, &surfaceListener, this);
@@ -133,6 +151,11 @@ void WaylandClient::outputScale(void *data, wl_output *, int32_t factor)
 QSize WaylandClient::advertisedMode() const
 {
     return m_advertisedMode;
+}
+
+int WaylandClient::preferredScale() const
+{
+    return m_preferredScale;
 }
 
 int WaylandClient::advertisedScale() const

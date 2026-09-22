@@ -6,6 +6,10 @@
 
 #pragma once
 
+#include <QList>
+#include <QSize>
+#include <QString>
+
 class QComboBox;
 
 namespace KWin
@@ -34,5 +38,36 @@ void upscaleSelectResolution(QComboBox *box, int pixels);
  * spaces or none.
  */
 int upscaleResolutionPixels(const QComboBox *box, int fallback);
+
+/**
+ * @p pixels as a person would name it: a resolution where one of the offered
+ * ones has that count, "Any screen" for none at all, and the count otherwise.
+ */
+QString upscaleResolutionName(int pixels);
+
+/** A connected screen as the settings page names it: its physical size and name. */
+struct UpscaleScreen
+{
+    QSize pixels;
+    QString name;
+};
+
+/** The connected screens, in physical pixels, in the order Qt lists them. */
+QList<UpscaleScreen> upscaleScreens();
+
+/** The screen with the most pixels, the one a game is most likely upscaled on. */
+UpscaleScreen upscaleLargestScreen();
+
+/**
+ * The scales, in basis points, at which @p screen renders a resolution people
+ * know - 2560 × 1440 on a 3840 × 2160 screen is 6667 - from half the screen
+ * to all of it, ascending.
+ *
+ * Only resolutions of the screen's own shape qualify, and only where the
+ * scale reproduces them to the pixel, so that a scale snapped to one renders
+ * exactly that. Stored as a scale, it gives the same share on any other
+ * screen, which is what keeps a setting portable.
+ */
+QList<int> upscaleSnapScales(const QSize &screen);
 
 }

@@ -25,8 +25,18 @@ pkg_check_modules(WAYLAND_CLIENT REQUIRED IMPORTED_TARGET wayland-client)
 pkg_get_variable(WAYLAND_PROTOCOLS wayland-protocols pkgdatadir)
 find_program(WAYLAND_SCANNER wayland-scanner REQUIRED)
 set(protocol_sources)
-foreach(protocol IN ITEMS xdg-shell viewporter)
-    set(protocol_xml "${WAYLAND_PROTOCOLS}/stable/${protocol}/${protocol}.xml")
+# The fractional scale is how Auto asks a Wayland window for a smaller buffer,
+# so the test client binds it to see what it was asked.
+foreach(
+    path
+    IN
+    ITEMS
+        stable/xdg-shell/xdg-shell
+        stable/viewporter/viewporter
+        staging/fractional-scale/fractional-scale-v1
+)
+    get_filename_component(protocol ${path} NAME)
+    set(protocol_xml "${WAYLAND_PROTOCOLS}/${path}.xml")
     set(protocol_header "${CMAKE_CURRENT_BINARY_DIR}/${protocol}-client.h")
     set(protocol_code "${CMAKE_CURRENT_BINARY_DIR}/${protocol}-protocol.c")
     add_custom_command(
@@ -39,7 +49,14 @@ foreach(protocol IN ITEMS xdg-shell viewporter)
     )
     list(APPEND protocol_sources ${protocol_header} ${protocol_code})
 endforeach()
-add_executable(upscale_integration_test integration_test.cpp wayland_client.cpp ${protocol_sources})
+add_executable(
+    upscale_integration_test
+    integration_test.cpp
+    integration_test.h
+    integration_advertisement_test.cpp
+    wayland_client.cpp
+    ${protocol_sources}
+)
 target_include_directories(upscale_integration_test PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(
     upscale_integration_test
@@ -49,19 +66,26 @@ if(KWin_VERSION VERSION_LESS 6.7)
     set(driver_sources
         effect_driver.cpp
         ../src/plugins/upscale/application.cpp
+        ../src/plugins/upscale/matching.cpp
+        ../src/plugins/upscale/pattern.cpp
+        ../src/plugins/upscale/settings.cpp
+        ../src/plugins/upscale/legacysettings.cpp
         ../src/plugins/upscale/display.cpp
         ../src/plugins/upscale/framestatistics.cpp
         ../src/plugins/upscale/framestatistics.cpp
         ../src/plugins/upscale/display.h
         ../src/plugins/upscale/eligibility.cpp
+        ../src/plugins/upscale/windowidentity.cpp
         ../src/plugins/upscale/refusaltext.cpp
         ../src/plugins/upscale/modeoverride.cpp
+        ../src/plugins/upscale/waylandscale.cpp
         ../src/plugins/upscale/observation.cpp
         ../src/plugins/upscale/overlay.cpp
         ../src/plugins/upscale/placement.cpp
         ../src/plugins/upscale/snapshot.cpp
         ../src/plugins/upscale/snapshot_metrics.cpp
         ../src/plugins/upscale/upscale.cpp
+        ../src/plugins/upscale/autorequest.cpp
         ../src/plugins/upscale/x11geometry.cpp
         ../src/plugins/upscale/x11input.cpp
         ../src/plugins/upscale/x11resolution.cpp
@@ -190,13 +214,27 @@ if(KWin_VERSION VERSION_LESS 6.7)
     )
 endif()
 
-add_executable(upscale_application_test application_test.cpp ../src/plugins/upscale/application.cpp)
+# settings.cpp reads the global layer through the generated configuration, so
+# this test needs the kcfg generated for it as the others do.
+kconfig_add_kcfg_files(application_test_sources ../src/plugins/upscale/upscaleconfig.kcfgc)
+add_executable(
+    upscale_application_test
+    application_test.cpp
+    legacysettings_test.cpp
+    matching_test.cpp
+    ../src/plugins/upscale/application.cpp
+    ../src/plugins/upscale/matching.cpp
+    ../src/plugins/upscale/pattern.cpp
+    ../src/plugins/upscale/settings.cpp
+    ../src/plugins/upscale/legacysettings.cpp
+    ${application_test_sources}
+)
 target_include_directories(upscale_application_test PRIVATE ../src/plugins/upscale)
 target_compile_definitions(
     upscale_application_test
     PRIVATE -DTRANSLATION_DOMAIN="kwin_effect_upscale"
 )
-target_link_libraries(upscale_application_test PRIVATE kwin Qt6::Test KF6::I18n KF6::ConfigCore)
+target_link_libraries(upscale_application_test PRIVATE kwin Qt6::Test KF6::I18n KF6::ConfigGui)
 target_compile_definitions(
     upscale_application_test
     PRIVATE
@@ -207,9 +245,14 @@ add_test(NAME upscale-application COMMAND upscale_application_test)
 set(snapshot_test_sources
     snapshot_test.cpp
     ../src/plugins/upscale/application.cpp
+    ../src/plugins/upscale/matching.cpp
+    ../src/plugins/upscale/pattern.cpp
+    ../src/plugins/upscale/settings.cpp
+    ../src/plugins/upscale/legacysettings.cpp
     ../src/plugins/upscale/snapshot.cpp
     ../src/plugins/upscale/snapshot_metrics.cpp
     ../src/plugins/upscale/eligibility.cpp
+    ../src/plugins/upscale/windowidentity.cpp
     ../src/plugins/upscale/refusaltext.cpp
 )
 kconfig_add_kcfg_files(snapshot_test_sources ../src/plugins/upscale/upscaleconfig.kcfgc)
@@ -225,9 +268,14 @@ add_test(NAME upscale-snapshot COMMAND upscale_snapshot_test)
 set(headsup_test_sources
     headsup_test.cpp
     ../src/plugins/upscale/application.cpp
+    ../src/plugins/upscale/matching.cpp
+    ../src/plugins/upscale/pattern.cpp
+    ../src/plugins/upscale/settings.cpp
+    ../src/plugins/upscale/legacysettings.cpp
     ../src/plugins/upscale/snapshot.cpp
     ../src/plugins/upscale/snapshot_metrics.cpp
     ../src/plugins/upscale/eligibility.cpp
+    ../src/plugins/upscale/windowidentity.cpp
     ../src/plugins/upscale/refusaltext.cpp
 )
 kconfig_add_kcfg_files(headsup_test_sources ../src/plugins/upscale/upscaleconfig.kcfgc)
@@ -240,9 +288,44 @@ target_link_libraries(
 )
 add_test(NAME upscale-headsup COMMAND upscale_headsup_test)
 
+set(placement_test_sources
+    placement_test.cpp
+    ../src/plugins/upscale/application.cpp
+    ../src/plugins/upscale/matching.cpp
+    ../src/plugins/upscale/pattern.cpp
+    ../src/plugins/upscale/settings.cpp
+    ../src/plugins/upscale/legacysettings.cpp
+    ../src/plugins/upscale/overlay.cpp
+    ../src/plugins/upscale/placement.cpp
+    ../src/plugins/upscale/snapshot.cpp
+    ../src/plugins/upscale/snapshot_metrics.cpp
+    ../src/plugins/upscale/eligibility.cpp
+    ../src/plugins/upscale/windowidentity.cpp
+    ../src/plugins/upscale/refusaltext.cpp
+)
+kconfig_add_kcfg_files(placement_test_sources ../src/plugins/upscale/upscaleconfig.kcfgc)
+add_executable(upscale_placement_test ${placement_test_sources})
+target_include_directories(upscale_placement_test PRIVATE ../src/plugins/upscale)
+target_compile_definitions(
+    upscale_placement_test
+    PRIVATE -DTRANSLATION_DOMAIN="kwin_effect_upscale"
+)
+target_link_libraries(
+    upscale_placement_test
+    PRIVATE kwin Qt6::Test KF6::ConfigGui KF6::I18n Libdrm::Libdrm
+)
+# No OpenGL context and no rasteriser: this one asserts geometry, so it needs
+# only a platform that can measure a font.
+add_test(NAME upscale-placement COMMAND upscale_placement_test)
+set_tests_properties(upscale-placement PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 set(display_test_sources
     display_test.cpp
     ../src/plugins/upscale/application.cpp
+    ../src/plugins/upscale/matching.cpp
+    ../src/plugins/upscale/pattern.cpp
+    ../src/plugins/upscale/settings.cpp
+    ../src/plugins/upscale/legacysettings.cpp
     ../src/plugins/upscale/display.cpp
     ../src/plugins/upscale/framestatistics.cpp
     ../src/plugins/upscale/overlay.cpp
@@ -250,6 +333,7 @@ set(display_test_sources
     ../src/plugins/upscale/snapshot.cpp
     ../src/plugins/upscale/snapshot_metrics.cpp
     ../src/plugins/upscale/eligibility.cpp
+    ../src/plugins/upscale/windowidentity.cpp
     ../src/plugins/upscale/refusaltext.cpp
 )
 kconfig_add_kcfg_files(display_test_sources ../src/plugins/upscale/upscaleconfig.kcfgc)
@@ -277,20 +361,42 @@ endif()
 if(KWIN_BUILD_KCMS)
     set(settings_module_SOURCES
         ../src/plugins/upscale/application.cpp
+        ../src/plugins/upscale/matching.cpp
+        ../src/plugins/upscale/pattern.cpp
+        ../src/plugins/upscale/settings.cpp
+        ../src/plugins/upscale/legacysettings.cpp
         ../src/plugins/upscale/applicationeditor.cpp
+        ../src/plugins/upscale/applicationeditor_details.cpp
+        ../src/plugins/upscale/applicationeditor_window.cpp
+        ../src/plugins/upscale/settingcontrols.cpp
+        ../src/plugins/upscale/identitycontrols.cpp
+        ../src/plugins/upscale/methodcontrols.cpp
         ../src/plugins/upscale/placement.cpp
-        ../src/plugins/upscale/supportinformation.cpp
         ../src/plugins/upscale/upscale_config.cpp
+        ../src/plugins/upscale/displaycontrols.cpp
+        ../src/plugins/upscale/applicationcontrols.cpp
         ../src/plugins/upscale/resolutionchoice.cpp
+        ../src/plugins/upscale/resolutionpreview.cpp
+        ../src/plugins/upscale/sliderfield.cpp
     )
     kconfig_add_kcfg_files(settings_module_SOURCES ../src/plugins/upscale/upscaleconfig.kcfgc)
     # Exercise both the upstream form without project identity and the packaged
     # settings module, which compares the full identity reported by KWin. The
     # application editor is its own page and is tested once.
-    foreach(variant IN ITEMS config config-buildinfo application-editor)
+    foreach(
+        variant
+        IN
+        ITEMS config config-buildinfo application-editor identity-controls application-list
+    )
         set(test_target "upscale_${variant}_test")
         if(variant STREQUAL "application-editor")
-            set(test_source application_editor_test.cpp)
+            # The stand-ins for KWin and the effect are QObjects, so moc reads
+            # their header too.
+            set(test_source application_editor_test.cpp editor_stand_ins.h)
+        elseif(variant STREQUAL "identity-controls")
+            set(test_source identity_controls_test.cpp editor_stand_ins.h)
+        elseif(variant STREQUAL "application-list")
+            set(test_source application_list_test.cpp)
         else()
             set(test_source config_test.cpp)
         endif()

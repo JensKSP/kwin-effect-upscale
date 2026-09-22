@@ -1,3 +1,19 @@
+kwin-effect-upscale (0.2.0) unstable; urgency=medium
+
+  * Every setting is a global default with an optional per-application
+    override. The method is chosen per presentation - Wayland and X11,
+    fullscreen, borderless and windowed - and Auto finds one by itself.
+  * Applications are recognized by their program path and their window
+    class and instance, each compared exactly, as a substring or as a
+    regular expression.
+  * The settings page is laid out as one form, and its application list
+    can be reordered and shows which open windows an entry matches.
+  * Settings stored by 0.1.0 snapshots are read under their old meaning
+    and rewritten in the new form when the settings page is applied.
+  * X11 resolution requests hold on KWin 6.6.
+
+ -- Jens Koehler <kwin-effect-upscale@koehler-speyer.de>  Mon, 21 Sep 2026 17:58:18 +0200
+
 kwin-effect-upscale (0.1.0) unstable; urgency=medium
 
   * Initial package.

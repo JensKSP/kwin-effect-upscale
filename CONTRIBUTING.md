@@ -139,6 +139,8 @@ The container's `lint` mode runs both stages. For a Markdown-only change, its
 `docs --base <base-commit>` mode runs the applicable hooks and rejects mixed
 code changes. CI uses the same entry points. Source changes require the compiler
 and relevant runtime checks; hardware claims require observed native results.
+[Building and checking](doc/checks.md) explains which check runs at which level
+and why, what may touch the plugin folder, and what counts as built.
 
 ## Submitting a patch
 
@@ -151,11 +153,15 @@ Follow [KWin's contribution conventions](https://invent.kde.org/plasma/kwin/-/bl
 and KDE Frameworks style. Commit subjects normally use `component: Do a thing`.
 Keep `src/plugins/upscale/` suitable for copying into KWin; project-specific
 packaging and tooling belong outside it. Own files use GPL-2.0-or-later SPDX
-headers; preserve third-party notices and keep REUSE checks passing.
+headers; preserve third-party notices and keep REUSE checks passing. The
+[code conventions](doc/conventions.md) spell out the style, the portability
+requirements and the file size limit; [versions and releases](doc/releases.md)
+describes how a build names itself and how a release is made.
 
 Watch CI and review feedback after each push. Investigate findings, fix valid
 issues and explain disagreements with evidence. Both `Quality gate` and
 `CodeRabbit approval` must pass for the current revision. The maintainer reviews
 contributions and chooses when to merge or enable auto-merge; passing automation
 does not authorize an autonomous merge. See the handbook's
-[review policy](doc/upscaling.md#pull-request-reviews).
+[review policy](doc/upscaling.md#pull-request-reviews) and the rules for
+[commits, branches and pull requests](doc/pull-requests.md).

@@ -7,7 +7,13 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 Follow the [repository rules](../../AGENTS.md) and
 [documentation rules](../AGENTS.md). This instruction file is permanent; the
-slice documents beside it are temporary.
+slice documents beside it are temporary. Read it before starting, continuing,
+splitting or finishing a slice, and before creating or deleting a document
+here.
+
+Laid down by Jens, 2026-09-17; documentation layout revised 2026-09-18. This
+workflow applies only to this repository. It replaces the earlier instruction
+to keep plans and research in a separate private repository.
 
 - Create one document per major slice before implementation. A slice is a
   bounded work package about one general topic, not a running collection of
@@ -24,20 +30,16 @@ slice documents beside it are temporary.
   into required tasks for an open slice.
 - Maintain progress, findings, observed test results and remaining work in
   that same document. When work crosses a topic boundary, create a separate
-  slice and link the dependency. Give each task and acceptance result one
-  owning slice; use links instead of copying status between documents.
+  slice and link the dependency, instead of extending an existing slice
+  indefinitely. Give each task and acceptance result one owning slice; use
+  links instead of copying status between documents.
 - Distinguish planned checks from tests that actually ran. Record failures and
   outstanding acceptance honestly, including real-device checks where required.
-  Keep working copies, binaries and check caches under the repository's ignored
-  `build/` directory, not here.
 - Do not create separate plans, progress logs, evidence folders, transcripts or
   TODO files for the same slice. These working documents are not permanent
-  specifications and must not become the only explanation of the code.
-- Preserve lasting requirements and design decisions in the permanent
-  [human documentation](../upscaling.md), and explain implementation invariants
-  and non-obvious decisions in source comments beside the code. Source code,
-  comments and tests together with human documentation are the single source
-  of truth.
+  specifications and must not become the only explanation of the code: the
+  [documentation rules](../AGENTS.md) say where lasting requirements, design
+  decisions and implementation explanations belong.
 - Delete a slice document only when implementation is complete and every
   required test has passed, including real-device acceptance where required.
   Keep it while work or required testing remains open. Before deletion, move

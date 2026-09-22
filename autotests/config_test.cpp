@@ -6,8 +6,9 @@
 
 #include "buildtype.h"
 #include "placement.h"
+#include "resolution.h"
 #include "resolutionchoice.h"
-#include "supportinformation.h"
+#include "sliderfield.h"
 #include "upscale_config.h"
 
 #include "settings_fixture.h"
@@ -23,6 +24,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDBusConnection>
+#include <QDoubleSpinBox>
 #include <QLabel>
 #include <QPushButton>
 #include <QRegularExpression>
@@ -54,11 +56,10 @@ class UpscaleConfigTest : public QObject
 
 private Q_SLOTS:
     void presetsAndKeyboard();
+    void snapsToKnownResolutions();
     void saveAndRestore();
     void displayDefaults();
     void installedBuildVersion();
-    void runningBuildStatus();
-    void readsWhatTheCompositorReported();
 };
 
 void UpscaleConfigTest::presetsAndKeyboard()
@@ -73,7 +74,11 @@ void UpscaleConfigTest::presetsAndKeyboard()
     QVERIFY(preset);
     QVERIFY(percentage);
     QVERIFY(preview);
-    QCOMPARE(preset->currentIndex(), 0);
+    // Quality by default. There is no Automatic any more: what it meant was
+    // "nobody chose", which a profile now says by storing nothing, and the
+    // global default has to be a real reduction or a fresh install would
+    // leave the games it ships profiles for at their full resolution.
+    QCOMPARE(preset->currentIndex(), 2);
     // The threshold is stored as a pixel count and offered as a resolution,
     // because nobody setting one is thinking of 2073600.
     QComboBox *minimum = module.widget()->findChild<QComboBox *>(QStringLiteral("minimumPixels"));
@@ -82,23 +87,62 @@ void UpscaleConfigTest::presetsAndKeyboard()
     QVERIFY2(minimum->currentText().contains(QStringLiteral("1920 × 1080")), qPrintable(minimum->currentText()));
     QVERIFY2(minimum->itemData(0).toInt() == 0, "the first entry is every output");
     minimum->setCurrentIndex(0);
-    QVERIFY(preview->text().contains(QStringLiteral("no resolution request")));
-    preset->setCurrentIndex(3);
-    QCOMPARE(percentage->value(), 67);
-    QVERIFY(preview->text().contains(QStringLiteral("66.7%")));
+    // Native is the preset that asks for nothing, and says what that means.
+    preset->setCurrentIndex(0);
+    QVERIFY2(preview->text().contains(QStringLiteral("full resolution")), qPrintable(preview->text()));
+    preset->setCurrentIndex(2);
+    // In basis points: Quality is two thirds, 66.67 %, which a whole percent
+    // could not say. The field beside the slider shows it as a percentage.
+    QCOMPARE(percentage->value(), 6667);
+    auto *value = module.widget()->findChild<QDoubleSpinBox *>(QStringLiteral("percentageValue"));
+    QVERIFY(value);
+    QCOMPARE(value->value(), 66.67);
+    // One line per screen, saying what a game renders at there.
     const QScreen *screen = QGuiApplication::screens().constFirst();
     const QSize output = screen->geometry().size() * screen->devicePixelRatio();
-    QVERIFY2(preview->text().contains(QStringLiteral("%1 × %2").arg(qRound(output.width() / 1.5)).arg(qRound(output.height() / 1.5))), qPrintable(preview->text()));
+    QVERIFY2(preview->text().contains(QStringLiteral("renders at %1 × %2").arg(qRound(output.width() / 1.5)).arg(qRound(output.height() / 1.5))),
+             qPrintable(preview->text()));
     QTest::keyClick(percentage, Qt::Key_Right);
-    QCOMPARE(preset->currentIndex(), 6);
-    QCOMPARE(percentage->value(), 68);
-    QVERIFY(preview->text().contains(QStringLiteral("68%")));
-    percentage->setValue(50);
+    // Moving the slider off a preset's exact ratio is choosing Custom, and a
+    // step lands on a whole percent.
+    QCOMPARE(preset->currentIndex(), 5);
+    QCOMPARE(percentage->value(), 6800);
+    QCOMPARE(value->value(), 68.0);
+    // Typed, the value is exact.
+    value->setValue(72.35);
+    QCOMPARE(percentage->value(), 7235);
+    percentage->setValue(5000);
     QTest::keyClick(percentage, Qt::Key_Left);
-    QCOMPARE(percentage->value(), 50);
-    percentage->setValue(100);
+    QCOMPARE(percentage->value(), 5000);
+    percentage->setValue(10000);
     QTest::keyClick(percentage, Qt::Key_Right);
-    QCOMPARE(percentage->value(), 100);
+    QCOMPARE(percentage->value(), 10000);
+}
+
+// The slider stops at the scales that render a resolution people know, on
+// the largest screen, and moves in whole percents between them.
+void UpscaleConfigTest::snapsToKnownResolutions()
+{
+    const QList<int> scales = KWin::upscaleSnapScales(QSize(3840, 2160));
+    for (const int scale : {5000, 5333, 6667, 7500, 8333, 10000}) {
+        QVERIFY2(scales.contains(scale), qPrintable(QString::number(scale)));
+    }
+    QCOMPARE(KWin::desiredResolution({3840, 2160}, KWin::ResolutionPreset::Custom, 6667), (KWin::UpscaleSize{2560, 1440}));
+    QWidget parent;
+    auto *slider = new QSlider(Qt::Horizontal, &parent);
+    slider->setRange(5000, 10000);
+    slider->setSingleStep(100);
+    auto *field = new KWin::UpscaleSliderField(slider, &parent, 100);
+    field->setSnapPoints(scales, 100);
+    slider->setValue(6600);
+    QTest::keyClick(slider, Qt::Key_Right);
+    QCOMPARE(slider->value(), 6667);
+    QCOMPARE(field->field()->value(), 66.67);
+    QTest::keyClick(slider, Qt::Key_Right);
+    QCOMPARE(slider->value(), 6800);
+    // Typing is never snapped.
+    field->field()->setValue(66.5);
+    QCOMPARE(slider->value(), 6650);
 }
 
 void UpscaleConfigTest::saveAndRestore()
@@ -115,8 +159,10 @@ void UpscaleConfigTest::saveAndRestore()
     QVERIFY(sharpening);
     QVERIFY(strength);
     QVERIFY(!sharpening->isChecked());
-    QVERIFY(!strength->isEnabled());
-    percentage->setValue(73);
+    // Editable while sharpening is off: it is the strength a game that
+    // sharpens takes from here.
+    QVERIFY(strength->isEnabled());
+    percentage->setValue(7300);
     QComboBox *minimum = module.widget()->findChild<QComboBox *>(QStringLiteral("minimumPixels"));
     QVERIFY(minimum);
     // Typed the way a person writes it, with the x on their keyboard.
@@ -126,18 +172,23 @@ void UpscaleConfigTest::saveAndRestore()
     strength->setValue(0);
     module.save();
     const KConfigGroup saved(KSharedConfig::openConfig(QStringLiteral("kwinrc")), QStringLiteral("Effect-upscale"));
-    QCOMPARE(saved.readEntry("Preset", -1), 6);
+    // Written under its current name. The old Preset key numbered the same
+    // presets one higher, so storing under it would have been misread.
+    QCOMPARE(saved.readEntry("Resolution", -1), 5);
+    QVERIFY(!saved.hasKey("Preset"));
     QCOMPARE(saved.readEntry("Percentage", -1), 73);
     QCOMPARE(saved.readEntry("MinimumPixels", -1), 3686400);
     QCOMPARE(saved.readEntry("Strength", -1), 0);
     QCOMPARE(saved.readEntry("Sharpening", false), true);
     module.defaults();
-    QCOMPARE(preset->currentIndex(), 0);
+    // The default is Quality, index 2, not the first entry: see presetsAndKeyboard.
+    QCOMPARE(preset->currentIndex(), 2);
     QVERIFY(!sharpening->isChecked());
     module.load();
     QCOMPARE(KWin::upscaleResolutionPixels(minimum, -1), 3686400);
-    QCOMPARE(preset->currentIndex(), 6);
-    QCOMPARE(percentage->value(), 73);
+    // Custom, which is the last of six presets now that Automatic is gone.
+    QCOMPARE(preset->currentIndex(), 5);
+    QCOMPARE(percentage->value(), 7300);
     QVERIFY(sharpening->isChecked());
     QVERIFY(strength->isEnabled());
     QCOMPARE(strength->value(), 0);
@@ -152,7 +203,9 @@ void UpscaleConfigTest::displayDefaults()
     QCheckBox *statistics = module.widget()->findChild<QCheckBox *>(QStringLiteral("osdStatistics"));
     QCheckBox *developer = module.widget()->findChild<QCheckBox *>(QStringLiteral("osdDeveloper"));
     QSpinBox *timeout = module.widget()->findChild<QSpinBox *>(QStringLiteral("osdTimeout"));
-    QComboBox *position = module.widget()->findChild<QComboBox *>(QStringLiteral("osdPosition"));
+    QComboBox *announcementPosition = module.widget()->findChild<QComboBox *>(QStringLiteral("osdAnnouncementPosition"));
+    QComboBox *position = module.widget()->findChild<QComboBox *>(QStringLiteral("osdStatisticsPosition"));
+    QComboBox *developerPosition = module.widget()->findChild<QComboBox *>(QStringLiteral("osdDeveloperPosition"));
     QLabel *build = module.widget()->findChild<QLabel *>(QStringLiteral("build"));
     QVERIFY(build);
     // Built without the generated identity, as an upstream copy inside KWin
@@ -164,7 +217,9 @@ void UpscaleConfigTest::displayDefaults()
     QVERIFY(statistics);
     QVERIFY(developer);
     QVERIFY(timeout);
+    QVERIFY(announcementPosition);
     QVERIFY(position);
+    QVERIFY(developerPosition);
     // The announcement is on in both build types; the persistent views follow
     // the build configuration of this binary and nothing else.
     QVERIFY(detection->isChecked());
@@ -175,11 +230,33 @@ void UpscaleConfigTest::displayDefaults()
     // out, so a mode stays available whatever the other three are set to.
     QVERIFY(statistics->isEnabled());
     QVERIFY(developer->isEnabled());
-    // The corner belongs to the view it moves: there is nothing to place
-    // while that view is off, and the other two blocks have fixed corners.
+    // Each display starts in its own corner, leaving the fourth free for the
+    // interactive panel. A corner stays editable while its display is off: it
+    // is the corner a game that switches the display on takes from here.
+    QCOMPARE(announcementPosition->currentIndex(), int(KWin::UpscaleCorner::TopLeft));
     QCOMPARE(position->currentIndex(), int(KWin::UpscaleCorner::TopRight));
+    QCOMPARE(developerPosition->currentIndex(), int(KWin::UpscaleCorner::BottomRight));
     statistics->setChecked(false);
-    QVERIFY(!position->isEnabled());
+    QVERIFY(position->isEnabled());
+    statistics->setChecked(true);
+
+    // Choosing a corner another display holds moves that display to the next
+    // free one. The announcement takes the heads-up's corner; the heads-up
+    // steps on to the free corner rather than swapping into the vacated one.
+    announcementPosition->setCurrentIndex(int(KWin::UpscaleCorner::TopRight));
+    QCOMPARE(announcementPosition->currentIndex(), int(KWin::UpscaleCorner::TopRight));
+    QCOMPARE(position->currentIndex(), int(KWin::UpscaleCorner::BottomLeft));
+    QCOMPARE(developerPosition->currentIndex(), int(KWin::UpscaleCorner::BottomRight));
+
+    // Whatever is chosen, the three never name the same corner.
+    for (int corner = 0; corner < KWin::upscaleCornerCount; ++corner) {
+        developerPosition->setCurrentIndex(corner);
+        QCOMPARE(developerPosition->currentIndex(), corner);
+        QVERIFY2(announcementPosition->currentIndex() != position->currentIndex()
+                     && position->currentIndex() != developerPosition->currentIndex()
+                     && announcementPosition->currentIndex() != developerPosition->currentIndex(),
+                 "two displays were left holding the same corner");
+    }
     statistics->setChecked(true);
     QVERIFY(position->isEnabled());
 
@@ -203,7 +280,7 @@ void UpscaleConfigTest::displayDefaults()
     position->setCurrentIndex(int(KWin::UpscaleCorner::BottomLeft));
     QVERIFY(module.needsSave());
     module.save();
-    QCOMPARE(stored().readEntry("OsdPosition", -1), int(KWin::UpscaleCorner::BottomLeft));
+    QCOMPARE(stored().readEntry("OsdStatisticsPosition", -1), int(KWin::UpscaleCorner::BottomLeft));
     module.load();
     QCOMPARE(position->currentIndex(), int(KWin::UpscaleCorner::BottomLeft));
     module.defaults();
@@ -217,114 +294,22 @@ void UpscaleConfigTest::installedBuildVersion()
     const QLabel *build = module.widget()->findChild<QLabel *>(QStringLiteral("build"));
     QVERIFY(build);
 #if __has_include("buildinfo.h")
-    // Check the visible footer, including its field order and full base version.
-    // A snapshot package version is deliberately not the first field here.
-    const QString text = build->text();
-    QVERIFY(QRegularExpression(QStringLiteral("^[0-9]+\\.[0-9]+\\.[0-9]+ ")).match(text).hasMatch());
-    const QString revision = KWin::UpscaleBuildInfo::revision();
-    const QString branch = KWin::UpscaleBuildInfo::branch();
-    QCOMPARE(text, QStringLiteral("%1 %2 %3 %4").arg(KWin::UpscaleBuildInfo::baseVersion(), revision.isEmpty() ? QStringLiteral("unknown revision") : revision, KWin::UpscaleBuildInfo::buildDate(), branch.isEmpty() ? QStringLiteral("no branch or tag recorded") : branch));
+    // The version exactly as this repository's version rule names the build,
+    // and nothing else: the full record belongs to the log and the developer
+    // view, not to the settings page.
+    QCOMPARE(build->text(), KWin::UpscaleBuildInfo::version());
+    QVERIFY(QRegularExpression(QStringLiteral("^[0-9]+\\.[0-9]+\\.[0-9]+")).match(build->text()).hasMatch());
 #else
-    QCOMPARE(build->text(), QStringLiteral("unknown"));
+    QCOMPARE(build->text(), QStringLiteral("Unknown"));
 #endif
-}
-
-void UpscaleConfigTest::runningBuildStatus()
-{
-    TestEffects effects;
-    QDBusConnection bus = QDBusConnection::sessionBus();
-    QVERIFY(bus.isConnected());
-    QVERIFY(bus.registerService(QStringLiteral("org.kde.KWin")));
-    QVERIFY(bus.registerObject(QStringLiteral("/Effects"), &effects, QDBusConnection::ExportAllSlots));
-    effects.information = QStringLiteral("upscale:\nbuild: older-running-build\nstatus: Supplied input: 1280 × 720\nDestination: 2560 × 1440");
-    QWidget host;
-    KWin::UpscaleEffectConfig module(&host, KPluginMetaData());
-    QLabel *build = module.widget()->findChild<QLabel *>(QStringLiteral("build"));
-    QLabel *status = module.widget()->findChild<QLabel *>(QStringLiteral("status"));
-    QPushButton *refresh = module.widget()->findChild<QPushButton *>(QStringLiteral("refreshStatus"));
-    QVERIFY(build);
-    QVERIFY(status);
-    QVERIFY(refresh);
-    QTRY_VERIFY(build->text().contains(QStringLiteral("Running in KWin: older-running-build")));
-    QCOMPARE(status->text(), QStringLiteral("Supplied input: 1280 × 720\nDestination: 2560 × 1440"));
-
-#if __has_include("buildinfo.h")
-    const QString installed = KWin::UpscaleBuildInfo::describe();
-    effects.information = QStringLiteral("upscale:\nbuild: %1\nstatus: Matching build").arg(installed);
-    refresh->click();
-    QTRY_COMPARE(status->text(), QStringLiteral("Matching build"));
-    QVERIFY(!build->text().contains(QStringLiteral("Running in KWin:")));
-    // A rebuild can keep the version while changing other identity fields.
-    // None of those builds may be mistaken for the installed module.
-    const QStringList alternatives = {
-        installed + QStringLiteral(" (other branch)"),
-        installed + QStringLiteral(", built another day"),
-        installed + QStringLiteral(", Qt another version"),
-    };
-    for (const QString &identity : alternatives) {
-        effects.information = QStringLiteral("upscale:\nbuild: %1\nstatus: %1").arg(identity);
-        refresh->click();
-        QTRY_COMPARE(status->text(), identity);
-        QVERIFY(build->text().contains(QStringLiteral("Running in KWin: %1").arg(identity)));
-    }
-#endif
-
-    // Older effects can return status without a build property. That does not
-    // establish that the running effect matches the package now installed.
-    effects.information = QStringLiteral("upscale:\nstatus: No build identity available");
-    refresh->click();
-    QTRY_COMPARE(status->text(), QStringLiteral("No build identity available"));
-    QVERIFY(build->text().contains(QStringLiteral("Running in KWin: unknown")));
-    QVERIFY(!build->text().contains(QStringLiteral("older-running-build")));
-
-    effects.information = QStringLiteral("upscale:\nbuild: refreshed-running-build\nstatus: Updated");
-    refresh->click();
-    QTRY_COMPARE(status->text(), QStringLiteral("Updated"));
-    QVERIFY(build->text().contains(QStringLiteral("refreshed-running-build")));
-    effects.information.clear();
-    refresh->click();
-    QTRY_VERIFY(status->text().startsWith(QStringLiteral("Live status unavailable")));
-    QVERIFY(build->text().contains(QStringLiteral("Running in KWin: unknown")));
-    QVERIFY(!build->text().contains(QStringLiteral("refreshed-running-build")));
-
-    // Losing the service after a successful reply must clear the old identity
-    // just as an empty reply does.
-    effects.information = QStringLiteral("upscale:\nbuild: stale-running-build\nstatus: Available");
-    refresh->click();
-    QTRY_COMPARE(status->text(), QStringLiteral("Available"));
-    bus.unregisterObject(QStringLiteral("/Effects"));
-    QVERIFY(bus.unregisterService(QStringLiteral("org.kde.KWin")));
-    refresh->click();
-    QTRY_VERIFY(status->text().startsWith(QStringLiteral("Live status unavailable")));
-    QVERIFY(build->text().contains(QStringLiteral("Running in KWin: unknown")));
-    QVERIFY(!build->text().contains(QStringLiteral("stale-running-build")));
-}
-
-void UpscaleConfigTest::readsWhatTheCompositorReported()
-{
-    // Exactly the shape KWin's supportInformation produces for this effect.
-    const QString reported = QStringLiteral("upscale:\nbuild: upscale 0.1.0 (branch test), built now\n"
-                                            "status: Desired: Automatic (no request)\nSupplied input: 1280 × 720\n"
-                                            "Inactive: the window is not fullscreen.\n");
-    QString loaded;
-    const QString status = KWin::upscaleReportedStatus(reported, &loaded);
-    QCOMPARE(loaded, QStringLiteral("upscale 0.1.0 (branch test), built now"));
-    QVERIFY2(status.startsWith(QStringLiteral("Desired: Automatic")), qPrintable(status));
-    QVERIFY(status.contains(QStringLiteral("Inactive: the window is not fullscreen.")));
-    // Neither the effect's name nor the property names belong on the page.
-    QVERIFY(!status.contains(QStringLiteral("upscale:")));
-    QVERIFY(!status.contains(QStringLiteral("status:")));
-    QVERIFY(!status.contains(QStringLiteral("build:")));
-
-    // An effect built without the generated identity reports no build, and the
-    // status still has to come through.
-    QCOMPARE(KWin::upscaleReportedStatus(QStringLiteral("upscale:\nstatus: nothing to report\n"), &loaded),
-             QStringLiteral("nothing to report"));
-    QVERIFY(loaded.isEmpty());
-    loaded = QStringLiteral("stale build identity");
-    QCOMPARE(KWin::upscaleReportedStatus(QString(), &loaded), QString());
-    QVERIFY(loaded.isEmpty());
-    QCOMPARE(KWin::upscaleReportedStatus(QString(), nullptr), QString());
+    // The author comes from the effect's metadata, found by plugin ID beside
+    // this test in the build tree, and is not repeated in the page's code.
+    const QLabel *author = module.widget()->findChild<QLabel *>(QStringLiteral("author"));
+    QVERIFY2(author, "no author row: the effect's metadata was not found");
+    QCOMPARE(author->text(), QStringLiteral("Jens Köhler"));
+    // Nothing reports the running effect any more.
+    QVERIFY(!module.widget()->findChild<QLabel *>(QStringLiteral("status")));
+    QVERIFY(!module.widget()->findChild<QPushButton *>(QStringLiteral("refreshStatus")));
 }
 
 int main(int argc, char **argv)

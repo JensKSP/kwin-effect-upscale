@@ -12,23 +12,61 @@
 #include <QDBusConnection>
 #include <QDBusInterface>
 #include <QDBusReply>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QSaveFile>
 #include <QTest>
 
-// Three hosted failures in this file have reported only that a wait timed out.
-// What actually decided the outcome is the effect, and it publishes its reasons
-// in the status the settings page reads; QTRY_COMPARE has no message form, so
-// none of that reached the log and each failure had to be guessed at. This says
-// what was seen, what was wanted, and what the effect thought, which is the
-// difference between a diagnosable failure and another round of guessing.
-#define UPSCALE_TRY_GEOMETRY(client, expected)                                           \
-    QTRY_VERIFY2_WITH_TIMEOUT((client).geometry() == (expected),                         \
-                              qPrintable(QStringLiteral("have %1, wanted %2\n%3")        \
-                                             .arg(QDebug::toString((client).geometry()), \
-                                                  QDebug::toString(expected),            \
-                                                  status())),                            \
-                              30000)
+// Waits for the window to reach a geometry, recording every geometry it passes
+// through on the way, so that a failure says what was seen rather than only
+// that a wait ran out.
+//
+// Not QTRY_*, and for a measured reason: its verdict counts 50 ms steps, not
+// time, and a condition that holds at one step and fails at the next is not
+// told apart from one that never held. Three hosted failures reported "the
+// requested timeout (30000 ms) was too short, 33050 ms would have been
+// sufficient" and were read as a slow machine; the same verdict, reproduced
+// on 2026-09-21 in a run whose whole suite took 63 s, came from a window that
+// changed size twice within 35 ms and settled 3.1 s later. Polling every
+// 10 ms keeps such a transient in the record.
+static bool waitForGeometry(const X11Client &client, const QRect &expected, QString *seen)
+{
+    QElapsedTimer clock;
+    clock.start();
+    QRect last;
+    while (true) {
+        const QRect now = client.geometry();
+        if (now != last) {
+            seen->append(QStringLiteral("%1 ms: %2\n").arg(clock.elapsed()).arg(QDebug::toString(now)));
+            last = now;
+        }
+        if (now == expected) {
+            return true;
+        }
+        if (clock.elapsed() >= 30000) {
+            return false;
+        }
+        QTest::qWait(10);
+    }
+}
+
+// What was wanted, what was seen and when, and what the effect thought: the
+// effect publishes its reasons in the status the settings page reads, and a
+// failure that does not carry them has to be guessed at.
+#define UPSCALE_TRY_GEOMETRY(client, expected)                                                                        \
+    do {                                                                                                              \
+        QString seen;                                                                                                 \
+        QVERIFY2(waitForGeometry((client), (expected), &seen),                                                        \
+                 qPrintable(QStringLiteral("wanted %1, saw\n%2%3").arg(QDebug::toString(expected), seen, status()))); \
+    } while (false)
+
+// Waits until the effect has nothing in flight for any X11 window: no restore,
+// no request waiting to be sent, no client still to withdraw its mode. A
+// geometry that already matches before a reconfiguration says nothing about
+// what the reconfiguration did, so a case judges it only after this. Bounded
+// by the withdrawal fallback plus the nightly's slowest runner.
+#define UPSCALE_TRY_SETTLED() \
+    QTRY_VERIFY2_WITH_TIMEOUT(status().contains(QStringLiteral("x11Settled: true")), qPrintable(status()), 30000)
 
 class UpscaleX11IntegrationTest : public QObject
 {
@@ -45,11 +83,20 @@ private Q_SLOTS:
     void respectsPrimaryOutputRestriction();
     void retriesADroppedResizeOnce();
     void independentOutputRules();
+    void matchesTheProgramBehindTheWindow();
+    void autoResizesAnUnmeasuredX11Window();
     void repeatedFullscreenTransitions();
 
 private:
+    // The global resolution as kwinrc stores it, spelled out rather than taken
+    // from the plugin: the stored number is the contract this test drives.
+    enum class Stored {
+        Quality = 2,
+        Balanced = 3,
+        Performance = 4,
+    };
     QString status();
-    void configure(bool enabled, int preset = 5);
+    void configure(bool enabled, Stored resolution = Stored::Performance);
     void movePointer(const QPoint &position);
     QDBusInterface m_effects{QStringLiteral("org.kde.KWin"), QStringLiteral("/Effects"),
                              QStringLiteral("org.kde.kwin.Effects"), QDBusConnection::sessionBus()};
@@ -61,14 +108,23 @@ QString UpscaleX11IntegrationTest::status()
     return reply.isValid() ? reply.value() : reply.error().message();
 }
 
-void UpscaleX11IntegrationTest::configure(bool enabled, int preset)
+// The window under test is claimed by the catalogue entry init() writes while
+// @p enabled, so the global profile's own participation does not decide
+// whether it acts. Switching the entry off is how a case stops the requests:
+// the effect then acts on the window no more, which is the same condition the
+// request path tests, and the case's own edits to the entry stay as they are.
+// The entry states no resolution, so the global one each case sets reaches it.
+void UpscaleX11IntegrationTest::configure(bool enabled, Stored resolution)
 {
+    const KSharedConfig::Ptr catalogue = KSharedConfig::openConfig(QStringLiteral("kwinupscalerc"));
+    catalogue->reparseConfiguration();
+    KConfigGroup entry(catalogue, QStringLiteral("Application-test"));
+    entry.writeEntry("Enabled", enabled);
+    entry.sync();
     const KSharedConfig::Ptr config = KSharedConfig::openConfig(QStringLiteral("kwinrc"));
     KConfigGroup group(config, QStringLiteral("Effect-upscale"));
-    group.writeEntry("Enabled", true);
-    group.writeEntry("ResolutionControl", enabled);
     group.writeEntry("Osd", false);
-    group.writeEntry("Preset", preset);
+    group.writeEntry("Resolution", int(resolution));
     group.writeEntry("MinimumPixels", 1920 * 1080);
     group.sync();
     const QDBusMessage reply = m_effects.call(QStringLiteral("reconfigureEffect"), QStringLiteral("upscale_test_driver"));
@@ -80,8 +136,14 @@ void UpscaleX11IntegrationTest::init()
     QTRY_VERIFY(m_effects.isValid());
     QFile catalogue(QString::fromLocal8Bit(qgetenv("XDG_CONFIG_HOME")) + QStringLiteral("/kwinupscalerc"));
     QVERIFY(catalogue.open(QIODevice::WriteOnly | QIODevice::Truncate));
-    QVERIFY(catalogue.write("[Application-test]\nName=X11 test\nWindowClass=upscale-x11-test\nMethod=X11Resize\nPreset=Performance\n") > 0);
+    // Measured for both X11 presentations the cases below drive, and stating
+    // no resolution of its own: a resolution here would pin this game and the
+    // global value each case sets would never reach it.
+    QVERIFY(catalogue.write("[Application-test]\nName=X11 test\nWindowClass=upscale-x11-test\n"
+                            "MethodX11FullScreen=X11Resize\nMethodX11Borderless=X11Resize\n")
+            > 0);
     catalogue.close();
+    KSharedConfig::openConfig(QStringLiteral("kwinupscalerc"))->reparseConfiguration();
     const QDBusReply<bool> loaded = m_effects.call(QStringLiteral("loadEffect"), QStringLiteral("upscale_test_driver"));
     QVERIFY(loaded.isValid() && loaded.value());
     configure(false);
@@ -133,19 +195,29 @@ void UpscaleX11IntegrationTest::lifecycle()
     // acknowledge fullscreen before checking the final monitor placement.
     QTRY_VERIFY_WITH_TIMEOUT(other.isFullscreen(), 10000);
     QTRY_COMPARE(other.geometry(), otherGeometry);
+    // The client's own resize is refused while the request stands, and the
+    // refusal is answered: the effect tells the client the size it really
+    // has, as ICCCM 4.1.5 asks of a window manager. The comparison waits for
+    // that answer, because a fixed delay only checked how fast KWin read the
+    // request: whenever it had not read it yet, the comparison passed on a
+    // window nothing had touched, and the request then reached KWin after
+    // the reconfiguration below had handed the window back. Measured on
+    // 2026-09-21 on KWin 6.6.6: KWin answered such a late request with the
+    // client geometry it had last configured, 1920 x 1080, and this client
+    // selected that mode again and kept it.
+    const int answered = target.configureNotifies();
     target.resize(QSize(1600, 900));
-    QTest::qWait(100);
+    QTRY_VERIFY_WITH_TIMEOUT(target.configureNotifies() > answered, 30000);
     QCOMPARE(target.geometry(), QRect(position, QSize(1920, 1080)));
     QCOMPARE(other.geometry(), otherGeometry);
-    configure(true, 3);
-    // Changing the preset asks the client for another size, and on KWin 6.6
-    // that first request fails its validation: the documented single retry is
-    // what recovers it, and the retry costs the whole path - validation 3 s
-    // after the request, a restore and reschedule 250 ms later, and validation
-    // of the new request 3 s after that. Measured on Ubuntu 26.04 / KWin
-    // 6.6.6, where QtTest reported that 8300 ms would have sufficed against
-    // the 5000 ms default; KWin 6.3.6 satisfies the request immediately. Wait
-    // out the retry rather than the moment 6.3.6 happens to answer in.
+    configure(true, Stored::Quality);
+    // Changing the resolution releases the window and asks the client for
+    // another size. Until 2026-09-21 that request was undone on KWin 6.6 by the
+    // client's withdrawal of its previous mode reaching KWin after the
+    // request, and only the validation's retry held - 8.3 s measured against
+    // the 5000 ms default. The effect now waits for the withdrawal before it
+    // asks, so this is a round trip again; the bound stays generous because a
+    // generous bound costs a passing run nothing.
     UPSCALE_TRY_GEOMETRY(target, QRect(position, QSize(2560, 1440)));
     QTest::qWait(3500);
     QCOMPARE(target.geometry(), QRect(position, QSize(2560, 1440)));
@@ -280,7 +352,7 @@ void UpscaleX11IntegrationTest::refusesUnavailableMode()
     QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), native));
     QTRY_VERIFY_WITH_TIMEOUT(target.isFullscreen(), 10000);
     QTRY_COMPARE(target.geometry(), native);
-    configure(true, 4); // Balanced is 2259 × 1271, absent from this output's modes.
+    configure(true, Stored::Balanced); // Balanced is 2259 × 1271, absent from this output's modes.
     QTRY_VERIFY2(status().contains(QStringLiteral("requested X11 mode is unavailable")), qPrintable(status()));
     QCOMPARE(target.geometry(), native);
     configure(true);
@@ -363,8 +435,8 @@ void UpscaleX11IntegrationTest::independentOutputRules()
     const KSharedConfig::Ptr catalogue = KSharedConfig::openConfig(QStringLiteral("kwinupscalerc"));
     KConfigGroup second(catalogue, QStringLiteral("Application-second"));
     second.writeEntry("WindowClass", "second-x11-test");
-    second.writeEntry("Method", "X11Resize");
-    second.writeEntry("Preset", "Native");
+    second.writeEntry("MethodX11FullScreen", "X11Resize");
+    second.writeEntry("Resolution", "Native");
     second.sync();
     X11Client first;
     X11Client other;
@@ -374,26 +446,27 @@ void UpscaleX11IntegrationTest::independentOutputRules()
     QTRY_VERIFY_WITH_TIMEOUT(other.isFullscreen(), 10000);
     QTRY_COMPARE(first.geometry().size(), QSize(3840, 2160));
     QTRY_COMPARE(other.geometry().size(), QSize(3840, 2160));
-    configure(true); // Global Performance must not override the Native rule.
-    QTRY_COMPARE(first.geometry().size(), QSize(1920, 1080));
+    configure(true); // A profile's own Native is its answer, whatever the global resolution.
+    UPSCALE_TRY_SETTLED();
+    UPSCALE_TRY_GEOMETRY(first, QRect(0, 0, 1920, 1080));
     QTRY_VERIFY(status().contains(QStringLiteral("captured: upscale-x11-test")));
     QCOMPARE(other.geometry(), QRect(3840, 0, 3840, 2160));
 
-    second.writeEntry("Preset", "Performance");
+    second.writeEntry("Resolution", "Performance");
     second.writeEntry("MinimumPixels", 3840 * 2160); // Equality bypasses.
     second.sync();
     configure(true);
     // Reconfiguring restores every managed window before applying the rules
     // again, so the window this rule does not concern leaves its reduced mode
-    // and returns to it. On KWin 6.6 the request that follows that restore
-    // fails its validation and the documented single retry is what recovers
-    // it: validation runs 3 s after a request, the retry restores and
-    // reschedules 250 ms later, and that request is validated 3 s after that.
-    // Measured at about 8.1 s on Ubuntu 26.04, against well under 500 ms on
-    // 6.3.6. Allow the whole retry path rather than a fixed delay, then give
-    // the rule its own delay to resize the other window wrongly, which is
-    // what this is watching for.
-    QTRY_COMPARE_WITH_TIMEOUT(first.geometry().size(), QSize(1920, 1080), 30000);
+    // and returns to it. The request that follows the restore waits for the
+    // client to withdraw its previous mode; before it did, KWin 6.6 undid it
+    // and only the validation's retry held, measured at about 8.1 s. The first
+    // window is already at the reduced size before any of that happens, so
+    // its geometry is judged only once the effect has finished: then every
+    // request this configuration makes has been sent, and a wrong one for the
+    // other window would already be on its way.
+    UPSCALE_TRY_SETTLED();
+    UPSCALE_TRY_GEOMETRY(first, QRect(0, 0, 1920, 1080));
     QTest::qWait(500);
     QCOMPARE(other.geometry(), QRect(3840, 0, 3840, 2160));
     QCOMPARE(first.geometry().size(), QSize(1920, 1080));
@@ -401,8 +474,9 @@ void UpscaleX11IntegrationTest::independentOutputRules()
     second.writeEntry("MinimumPixels", 1920 * 1080);
     second.sync();
     configure(true);
-    QTRY_COMPARE(other.geometry(), QRect(3840, 0, 1920, 1080));
-    QTRY_COMPARE(first.geometry().size(), QSize(1920, 1080));
+    UPSCALE_TRY_SETTLED();
+    UPSCALE_TRY_GEOMETRY(other, QRect(3840, 0, 1920, 1080));
+    UPSCALE_TRY_GEOMETRY(first, QRect(0, 0, 1920, 1080));
     QTRY_VERIFY2(status().contains(QStringLiteral("captured: upscale-x11-test,second-x11-test"))
                      || status().contains(QStringLiteral("captured: second-x11-test,upscale-x11-test")),
                  qPrintable(status()));
@@ -410,11 +484,68 @@ void UpscaleX11IntegrationTest::independentOutputRules()
     QCOMPARE(other.geometry(), QRect(3840, 0, 1920, 1080));
     QCOMPARE(first.geometry().size(), QSize(1920, 1080));
 
-    second.writeEntry("Preset", "Native");
+    second.writeEntry("Resolution", "Native");
     second.sync();
     configure(true);
-    QTRY_COMPARE(other.geometry(), QRect(3840, 0, 3840, 2160));
-    QTRY_COMPARE(first.geometry().size(), QSize(1920, 1080));
+    UPSCALE_TRY_SETTLED();
+    UPSCALE_TRY_GEOMETRY(other, QRect(3840, 0, 3840, 2160));
+    UPSCALE_TRY_GEOMETRY(first, QRect(0, 0, 1920, 1080));
+}
+
+// Gate 1 for an X11 window: the path KWin resolves from the window's PID,
+// here this test's own executable. KWin 6.3 takes that PID from the
+// _NET_WM_PID the client reports, which is why this window reports one; by 6.6
+// KWin asks the X server instead, which knows it from the connection itself.
+// Either way the path is the program's, so the entry claims the window while
+// it names this program and lets it go once it names another.
+//
+// Letting go is judged by what the effect says, not by the geometry after it:
+// where the window ends up is then KWin's and the client's business. This
+// client mirrors every resize into its RandR mode, and on KWin 6.6, which
+// sizes an X11 window to its client's emulated mode, it was observed to end
+// at the reduced size after the effect had already handed it back.
+void UpscaleX11IntegrationTest::matchesTheProgramBehindTheWindow()
+{
+    const KSharedConfig::Ptr catalogue = KSharedConfig::openConfig(QStringLiteral("kwinupscalerc"));
+    KConfigGroup entry(catalogue, QStringLiteral("Application-test"));
+    entry.writeEntry("Executable", ".*/upscale_x11_integration_test");
+    entry.writeEntry("ExecutableMatch", "RegularExpression");
+    entry.sync();
+    X11Client target;
+    target.reportProcess();
+    QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 3840, 2160)));
+    QTRY_VERIFY_WITH_TIMEOUT(target.isFullscreen(), 10000);
+    QTRY_COMPARE(target.geometry().size(), QSize(3840, 2160));
+    configure(true);
+    UPSCALE_TRY_SETTLED();
+    UPSCALE_TRY_GEOMETRY(target, QRect(0, 0, 1920, 1080));
+
+    entry.writeEntry("Executable", ".*/another_program");
+    entry.sync();
+    configure(true);
+    UPSCALE_TRY_SETTLED();
+    QTRY_VERIFY2(status().contains(QStringLiteral("not in the list")), qPrintable(status()));
+    QVERIFY2(!status().contains(QStringLiteral("requested from")), qPrintable(status()));
+}
+
+// Auto on X11: an entry that states no method for the X11 fullscreen slot has
+// nobody's measurement there, which reads as Auto, and on X11 Auto is the
+// resize with its validation. The window is already there to be asked, and a
+// request that loses coverage is put back.
+void UpscaleX11IntegrationTest::autoResizesAnUnmeasuredX11Window()
+{
+    const KSharedConfig::Ptr catalogue = KSharedConfig::openConfig(QStringLiteral("kwinupscalerc"));
+    KConfigGroup entry(catalogue, QStringLiteral("Application-test"));
+    entry.deleteEntry("MethodX11FullScreen");
+    entry.sync();
+    X11Client target;
+    QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 3840, 2160)));
+    QTRY_VERIFY_WITH_TIMEOUT(target.isFullscreen(), 10000);
+    QTRY_COMPARE(target.geometry().size(), QSize(3840, 2160));
+    configure(true);
+    UPSCALE_TRY_SETTLED();
+    UPSCALE_TRY_GEOMETRY(target, QRect(0, 0, 1920, 1080));
+    QTRY_VERIFY2(status().contains(QStringLiteral("as its X11 window size")), qPrintable(status()));
 }
 
 QTEST_GUILESS_MAIN(UpscaleX11IntegrationTest)

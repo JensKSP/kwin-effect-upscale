@@ -7,7 +7,8 @@
 #include "modeoverride.h"
 
 #include "compatibility.h"
-#include "upscaleconfig.h"
+#include "matching.h"
+#include "settings.h"
 
 #include "effect/effecthandler.h"
 #include "wayland/clientconnection.h"
@@ -52,7 +53,7 @@ bool UpscaleModeOverride::available()
     return waylandServer() && waylandServer()->display();
 }
 
-void UpscaleModeOverride::reconfigure(bool enabled, ResolutionPreset preset, int percentage)
+void UpscaleModeOverride::reconfigure()
 {
     // Every reconfiguration can change what would be asked for: the preset,
     // the percentage, or an edit to the application list, which this class
@@ -60,12 +61,9 @@ void UpscaleModeOverride::reconfigure(bool enabled, ResolutionPreset preset, int
     // taken. The games already running will not read it, but a client that
     // binds the output again, and the next thing that inspects these
     // resources, would otherwise see a mode this effect no longer asks for.
-    if (!m_announced.isEmpty() || !enabled) {
-        restore(enabled ? Record::Keep : Record::Discard);
+    if (!m_announced.isEmpty()) {
+        restore(Record::Keep);
     }
-    m_enabled = enabled;
-    m_preset = preset;
-    m_percentage = percentage;
 }
 
 QSize UpscaleModeOverride::advertised(const ClientConnection *client, const QString &output) const
@@ -108,26 +106,25 @@ void UpscaleModeOverride::watchOutput(OutputInterface *output)
 // the integer scale that goes with it. A zero scale means the size stands on
 // its own as a mode; an empty size means there is nothing worth saying.
 UpscaleModeOverride::Advertisement UpscaleModeOverride::advertisementFor(OutputInterface *output,
-                                                                         const UpscaleApplication &application) const
+                                                                         const UpscaleSettings &settings,
+                                                                         UpscaleMethod method)
 {
     UpscaleOutput *handle = output->handle();
     if (!handle) {
         return {};
     }
     const QSize pixels = handle->pixelSize();
-    const int minimum = application.minimumPixels < 0 ? UpscaleConfig::minimumPixels() : application.minimumPixels;
-    if (!exceedsMinimumPixels({pixels.width(), pixels.height()}, minimum)) {
+    if (!exceedsMinimumPixels({pixels.width(), pixels.height()}, settings.value(UpscaleSetting::MinimumPixels))) {
         return {};
     }
-    // Automatic follows the profile. Native in either place is an opt-out,
-    // so a global percentage cannot undo a rule to leave this client alone.
-    const ResolutionPreset preset = effectiveResolutionPreset(m_preset, application.preset);
+    const ResolutionPreset preset = settings.resolution();
+    const int percentage = settings.value(UpscaleSetting::Percentage);
     const UpscaleSize destination{pixels.width(), pixels.height()};
-    if (application.method == UpscaleControlMethod::AdvertisedMode) {
+    if (method == UpscaleMethod::AdvertisedMode) {
         // This kind of client presents whatever size it picked through a
         // viewport that still covers the screen, so any calculated size is
         // reachable and the wish needs no adjusting.
-        const UpscaleSize desired = desiredResolution(destination, preset, m_percentage);
+        const UpscaleSize desired = desiredResolution(destination, preset, percentage);
         const QSize size(desired.width, desired.height);
         // Advertising the size the output already has says nothing, and the
         // scaler would have nothing to enlarge either.
@@ -135,7 +132,7 @@ UpscaleModeOverride::Advertisement UpscaleModeOverride::advertisementFor(OutputI
     }
     // The other methods move a client only in whole steps of the output's own
     // scale, so the wish is answered with the nearest step that is reachable.
-    const int scale = reachableScale(destination, handle->scale(), preset, m_percentage);
+    const int scale = reachableScale(destination, handle->scale(), preset, percentage);
     if (scale <= 0) {
         return {};
     }
@@ -145,15 +142,36 @@ UpscaleModeOverride::Advertisement UpscaleModeOverride::advertisementFor(OutputI
 
 void UpscaleModeOverride::announce(OutputInterface *output, ClientConnection *client, wl_resource *resource)
 {
-    if (!m_enabled || !client || !resource) {
+    if (!client || !resource) {
         return;
     }
-    const UpscaleApplication *application = upscaleApplicationForProgram(client->executablePath());
-    if (!application || application->method == UpscaleControlMethod::None
-        || application->method == UpscaleControlMethod::X11Resize) {
+    // The profile the program's path selects, or none. With none, the global
+    // profile answers - which is what switching on unlisted applications and
+    // giving the global profile a method is for - through the same code. A
+    // path claimed by a profile that also names a window does not decide
+    // yet, and nothing is advertised: that profile may still claim the
+    // window, and an advertisement cannot be taken back.
+    const UpscaleBindAnswer answer = upscaleApplicationAtBind(client->executablePath());
+    if (!answer.decided) {
         return;
     }
-    const Advertisement advertisement = advertisementFor(output, *application);
+    const UpscaleApplication *application = answer.application;
+    const UpscaleSettings settings = upscaleResolveSettings(application);
+    if (!settings.acts()) {
+        return;
+    }
+    // What is said before the window exists comes from the fullscreen slot;
+    // upscaleAdvertisedPresentation() carries why that one and not a coin
+    // toss between the two Wayland answers. Auto says nothing here at all: an
+    // advertisement made before the window exists cannot be taken back, so
+    // Auto waits and uses the lever that can be undone.
+    const auto slot = std::size_t(upscaleAdvertisedPresentation());
+    const UpscaleMethod method = application ? application->methods[slot] : upscaleGlobalMethods()[slot];
+    if (method == UpscaleMethod::Auto || method == UpscaleMethod::Off
+        || method == UpscaleMethod::X11Resize) {
+        return;
+    }
+    const Advertisement advertisement = advertisementFor(output, settings, method);
     if (advertisement.size.isEmpty()) {
         return;
     }
@@ -166,7 +184,7 @@ void UpscaleModeOverride::announce(OutputInterface *output, ClientConnection *cl
     if (advertisement.scale > 0 && version < WL_OUTPUT_SCALE_SINCE_VERSION) {
         return;
     }
-    if (application->method != UpscaleControlMethod::AdvertisedScale) {
+    if (method != UpscaleMethod::AdvertisedScale) {
         // The refresh rate stays the output's own. Only the size is in
         // question here, and a program that takes its frame pacing from this
         // should get the rate the screen actually runs at.
@@ -180,7 +198,10 @@ void UpscaleModeOverride::announce(OutputInterface *output, ClientConnection *cl
     if (version >= WL_OUTPUT_DONE_SINCE_VERSION) {
         wl_output_send_done(resource);
     }
-    m_announced.append({output, client, application->program});
+    // Recorded by the program's file name, whichever profile spoke, so that
+    // restoring and reporting do not have to know which one it was.
+    const QString program = client->executablePath().section(QLatin1Char('/'), -1);
+    m_announced.append({output, client, program});
     if (!m_advertised.contains(client)) {
         connect(client, &QObject::destroyed, this, [this, client]() {
             m_advertised.remove(client);
@@ -189,7 +210,7 @@ void UpscaleModeOverride::announce(OutputInterface *output, ClientConnection *cl
     // A later instance of the same executable may have seen a different policy.
     m_advertised[client][handle->name()] = advertisement.size;
     qCDebug(KWIN_UPSCALE, "advertised %dx%d scale %d to %s", advertisement.size.width(),
-            advertisement.size.height(), advertisement.scale, qPrintable(application->name));
+            advertisement.size.height(), advertisement.scale, qPrintable(application ? application->name : program));
 }
 
 void UpscaleModeOverride::restore(Record record)

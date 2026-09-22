@@ -8,31 +8,68 @@ SPDX-License-Identifier: GPL-2.0-or-later
       xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0 http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
     <include>buildtype.h</include>
     <kcfgfile name="kwinrc"/>
+    <!-- The global profile: the one with no identity, which every other
+         profile inherits from and which acts on the windows no profile
+         claimed. Its preferences are the defaults a game profile follows
+         where it states nothing of its own; the table in settings.h says
+         which entry here belongs to which preference. -->
     <group name="Effect-upscale">
-        <entry name="Enabled" type="Bool"><default>true</default></entry>
-        <entry name="Preset" type="Int"><default>0</default><min>0</min><max>6</max></entry>
-        <entry name="Percentage" type="Int"><default>67</default><min>50</min><max>100</max></entry>
+        <!-- Whether the global profile acts on a window no profile claimed.
+             Off, because nothing is known about a program nobody measured:
+             out of the box only the games in the catalogue are touched.
+             Switching it off never stops this group supplying the values
+             other profiles inherit; participation and inheritance are
+             separate questions.
+
+             This replaces Enabled, which meant "the effect works at all".
+             The name is deliberately different so that a stored Enabled
+             cannot be read under the new meaning. The overall off switch is
+             KWin's own Desktop Effects entry. -->
+        <entry name="UnlistedApplications" type="Bool"><default>false</default></entry>
+        <!-- Named Resolution, not Preset. ResolutionPreset lost Automatic, so
+             every value after it shifted by one, and a stored Preset=3 means
+             Balanced to the old build and Performance to this one. A new key
+             cannot be misread by either. -->
+        <entry name="Resolution" type="Int"><default>2</default><min>0</min><max>5</max></entry>
+        <entry name="Percentage" type="Double"><default>66.67</default><min>50</min><max>100</max></entry>
         <entry name="MinimumPixels" type="Int"><default>2073600</default><min>0</min></entry>
         <entry name="Sharpening" type="Bool"><default>false</default></entry>
         <entry name="Strength" type="Int"><default>50</default><min>0</min><max>100</max></entry>
-        <entry name="ResolutionControl" type="Bool"><default>true</default></entry>
-        <entry name="UnknownApplications" type="Bool"><default>false</default></entry>
-        <!-- Kept on, and no longer offered in the settings: the four
-             displays below each switch themselves, and all four off already
-             means nothing is drawn, so a switch above them only said the
-             same thing twice. It remains readable here so that a session
-             can still be started with the display out of the way without
-             the four choices being lost. -->
+        <!-- What the global profile says to a program no profile claimed, one
+             answer per way the program can present itself. Off throughout,
+             because a method is a measurement and nobody has measured an
+             unlisted program: the global profile enlarges what such a program
+             commits by itself and asks it for nothing. Auto here is a
+             deliberate choice a person makes, not a default they inherit.
+
+             Spelled as names rather than numbers so that this file reads the
+             way kwinupscalerc does, and parsed by the same reader. -->
+        <entry name="MethodWaylandFullScreen" type="String"><default>Off</default></entry>
+        <entry name="MethodWaylandBorderless" type="String"><default>Off</default></entry>
+        <entry name="MethodWaylandWindowed" type="String"><default>Off</default></entry>
+        <entry name="MethodX11FullScreen" type="String"><default>Off</default></entry>
+        <entry name="MethodX11Borderless" type="String"><default>Off</default></entry>
+        <entry name="MethodX11Windowed" type="String"><default>Off</default></entry>
+        <!-- Kept on, and not offered in the settings: the four displays below
+             each switch themselves, and all four off already means nothing is
+             drawn, so a switch above them only said the same thing twice. It
+             remains readable here so that a session can still be started with
+             the display out of the way without the four choices being lost. -->
         <entry name="Osd" type="Bool"><default>true</default></entry>
         <entry name="OsdDetection" type="Bool"><default>true</default></entry>
         <entry name="OsdSummary" type="Bool"><default>true</default></entry>
         <entry name="OsdStatistics" type="Bool"><default code="true">KWin::upscaleDebugBuild</default></entry>
         <entry name="OsdDeveloper" type="Bool"><default code="true">KWin::upscaleDebugBuild</default></entry>
-        <!-- Which corner the persistent view occupies, in the order the
-             settings list them: top left, top right, bottom left, bottom
-             right. The timed message and the developer dump have fixed
-             corners of their own. -->
-        <entry name="OsdPosition" type="Int"><default>1</default><min>0</min><max>3</max></entry>
+        <!-- Which corner each display occupies, in the order the settings
+             list them: top left, top right, bottom left, bottom right. The
+             three are always distinct, so no two displays can be drawn over
+             one another; the settings move a displaced display out of the
+             way, and the effect separates them again when it reads a file
+             that was edited by hand. Bottom left is left free by default for
+             the interactive panel, which takes the fourth corner. -->
+        <entry name="OsdAnnouncementPosition" type="Int"><default>0</default><min>0</min><max>3</max></entry>
+        <entry name="OsdStatisticsPosition" type="Int"><default>1</default><min>0</min><max>3</max></entry>
+        <entry name="OsdDeveloperPosition" type="Int"><default>3</default><min>0</min><max>3</max></entry>
         <entry name="OsdTimeout" type="Int"><default>3</default><min>1</min><max>60</max></entry>
     </group>
 </kcfg>

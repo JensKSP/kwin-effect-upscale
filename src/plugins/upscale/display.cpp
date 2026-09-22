@@ -10,6 +10,8 @@
 
 #include "effect/effecthandler.h"
 
+#include <array>
+
 namespace KWin
 {
 
@@ -39,7 +41,18 @@ void UpscaleDisplay::reconfigure()
     m_summary = UpscaleConfig::osdSummary();
     m_statistics = UpscaleConfig::osdStatistics();
     m_developer = UpscaleConfig::osdDeveloper();
-    m_statisticsCorner = upscaleCorner(UpscaleConfig::osdPosition());
+    // A file edited by hand can name one corner twice. Separating them here
+    // means the quarter each block is confined to below belongs to it alone,
+    // so nothing downstream has to cope with two blocks in one place.
+    std::array<UpscaleCorner, 3> corners{
+        upscaleCorner(UpscaleConfig::osdAnnouncementPosition()),
+        upscaleCorner(UpscaleConfig::osdStatisticsPosition()),
+        upscaleCorner(UpscaleConfig::osdDeveloperPosition()),
+    };
+    upscaleSeparateCorners(corners);
+    m_announcementCorner = corners[0];
+    m_statisticsCorner = corners[1];
+    m_developerCorner = corners[2];
     m_timeout = UpscaleConfig::osdTimeout();
     // New settings invalidate both the announcement and its measurements.
     hide();
@@ -235,16 +248,22 @@ void UpscaleDisplay::paint(const RenderTarget &target, const RenderViewport &vie
         if (block.isEmpty()) {
             return;
         }
+        // Each block is laid out to fit the quarter its corner owns before it
+        // is placed in it. That, and not the placement, is what keeps a block
+        // off its neighbours: at a high scale factor the text stays the size
+        // it has to be read at while the output's logical size shrinks, so a
+        // block that fitted comfortably at 1:1 wants three quarters of the
+        // screen at scale 3.
+        block.fit(layout.budget(corner));
         m_drawn = block.paint(target, viewport, layout.place(corner, block.size())) || m_drawn;
     };
-    // The persistent view is placed first, so that it keeps the corner the
-    // user chose even when the developer dump was sent to the same one.
+    // The corners are distinct, so the order below no longer decides anything.
+    // It is kept because a configuration separated on the way in can still put
+    // two blocks together when there are more blocks than corners, and then
+    // the view the player keeps on screen is the one that should not move.
     draw(m_statisticsOverlay, m_statisticsCorner);
-    // A message arrives where messages arrive, and the dump stays out of the
-    // way at the bottom. Neither corner is a setting: only the view a person
-    // keeps on screen while playing is worth moving.
-    draw(m_developerOverlay, UpscaleCorner::BottomRight);
-    draw(m_announcementOverlay, UpscaleCorner::TopLeft);
+    draw(m_developerOverlay, m_developerCorner);
+    draw(m_announcementOverlay, m_announcementCorner);
 }
 
 QString UpscaleDisplay::text() const

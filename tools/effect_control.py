@@ -75,7 +75,6 @@ def configure(preset: str, *, sharpening: bool) -> str:
     """
     settings = {
         "Preset": str(PRESETS[preset]),
-        "ResolutionControl": "true",
         "Sharpening": "true" if sharpening else "false",
     }
     for key, value in settings.items():

@@ -10,6 +10,7 @@
 #include "compatibility.h"
 #include "eligibility.h"
 #include "upscaleconfig.h"
+#include "windowidentity.h"
 #include "x11geometry.h"
 #include "x11input.h"
 
@@ -28,6 +29,7 @@
 #include <QTimer>
 
 #include <algorithm>
+#include <optional>
 
 Q_DECLARE_LOGGING_CATEGORY(KWIN_UPSCALE)
 #endif
@@ -37,7 +39,7 @@ namespace KWin
 
 UpscaleX11Resolution::UpscaleX11Resolution()
 #if KWIN_BUILD_X11
-    : X11EventFilter(QList<int>{XCB_CLIENT_MESSAGE, XCB_CONFIGURE_REQUEST})
+    : X11EventFilter(QList<int>{XCB_CLIENT_MESSAGE, XCB_CONFIGURE_REQUEST, XCB_PROPERTY_NOTIFY})
 #endif
 {
 #if KWIN_BUILD_X11
@@ -54,20 +56,24 @@ UpscaleX11Resolution::UpscaleX11Resolution()
         m_retries.clear();
         m_validation.clear();
         m_waitingForBuffer.clear();
+        m_withdrawals.clear();
+        m_overdue.clear();
+        m_releases.clear();
         m_stateAtom = XCB_ATOM_NONE;
         m_fullscreenAtom = XCB_ATOM_NONE;
+        m_emulationAtom = XCB_ATOM_NONE;
     });
     connect(kwinApp(), &Application::xwaylandScaleChanged, this, [this]() {
-        reconfigure(m_enabled, m_preset, m_percentage);
+        reconfigure();
     });
     const auto watchOutput = [this](UpscaleOutput *output) {
         connect(output, &UpscaleOutput::geometryChanged, this, [this]() {
-            reconfigure(m_enabled, m_preset, m_percentage);
+            reconfigure();
         });
     };
     connect(effects, &EffectsHandler::screenAdded, this, watchOutput);
     connect(effects, &EffectsHandler::screenRemoved, this, [this]() {
-        reconfigure(m_enabled, m_preset, m_percentage);
+        reconfigure();
     });
     for (UpscaleOutput *output : effects->screens()) {
         watchOutput(output);
@@ -87,28 +93,46 @@ UpscaleX11Resolution::~UpscaleX11Resolution()
 #endif
 }
 
-void UpscaleX11Resolution::reconfigure(bool enabled, ResolutionPreset preset, int percentage)
+void UpscaleX11Resolution::reconfigure()
 {
 #if KWIN_BUILD_X11
     ++m_generation;
     m_enabled = false;
-    restoreAll();
+    // Released rather than restored outright: a request the client has not
+    // answered yet is given back only once it has, so that its answer cannot
+    // arrive after the window was handed back; see release().
+    const auto windows = m_requests.keys();
+    for (X11Window *window : windows) {
+        release(window);
+    }
     m_requested.clear();
     m_failures.clear();
     m_attempts.clear();
     m_retries.clear();
     m_validation.clear();
     m_waitingForBuffer.clear();
-    m_preset = preset;
-    m_percentage = percentage;
-    m_enabled = enabled && waylandServer();
+    m_overdue.clear();
+    // m_withdrawals and m_releases stay: they record what the clients are
+    // doing, which a change of configuration does not alter, and the releases
+    // above have just added to them.
+    //
+    // Nothing global is held any more: what to ask of a window comes from the
+    // profile that claims it, resolved when the window is looked at. All this
+    // still needs to know is whether there is an Xwayland to talk to.
+    m_enabled = waylandServer();
     for (X11Window *window : std::as_const(m_watched)) {
         schedule(window);
     }
+#endif
+}
+
+bool UpscaleX11Resolution::settled() const
+{
+#if KWIN_BUILD_X11
+    return !m_restoring && m_scheduled.isEmpty() && m_releases.isEmpty() && m_withdrawals.isEmpty()
+        && m_waitingForBuffer.isEmpty();
 #else
-    Q_UNUSED(enabled)
-    Q_UNUSED(preset)
-    Q_UNUSED(percentage)
+    return true;
 #endif
 }
 
@@ -132,18 +156,55 @@ QString UpscaleX11Resolution::failure(const Window *window) const
 #endif
 }
 
+// Which of the three X11 cells this window is in. Unlike the Wayland half,
+// this can be answered honestly: the window is already here, so its state and
+// its geometry are both readable. A window the effect itself made smaller
+// still holds the fullscreen state, which is why the state is asked first and
+// the geometry only decides between the other two.
+static UpscalePresentation x11PresentationOf(const Window *window)
+{
+    const bool coversOutput = window->output() && window->frameGeometry() == window->output()->geometryF();
+    return upscalePresentationFor(true, window->isFullScreen(), !window->isDecorated() && coversOutput);
+}
+
+// Whether this window is one to ask for a smaller drawable.
+//
+// Auto and an explicit X11Resize both resize, and on X11 they mean the same
+// thing for a good reason: there is one method, the window exists before
+// anything is asked of it, and a request that loses coverage is observed and
+// put back by the validation below. Auto has nothing to choose between and
+// nothing it cannot undo, which is exactly what it does not have on Wayland.
+//
+// A windowed presentation is never resized. Shrinking a window the user sized
+// only makes it smaller: the destination is the window's own size, so there is
+// no gap left to enlarge into, and holding the frame while the client renders
+// below it is not something any implemented path does.
+static bool upscaleX11ResizeWanted(const UpscaleApplication &application, const Window *window)
+{
+    const UpscalePresentation presentation = x11PresentationOf(window);
+    if (upscaleIsWindowed(presentation)) {
+        return false;
+    }
+    const UpscaleSettings settings = upscaleResolveSettings(&application);
+    if (!settings.acts() || settings.resolution() == ResolutionPreset::Native) {
+        return false;
+    }
+    const UpscaleMethod method = application.methods[std::size_t(presentation)];
+    return method == UpscaleMethod::Auto || method == UpscaleMethod::X11Resize;
+}
+
 #if KWIN_BUILD_X11
 QString UpscaleX11Resolution::keyFor(const Window *window)
 {
     if (!window || !window->output()) {
         return {};
     }
-    const UpscaleApplication *application = upscaleApplicationForIdentity(window->resourceClass(), window->resourceName());
+    const UpscaleApplication *application = upscaleApplicationForWindow(window);
     // SFML replaces XIDs while retaining its process. Keep negotiation across
     // those replacements. PID is only a grouping hint, not a launch identity:
     // expire orphaned state after a replacement grace period. Use KWin's
     // identity, not /proc.
-    return application && application->method == UpscaleControlMethod::X11Resize
+    return application && upscaleX11ResizeWanted(*application, window)
         ? application->id + QLatin1Char('/') + window->output()->name() + QLatin1Char('/') + QString::number(window->pid())
         : QString();
 }
@@ -205,14 +266,14 @@ UpscaleX11Resolution::Request UpscaleX11Resolution::requestFor(X11Window *window
     if (key.isEmpty() || m_failures.contains(key)) {
         return {};
     }
-    const UpscaleApplication *application = upscaleApplicationForIdentity(window->resourceClass(), window->resourceName());
-    const ResolutionPreset preset = effectiveResolutionPreset(m_preset, application->preset);
+    const UpscaleApplication *application = upscaleApplicationForWindow(window);
+    const UpscaleSettings settings = upscaleResolveSettings(application);
     const QSize pixels = window->output()->pixelSize();
-    const int minimum = application->minimumPixels < 0 ? UpscaleConfig::minimumPixels() : application->minimumPixels;
-    if (!exceedsMinimumPixels({pixels.width(), pixels.height()}, minimum)) {
+    if (!exceedsMinimumPixels({pixels.width(), pixels.height()}, settings.value(UpscaleSetting::MinimumPixels))) {
         return {};
     }
-    const UpscaleSize size = desiredResolution({pixels.width(), pixels.height()}, preset, m_percentage);
+    const UpscaleSize size = desiredResolution({pixels.width(), pixels.height()}, settings.resolution(),
+                                               settings.value(UpscaleSetting::Percentage));
     if (!canUpscale(size, {pixels.width(), pixels.height()}) || size.width > 65535 || size.height > 65535) {
         return {};
     }
@@ -220,7 +281,11 @@ UpscaleX11Resolution::Request UpscaleX11Resolution::requestFor(X11Window *window
     const qreal scale = kwinApp()->xwaylandScale();
     const QPoint position(qRound(window->output()->geometryF().x() * scale),
                           qRound(window->output()->geometryF().y() * scale));
-    return {window, key, position, QSize(size.width, size.height), application->x11PrimaryOutputOnly};
+    // Every field named, the last three with how a request starts out: not
+    // presented by the effect, not answered by the client, and no verdict
+    // until begin() sets one. Naming them keeps -Wmissing-field-initializers
+    // satisfied without an initializer on the timer that says nothing.
+    return {window, key, position, QSize(size.width, size.height), application->x11PrimaryOutputOnly, false, false, {}};
 }
 
 bool UpscaleX11Resolution::begin(const Request &request)
@@ -259,12 +324,17 @@ bool UpscaleX11Resolution::begin(const Request &request)
         refuse(request.key, i18n("The application repeatedly replaced its window without accepting the request."));
         return false;
     }
-    m_requests.insert(request.window, request);
+    Request live = request;
+    // A client may already hold the mode this asks for, as a replacement
+    // window does; then there is no answer left to wait for.
+    live.answered = upscaleX11ModeMatches(request.window, request.position, request.size);
+    live.verdict.setRemainingTime(s_validationWindow);
+    m_requests.insert(request.window, live);
     m_requested.insert(request.key, request.size);
     const int generation = m_generation;
     const int revision = ++m_nextValidation;
     m_validation.insert(request.key, revision);
-    QTimer::singleShot(3000, this, [this, key = request.key, generation, revision]() {
+    QTimer::singleShot(s_validationWindow, this, [this, key = request.key, generation, revision]() {
         validate(key, generation, revision);
     });
     return true;
@@ -288,9 +358,25 @@ void UpscaleX11Resolution::apply(X11Window *window)
     const bool negotiating = m_requests.contains(window);
     const bool presenting = upscalePresentation(window->effectWindow())
         && (negotiating || upscaleCoversOutput(window->effectWindow()));
-    const Request request = presenting ? requestFor(window) : Request{};
-    if (!request.window) {
+    if (!presenting) {
+        // The window's own state changed under the request - it left
+        // fullscreen, or stopped covering its output - so the client is
+        // resizing it itself, and the request is given back at once.
         restore(window);
+        return;
+    }
+    // A request being released is not touched until its client has answered
+    // it; the release looks at the window again when that is done.
+    if (m_releases.contains(window)) {
+        return;
+    }
+    const Request request = requestFor(window);
+    if (!request.window) {
+        // Nothing is asked of a window that still presents: the configuration
+        // or the profile that claimed it changed. Its request is released
+        // the way a reconfiguration releases them, once the client has
+        // answered it, so that the answer cannot overtake the restore.
+        release(window);
         return;
     }
     // A configure sent during window construction can be consumed before the
@@ -303,10 +389,50 @@ void UpscaleX11Resolution::apply(X11Window *window)
         return;
     }
     const auto previous = m_requests.constFind(window);
-    if (previous != m_requests.cend() && previous->key == request.key
-        && previous->position == request.position && previous->size == request.size) {
+    if (previous != m_requests.cend()) {
+        if (previous->key == request.key && previous->position == request.position && previous->size == request.size) {
+            return;
+        }
+        // Released here rather than in begin(), so that the waits release()
+        // and restore() start are respected below: the client answers the
+        // release by withdrawing its mode, and that answer has to arrive
+        // before anything else is asked of it.
+        release(window);
+        if (m_releases.contains(window)) {
+            return;
+        }
+    }
+    ask(window, request);
+}
+
+// Nothing is asked of the client until it has withdrawn the emulated mode of
+// the request before this one. KWin 6.6 sizes the client window from the
+// _XWAYLAND_RANDR_EMU_MONITOR_RECTS property whenever Xwayland changes it: to
+// the mode it names, or to the full frame once it has gone. A client
+// withdraws its mode in answer to a restore, and a request made before that
+// answer reaches KWin is applied first and undone by it. Measured on KWin
+// 6.6.6 with Xwayland 24.1 on 2026-09-21, polling the window every 10 ms
+// after such a request: 3840 x 2160, 1920 x 1080 at 17 ms, 3840 x 2160 at
+// 35 ms, and 1920 x 1080 again only at 3117 ms, when validation had failed
+// and its retry - restore, 250 ms, request again - had put it right. Most
+// preset changes and re-enables on 6.6 cost that retry, and the integration
+// test raced an 18 ms transient. restore() starts the wait and
+// emulatedModeChanged() ends it. A mode the client holds that is neither the
+// request nor being withdrawn, one it chose itself, is waited for the same
+// way; once that wait has run out the request is made regardless, and
+// validation says what became of it. KWin 6.3 never reads the property; there
+// the wait costs only the milliseconds the withdrawal takes.
+void UpscaleX11Resolution::ask(X11Window *window, const Request &request)
+{
+    if (m_withdrawals.contains(window)) {
         return;
     }
+    const std::optional<QSize> held = upscaleX11EmulatedMode(window, request.position);
+    if (held && *held != request.size && !m_overdue.contains(window)) {
+        awaitWithdrawal(window);
+        return;
+    }
+    m_overdue.remove(window);
     if (begin(request)) {
         upscaleX11Configure(window, request.position, request.size);
         qCDebug(KWIN_UPSCALE) << "Requested X11 buffer" << request.size << "from" << request.key;
@@ -352,9 +478,15 @@ void UpscaleX11Resolution::refuse(const QString &key, const QString &reason)
     }
 }
 
+// Gives the window back at once, whether or not its client has answered the
+// request. release() is the way to give one back that respects the answer;
+// this is for the cases that cannot wait for it: the client left fullscreen
+// or stopped presenting, validation has judged the request, or this object
+// is going away with the effect.
 void UpscaleX11Resolution::restore(X11Window *window)
 {
     m_waitingForBuffer.remove(window);
+    m_releases.remove(window);
     const Request request = m_requests.take(window);
     if (!request.window) {
         return;
@@ -385,11 +517,17 @@ void UpscaleX11Resolution::restore(X11Window *window)
     if (window->isDeleted() || !kwinApp()->x11Connection()) {
         return;
     }
+    // Read before the window is handed back, so that what is read is the
+    // client's state from before it could have answered.
+    const bool held = upscaleX11EmulatedMode(window, request.position).has_value();
     const QScopedValueRollback restoring(m_restoring, true);
     // KWin's logical geometry remained authoritative throughout. Hand its
     // normal native size back before ceasing geometry interception. This also
     // brings the X server back into agreement with KWin's geometry caches.
     upscaleX11Configure(window, upscaleX11Position(window), upscaleX11NormalSize(window));
+    if (held) {
+        awaitWithdrawal(window);
+    }
 }
 
 void UpscaleX11Resolution::restoreAll()

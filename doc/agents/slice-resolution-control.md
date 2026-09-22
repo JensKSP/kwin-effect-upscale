@@ -1221,6 +1221,75 @@ own emulation, which never changes the real root size either.
 
 ## Remaining work
 
+### SuperTuxKart in all six presentations, 2026-09-21
+
+This slice owns the handbook's hard requirement
+[SuperTuxKart in every presentation it offers](../upscaling.md#supertuxkart-in-every-presentation-it-offers):
+native Wayland and Xwayland, each with OpenGL fullscreen, Vulkan borderless
+and Vulkan exclusive fullscreen. The game keeps its own settings, the buffer
+KWin receives is smaller, the output capture shows it correctly enlarged, and
+one automated command runs all six cells.
+
+| Cell | Through the effect today | Evidence |
+| --- | --- | --- |
+| Wayland, OpenGL, fullscreen | Buffer reduced by `AdvertisedMode` | Runs of 2026-09-18 and 2026-09-19; never with an output-capture check |
+| Wayland, Vulkan, borderless | **Fails.** The entry names `AdvertisedMode`, which this cell ignores, and `autoRatio()` sends the fractional scale only for a slot on Auto | The lever works; see below |
+| Wayland, Vulkan, exclusive | Not run through the effect | The run of 2026-09-18 changed the game's own resolution, which the requirement excludes |
+| Xwayland, all three | Not run | — |
+
+**The earlier reading of SDL 2 was wrong.** This slice, application profiles and
+`waylandscale.h` say that SDL 2 never implemented `wp_fractional_scale_v1`. SDL
+2.32.4 binds it for every window (`SDL_waylandwindow.c`, `Wayland_CreateWindow`)
+and acts on it for a window created with `SDL_WINDOW_ALLOW_HIGHDPI`, which
+SuperTuxKart sets for both renderers. For a window that is not in exclusive
+fullscreen, `GetBufferSize()` makes the buffer the window size times the
+preferred scale, and `ConfigureWindowGeometry()` sets a viewport back to the
+window size. A changed scale sends `SDL_WINDOWEVENT_RESIZED`. SuperTuxKart's
+`CIrrDeviceSDL::handleNewSize()` then sees a new native scale, and
+`GEVulkanDriver::OnResize()` rebuilds the swapchain from
+`SDL_Vulkan_GetDrawableSize()`. Exclusive fullscreen takes its buffer from the
+selected mode and ignores the scale, so the OpenGL cell still needs the
+advertised mode. The earlier scale test, `stk-lever-scale`, ran the OpenGL
+renderer only, which is why it saw no effect.
+
+Observed on 2026-09-21 with the game probe, not yet with the effect: a nested
+KWin 6.3.6 on its virtual backend at 3840 × 2160 with the real GPU, and
+SuperTuxKart 1.4 with `render_driver="vulkan"`, `vulkan_fullscreen_desktop="true"`,
+fullscreen at 3840 × 2160 and `SDL_VIDEODRIVER=wayland`. The window committed
+3840 × 2160. After `Window::setNextTargetScale(0.5)` the client received
+`preferred_scale(60)`, kept its viewport destination at 3840 × 2160 and
+committed 1920 × 1080, and the window stayed fullscreen at 0,0 3840 × 2160.
+The log is `build/game-probe/stk-vk-scale.log`.
+
+Next, in order:
+
+1. A slot that names an advertisement falls back to the fractional scale for a
+   window the advertisement did not reach, one still drawing at full size. A
+   window whose buffer the advertisement already made smaller is never asked.
+2. A matrix test that runs all six cells with the production plugin in a
+   nested KWin and checks both the buffer and an output capture against the
+   frame the game drew.
+3. Correct the SDL 2 claim in `waylandscale.h`, in the handbook and in the
+   catalogue's note for SuperTuxKart.
+
+### Auto, and the lever it would use
+
+The settings model in
+[application profiles](slice-application-profiles.md#the-methods-stay-and-auto-is-a-new-one)
+gives every presentation slot an `Auto` value, and Auto is a method of its own
+rather than a choice among the existing ones. Its X11 half is the resize this
+slice already implements, with verification and a revert. Its Wayland half is
+the fractional scale described under
+[a reversible Wayland lever](#a-reversible-wayland-lever-for-auto-2026-09-20),
+and none of it is measured yet.
+
+In order: confirm that `Window::setNextTargetScale()` is reachable from an
+effect on v6.3.6 without patching KWin, because the route is closed for the
+supported target if it is not; run the seven-item bench; then implement the
+ladder if the bench supports it. The incoherent advertisement that review found
+— a falsified `wl_output.mode` beside a truthful `xdg_output` — is a defect in
+shipped code and is fixed on its own schedule, not as part of Auto.
+
 ### A game that never exits
 
 Asked for by Jens on 2026-09-19. A game can disappear without warning —
@@ -1425,6 +1494,9 @@ no-external-patches, no-game-reconfiguration and Debian-delivery requirements.
   buffer with unchanged logical coverage and correct input. Test both KWin
   targets; toggling the game's fullscreen-desktop setting is a comparison,
   not a delivered fix. Do not generalize this failure to all Vulkan clients.
+  Answered for Wayland on 2026-09-21: the fractional scale reaches this cell;
+  the work continues under
+  [SuperTuxKart in all six presentations](#supertuxkart-in-all-six-presentations-2026-09-21).
 
 - [ ] **Integer-scale reachability — glmark2 2023.01 Wayland and vkmark 2025.01.**
   Read their Wayland output/configure handlers and the plugin's
@@ -1571,7 +1643,253 @@ Jens's call. Nothing here should be widened further in the meantime: four
 rounds of larger numbers each moved the failure to a different line, and the
 timeout that was actually ending the runs was the harness's own.
 
+### A reversible Wayland lever for Auto, 2026-09-20
+
+Jens asked whether the effect can work out by itself which request a native
+Wayland game needs. The answer that came back is that it cannot do so with the
+advertisements - a falsified `wl_output.mode` is sent before the client has a
+window and cannot be taken back - but that a different lever exists which is
+sent *after* the window, aimed at one surface, and reversible.
+
+Everything in this section was **read, not run**: the upstream sources of SDL 2,
+SDL 3, GLFW, QtWayland, Godot, `winewayland.drv` and SuperTuxKart 1.4, and KWin
+6.3.6 and master under `build/upstream/`, on 2026-09-20. The bench at the end is
+what turns it into evidence. The client classification it rests on is recorded
+with the settings model in
+[application profiles](slice-application-profiles.md#what-a-wayland-client-actually-reads-source-review-2026-09-20).
+
+#### Waiting and then advertising does not work
+
+The first idea was to say nothing at bind, wait for the window, and only then
+send the mode for the presentation we can now see. The sources say a running
+client does not act on it:
+
+| Toolkit | A `wl_output.mode` after the window exists |
+| --- | --- |
+| SDL 2 | Ignored. It processes only the `done` it was waiting for during initialisation and the counter saturates; even reprocessed, setting the desktop mode is a copy and no window geometry is recomputed |
+| SDL 3 | The display is rebuilt and the application receives `SDL_EVENT_DISPLAY_DESKTOP_MODE_CHANGED`, but nothing re-runs the fullscreen update for windows already on that display. A game that does not handle the event itself does not change, and games rarely do |
+| GLFW | `glfwGetVideoMode()` returns the new value; no callback and no window change |
+| Qt | Irrelevant while `xdg_output` is present, which is how it takes screen geometry |
+| Godot | Screen data updated, windows untouched |
+| Wine | Every `done` re-registers the Windows display devices, so the game sees `WM_DISPLAYCHANGE`. Whether it resizes is the game's business, and if it does the result is class D's undersized surface unless the scale half is sent too |
+
+#### The lever: a fractional scale below one
+
+`wp_fractional_scale_v1.preferred_scale` is "the numerator of a fraction with a
+denominator of 120" and the protocol states no lower bound, unlike
+`wl_surface.preferred_buffer_scale`, which must be greater than zero and which
+KWin sends as `ceil(scale)`. So a fraction below one is expressible where an
+integer scale is not, which is exactly the gap on a 4K television at scale 1.
+
+KWin already has the whole path. `SurfaceInterface::setPreferredBufferScale`
+sends `round(scale * 120)`, driven by `Window::setNextTargetScale()`, and a
+change schedules a new configure that carries the scale. An effect can reach the
+window through `EffectWindow::window()`, which `eligibility.cpp` already does.
+
+Three things to settle before building on it, in this order:
+
+1. **Whether `setNextTargetScale()` is reachable from an effect in v6.3.6**, the
+   minimum supported target, without patching KWin. If it is not public there,
+   this route is closed for the supported target whatever master does, and
+   `compatibility.h` is where any difference between the two would be handled.
+2. **Re-assertion.** KWin re-applies the output's own scale in
+   `updateNextTargetScale()` whenever the window changes output or the output's
+   scale changes, so an override has to be re-asserted on
+   `nextTargetScaleChanged` or it is silently undone.
+3. **Rounding.** KWin uses the same value in `snapToPixels()` for configure
+   sizes. It is exact for 1/2 and 2/3, so Performance and Quality are clean;
+   1/1.3 and 1/1.7 introduce sub-pixel rounding that has to be measured against
+   the aspect-ratio tolerance the scaler already applies.
+
+Which clients act on it, from the same source reading:
+
+| Acts on a preferred fractional scale | Does not |
+| --- | --- |
+| GLFW, by resizing the framebuffer; on by default in 3.4 | Qt, which clamps the value to 1.0 |
+| SDL 3, but only for a window with high pixel density or scale-to-display | SDL 2, which never implemented the protocol |
+| Godot, which updates the window state | |
+| Wine, which remaps the window - but only coherently if the mode half was falsified as well | |
+
+The handbook's earlier note that a fractional scale hint failed was measured on
+SDL 2, which cannot honour it, and the Qt result is explained by the clamp.
+Neither says anything about the lever itself.
+
+#### The ladder Auto would follow
+
+For a profiled program on an unscaled output, with the slot on Auto:
+
+1. **At bind, say nothing.** Auto never borrows a measurement from the other
+   Wayland slot: review on 2026-09-20 rejected an earlier draft that did,
+   because one program can be a mode-list client in one presentation and a
+   configure-sized one in the next - SuperTuxKart is exactly that. Wine never
+   gets the mode from Auto in any case, because it is class D and because it
+   cannot be identified at bind at all: the connection belongs to the Wine
+   loader and the game's name arrives later as the window's `app_id`.
+2. **At the first commit**, with window, presentation and identity known and
+   `upscalePresentation()` true, ask for the fractional scale equal to the wish
+   and re-assert it on `nextTargetScaleChanged`. Then watch the next commits:
+   - the buffer shrank and the surface still covers its output: success, and
+     remember it for this session only;
+   - the buffer is unchanged after a couple of configures: the client ignores
+     the hint, so set 1.0 back and report that no method reached it;
+   - the surface stopped covering: revert at once and report.
+3. **Windowed presentations: never.**
+
+**Why coverage is the input check as well, on this lever.** The handbook counts
+three things as success: the buffer got smaller, the image still covers the
+screen, and the pointer still lands where it looks. The third is checked
+separately for the X11 resize, because there the effect changes the window's
+size and has to map pointer input itself. The fractional scale changes nothing
+input is measured in. Pointer events reach a Wayland surface in its own
+logical coordinates, and the lever moves only the buffer behind that surface:
+a client that honours it renders `logical × scale` pixels and declares the
+viewport back to the logical size, which is what `wp_fractional_scale_v1`
+requires it to do. So while the logical size stays the output's, input lands
+where it looks by construction, and a client that changed its logical size
+instead is exactly the one the coverage check catches. That argument is the
+protocol's, not a measurement, and the bench below checks it with a pointer hit
+test rather than taking it on trust.
+
+#### Two other levers, and why they are not it
+
+`ClientConnection::setScaleOverride()` already scales `xdg_output` size and
+position, surface sizes, input and opaque regions, pointer and constraint
+coordinates per client - but not `xdg_toplevel` configure sizes and not
+`wl_output.mode`, because Xwayland needs neither. For an xdg-shell client the
+result is therefore incoherent, and making it coherent is a change to KWin
+rather than something an effect can do.
+
+`xdg_toplevel.configure_bounds` steers only the initial floating size, which is
+irrelevant to fullscreen and borderless and marginal for a windowed slot.
+Viewporter is client-side; fifo, commit-timing and presentation-time carry no
+size at all.
+
+#### A defect this review found in shipped code
+
+The advertisement is incoherent: `wl_output.mode` is falsified while
+`xdg_output` continues to report the output's true size. SDL 2 believes the
+falsified value only because `announce()` runs synchronously inside
+`OutputInterface::bound`, so ours is the `done` it happens to process; had the
+`xdg_output` one arrived first it would have derived a scale factor from the
+disagreement instead. SDL 3 processes both and ends up with a mode list holding
+the true and the falsified size together, which makes what its exclusive-mode
+matcher picks unpredictable without running it. This is independent of Auto and
+wants fixing on its own.
+
+#### The bench that settles all of it
+
+Each application is run three ways - mode at bind, fractional scale after the
+window, and both - with a late-mode negative control, recording the advertised
+size, the committed buffer, whether the surface still covers its output, and
+whether a pointer hit test still lands where it looks:
+
+1. A GLFW 3.4 program fullscreen with a monitor, and undecorated at video-mode
+   size: class A against class C, in one toolkit.
+2. SDL 3 `testsprite --fullscreen`, with and without high pixel density, and
+   with an exclusive mode, which also resolves the ambiguous mode list above.
+3. SuperTuxKart 1.4 on OpenGL and on Vulkan, which is class B against class A in
+   one program and tests the window-flag explanation directly.
+4. A Godot 4.3 or later export with `--display-driver wayland`, fullscreen.
+5. Wine 10 with `winewayland` and a DXVK sample, borderless and exclusive. Note
+   that `ChangeDisplaySettings` fails there unless `EmulateModeset` is set.
+6. vkmark with the mode plus a *fractional* scale in place of the integer one,
+   to confirm the scale-1 gap actually closes for class D.
+7. A Qt Quick fullscreen sample as the negative control for the clamp.
+
+Beyond launch configurations, each of Auto's own transitions has an expected
+result, so that a run can fail rather than only record:
+
+| Transition | Passes when |
+| --- | --- |
+| The client honours the hint | the committed buffer shrinks within a few frames, the surface still covers its output, a pointer hit test at the centre and at one corner lands on the pixels drawn there, and the status reports the fractional scale as the method that reached it |
+| The client ignores the hint | within `patienceInFrames` the preferred scale is back at the value the window had before, and the status says that no method reached the client rather than reporting a pending request |
+| The surface stops covering its output | the preferred scale is restored on the next commit, not after the patience runs out, and the status names the lost coverage |
+| KWin reapplies the output's scale | after moving the window to another output, or changing that output's scale, `nextTargetScale()` returns to the requested value within one configure |
+| Configuration moves | after `reconfigure()` every window's preferred scale equals the value recorded before the request, with no request left standing |
+
+The Qt sample is the natural source of the second row, since Qt clamps the hint
+to one, and a GLFW program honours it, so it serves for the first, third and
+fourth.
+
+### Auto under test, 2026-09-21
+
+Until this date no automated test drove Auto at runtime: every integration case
+named its method. Two cases were added - `autoAsksTheWindowForAFractionalScale`
+in the Wayland integration test, whose client now binds
+`wp_fractional_scale_v1`, and `autoResizesAnUnmeasuredX11Window` in the X11
+one - and the Wayland one found four defects, all in the Wayland half:
+
+1. **A window drawing at full size was never asked.** Auto asked the candidate,
+   and a full-size buffer is exactly what keeps a window from being the
+   candidate. It now asks the window that qualifies in every respect but its
+   buffer, `upscaleWindowAwaitingBuffer()`.
+2. **Every release was undone at once.** `release()` gave the scale back
+   before forgetting the request, and the `nextTargetScaleChanged` handler that
+   re-asserts a standing request put it straight back - after the patience ran
+   out and on lost coverage alike. The request is now forgotten first.
+3. **An ignored request was asked again every thirty frames.** Released and
+   forgotten, the next frame asked afresh. The request now stays, marked as
+   ignored, until the window closes, the ratio changes or the settings do.
+4. **Auto depended on something else keeping the effect active.** KWin calls
+   only an active effect's paint hooks, which is where Auto asks and counts;
+   with no candidate and no display showing, it never ran - which a Debug
+   build's default frame rate display hid. `isActive()` now also holds while
+   Auto has a window to ask or is waiting for an answer, and a window that
+   stops qualifying - out of fullscreen, off its output, minimized, resized -
+   gets its scale back from its own signals rather than from a paint that may
+   not come.
+
+The status also reports what Auto asked for: the surface scale on Wayland, and
+the window size on X11, which it previously reported only for a method named
+outright. Observed: both cases pass on Trixie. Jens's report of Auto working on
+2026-09-21 is consistent with this: on X11 it was unaffected, and a Debug build
+keeps the effect active. Which session it was is still to be recorded.
+
+### The X11 request path on KWin 6.6, made deterministic, 2026-09-21
+
+The X11 test on Ubuntu 26.04 failed intermittently: interleaved against
+7f55154 on one machine, the tree then current passed 3 of 5 and 7f55154 5 of 5,
+though 7f55154 also once took 144 s instead of 62. Traced by Fable on KWin
+6.6.6, three defects in the X11 control, none reachable on 6.3.6, which never
+reads the emulation property:
+
+1. A client's ConfigureRequest that arrived during the withdrawal wait went to
+   KWin, which answered with its stale cached geometry. The mirroring client
+   set that as its mode, KWin enforced it, and the effect re-armed its
+   withdrawal wait every 3 s for good. The filter now answers such requests
+   with the true geometry.
+2. A reconfiguration released a request the client had not answered yet, and
+   the client's late answers then raced the new request. A release now waits
+   for the client's answer or the end of the validation window, and
+   `settled()` includes pending releases.
+3. The withdrawal wait's fallback never made the request it promised. It now
+   does, once, and validation judges the result.
+
+The test's `lifecycle` also waited 100 ms after a client resize and asserted;
+it now waits for the ConfigureNotify that answers it.
+
+Observed by Fable on the fixed sources: 70 X11 iterations on 6.6.6 without a
+failure (30 on the exact final sources), the full 26.04 suite 19 of 19 twice,
+Trixie with GCC and with Clang 18 of 18 each, clang-tidy clean. Three
+iterations in one pair of concurrent runs took 110-190 s and passed; their logs
+were not kept, and the same wall-clock times in both runs suggest an outside
+stall. Not established: the cause of the ~1 s stalls in the failing runs, and
+why the Auto rework lost the race more often. Not exercised: the hosted runner
+and a real session on 6.6.
+
 ## Remaining work on the X11 production integration
+
+- [ ] Watch how long the X11 test takes after the KWin 6.6 fix of 2026-09-21,
+      agreed with Jens the same day. The pull request's CI runs it only on
+      Trixie (KWin 6.3.6); Ubuntu 26.04 (KWin 6.6.6) runs it only in the
+      nightly's resolute package jobs, amd64 and arm64. A normal run takes
+      about 60 s. If runs there take markedly longer - Fable saw three passing
+      iterations at 110-190 s, logs not kept - investigate the slow path:
+      keep the full test output of such a run (`ctest --output-on-failure`
+      drops it for a pass) and find what the X11 control or the session is
+      waiting on. Jens's hypothesis, 2026-09-21: the slow local runs coincided
+      with a language model running on this machine's GPU and CPU, so a slow
+      run on CI's otherwise idle runners would be the telling one.
 
 ### Production X11 integration
 
@@ -2069,3 +2387,72 @@ hosted runs now report what they saw, what they wanted, and the effect's own
 status, through `UPSCALE_TRY_GEOMETRY`. `QTRY_COMPARE` has no message form, so
 three hosted failures in a row reported only that a wait expired, and each had
 to be guessed at. The next one will say what the effect decided.
+
+### What it was: KWin 6.6 undoes a request the client's withdrawal overtakes, 2026-09-21
+
+Reproduced and fixed. **It was a real defect of the effect on KWin 6.6, not a
+timeout and not a slow runner**, and it cannot occur on the minimum supported
+KWin, which is why Trixie never showed it.
+
+**The verdict had been misread.** QtTest's "N ms would have been sufficient"
+counts the 50 ms steps of its polling loop, not time, and it is also printed
+when a condition holds at one step and fails at the next: the first loop ends
+early and the report adds the whole bound to the second loop's count. A probe
+in the Ubuntu 26.04 image showed a 2000 ms bound at 100 ms per step reporting
+"2800" while 5.9 s of wall time passed. So the 5 s, 15 s and 30 s bounds all
+reporting "bound plus about 3.1 s" meant **the wait lasted about 3.1 s every
+time**, and the hosted amd64 runner was fast, not slow: its whole X11 suite
+took 59.5 s while "containing" a 33 s wait that never happened.
+
+**Reproduced from the PR head `f8577f4`** in `localhost/upscale-package:resolute`
+(KWin 6.6.6, Xwayland 24.1.10): the first run failed
+`lifecycle(primary-fullscreen)` with "33100 ms would have been sufficient", and
+`--repeat until-fail:6` failed on the third iteration, both fullscreen rows.
+
+**The mechanism**, from a timestamped effect log with the geometry polled every
+10 ms:
+
+    after configure(true)                       geometry 3840x2160
+    [+14 ms]   effect requests 1920x1080
+    [+17 ms]                                    geometry 1920x1080
+    [+35 ms]                                    geometry 3840x2160   <- undone
+    [+3.1 s]   validation retry requests 1920x1080
+    [+3117 ms]                                  geometry 1920x1080
+
+KWin 6.6's `X11Window::propertyNotifyEvent` answers a PropertyNotify for
+`_XWAYLAND_RANDR_EMU_MONITOR_RECTS` - the atom KWin calls
+`xwayland_xrandr_emulation` - with `configure(m_bufferGeometry)`, and
+`X11Window::configure()` sizes the client to the emulated mode the property
+names, or to the whole frame when the property is gone. Present in KWin master
+and in 6.6.0, absent in 6.3.6, 6.4.0 and 6.5.0; checked in the sources, not
+assumed. Xwayland sets or deletes that property on every RandR mode change. So
+the effect's restore sizes the window back to native, the client withdraws its
+emulated mode as a real client does, Xwayland deletes the property - and the
+effect's next request goes out before KWin has processed the notification.
+KWin then sizes the client to the full frame, undoing the request; the client
+answers that by withdrawing again, overwriting its own new mode too.
+Validation fails three seconds later, the retry restores and re-requests
+250 ms after that, and that one holds. The same mechanism explains the 8.1 to
+8.3 s this document recorded on 6.6 as an open question - 5 s plus about
+3.2 s - and the 18 350 ms case. A 50 ms poll sometimes sampled inside the 18 ms
+the first request stood, which is why it only failed sometimes.
+
+**The fix waits for the withdrawal before asking again.** `restore()` notes
+whether the client held an emulated mode when the window was handed back and,
+if so, the next request waits for the property to change, with a 3000 ms
+fallback so that a client which never withdraws still gets its request and
+validation says what happened. The event filter takes `XCB_PROPERTY_NOTIFY` for
+it and schedules the request after KWin's own handling of the same event. The
+test's `UPSCALE_TRY_GEOMETRY` no longer uses a QTRY loop: it polls every 10 ms,
+records every geometry it saw, and on failure prints that trace and the
+effect's status. No bound was raised, and none is needed.
+
+**Observed on `f8577f4` with the fix**, all in detached containers: on Ubuntu
+26.04 with GCC, `ctest -R upscale-x11-integration --repeat until-fail:8` passed
+8 of 8, then the whole suite 17 of 17, the X11 suite about 5 s shorter than
+before because the retries are gone; on Trixie, GCC and Clang, 17 of 17 each.
+The same fix carried onto the settings redesign is verified separately.
+
+**Not verifiable here: the hosted runner itself.** The next nightly or package
+run on `resolute` is what confirms it; a failure there now prints the geometry
+trace and the effect's status instead of a misleading bound.
