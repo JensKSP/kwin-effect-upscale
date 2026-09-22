@@ -292,9 +292,10 @@ A one-off manual check before any code:
 | Step | State |
 | --- | --- |
 | Registry edit: set and remove the two values in `user.reg` text, leaving every other byte (`src/winedesktop/wineregistry.cpp`) | Done. `upscale-wine-registry` passes in the Trixie container with GCC and Clang, warnings as errors; Neon not run |
-| Server lock check (`F_GETLK` on the prefix's lock) | Next |
-| Locating the prefix from the game's process, with the checks above | Open |
-| Companion service, its record of changed prefixes and the undo | Open |
+| Server lock check (`F_GETLK` on the prefix's lock, and the holder's process so the wait outlives the game's view of the file system) (`wineserverlock.cpp`) | Done |
+| Locating the prefix from the game's process, with every check above (`wineprefix.cpp`; Linux `/proc` in `wineprocess_proc.cpp`, nothing elsewhere) | Done |
+| Setting and undoing the desktop after the game exited: proven directory only, under Proton's `pfx.lock`, atomic, the user's own desktop left alone (`winedesktopwrite.cpp`) | Done. `upscale-wine-prefix` and `upscale-wine-desktop-write` pass in the Trixie container with GCC and Clang, warnings as errors; Neon not run |
+| Companion service, its record of changed prefixes and the undo | Next |
 | Centred display: question and restart offer | Open, with [What the effect says](slice-development-infrastructure.md) |
 | Effect: recognise, pin and present the Wine desktop window | Open |
 | Manual Wreckfest experiment | Not run |

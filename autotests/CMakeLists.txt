@@ -422,13 +422,11 @@ if(KWIN_BUILD_KCMS)
     upscale_add_build_info(upscale_config-buildinfo_test)
 endif()
 
-# The Wine virtual desktop companion lives outside the plugin folder; its
-# registry edit is pure text and needs nothing but Qt Core.
-add_executable(
-    upscale_wine_registry_test
-    wine_registry_test.cpp
-    ../src/winedesktop/wineregistry.cpp
-)
-target_include_directories(upscale_wine_registry_test PRIVATE ../src/winedesktop)
-target_link_libraries(upscale_wine_registry_test PRIVATE Qt6::Core Qt6::Test)
-add_test(NAME upscale-wine-registry COMMAND upscale_wine_registry_test)
+# The Wine virtual desktop companion lives outside the plugin folder and needs
+# nothing but Qt Core.
+foreach(test IN ITEMS wine_registry wine_prefix wine_desktop_write)
+    add_executable(upscale_${test}_test ${test}_test.cpp)
+    target_link_libraries(upscale_${test}_test PRIVATE upscale_winedesktop Qt6::Test)
+    string(REPLACE "_" "-" name ${test})
+    add_test(NAME upscale-${name} COMMAND upscale_${test}_test)
+endforeach()
