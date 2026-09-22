@@ -91,6 +91,16 @@ void UpscaleEffect::grabbedKeyboardEvent(QKeyEvent *event)
     m_preparation->question().key(event);
 }
 
+void UpscaleEffect::unfollowed(EffectWindow *window, const QSize &size)
+{
+    m_preparation->unfollowed(window, size);
+}
+
+QString UpscaleEffect::question() const
+{
+    return m_preparation->question().text();
+}
+
 QString UpscaleEffect::build() const
 {
     return m_build;

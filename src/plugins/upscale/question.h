@@ -52,6 +52,8 @@ public:
      */
     bool ask(Effect *owner, UpscaleOutput *output, const QString &text, const QList<Answer> &answers, const QString &cancel, const Chosen &chosen);
     bool isOpen() const;
+    /** The question while it is open; empty otherwise. */
+    QString text() const;
     /** A key while the question holds the keyboard. */
     void key(QKeyEvent *event);
     void paint(const RenderTarget &target, const RenderViewport &viewport, UpscaleOutput *screen);

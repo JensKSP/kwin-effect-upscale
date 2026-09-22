@@ -67,7 +67,7 @@ UpscaleEffect::UpscaleEffect(ItemRenderer *renderer)
     m_waylandScale = std::make_unique<UpscaleWaylandScale>();
     m_preparation = std::make_unique<UpscalePreparation>(this, m_x11Resolution.get());
     m_x11Resolution->setUnfollowed([this](EffectWindow *window, const QSize &size) {
-        m_preparation->unfollowed(window, size);
+        unfollowed(window, size);
     });
     new UpscaleIdentityService(this);
 #if !UPSCALE_RENDER_DEVICE_API

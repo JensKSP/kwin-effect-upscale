@@ -23,6 +23,7 @@
 #include <KSharedConfig>
 
 #include <QFile>
+#include <QKeyEvent>
 #include <QStandardPaths>
 #include <QTimer>
 
@@ -30,6 +31,7 @@
 #include <chrono>
 #include <cmath>
 #include <functional>
+#include <optional>
 
 namespace KWin
 {
@@ -147,6 +149,8 @@ class UpscaleTestDriver : public Effect
     // What a test waits for before judging what a reconfiguration did to an
     // X11 window, rather than a delay that may or may not cover it.
     Q_PROPERTY(bool x11Settled READ x11Settled)
+    // The question the effect has put in the middle of the screen, if any.
+    Q_PROPERTY(QString question READ question)
 
 public:
     UpscaleTestDriver()
@@ -174,6 +178,8 @@ public:
         }
         auto poll = new QTimer(this);
         connect(poll, &QTimer::timeout, this, &UpscaleTestDriver::movePointer);
+        connect(poll, &QTimer::timeout, this, &UpscaleTestDriver::pressKey);
+        connect(poll, &QTimer::timeout, this, &UpscaleTestDriver::reportUnfollowed);
         poll->start(50);
     }
 
@@ -265,6 +271,51 @@ public:
         if (fields.size() == 2) {
             m_pointer.move(QPointF(fields.at(0).toDouble(), fields.at(1).toDouble()));
         }
+    }
+
+    QString question() const
+    {
+        return m_effect->question();
+    }
+
+    // A key for the question, by Qt key code, the way the keyboard grab
+    // delivers one. Read and removed like the pointer request.
+    void pressKey()
+    {
+        const std::optional<QByteArray> request = takeRequest(QStringLiteral("upscale-test-key"));
+        if (request) {
+            QKeyEvent event(QEvent::KeyPress, request->toInt(), Qt::NoModifier);
+            m_effect->grabbedKeyboardEvent(&event);
+        }
+    }
+
+    // "<window class> <width> <height>": that window goes on drawing another
+    // size than this, as X11 validation would find of a client that does.
+    void reportUnfollowed()
+    {
+        const std::optional<QByteArray> request = takeRequest(QStringLiteral("upscale-test-unfollowed"));
+        const QList<QByteArray> fields = request ? request->simplified().split(' ') : QList<QByteArray>();
+        if (fields.size() != 3) {
+            return;
+        }
+        for (EffectWindow *window : effects->stackingOrder()) {
+            if (window->window() && window->window()->resourceClass() == QString::fromLatin1(fields.at(0))) {
+                m_effect->unfollowed(window, QSize(fields.at(1).toInt(), fields.at(2).toInt()));
+                return;
+            }
+        }
+    }
+
+    static std::optional<QByteArray> takeRequest(const QString &name)
+    {
+        QFile request(QString::fromLocal8Bit(qgetenv("XDG_RUNTIME_DIR")) + QLatin1Char('/') + name);
+        if (!request.exists() || !request.open(QIODevice::ReadOnly)) {
+            return std::nullopt;
+        }
+        const QByteArray contents = request.readAll();
+        request.close();
+        request.remove();
+        return contents;
     }
 
     int requestedEffectChainPosition() const override

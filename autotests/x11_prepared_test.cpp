@@ -14,6 +14,7 @@
 #include <QDBusInterface>
 #include <QDBusReply>
 #include <QFile>
+#include <QSaveFile>
 #include <QTest>
 
 // Stands in for a helper answering org.kde.KWin.Upscale.Helper1: it prepared
@@ -26,8 +27,28 @@ class TestHelper : public QObject
 public:
     QSize size;
     QList<uint> asked;
+    QStringList offers;
+    QStringList answers;
+    QStringList restarts;
 
 public Q_SLOTS:
+    Q_SCRIPTABLE QString offer(uint pid, const QString &windowClass, const QString &title, int width, int height, QString &question)
+    {
+        Q_UNUSED(title)
+        offers.append(QStringLiteral("%1 %2 %3 %4").arg(pid).arg(windowClass).arg(width).arg(height));
+        question = QStringLiteral("Set this game up?");
+        return QStringLiteral("offer-1");
+    }
+    Q_SCRIPTABLE QString answer(const QString &offer, const QString &answer)
+    {
+        answers.append(offer + QLatin1Char(' ') + answer);
+        return answer == QStringLiteral("accept") ? QStringLiteral("Restart it?") : QString();
+    }
+    Q_SCRIPTABLE bool restart(const QString &offer)
+    {
+        restarts.append(offer);
+        return true;
+    }
     Q_SCRIPTABLE int present(uint pid, const QString &windowClass, int &height)
     {
         Q_UNUSED(windowClass)
@@ -51,9 +72,15 @@ private Q_SLOTS:
     void cleanup();
     void presentsAWindowAHelperPrepared();
     void leavesAWindowNobodyPrepared();
+    void asksTheUserAndRestartsTheGame();
+    void postponesWithEscape();
 
 private:
     QString status();
+    void request(const QString &name, const QByteArray &contents);
+    void press(Qt::Key key);
+    void registerHelper(TestHelper *helper);
+    void unregisterHelper();
     QDBusInterface m_effects{QStringLiteral("org.kde.KWin"), QStringLiteral("/Effects"),
                              QStringLiteral("org.kde.kwin.Effects"), QDBusConnection::sessionBus()};
 };
@@ -91,9 +118,7 @@ void UpscaleX11PreparedTest::presentsAWindowAHelperPrepared()
 {
     TestHelper helper;
     helper.size = QSize(1920, 1080);
-    QDBusConnection bus = QDBusConnection::sessionBus();
-    QVERIFY(bus.registerObject(QStringLiteral("/Helper"), &helper, QDBusConnection::ExportScriptableSlots));
-    QVERIFY(bus.registerService(QStringLiteral("org.kde.KWin.Upscale.Helper")));
+    registerHelper(&helper);
 
     // A Wine virtual desktop is an ordinary decorated window of the prepared
     // size, and its program never asks for fullscreen.
@@ -113,9 +138,7 @@ void UpscaleX11PreparedTest::presentsAWindowAHelperPrepared()
     QTest::qWait(1000);
     QVERIFY(!game.isFullscreen());
     QCOMPARE(game.geometry().size(), QSize(1920, 1080));
-
-    bus.unregisterObject(QStringLiteral("/Helper"));
-    QVERIFY(bus.unregisterService(QStringLiteral("org.kde.KWin.Upscale.Helper")));
+    unregisterHelper();
 }
 
 void UpscaleX11PreparedTest::leavesAWindowNobodyPrepared()
@@ -126,6 +149,91 @@ void UpscaleX11PreparedTest::leavesAWindowNobodyPrepared()
     QTest::qWait(2000);
     QVERIFY(!window.isFullscreen());
     QCOMPARE(window.geometry().size(), QSize(1920, 1080));
+}
+
+// Read and removed by the test driver inside the compositor, like the pointer
+// request of the other X11 test; the next one waits until it has been taken.
+void UpscaleX11PreparedTest::request(const QString &name, const QByteArray &contents)
+{
+    const QString path = QString::fromLocal8Bit(qgetenv("XDG_RUNTIME_DIR")) + QLatin1Char('/') + name;
+    QSaveFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    QVERIFY(file.write(contents) > 0);
+    QVERIFY(file.commit());
+    QTRY_VERIFY(!QFile::exists(path));
+}
+
+void UpscaleX11PreparedTest::press(Qt::Key key)
+{
+    request(QStringLiteral("upscale-test-key"), QByteArray::number(int(key)));
+}
+
+void UpscaleX11PreparedTest::registerHelper(TestHelper *helper)
+{
+    QDBusConnection bus = QDBusConnection::sessionBus();
+    QVERIFY(bus.registerObject(QStringLiteral("/Helper"), helper, QDBusConnection::ExportScriptableSlots));
+    QVERIFY(bus.registerService(QStringLiteral("org.kde.KWin.Upscale.Helper")));
+}
+
+void UpscaleX11PreparedTest::unregisterHelper()
+{
+    QDBusConnection bus = QDBusConnection::sessionBus();
+    bus.unregisterObject(QStringLiteral("/Helper"));
+    QVERIFY(bus.unregisterService(QStringLiteral("org.kde.KWin.Upscale.Helper")));
+}
+
+void UpscaleX11PreparedTest::asksTheUserAndRestartsTheGame()
+{
+    TestHelper helper;
+    registerHelper(&helper);
+    X11Client game(false);
+    game.reportProcess();
+    QVERIFY(game.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 3840, 2160), true));
+    QTRY_VERIFY_WITH_TIMEOUT(game.isFullscreen(), 10000);
+
+    // The game goes on drawing at the output's size, as validation would find
+    // of a Wine game in exclusive fullscreen: the helper is asked.
+    request(QStringLiteral("upscale-test-unfollowed"), QByteArrayLiteral("upscale-x11-test 1920 1080"));
+    QTRY_COMPARE(helper.offers.size(), 1);
+    QCOMPARE(helper.offers.first(), QStringLiteral("%1 upscale-x11-test 1920 1080").arg(QCoreApplication::applicationPid()));
+    QTRY_VERIFY2(status().contains(QStringLiteral("question: Set this game up?")), qPrintable(status()));
+
+    // The first answer is selected; moving away and back leaves it selected.
+    press(Qt::Key_Right);
+    press(Qt::Key_Left);
+    press(Qt::Key_Return);
+    QTRY_COMPARE(helper.answers, QStringList{QStringLiteral("offer-1 accept")});
+    QTRY_VERIFY2(status().contains(QStringLiteral("question: Restart it?")), qPrintable(status()));
+
+    // Restarting asks the window to close and leaves the rest to the helper.
+    press(Qt::Key_Return);
+    QTRY_COMPARE(helper.restarts, QStringList{QStringLiteral("offer-1")});
+    QTRY_COMPARE(game.closeRequests(), 1);
+    QVERIFY2(!status().contains(QStringLiteral("question: Restart it?")), qPrintable(status()));
+    unregisterHelper();
+}
+
+void UpscaleX11PreparedTest::postponesWithEscape()
+{
+    TestHelper helper;
+    registerHelper(&helper);
+    X11Client game(false);
+    QVERIFY(game.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 3840, 2160), true));
+    QTRY_VERIFY_WITH_TIMEOUT(game.isFullscreen(), 10000);
+    request(QStringLiteral("upscale-test-unfollowed"), QByteArrayLiteral("upscale-x11-test 1920 1080"));
+    QTRY_VERIFY2(status().contains(QStringLiteral("question: Set this game up?")), qPrintable(status()));
+    press(Qt::Key_Escape);
+    QTRY_COMPARE(helper.answers, QStringList{QStringLiteral("offer-1 later")});
+    QTest::qWait(500);
+    QVERIFY2(!status().contains(QStringLiteral("question: Set this game up?")), qPrintable(status()));
+    QVERIFY(helper.restarts.isEmpty());
+    QCOMPARE(game.closeRequests(), 0);
+
+    // The same window is not asked about again.
+    request(QStringLiteral("upscale-test-unfollowed"), QByteArrayLiteral("upscale-x11-test 1920 1080"));
+    QTest::qWait(500);
+    QCOMPARE(helper.offers.size(), 1);
+    unregisterHelper();
 }
 
 QTEST_MAIN(UpscaleX11PreparedTest)

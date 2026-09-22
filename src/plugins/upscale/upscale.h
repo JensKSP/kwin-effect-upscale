@@ -59,6 +59,13 @@ public:
     void grabbedKeyboardEvent(QKeyEvent *event) override;
     /** Whether the X11 resolution control has nothing in flight; see UpscaleX11Resolution::settled(). */
     bool x11RequestsSettled() const;
+    /**
+     * @p window's client went on drawing another size than @p size, which was
+     * asked of it. X11 validation reports this; a test driver can as well.
+     */
+    void unfollowed(EffectWindow *window, const QSize &size);
+    /** The question in the middle of the screen; empty while there is none. */
+    QString question() const;
     int requestedEffectChainPosition() const override;
     UpscalePaintResult drawWindow(const RenderTarget &target, const RenderViewport &viewport, EffectWindow *window,
                                   int mask, const UpscaleRegion &region, WindowPaintData &data) override;

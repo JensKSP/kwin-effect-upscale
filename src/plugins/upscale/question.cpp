@@ -50,6 +50,11 @@ bool UpscaleQuestion::isOpen() const
     return m_owner != nullptr;
 }
 
+QString UpscaleQuestion::text() const
+{
+    return isOpen() ? m_text.text() : QString();
+}
+
 void UpscaleQuestion::select(int index)
 {
     const int count = int(m_answers.size());

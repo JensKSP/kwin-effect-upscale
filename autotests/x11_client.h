@@ -34,6 +34,12 @@ public:
      */
     int configureNotifies() const;
     /**
+     * How many times the window manager asked the window to close, with
+     * WM_DELETE_WINDOW, which the window says it understands. A window that
+     * does not say so is killed instead, and its client with it.
+     */
+    int closeRequests() const;
+    /**
      * Report this process as the window's owner, in _NET_WM_PID, when shown.
      *
      * Off unless asked: KWin groups a process's windows by it, and the cases
@@ -53,6 +59,9 @@ private:
     QSize m_size;
     QPoint m_lastMotion{-1, -1};
     int m_configureNotifies = 0;
+    int m_closeRequests = 0;
+    xcb_atom_t m_protocols = XCB_NONE;
+    xcb_atom_t m_deleteWindow = XCB_NONE;
     bool m_cooperative;
     int m_ignoredResizes = 0;
     bool m_fullscreenOnMap = false;
