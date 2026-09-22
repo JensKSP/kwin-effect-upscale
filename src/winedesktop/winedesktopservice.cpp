@@ -52,9 +52,9 @@ bool WineDesktopService::restart(const QString &offer)
     return m_helper->restart(offer);
 }
 
-int WineDesktopService::present(uint pid, const QString &windowClass, int &height)
+int WineDesktopService::present(uint pid, const QString &windowClass, int wantedWidth, int wantedHeight, int &height)
 {
-    const QSize size = m_helper->present(pid, windowClass);
+    const QSize size = m_helper->present(pid, windowClass, QSize(wantedWidth, wantedHeight));
     height = size.height();
     return size.width();
 }

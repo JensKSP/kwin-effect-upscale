@@ -31,6 +31,7 @@ bool UpscaleQuestion::ask(Effect *owner, UpscaleOutput *output, const QString &t
     if (isOpen() || !output || answers.isEmpty() || !effects->grabKeyboard(owner)) {
         return false;
     }
+    effects->startMouseInterception(owner, Qt::ArrowCursor);
     m_owner = owner;
     m_output = output;
     m_answers = answers;
@@ -94,6 +95,31 @@ void UpscaleQuestion::key(QKeyEvent *event)
     }
 }
 
+void UpscaleQuestion::pointerMoved(const QPointF &position)
+{
+    for (int answer = 0; answer < int(m_areas.size()); ++answer) {
+        if (m_areas.at(answer).contains(position) && answer != m_selected) {
+            select(answer);
+            return;
+        }
+    }
+}
+
+void UpscaleQuestion::pointerReleased(const QPointF &position)
+{
+    for (int answer = 0; answer < int(m_areas.size()); ++answer) {
+        if (m_areas.at(answer).contains(position)) {
+            choose(m_answers.at(answer).id);
+            return;
+        }
+    }
+}
+
+QList<QRectF> UpscaleQuestion::answerAreas() const
+{
+    return m_areas;
+}
+
 void UpscaleQuestion::choose(const QString &id)
 {
     const Chosen chosen = m_chosen;
@@ -108,9 +134,12 @@ void UpscaleQuestion::close()
     if (!isOpen()) {
         return;
     }
+    Effect *owner = m_owner;
     m_owner = nullptr;
     m_chosen = nullptr;
+    m_areas.clear();
     effects->ungrabKeyboard();
+    effects->stopMouseInterception(owner);
     m_text.release();
     m_buttons.clear();
     effects->addRepaintFull();
@@ -136,8 +165,11 @@ void UpscaleQuestion::paint(const RenderTarget &target, const RenderViewport &vi
     const double top = area.y() + ((area.height() - text.height() - questionGap - rowHeight) / 2);
     m_text.paint(target, viewport, QPointF(centre - (text.width() / 2), top));
     double left = centre - (rowWidth / 2);
+    m_areas.clear();
     for (const std::unique_ptr<UpscaleOverlay> &button : m_buttons) {
-        button->paint(target, viewport, QPointF(left, top + text.height() + questionGap));
+        const QPointF position(left, top + text.height() + questionGap);
+        button->paint(target, viewport, position);
+        m_areas.append(QRectF(position, button->size()));
         left += button->size().width() + questionGap;
     }
 }

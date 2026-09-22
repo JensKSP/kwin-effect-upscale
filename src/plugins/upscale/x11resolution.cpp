@@ -200,6 +200,24 @@ static bool upscaleX11ResizeWanted(const UpscaleApplication *application, const 
 }
 
 #if KWIN_BUILD_X11
+QSize upscaleWantedSize(const Window *window)
+{
+    if (!window || !window->output()) {
+        return {};
+    }
+    const UpscaleSettings settings = upscaleResolveSettings(upscaleApplicationForWindow(window));
+    const QSize pixels = window->output()->pixelSize();
+    if (!settings.acts() || !exceedsMinimumPixels({pixels.width(), pixels.height()}, settings.value(UpscaleSetting::MinimumPixels))) {
+        return {};
+    }
+    const UpscaleSize size = desiredResolution({pixels.width(), pixels.height()}, settings.resolution(),
+                                               settings.value(UpscaleSetting::Percentage));
+    if (!canUpscale(size, {pixels.width(), pixels.height()}) || size.width > 65535 || size.height > 65535) {
+        return {};
+    }
+    return QSize(size.width, size.height);
+}
+
 QString UpscaleX11Resolution::keyFor(const Window *window)
 {
     if (!window || !window->output()) {
@@ -280,17 +298,11 @@ UpscaleX11Resolution::Request UpscaleX11Resolution::requestFor(X11Window *window
     if (key.isEmpty() || m_failures.contains(key)) {
         return {};
     }
+    const QSize size = upscaleWantedSize(window);
+    if (size.isEmpty()) {
+        return {};
+    }
     const UpscaleApplication *application = upscaleApplicationForWindow(window);
-    const UpscaleSettings settings = upscaleResolveSettings(application);
-    const QSize pixels = window->output()->pixelSize();
-    if (!exceedsMinimumPixels({pixels.width(), pixels.height()}, settings.value(UpscaleSetting::MinimumPixels))) {
-        return {};
-    }
-    const UpscaleSize size = desiredResolution({pixels.width(), pixels.height()}, settings.resolution(),
-                                               settings.value(UpscaleSetting::Percentage));
-    if (!canUpscale(size, {pixels.width(), pixels.height()}) || size.width > 65535 || size.height > 65535) {
-        return {};
-    }
     // Output ownership comes from this window, never from the active screen.
     const qreal scale = kwinApp()->xwaylandScale();
     const QPoint position(qRound(window->output()->geometryF().x() * scale),
@@ -301,7 +313,7 @@ UpscaleX11Resolution::Request UpscaleX11Resolution::requestFor(X11Window *window
     // satisfied without an initializer on the timer that says nothing.
     // The global profile has no primary-output rule: that is measured per game.
     const bool primaryOnly = application && application->x11PrimaryOutputOnly;
-    return {window, key, position, QSize(size.width, size.height), primaryOnly, false, false, {}};
+    return {window, key, position, size, primaryOnly, false, false, {}};
 }
 
 bool UpscaleX11Resolution::begin(const Request &request)

@@ -56,6 +56,13 @@
 #ifndef UPSCALE_RENDER_DEVICE_API
 #define UPSCALE_RENDER_DEVICE_API 1
 #endif
+// Whether an effect that intercepts the pointer receives KWin's pointer events
+// (pointerMotion, pointerButton) rather than Qt mouse events through
+// windowInputMouseEvent. Decided by the build the same way, and the newest
+// API inside KWin's tree.
+#ifndef UPSCALE_POINTER_EVENT_API
+#define UPSCALE_POINTER_EVENT_API 1
+#endif
 
 namespace KWin
 {

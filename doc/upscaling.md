@@ -360,6 +360,12 @@ Implemented 2026-09-22 as an optional helper, not yet verified with a game:
 - From the next start the game renders at the chosen size inside a Wine desktop
   window of that size. The effect makes that window fullscreen, holds it at its
   size and upscales it like any other smaller buffer.
+- The question holds the keyboard and the pointer until it is answered: arrow
+  keys, Tab, Return and Escape, or hovering and a click.
+- Each time a prepared game's window appears, the effect tells the helper the
+  size it wants now. A changed resolution is written after that run; a game
+  the effect no longer acts on, or whose fullscreen method is Off, has its
+  desktop undone after that run instead of being presented.
 - **Prepared Games** on the settings page lists what the helper set up, with a
   Reset for each. Uninstalling the package cannot undo a preparation, because
   nothing runs as the user afterwards; the question says so.

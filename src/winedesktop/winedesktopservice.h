@@ -43,7 +43,7 @@ public Q_SLOTS:
     Q_SCRIPTABLE QString offer(uint pid, const QString &windowClass, const QString &title, int width, int height, QString &question);
     Q_SCRIPTABLE QString answer(const QString &offer, const QString &answer);
     Q_SCRIPTABLE bool restart(const QString &offer);
-    Q_SCRIPTABLE int present(uint pid, const QString &windowClass, int &height);
+    Q_SCRIPTABLE int present(uint pid, const QString &windowClass, int wantedWidth, int wantedHeight, int &height);
     Q_SCRIPTABLE QList<PreparedProgram> prepared();
     Q_SCRIPTABLE bool reset(const QString &id);
 

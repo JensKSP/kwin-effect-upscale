@@ -64,24 +64,26 @@ std::optional<WinePrefixRefusal> wineCheckRegistry(const QString &path, uid_t us
 namespace
 {
 
-// Under Proton the prefix is <compatdata>/<appid>/pfx, and the window class
-// names the same application.
+// Proton's variables, where they are set. A window named steam_app_<id> has
+// to name the application SteamAppId names. A prefix that is pfx in the
+// compatibility data is laid out by Proton, whose lock on that directory
+// applies; any launcher using Proton does that, and only Steam's own layout,
+// where the directory is named after the application, is one Steam can start
+// again.
 std::optional<WinePrefixRefusal> checkSteam(WinePrefix &prefix, const QProcessEnvironment &environment, const QString &windowClass)
 {
-    const QString compatData = environment.value(QStringLiteral("STEAM_COMPAT_DATA_PATH"));
-    if (compatData.isEmpty()) {
-        return windowClass.startsWith(steamAppClass) ? std::optional(WinePrefixRefusal::SteamMismatch) : std::nullopt;
-    }
-    const QString gameCompatData = QDir::cleanPath(compatData);
     const QString appId = environment.value(QStringLiteral("SteamAppId"));
-    if (appId.isEmpty() || prefix.gamePath != gameCompatData + QStringLiteral("/pfx") || QFileInfo(gameCompatData).fileName() != appId) {
-        return WinePrefixRefusal::SteamMismatch;
-    }
     if (windowClass.startsWith(steamAppClass) && windowClass != steamAppClass + appId) {
         return WinePrefixRefusal::SteamMismatch;
     }
-    prefix.steamAppId = appId;
+    const QString compatData = environment.value(QStringLiteral("STEAM_COMPAT_DATA_PATH"));
+    if (compatData.isEmpty() || prefix.gamePath != QDir::cleanPath(compatData) + QStringLiteral("/pfx")) {
+        return std::nullopt;
+    }
     prefix.steamCompatDataPath = prefix.path.chopped(QStringLiteral("/pfx").size());
+    if (!appId.isEmpty() && QFileInfo(QDir::cleanPath(compatData)).fileName() == appId) {
+        prefix.steamAppId = appId;
+    }
     return std::nullopt;
 }
 

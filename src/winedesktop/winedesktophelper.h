@@ -45,7 +45,13 @@ public:
     Offered offer(uint pid, const QString &windowClass, const QString &title, const QSize &size);
     QString answer(const QString &offer, const QString &answer);
     bool restart(const QString &offer);
-    QSize present(uint pid, const QString &windowClass);
+    /*
+     * The size the program in this window was prepared for, when it runs at it
+     * now, so that the effect presents the window across its output. `wanted`
+     * is the size the effect wants now: another one prepares the program for
+     * it after this run, and none undoes the preparation after this run.
+     */
+    QSize present(uint pid, const QString &windowClass, const QSize &wanted);
     QList<WineDesktopRecord> prepared() const;
     bool reset(const QString &id);
 
@@ -90,6 +96,8 @@ private:
     static bool stillRunning(Job &job);
     void settle(const Job &job, WineDesktopRecord &record, WineWriteResult result);
     void startJob(const Job &job);
+    void afterRun(const WineDesktopRecord &record, uint pid, pid_t server, const std::shared_ptr<WineDirectory> &directory,
+                  const std::optional<QSize> &size);
     bool hasJob(const QString &id) const;
 
     WineDesktopRecords *m_records;

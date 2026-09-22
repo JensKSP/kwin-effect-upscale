@@ -168,8 +168,14 @@ void WinePrefixTest::crossChecksProton()
     QCOMPARE(prefix->steamAppId, QStringLiteral("228380"));
     QCOMPARE(prefix->steamCompatDataPath, m_root->path() + QStringLiteral("/steam/compatdata/228380"));
     QCOMPARE(wineLocatePrefix(game, ::getuid(), QStringLiteral("steam_app_550")).error(), WinePrefixRefusal::SteamMismatch);
-    game.environment.insert(QStringLiteral("SteamAppId"), QStringLiteral("550"));
-    QCOMPARE(wineLocatePrefix(game, ::getuid(), QString()).error(), WinePrefixRefusal::SteamMismatch);
+    // A launcher other than Steam that uses Proton names its compatibility
+    // data as it likes: Proton's layout still holds, but Steam cannot start
+    // that game again.
+    game.environment.insert(QStringLiteral("SteamAppId"), QStringLiteral("umu-default"));
+    const auto other = wineLocatePrefix(game, ::getuid(), QString());
+    QVERIFY(other);
+    QVERIFY(other->steamAppId.isEmpty());
+    QCOMPARE(other->steamCompatDataPath, m_root->path() + QStringLiteral("/steam/compatdata/228380"));
     QCOMPARE(wineLocatePrefix(process(QStringLiteral("/pfx")), ::getuid(), QStringLiteral("steam_app_228380")).error(), WinePrefixRefusal::SteamMismatch);
 }
 

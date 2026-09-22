@@ -76,7 +76,7 @@ WineDesktopTarget targetFor(const WinePrefix &prefix, const QProcessEnvironment 
     return {
         .prefix = prefix.gamePath,
         .identity = prefix.identity,
-        .steamCompatData = prefix.steamAppId.isEmpty() ? QString() : QDir::cleanPath(environment.value(QStringLiteral("STEAM_COMPAT_DATA_PATH"))),
+        .steamCompatData = prefix.steamCompatDataPath.isEmpty() ? QString() : QDir::cleanPath(environment.value(QStringLiteral("STEAM_COMPAT_DATA_PATH"))),
         .temporaryDirectory = hostTemporaryDirectory,
         .directory = nullptr,
     };
@@ -193,7 +193,7 @@ bool WineDesktopHelper::restart(const QString &offer)
     return false;
 }
 
-QSize WineDesktopHelper::present(uint pid, const QString &windowClass)
+QSize WineDesktopHelper::present(uint pid, const QString &windowClass, const QSize &wanted)
 {
     const std::optional<WineProcess> process = wineProcess(pid);
     if (!process) {
@@ -203,34 +203,61 @@ QSize WineDesktopHelper::present(uint pid, const QString &windowClass)
     if (!prefix) {
         return {};
     }
-    const std::optional<WineDesktopRecord> record = m_records->find(wineRecordId(prefix->identity));
+    std::optional<WineDesktopRecord> record = m_records->find(wineRecordId(prefix->identity));
     if (!record || !record->written) {
         return {};
     }
+    const std::shared_ptr<WineDirectory> directory = WineDirectory::open(prefix->path, prefix->identity);
+    const std::optional<pid_t> server = wineServerProcess(wineServerLockPath(prefix->temporaryDirectory, ::getuid(), prefix->identity));
+    if (!directory || !server) {
+        return {};
+    }
+    const QSize written = *record->written;
     // The prefix may have lost the desktop since it was written: a Wine server
     // that overlapped the write saves its own copy when it exits, and Proton
-    // rebuilds a prefix it is downgraded to. Then this run has none, and it is
-    // written again after the run.
-    const std::shared_ptr<WineDirectory> directory = WineDirectory::open(prefix->path, prefix->identity);
-    if (directory && wineIsDesktop(wineDesktopValuesIn(*directory), *record->written)) {
-        return *record->written;
+    // rebuilds a prefix it is downgraded to. Then this run has none.
+    const bool held = wineIsDesktop(wineDesktopValuesIn(*directory), written);
+    if (wanted.isEmpty()) {
+        // The effect no longer wants this program smaller: undone after this
+        // run, and this run is left as it is. A desktop the prefix has lost
+        // already leaves nothing to undo but the record of it.
+        if (held) {
+            afterRun(*record, pid, *server, directory, std::nullopt);
+        } else if (!hasJob(record->id)) {
+            record->written.reset();
+            record->never ? m_records->store(*record) : m_records->remove(record->id);
+        }
+        return {};
     }
-    const std::optional<pid_t> server = wineServerProcess(wineServerLockPath(prefix->temporaryDirectory, ::getuid(), prefix->identity));
-    if (directory && server && !hasJob(record->id)) {
-        startJob({
-            .id = record->id,
-            .offer = {},
-            .game = static_cast<pid_t>(pid),
-            .server = *server,
-            .clear = false,
-            .size = *record->written,
-            .relaunch = false,
-            .closeDeadline = {},
-            .terminated = false,
-            .directory = directory,
-        });
+    if (!held || wanted != written) {
+        // Written again, or at the size the effect wants now, after this run.
+        record->wanted = wanted;
+        m_records->store(*record);
+        afterRun(*record, pid, *server, directory, wanted);
     }
-    return {};
+    return held ? written : QSize();
+}
+
+// Queues the write that follows this run of the program: the desktop at
+// `size`, or, without one, the desktop taken away again.
+void WineDesktopHelper::afterRun(const WineDesktopRecord &record, uint pid, pid_t server, const std::shared_ptr<WineDirectory> &directory,
+                                 const std::optional<QSize> &size)
+{
+    if (hasJob(record.id)) {
+        return;
+    }
+    startJob({
+        .id = record.id,
+        .offer = {},
+        .game = static_cast<pid_t>(pid),
+        .server = server,
+        .clear = !size,
+        .size = size.value_or(record.written.value_or(QSize())),
+        .relaunch = false,
+        .closeDeadline = {},
+        .terminated = false,
+        .directory = directory,
+    });
 }
 
 bool WineDesktopHelper::hasJob(const QString &id) const

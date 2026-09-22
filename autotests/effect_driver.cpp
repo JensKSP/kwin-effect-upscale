@@ -137,6 +137,18 @@ public:
         // them, act on a motion only when the frame that closes it arrives.
         Q_EMIT pointerFrame(this);
     }
+
+    // A left click there. KWin takes evdev's button codes on every platform,
+    // and BTN_LEFT is 0x110 among them.
+    void click(const QPointF &position)
+    {
+        move(position);
+        for (const PointerButtonState state : {PointerButtonState::Pressed, PointerButtonState::Released}) {
+            const auto now = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch());
+            Q_EMIT pointerButtonChanged(0x110, state, now, this);
+            Q_EMIT pointerFrame(this);
+        }
+    }
 };
 
 class UpscaleTestDriver : public Effect
@@ -149,8 +161,10 @@ class UpscaleTestDriver : public Effect
     // What a test waits for before judging what a reconfiguration did to an
     // X11 window, rather than a delay that may or may not cover it.
     Q_PROPERTY(bool x11Settled READ x11Settled)
-    // The question the effect has put in the middle of the screen, if any.
+    // The question the effect has put in the middle of the screen, if any,
+    // and where its answers are, as x,y,width,height separated by semicolons.
     Q_PROPERTY(QString question READ question)
+    Q_PROPERTY(QString answers READ answers)
 
 public:
     UpscaleTestDriver()
@@ -180,6 +194,7 @@ public:
         connect(poll, &QTimer::timeout, this, &UpscaleTestDriver::movePointer);
         connect(poll, &QTimer::timeout, this, &UpscaleTestDriver::pressKey);
         connect(poll, &QTimer::timeout, this, &UpscaleTestDriver::reportUnfollowed);
+        connect(poll, &QTimer::timeout, this, &UpscaleTestDriver::click);
         poll->start(50);
     }
 
@@ -276,6 +291,26 @@ public:
     QString question() const
     {
         return m_effect->question();
+    }
+
+    QString answers() const
+    {
+        QStringList areas;
+        for (const QRectF &area : m_effect->questionAnswers()) {
+            areas.append(QStringLiteral("%1,%2,%3,%4").arg(area.x()).arg(area.y()).arg(area.width()).arg(area.height()));
+        }
+        return areas.join(QLatin1Char(';'));
+    }
+
+    // "<x> <y>": a left click there, through KWin's input like the pointer
+    // motion above.
+    void click()
+    {
+        const std::optional<QByteArray> request = takeRequest(QStringLiteral("upscale-test-click"));
+        const QList<QByteArray> fields = request ? request->simplified().split(' ') : QList<QByteArray>();
+        if (fields.size() == 2) {
+            m_pointer.click(QPointF(fields.at(0).toDouble(), fields.at(1).toDouble()));
+        }
     }
 
     // A key for the question, by Qt key code, the way the keyboard grab

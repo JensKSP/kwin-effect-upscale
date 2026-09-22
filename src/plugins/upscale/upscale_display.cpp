@@ -15,8 +15,10 @@
 
 #include "effect/effecthandler.h"
 #include "effect/effectwindow.h"
+#include "input_event.h"
 
 #include <KLocalizedString>
+#include <QMouseEvent>
 #include <QScopedValueRollback>
 
 namespace KWin
@@ -100,6 +102,40 @@ QString UpscaleEffect::question() const
 {
     return m_preparation->question().text();
 }
+
+QList<QRectF> UpscaleEffect::questionAnswers() const
+{
+    return m_preparation->question().answerAreas();
+}
+
+// The pointer, while a question intercepts it: hovering an answer selects it
+// and releasing the left button over one chooses it.
+#if UPSCALE_POINTER_EVENT_API
+void UpscaleEffect::pointerMotion(PointerMotionEvent *event)
+{
+    m_preparation->question().pointerMoved(event->position);
+}
+
+void UpscaleEffect::pointerButton(PointerButtonEvent *event)
+{
+    if (event->button == Qt::LeftButton && event->state == PointerButtonState::Released) {
+        m_preparation->question().pointerReleased(event->position);
+    }
+}
+#else
+void UpscaleEffect::windowInputMouseEvent(QEvent *event)
+{
+    if (event->type() != QEvent::MouseMove && event->type() != QEvent::MouseButtonRelease) {
+        return;
+    }
+    const auto mouse = static_cast<QMouseEvent *>(event);
+    if (event->type() == QEvent::MouseMove) {
+        m_preparation->question().pointerMoved(mouse->globalPosition());
+    } else if (mouse->button() == Qt::LeftButton) {
+        m_preparation->question().pointerReleased(mouse->globalPosition());
+    }
+}
+#endif
 
 QString UpscaleEffect::build() const
 {

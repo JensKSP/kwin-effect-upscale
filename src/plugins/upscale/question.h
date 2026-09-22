@@ -11,6 +11,7 @@
 
 #include <QList>
 #include <QPointer>
+#include <QRectF>
 #include <QString>
 
 #include <functional>
@@ -30,7 +31,8 @@ namespace KWin
  * captured image, but it takes the keyboard until it is answered, because a
  * question the game keeps its keys from cannot be answered. Left, right and
  * Tab move between the answers, Return chooses one and Escape chooses the one
- * that postpones.
+ * that postpones. It holds the pointer as well: hovering an answer selects it
+ * and a click chooses it.
  */
 class UpscaleQuestion
 {
@@ -56,6 +58,11 @@ public:
     QString text() const;
     /** A key while the question holds the keyboard. */
     void key(QKeyEvent *event);
+    /** The pointer, at a global logical position, while the question holds it. */
+    void pointerMoved(const QPointF &position);
+    void pointerReleased(const QPointF &position);
+    /** Where the answers were last drawn, in global logical coordinates. */
+    QList<QRectF> answerAreas() const;
     void paint(const RenderTarget &target, const RenderViewport &viewport, UpscaleOutput *screen);
     /** Takes the question away unanswered, as when its output goes. */
     void close();
@@ -68,6 +75,7 @@ private:
     QPointer<UpscaleOutput> m_output;
     UpscaleOverlay m_text;
     std::vector<std::unique_ptr<UpscaleOverlay>> m_buttons;
+    QList<QRectF> m_areas;
     QList<Answer> m_answers;
     QString m_cancel;
     Chosen m_chosen;

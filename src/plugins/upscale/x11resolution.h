@@ -34,6 +34,15 @@ class UpscaleX11Input;
 class Window;
 class X11Window;
 
+#if KWIN_BUILD_X11
+/**
+ * The size the settings want @p window's program to render at on its output:
+ * what an X11 request asks for, and what a helper is told a program it
+ * prepared should render at. Empty where they want nothing smaller.
+ */
+QSize upscaleWantedSize(const Window *window);
+#endif
+
 /** A live, profile-selected request; the client still owns its renderer. */
 class UpscaleX11Resolution : public QObject
 #if KWIN_BUILD_X11

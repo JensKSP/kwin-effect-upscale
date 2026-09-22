@@ -67,10 +67,11 @@ void UpscaleHelper::restart(const QString &offer)
     call(QStringLiteral("restart"), {offer}, nullptr);
 }
 
-void UpscaleHelper::present(EffectWindow *window, const Prepared &reply)
+void UpscaleHelper::present(EffectWindow *window, const QSize &wanted, const Prepared &reply)
 {
     QVariantList arguments = identify(window);
     arguments.removeLast();
+    arguments << wanted.width() << wanted.height();
     call(QStringLiteral("present"), arguments, [reply](const QDBusMessage &message) {
         const QVariantList values = message.arguments();
         if (values.size() == 2) {

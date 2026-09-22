@@ -35,7 +35,7 @@ enum class WinePrefixRefusal {
     // replace what Wine reads.
     RegistryNotPlain,
     NotARegistry,
-    // Proton's variables and the window disagree about which game this is.
+    // The window names another Steam application than the process does.
     SteamMismatch,
     // No server holds this prefix's lock, so it is not the prefix the game uses.
     ServerNotRunning,
@@ -49,8 +49,9 @@ struct WinePrefix
     // The game's temporary directory, where its server's lock lives.
     QString temporaryDirectory;
     WinePrefixIdentity identity;
-    // Proton's compatibility data directory as the companion reaches it, and
-    // the Steam application; both empty outside Proton.
+    // Proton's compatibility data directory as the companion reaches it,
+    // empty outside Proton's layout, and the Steam application, empty where
+    // Steam did not lay the prefix out.
     QString steamCompatDataPath;
     QString steamAppId;
 };

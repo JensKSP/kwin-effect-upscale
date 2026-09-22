@@ -27,6 +27,7 @@ class TestHelper : public QObject
 public:
     QSize size;
     QList<uint> asked;
+    QList<QSize> wanted;
     QStringList offers;
     QStringList answers;
     QStringList restarts;
@@ -49,10 +50,11 @@ public Q_SLOTS:
         restarts.append(offer);
         return true;
     }
-    Q_SCRIPTABLE int present(uint pid, const QString &windowClass, int &height)
+    Q_SCRIPTABLE int present(uint pid, const QString &windowClass, int wantedWidth, int wantedHeight, int &height)
     {
         Q_UNUSED(windowClass)
         asked.append(pid);
+        wanted.append(QSize(wantedWidth, wantedHeight));
         height = size.height();
         return size.width();
     }
@@ -74,12 +76,14 @@ private Q_SLOTS:
     void leavesAWindowNobodyPrepared();
     void asksTheUserAndRestartsTheGame();
     void postponesWithEscape();
+    void answersWithAClick();
 
 private:
     QString status();
     void request(const QString &name, const QByteArray &contents);
     void press(Qt::Key key);
     void registerHelper(TestHelper *helper);
+    QStringList answers();
     void unregisterHelper();
     QDBusInterface m_effects{QStringLiteral("org.kde.KWin"), QStringLiteral("/Effects"),
                              QStringLiteral("org.kde.kwin.Effects"), QDBusConnection::sessionBus()};
@@ -127,6 +131,8 @@ void UpscaleX11PreparedTest::presentsAWindowAHelperPrepared()
     QVERIFY(game.show(QByteArrayLiteral("upscale-x11-test"), QRect(100, 100, 1920, 1080), false));
     QTRY_VERIFY_WITH_TIMEOUT(game.isFullscreen(), 10000);
     QCOMPARE(helper.asked.value(0), uint(QCoreApplication::applicationPid()));
+    // The helper is told what the effect wants now: Quality on a 4K output.
+    QCOMPARE(helper.wanted.value(0), QSize(2560, 1440));
     QCOMPARE(game.geometry().size(), QSize(1920, 1080));
     QTRY_VERIFY2(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()));
     QVERIFY2(status().contains(QStringLiteral("Supplied input: 1920 × 1080")), qPrintable(status()));
@@ -234,6 +240,39 @@ void UpscaleX11PreparedTest::postponesWithEscape()
     QTest::qWait(500);
     QCOMPARE(helper.offers.size(), 1);
     unregisterHelper();
+}
+
+void UpscaleX11PreparedTest::answersWithAClick()
+{
+    TestHelper helper;
+    registerHelper(&helper);
+    X11Client game(false);
+    QVERIFY(game.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 3840, 2160), true));
+    QTRY_VERIFY_WITH_TIMEOUT(game.isFullscreen(), 10000);
+    request(QStringLiteral("upscale-test-unfollowed"), QByteArrayLiteral("upscale-x11-test 1920 1080"));
+    QTRY_VERIFY2(status().contains(QStringLiteral("question: Set this game up?")), qPrintable(status()));
+    // The three answers side by side, once they have been drawn; the third is
+    // "Never for this game".
+    QStringList areas;
+    QTRY_VERIFY2((areas = answers()).size() == 3, qPrintable(status()));
+    const QList<QString> never = areas.at(2).split(QLatin1Char(','));
+    const QPointF middle(never.at(0).toDouble() + (never.at(2).toDouble() / 2), never.at(1).toDouble() + (never.at(3).toDouble() / 2));
+    request(QStringLiteral("upscale-test-click"), QByteArray::number(middle.x()) + ' ' + QByteArray::number(middle.y()));
+    QTRY_COMPARE(helper.answers, QStringList{QStringLiteral("offer-1 never")});
+    QTRY_VERIFY2(!status().contains(QStringLiteral("question: Set this game up?")), qPrintable(status()));
+    unregisterHelper();
+}
+
+// The answers' areas as the driver reports them, one per answer.
+QStringList UpscaleX11PreparedTest::answers()
+{
+    for (const QString &line : status().split(QLatin1Char('\n'))) {
+        if (line.startsWith(QStringLiteral("answers: "))) {
+            const QString areas = line.mid(QStringLiteral("answers: ").size()).trimmed();
+            return areas.isEmpty() ? QStringList() : areas.split(QLatin1Char(';'));
+        }
+    }
+    return {};
 }
 
 QTEST_MAIN(UpscaleX11PreparedTest)

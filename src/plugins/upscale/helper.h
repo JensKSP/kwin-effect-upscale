@@ -41,7 +41,7 @@ public:
     void offer(EffectWindow *window, const QSize &size, const Offered &reply);
     void answer(const QString &offer, const QString &answer, const Answered &reply);
     void restart(const QString &offer);
-    void present(EffectWindow *window, const Prepared &reply);
+    void present(EffectWindow *window, const QSize &wanted, const Prepared &reply);
 
 private:
     void call(const QString &method, const QVariantList &arguments, const std::function<void(const QDBusMessage &)> &reply);

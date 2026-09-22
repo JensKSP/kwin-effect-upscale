@@ -48,6 +48,8 @@ private Q_SLOTS:
     void resetsItsDesktop();
     void remembersNever();
     void writesALostDesktopAgain();
+    void followsANewSize();
+    void undoesWhatIsNoLongerWanted();
 
 private:
     std::unique_ptr<QProcess> startGame() const;
@@ -181,7 +183,7 @@ void WineDesktopHelperTest::presentsOnlyWhatItPrepared()
     {
         auto server = startServer();
         const std::unique_ptr<QProcess> game = startGame();
-        QCOMPARE(m_helper->present(game->processId(), s_class), QSize());
+        QCOMPARE(m_helper->present(game->processId(), s_class, s_size), QSize());
         QVERIFY(!acceptOffer(*game).isEmpty());
         game->kill();
         game->waitForFinished();
@@ -189,8 +191,8 @@ void WineDesktopHelperTest::presentsOnlyWhatItPrepared()
     QTRY_COMPARE(finished.size(), 1);
     auto server = startServer();
     const std::unique_ptr<QProcess> desktop = startGame();
-    QCOMPARE(m_helper->present(desktop->processId(), s_class), s_size);
-    QCOMPARE(m_helper->present(desktop->processId(), QStringLiteral("steam_app_550")), QSize());
+    QCOMPARE(m_helper->present(desktop->processId(), s_class, s_size), s_size);
+    QCOMPARE(m_helper->present(desktop->processId(), QStringLiteral("steam_app_550"), s_size), QSize());
     QCOMPARE(m_helper->offer(desktop->processId(), s_class, QStringLiteral("Wreckfest"), s_size).offer, QString());
     QCOMPARE(m_helper->prepared().size(), 1);
 }
@@ -252,14 +254,66 @@ void WineDesktopHelperTest::writesALostDesktopAgain()
     {
         auto server = startServer();
         const std::unique_ptr<QProcess> desktop = startGame();
-        QCOMPARE(m_helper->present(desktop->processId(), s_class), QSize());
-        QCOMPARE(m_helper->present(desktop->processId(), s_class), QSize());
+        QCOMPARE(m_helper->present(desktop->processId(), s_class, s_size), QSize());
+        QCOMPARE(m_helper->present(desktop->processId(), s_class, s_size), QSize());
         desktop->kill();
         desktop->waitForFinished();
     }
     QTRY_COMPARE(finished.size(), 2);
     QCOMPARE(finished.last().at(1).value<WineWriteResult>(), WineWriteResult::Written);
     QCOMPARE(values().defaultSize, QStringLiteral("2560x1440"));
+}
+
+void WineDesktopHelperTest::followsANewSize()
+{
+    QSignalSpy finished(&*m_helper, &WineDesktopHelper::jobFinished);
+    {
+        auto server = startServer();
+        const std::unique_ptr<QProcess> game = startGame();
+        QVERIFY(!acceptOffer(*game).isEmpty());
+        game->kill();
+        game->waitForFinished();
+    }
+    QTRY_COMPARE(finished.size(), 1);
+    {
+        // This run is presented at the size it was prepared for, and the new
+        // size is written after it.
+        auto server = startServer();
+        const std::unique_ptr<QProcess> desktop = startGame();
+        QCOMPARE(m_helper->present(desktop->processId(), s_class, QSize(1920, 1080)), s_size);
+        QCOMPARE(values().defaultSize, QStringLiteral("2560x1440"));
+        desktop->kill();
+        desktop->waitForFinished();
+    }
+    QTRY_COMPARE(finished.size(), 2);
+    QCOMPARE(values().defaultSize, QStringLiteral("1920x1080"));
+    QCOMPARE(m_helper->prepared().value(0).written, QSize(1920, 1080));
+}
+
+void WineDesktopHelperTest::undoesWhatIsNoLongerWanted()
+{
+    QSignalSpy finished(&*m_helper, &WineDesktopHelper::jobFinished);
+    {
+        auto server = startServer();
+        const std::unique_ptr<QProcess> game = startGame();
+        QVERIFY(!acceptOffer(*game).isEmpty());
+        game->kill();
+        game->waitForFinished();
+    }
+    QTRY_COMPARE(finished.size(), 1);
+    {
+        // The effect wants nothing smaller any more: nothing is presented, and
+        // the desktop goes after this run.
+        auto server = startServer();
+        const std::unique_ptr<QProcess> desktop = startGame();
+        QCOMPARE(m_helper->present(desktop->processId(), s_class, QSize()), QSize());
+        QCOMPARE(values().desktop, QStringLiteral("Default"));
+        desktop->kill();
+        desktop->waitForFinished();
+    }
+    QTRY_COMPARE(finished.size(), 2);
+    QCOMPARE(values(), WineDesktopValues{});
+    QVERIFY(m_helper->prepared().isEmpty());
 }
 
 QTEST_GUILESS_MAIN(WineDesktopHelperTest)
