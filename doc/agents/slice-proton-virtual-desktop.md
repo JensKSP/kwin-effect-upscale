@@ -287,6 +287,18 @@ A one-off manual check before any code:
 5. Pick 1920 × 1080 in the game and note whether the desktop window shrinks.
 6. Quit, wait for the Wine server to exit, restore the backup.
 
+## Progress
+
+| Step | State |
+| --- | --- |
+| Registry edit: set and remove the two values in `user.reg` text, leaving every other byte (`src/winedesktop/wineregistry.cpp`) | Done. `upscale-wine-registry` passes in the Trixie container with GCC and Clang, warnings as errors; Neon not run |
+| Server lock check (`F_GETLK` on the prefix's lock) | Next |
+| Locating the prefix from the game's process, with the checks above | Open |
+| Companion service, its record of changed prefixes and the undo | Open |
+| Centred display: question and restart offer | Open, with [What the effect says](slice-development-infrastructure.md) |
+| Effect: recognise, pin and present the Wine desktop window | Open |
+| Manual Wreckfest experiment | Not run |
+
 ## Decisions and open questions
 
 - Accepted by Jens, 2026-09-22: the route itself, with the user's consent
