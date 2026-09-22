@@ -51,11 +51,11 @@ public:
     QStringList resets;
 
 public Q_SLOTS:
-    Q_SCRIPTABLE QList<TestProgram> Prepared()
+    Q_SCRIPTABLE QList<TestProgram> prepared()
     {
         return programs;
     }
-    Q_SCRIPTABLE bool Reset(const QString &id)
+    Q_SCRIPTABLE bool reset(const QString &id)
     {
         resets.append(id);
         programs.removeIf([&id](const TestProgram &program) {

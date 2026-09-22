@@ -40,7 +40,7 @@ QString wineRecordId(const WinePrefixIdentity &identity);
 class WineDesktopRecords
 {
 public:
-    explicit WineDesktopRecords(const QString &path);
+    explicit WineDesktopRecords(QString path);
 
     QList<WineDesktopRecord> all() const;
     std::optional<WineDesktopRecord> find(const QString &id) const;

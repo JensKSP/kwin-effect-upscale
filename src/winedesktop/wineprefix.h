@@ -61,20 +61,21 @@ struct WinePrefix
  */
 struct WineLocated
 {
-    std::optional<WinePrefix> prefix;
+    WinePrefix prefix;
     WinePrefixRefusal refusal = WinePrefixRefusal::ProcessUnreadable;
+    bool located = false;
 
     explicit operator bool() const
     {
-        return prefix.has_value();
+        return located;
     }
     const WinePrefix *operator->() const
     {
-        return &*prefix;
+        return &prefix;
     }
     const WinePrefix &operator*() const
     {
-        return *prefix;
+        return prefix;
     }
     WinePrefixRefusal error() const
     {

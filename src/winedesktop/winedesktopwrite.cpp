@@ -67,7 +67,7 @@ private:
     bool m_held = false;
 };
 
-const char s_registry[] = "user.reg";
+const char registryName[] = "user.reg";
 
 bool serverRunning(const WineDesktopTarget &target, uid_t user)
 {
@@ -89,13 +89,13 @@ std::shared_ptr<WineDirectory> directoryFor(const WineDesktopTarget &target)
 bool plainRegistry(int directory, uid_t user)
 {
     struct stat status = {};
-    return ::fstatat(directory, s_registry, &status, AT_SYMLINK_NOFOLLOW) == 0 && S_ISREG(status.st_mode) && status.st_nlink == 1
+    return ::fstatat(directory, registryName, &status, AT_SYMLINK_NOFOLLOW) == 0 && S_ISREG(status.st_mode) && status.st_nlink == 1
         && status.st_uid == user;
 }
 
 std::optional<QByteArray> readRegistry(int directory)
 {
-    const int descriptor = ::openat(directory, s_registry, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+    const int descriptor = ::openat(directory, registryName, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
     if (descriptor < 0) {
         return std::nullopt;
     }
@@ -128,10 +128,10 @@ bool writeAll(int descriptor, const QByteArray &text)
 bool replaceRegistry(int directory, const QByteArray &text)
 {
     struct stat status = {};
-    if (::fstatat(directory, s_registry, &status, AT_SYMLINK_NOFOLLOW) != 0) {
+    if (::fstatat(directory, registryName, &status, AT_SYMLINK_NOFOLLOW) != 0) {
         return false;
     }
-    const QByteArray temporary = QByteArray(s_registry) + ".upscale-" + QUuid::createUuid().toByteArray(QUuid::Id128);
+    const QByteArray temporary = QByteArray(registryName) + ".upscale-" + QUuid::createUuid().toByteArray(QUuid::Id128);
     const mode_t mode = status.st_mode & 07777;
     const int descriptor = ::openat(directory, temporary.constData(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, mode);
     if (descriptor < 0) {
@@ -139,7 +139,7 @@ bool replaceRegistry(int directory, const QByteArray &text)
     }
     // The mode given to openat() passes through the umask; this one does not.
     const bool written = ::fchmod(descriptor, mode) == 0 && writeAll(descriptor, text);
-    if (::close(descriptor) != 0 || !written || ::renameat(directory, temporary.constData(), directory, s_registry) != 0) {
+    if (::close(descriptor) != 0 || !written || ::renameat(directory, temporary.constData(), directory, registryName) != 0) {
         ::unlinkat(directory, temporary.constData(), 0);
         return false;
     }
@@ -187,7 +187,7 @@ std::shared_ptr<WineDirectory> WineDirectory::open(const QString &path, const Wi
     if (descriptor < 0) {
         return nullptr;
     }
-    std::shared_ptr<WineDirectory> directory(new WineDirectory(descriptor));
+    const std::shared_ptr<WineDirectory> directory(new WineDirectory(descriptor));
     return directory->isStill(identity) ? directory : nullptr;
 }
 

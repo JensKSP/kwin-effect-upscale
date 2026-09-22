@@ -39,7 +39,7 @@ UpscalePreparedList::UpscalePreparedList(QWidget *parent)
 
 void UpscalePreparedList::refresh()
 {
-    auto watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(helperCall(QStringLiteral("Prepared"))), this);
+    auto watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(helperCall(QStringLiteral("prepared"))), this);
     connect(watcher, &QDBusPendingCallWatcher::finished, this, [this](QDBusPendingCallWatcher *finished) {
         finished->deleteLater();
         // No helper, or one that failed: nothing to show.
@@ -60,7 +60,7 @@ void UpscalePreparedList::fill(const QDBusMessage &reply)
         return;
     }
     // a(ssii): identifier, title, width, height.
-    const QDBusArgument programs = values.first().value<QDBusArgument>();
+    const auto programs = values.first().value<QDBusArgument>();
     programs.beginArray();
     while (!programs.atEnd()) {
         QString id;
@@ -91,7 +91,7 @@ void UpscalePreparedList::fill(const QDBusMessage &reply)
 
 void UpscalePreparedList::reset(const QString &id)
 {
-    QDBusMessage message = helperCall(QStringLiteral("Reset"));
+    QDBusMessage message = helperCall(QStringLiteral("reset"));
     message.setArguments({id});
     auto watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(message), this);
     connect(watcher, &QDBusPendingCallWatcher::finished, this, [this](QDBusPendingCallWatcher *finished) {

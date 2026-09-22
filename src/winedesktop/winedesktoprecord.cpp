@@ -48,8 +48,8 @@ QString wineRecordId(const WinePrefixIdentity &identity)
     return QStringLiteral("%1-%2").arg(static_cast<qulonglong>(identity.device), 0, 16).arg(static_cast<qulonglong>(identity.inode), 0, 16);
 }
 
-WineDesktopRecords::WineDesktopRecords(const QString &path)
-    : m_path(path)
+WineDesktopRecords::WineDesktopRecords(QString path)
+    : m_path(std::move(path))
 {
 }
 

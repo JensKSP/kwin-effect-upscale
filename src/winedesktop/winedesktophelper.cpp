@@ -19,20 +19,20 @@
 #include <csignal>
 #include <unistd.h>
 
-Q_LOGGING_CATEGORY(WINEDESKTOP, "kwin.upscale.winedesktop", QtInfoMsg)
+Q_LOGGING_CATEGORY(KWIN_UPSCALE_WINEDESKTOP, "kwin.upscale.winedesktop", QtInfoMsg)
 
 namespace
 {
 
-const QString s_accept = QStringLiteral("accept");
-const QString s_never = QStringLiteral("never");
+const QString acceptAnswer = QStringLiteral("accept");
+const QString neverAnswer = QStringLiteral("never");
 
 // Wine keeps its servers' locks below the literal /tmp, not $TMPDIR
 // (server/request.c, create_server_dir).
-const QString s_hostTemporary = QStringLiteral("/tmp");
+const QString hostTemporaryDirectory = QStringLiteral("/tmp");
 
 // An offer nobody answered does not keep the service alive for ever.
-constexpr std::chrono::hours s_offerLifetime{1};
+constexpr std::chrono::hours offerLifetime{1};
 
 bool launchThroughSteam(const WineDesktopRecord &record)
 {
@@ -77,7 +77,7 @@ WineDesktopTarget targetFor(const WinePrefix &prefix, const QProcessEnvironment 
         .prefix = prefix.gamePath,
         .identity = prefix.identity,
         .steamCompatData = prefix.steamAppId.isEmpty() ? QString() : QDir::cleanPath(environment.value(QStringLiteral("STEAM_COMPAT_DATA_PATH"))),
-        .temporaryDirectory = s_hostTemporary,
+        .temporaryDirectory = hostTemporaryDirectory,
         .directory = nullptr,
     };
 }
@@ -117,7 +117,7 @@ WineDesktopHelper::Offered WineDesktopHelper::offer(uint pid, const QString &win
     }
     const WineLocated prefix = wineLocatePrefix(*process, ::getuid(), windowClass);
     if (!prefix) {
-        qCInfo(WINEDESKTOP) << "No provable Wine prefix for process" << pid << "reason" << static_cast<int>(prefix.error());
+        qCInfo(KWIN_UPSCALE_WINEDESKTOP) << "No provable Wine prefix for process" << pid << "reason" << static_cast<int>(prefix.error());
         return {};
     }
     // Waiting for this process is what makes the later write safe. A server
@@ -125,7 +125,7 @@ WineDesktopHelper::Offered WineDesktopHelper::offer(uint pid, const QString &win
     // then nothing is offered.
     const std::optional<pid_t> server = wineServerProcess(wineServerLockPath(prefix->temporaryDirectory, ::getuid(), prefix->identity));
     if (!server) {
-        qCInfo(WINEDESKTOP) << "The Wine server of process" << pid << "is out of sight";
+        qCInfo(KWIN_UPSCALE_WINEDESKTOP) << "The Wine server of process" << pid << "is out of sight";
         return {};
     }
     const QString id = wineRecordId(prefix->identity);
@@ -146,7 +146,7 @@ WineDesktopHelper::Offered WineDesktopHelper::offer(uint pid, const QString &win
     record.steamAppId = prefix->steamAppId;
     record.wanted = size;
     const QString offer = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    m_offers.insert(offer, Pending{.record = record, .game = static_cast<pid_t>(pid), .server = *server, .expiry = QDeadlineTimer(s_offerLifetime)});
+    m_offers.insert(offer, Pending{.record = record, .game = static_cast<pid_t>(pid), .server = *server, .expiry = QDeadlineTimer(offerLifetime)});
     return {.offer = offer, .question = question(title, size)};
 }
 
@@ -156,13 +156,13 @@ QString WineDesktopHelper::answer(const QString &offer, const QString &answer)
     if (pending.record.id.isEmpty() || pending.expiry.hasExpired()) {
         return {};
     }
-    if (answer == s_never) {
+    if (answer == neverAnswer) {
         WineDesktopRecord record = pending.record;
         record.never = true;
         m_records->store(record);
         return {};
     }
-    if (answer != s_accept) {
+    if (answer != acceptAnswer) {
         return {};
     }
     m_records->store(pending.record);
@@ -235,7 +235,7 @@ QSize WineDesktopHelper::present(uint pid, const QString &windowClass)
 
 bool WineDesktopHelper::hasJob(const QString &id) const
 {
-    return std::any_of(m_jobs.cbegin(), m_jobs.cend(), [&id](const Job &job) {
+    return std::ranges::any_of(m_jobs, [&id](const Job &job) {
         return job.id == id;
     });
 }
@@ -282,7 +282,7 @@ bool WineDesktopHelper::busy() const
     if (!m_jobs.isEmpty()) {
         return true;
     }
-    return std::any_of(m_offers.cbegin(), m_offers.cend(), [](const Pending &pending) {
+    return std::ranges::any_of(m_offers, [](const Pending &pending) {
         return !pending.expiry.hasExpired();
     });
 }
@@ -309,7 +309,7 @@ void WineDesktopHelper::poll()
     }
 }
 
-bool WineDesktopHelper::advance(Job &job)
+bool WineDesktopHelper::stillRunning(Job &job)
 {
     if (job.game > 0 && wineProcessExists(job.game)) {
         // The user chose to restart and was told that unsaved progress may be
@@ -319,9 +319,14 @@ bool WineDesktopHelper::advance(Job &job)
             ::kill(job.game, SIGTERM);
             job.terminated = true;
         }
-        return false;
+        return true;
     }
-    if (job.server > 0 && wineProcessExists(job.server)) {
+    return job.server > 0 && wineProcessExists(job.server);
+}
+
+bool WineDesktopHelper::advance(Job &job)
+{
+    if (stillRunning(job)) {
         return false;
     }
     std::optional<WineDesktopRecord> record = m_records->find(job.id);
@@ -336,24 +341,31 @@ bool WineDesktopHelper::advance(Job &job)
         job.server = hostServer(*record).value_or(0);
         return false;
     }
-    if (result == WineWriteResult::Written && job.clear) {
-        record->written.reset();
-        record->never ? m_records->store(*record) : m_records->remove(job.id);
-    } else if (result == WineWriteResult::Written) {
-        record->written = job.size;
-        m_records->store(*record);
-        if (job.relaunch && !m_launcher(*record)) {
-            qCWarning(WINEDESKTOP) << "Could not start" << record->title << "again";
-        }
-    } else {
-        qCWarning(WINEDESKTOP) << "Left the prefix of" << record->title << "unchanged, result" << static_cast<int>(result);
-        // The user has a desktop of their own there now; this one is theirs
-        // to keep, and nothing of it is this companion's to undo any more.
-        if (result == WineWriteResult::DesktopOfTheUser && !job.clear) {
-            record->written.reset();
-            m_records->store(*record);
-        }
-    }
+    settle(job, *record, result);
     Q_EMIT jobFinished(job.id, result);
     return true;
+}
+
+void WineDesktopHelper::settle(const Job &job, WineDesktopRecord &record, WineWriteResult result)
+{
+    if (result == WineWriteResult::Written && job.clear) {
+        record.written.reset();
+        record.never ? m_records->store(record) : m_records->remove(job.id);
+        return;
+    }
+    if (result == WineWriteResult::Written) {
+        record.written = job.size;
+        m_records->store(record);
+        if (job.relaunch && !m_launcher(record)) {
+            qCWarning(KWIN_UPSCALE_WINEDESKTOP) << "Could not start" << record.title << "again";
+        }
+        return;
+    }
+    qCWarning(KWIN_UPSCALE_WINEDESKTOP) << "Left the prefix of" << record.title << "unchanged, result" << static_cast<int>(result);
+    // The user has a desktop of their own there now; this one is theirs to
+    // keep, and nothing of it is this companion's to undo any more.
+    if (result == WineWriteResult::DesktopOfTheUser && !job.clear) {
+        record.written.reset();
+        m_records->store(record);
+    }
 }

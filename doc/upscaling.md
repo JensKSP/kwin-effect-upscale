@@ -151,9 +151,18 @@ a game the way they always have, and it works.
 that were measured to work: the Sommelier protocol proxy and the Gamescope
 Wayland backend both supplied smaller original buffers to an unmodified KWin,
 and both require the game to be started through them. The launcher adapters,
-the private virtual desktop and the per-profile launch helper go with them.
-Those results stay recorded as mechanisms that exist; they are not routes this
-effect may take.
+the private virtual desktop started with the game and the per-profile launch
+helper go with them. Those results stay recorded as mechanisms that exist; they
+are not routes this effect may take.
+
+**One exception, laid down by Jens on 2026-09-22.** A game that cannot be made
+to render smaller while it runs may be prepared for its next start by a helper
+that ships in the same package, when the user agrees to it in a question the
+effect puts on the screen. Nothing is changed without that agreement, the user
+is told that the change outlives the package until it is reset, and resetting
+it is one click on the settings page. The game is still started the way it
+always is; the helper changes its configuration, not its start. For Wine and
+Proton games this is [a virtual desktop in their prefix](#games-that-ignore-resizing-a-virtual-desktop-in-their-prefix).
 
 **Sommelier is still worth reading, as a source of technique rather than a
 route.** It solves, in a proxy, several of the problems this effect has from
@@ -318,6 +327,42 @@ runtime as well. Record the application API, translation layer and version,
 Proton or Wine version, and actual window-system backend. Xwayland is required;
 test native Wayland drivers where the selected runtime supports them, without
 assuming that choosing Vulkan also chooses Wayland.
+
+### Games that ignore resizing: a virtual desktop in their prefix
+
+A Wine or Proton game in exclusive fullscreen through Xwayland renders at the
+monitor size Wine reports, and Wine takes that size from Xwayland's RandR,
+which is shared by every X11 program; no window manager can change it for one
+program, and resizing the window does not reach the game's swapchain. What
+does reach it is Wine's own virtual desktop: in a prefix configured with one,
+Wine reports the desktop's size as the monitor, and the game renders at it.
+
+Implemented 2026-09-22 as an optional helper, not yet verified with a game:
+
+- When the effect's X11 request is refused because the game went on drawing
+  another size, the effect asks the helper
+  (`org.kde.KWin.Upscale.Helper1`, defined in the plugin folder) whether it can
+  prepare the program. The plugin knows nothing about Wine; without a helper it
+  behaves as before.
+- The helper proves which prefix the running game uses: from the game's own
+  environment, reached through the game's view of the file system, and
+  confirmed by the lock its Wine server holds, which is named after the prefix
+  directory. It works with every Wine and Proton flavour that runs through
+  winex11, and it is built on Linux, where Steam and Proton run.
+- The helper's question appears in the middle of the screen. After **Set up**
+  the effect offers **Restart game and apply**, with the warning that unsaved
+  progress may be lost; **Not now** asks again next time and **Never for this
+  game** does not.
+- After the game and its Wine server have exited, the helper writes
+  `Explorer "Desktop"="Default"` and `Explorer\Desktops "Default"` with the
+  chosen size into the prefix's `user.reg`, and nothing else. A virtual
+  desktop the user set is left alone.
+- From the next start the game renders at the chosen size inside a Wine desktop
+  window of that size. The effect makes that window fullscreen, holds it at its
+  size and upscales it like any other smaller buffer.
+- **Prepared Games** on the settings page lists what the helper set up, with a
+  Reset for each. Uninstalling the package cannot undo a preparation, because
+  nothing runs as the user afterwards; the question says so.
 
 Keep the physical output at its native mode. In-game, compositor, runtime and
 driver upscalers other than this effect must be disabled for the baseline

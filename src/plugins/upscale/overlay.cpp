@@ -47,9 +47,9 @@ static QFont displayFont(double scale)
 // The colour a marked part of a line is drawn in: Breeze's negative text,
 // which is how KDE shows a value that is wrong. The overlay is drawn inside
 // the compositor with no palette of its own to take it from.
-static const QColor s_warningColor(0xda, 0x44, 0x53);
+static const QColor warningColor(0xda, 0x44, 0x53);
 // Breeze's highlight, for the selected answer of a question.
-static const QColor s_highlightColor(0x3d, 0xae, 0xe9);
+static const QColor highlightColor(0x3d, 0xae, 0xe9);
 
 static QString withoutWarningMarks(QString line)
 {
@@ -76,7 +76,7 @@ static void drawLine(QPainter &painter, const QFontMetricsF &metrics, QPointF or
     for (const QChar character : line) {
         if (character == upscaleWarningStart || character == upscaleHighlightStart) {
             flush();
-            colour = character == upscaleWarningStart ? s_warningColor : s_highlightColor;
+            colour = character == upscaleWarningStart ? warningColor : highlightColor;
         } else if (character == upscaleWarningEnd || character == upscaleHighlightEnd) {
             flush();
             colour = QColor(255, 255, 255);

@@ -15,9 +15,9 @@ namespace KWin
 {
 
 // Larger than the diagnostic blocks: it is read from a sofa as well.
-static constexpr double s_emphasis = 1.25;
+static constexpr double questionEmphasis = 1.25;
 // Logical pixels between the question and its answers, and between answers.
-static constexpr double s_gap = 24;
+static constexpr double questionGap = 24;
 
 UpscaleQuestion::UpscaleQuestion() = default;
 UpscaleQuestion::~UpscaleQuestion()
@@ -36,7 +36,7 @@ bool UpscaleQuestion::ask(Effect *owner, UpscaleOutput *output, const QString &t
     m_answers = answers;
     m_cancel = cancel;
     m_chosen = chosen;
-    m_text.setText(text, output->scale(), s_emphasis);
+    m_text.setText(text, output->scale(), questionEmphasis);
     m_buttons.clear();
     for (qsizetype index = 0; index < answers.size(); ++index) {
         m_buttons.push_back(std::make_unique<UpscaleOverlay>());
@@ -57,7 +57,7 @@ void UpscaleQuestion::select(int index)
     const double scale = m_output ? m_output->scale() : 1;
     for (int answer = 0; answer < count; ++answer) {
         const QString label = m_answers.at(answer).label;
-        m_buttons[size_t(answer)]->setText(answer == m_selected ? upscaleHighlight(label) : label, scale, s_emphasis);
+        m_buttons[size_t(answer)]->setText(answer == m_selected ? upscaleHighlight(label) : label, scale, questionEmphasis);
     }
     effects->addRepaintFull();
 }
@@ -119,7 +119,7 @@ void UpscaleQuestion::paint(const RenderTarget &target, const RenderViewport &vi
     const auto area = screen->geometryF();
     // Room for the question, and the row of answers below it, centred.
     m_text.fit(QSizeF(area.width() * 0.7, area.height() * 0.6));
-    double rowWidth = s_gap * double(m_buttons.size() - 1);
+    double rowWidth = questionGap * double(m_buttons.size() - 1);
     double rowHeight = 0;
     for (const std::unique_ptr<UpscaleOverlay> &button : m_buttons) {
         button->fit(QSizeF(area.width() * 0.7 / double(m_buttons.size()), area.height() * 0.2));
@@ -128,12 +128,12 @@ void UpscaleQuestion::paint(const RenderTarget &target, const RenderViewport &vi
     }
     const QSizeF text = m_text.size();
     const double centre = area.x() + (area.width() / 2);
-    const double top = area.y() + ((area.height() - text.height() - s_gap - rowHeight) / 2);
+    const double top = area.y() + ((area.height() - text.height() - questionGap - rowHeight) / 2);
     m_text.paint(target, viewport, QPointF(centre - (text.width() / 2), top));
     double left = centre - (rowWidth / 2);
     for (const std::unique_ptr<UpscaleOverlay> &button : m_buttons) {
-        button->paint(target, viewport, QPointF(left, top + text.height() + s_gap));
-        left += button->size().width() + s_gap;
+        button->paint(target, viewport, QPointF(left, top + text.height() + questionGap));
+        left += button->size().width() + questionGap;
     }
 }
 

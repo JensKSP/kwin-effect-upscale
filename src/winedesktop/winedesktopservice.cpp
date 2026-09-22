@@ -22,6 +22,8 @@ const QDBusArgument &operator>>(const QDBusArgument &argument, PreparedProgram &
     argument.beginStructure();
     argument >> program.id >> program.title >> program.width >> program.height;
     argument.endStructure();
+    // The signature QtDBus requires of a demarshaller returns its argument.
+    // NOLINTNEXTLINE(bugprone-return-const-ref-from-parameter)
     return argument;
 }
 
@@ -33,41 +35,42 @@ WineDesktopService::WineDesktopService(WineDesktopHelper *helper, QObject *paren
     qDBusRegisterMetaType<QList<PreparedProgram>>();
 }
 
-QString WineDesktopService::Offer(uint pid, const QString &windowClass, const QString &title, int width, int height, QString &question)
+QString WineDesktopService::offer(uint pid, const QString &windowClass, const QString &title, int width, int height, QString &question)
 {
     const WineDesktopHelper::Offered offered = m_helper->offer(pid, windowClass, title, QSize(width, height));
     question = offered.question;
     return offered.offer;
 }
 
-QString WineDesktopService::Answer(const QString &offer, const QString &answer)
+QString WineDesktopService::answer(const QString &offer, const QString &answer)
 {
     return m_helper->answer(offer, answer);
 }
 
-bool WineDesktopService::Restart(const QString &offer)
+bool WineDesktopService::restart(const QString &offer)
 {
     return m_helper->restart(offer);
 }
 
-int WineDesktopService::Present(uint pid, const QString &windowClass, int &height)
+int WineDesktopService::present(uint pid, const QString &windowClass, int &height)
 {
     const QSize size = m_helper->present(pid, windowClass);
     height = size.height();
     return size.width();
 }
 
-QList<PreparedProgram> WineDesktopService::Prepared()
+QList<PreparedProgram> WineDesktopService::prepared()
 {
     QList<PreparedProgram> programs;
     const QList<WineDesktopRecord> records = m_helper->prepared();
     for (const WineDesktopRecord &record : records) {
-        programs.append({.id = record.id, .title = record.title, .width = record.written->width(), .height = record.written->height()});
+        const QSize size = record.written.value_or(QSize());
+        programs.append({.id = record.id, .title = record.title, .width = size.width(), .height = size.height()});
     }
     return programs;
 }
 
-bool WineDesktopService::Reset(const QString &id)
+bool WineDesktopService::reset(const QString &id)
 {
     return m_helper->reset(id);
 }

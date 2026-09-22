@@ -16,11 +16,11 @@
 namespace
 {
 
-const QString s_steamAppClass = QStringLiteral("steam_app_");
+const QString steamAppClass = QStringLiteral("steam_app_");
 
 WineLocated refused(WinePrefixRefusal refusal)
 {
-    return {.prefix = std::nullopt, .refusal = refusal};
+    return {.prefix = {}, .refusal = refusal, .located = false};
 }
 
 // The prefix as the game names it: WINEPREFIX, or Wine's default below HOME.
@@ -70,14 +70,14 @@ std::optional<WinePrefixRefusal> checkSteam(WinePrefix &prefix, const QProcessEn
 {
     const QString compatData = environment.value(QStringLiteral("STEAM_COMPAT_DATA_PATH"));
     if (compatData.isEmpty()) {
-        return windowClass.startsWith(s_steamAppClass) ? std::optional(WinePrefixRefusal::SteamMismatch) : std::nullopt;
+        return windowClass.startsWith(steamAppClass) ? std::optional(WinePrefixRefusal::SteamMismatch) : std::nullopt;
     }
     const QString gameCompatData = QDir::cleanPath(compatData);
     const QString appId = environment.value(QStringLiteral("SteamAppId"));
     if (appId.isEmpty() || prefix.gamePath != gameCompatData + QStringLiteral("/pfx") || QFileInfo(gameCompatData).fileName() != appId) {
         return WinePrefixRefusal::SteamMismatch;
     }
-    if (windowClass.startsWith(s_steamAppClass) && windowClass != s_steamAppClass + appId) {
+    if (windowClass.startsWith(steamAppClass) && windowClass != steamAppClass + appId) {
         return WinePrefixRefusal::SteamMismatch;
     }
     prefix.steamAppId = appId;
@@ -117,7 +117,7 @@ WineLocated wineLocatePrefix(const WineProcess &process, uid_t user, const QStri
     if (wineServerState(wineServerLockPath(prefix.temporaryDirectory, user, prefix.identity)) != WineServerState::Running) {
         return refused(WinePrefixRefusal::ServerNotRunning);
     }
-    return {.prefix = prefix, .refusal = {}};
+    return {.prefix = prefix, .refusal = {}, .located = true};
 }
 
 QString wineRegistryPath(const WinePrefix &prefix)

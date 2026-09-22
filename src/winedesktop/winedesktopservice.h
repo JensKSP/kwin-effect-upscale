@@ -13,7 +13,7 @@
 
 class WineDesktopHelper;
 
-// One entry of Prepared(): identifier, title, width, height, as a(ssii).
+// One entry of prepared(): identifier, title, width, height, as a(ssii).
 struct PreparedProgram
 {
     QString id;
@@ -40,12 +40,12 @@ public:
     explicit WineDesktopService(WineDesktopHelper *helper, QObject *parent = nullptr);
 
 public Q_SLOTS:
-    Q_SCRIPTABLE QString Offer(uint pid, const QString &windowClass, const QString &title, int width, int height, QString &question);
-    Q_SCRIPTABLE QString Answer(const QString &offer, const QString &answer);
-    Q_SCRIPTABLE bool Restart(const QString &offer);
-    Q_SCRIPTABLE int Present(uint pid, const QString &windowClass, int &height);
-    Q_SCRIPTABLE QList<PreparedProgram> Prepared();
-    Q_SCRIPTABLE bool Reset(const QString &id);
+    Q_SCRIPTABLE QString offer(uint pid, const QString &windowClass, const QString &title, int width, int height, QString &question);
+    Q_SCRIPTABLE QString answer(const QString &offer, const QString &answer);
+    Q_SCRIPTABLE bool restart(const QString &offer);
+    Q_SCRIPTABLE int present(uint pid, const QString &windowClass, int &height);
+    Q_SCRIPTABLE QList<PreparedProgram> prepared();
+    Q_SCRIPTABLE bool reset(const QString &id);
 
 private:
     WineDesktopHelper *m_helper;

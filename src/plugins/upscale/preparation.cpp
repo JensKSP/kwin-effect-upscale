@@ -16,10 +16,10 @@
 namespace KWin
 {
 
-static const QString s_accept = QStringLiteral("accept");
-static const QString s_later = QStringLiteral("later");
-static const QString s_never = QStringLiteral("never");
-static const QString s_restart = QStringLiteral("restart");
+static const QString acceptAnswer = QStringLiteral("accept");
+static const QString laterAnswer = QStringLiteral("later");
+static const QString neverAnswer = QStringLiteral("never");
+static const QString restartAnswer = QStringLiteral("restart");
 
 UpscalePreparation::UpscalePreparation(Effect *owner, UpscaleX11Resolution *x11)
     : m_owner(owner)
@@ -50,11 +50,11 @@ void UpscalePreparation::unfollowed(EffectWindow *window, const QSize &size)
 void UpscalePreparation::askToSetUp(const QPointer<EffectWindow> &window, const QString &offer, const QString &question)
 {
     const QList<UpscaleQuestion::Answer> answers{
-        {s_accept, i18nc("@action:button in the question in the middle of the screen", "Set up")},
-        {s_later, i18nc("@action:button in the question in the middle of the screen", "Not now")},
-        {s_never, i18nc("@action:button in the question in the middle of the screen", "Never for this game")},
+        {acceptAnswer, i18nc("@action:button in the question in the middle of the screen", "Set up")},
+        {laterAnswer, i18nc("@action:button in the question in the middle of the screen", "Not now")},
+        {neverAnswer, i18nc("@action:button in the question in the middle of the screen", "Never for this game")},
     };
-    m_question.ask(m_owner, window->screen(), question, answers, s_later, [this, window, offer](const QString &answer) {
+    m_question.ask(m_owner, window->screen(), question, answers, laterAnswer, [this, window, offer](const QString &answer) {
         m_helper.answer(offer, answer, [this, window, offer](const QString &restart) {
             if (window && !restart.isEmpty()) {
                 askToRestart(window, offer, restart);
@@ -66,11 +66,11 @@ void UpscalePreparation::askToSetUp(const QPointer<EffectWindow> &window, const 
 void UpscalePreparation::askToRestart(const QPointer<EffectWindow> &window, const QString &offer, const QString &question)
 {
     const QList<UpscaleQuestion::Answer> answers{
-        {s_restart, i18nc("@action:button in the question in the middle of the screen", "Restart game and apply")},
-        {s_later, i18nc("@action:button in the question in the middle of the screen", "Later")},
+        {restartAnswer, i18nc("@action:button in the question in the middle of the screen", "Restart game and apply")},
+        {laterAnswer, i18nc("@action:button in the question in the middle of the screen", "Later")},
     };
-    m_question.ask(m_owner, window->screen(), question, answers, s_later, [this, window, offer](const QString &answer) {
-        if (answer != s_restart) {
+    m_question.ask(m_owner, window->screen(), question, answers, laterAnswer, [this, window, offer](const QString &answer) {
+        if (answer != restartAnswer) {
             return;
         }
         // The window is asked to close, the way its own close button would;

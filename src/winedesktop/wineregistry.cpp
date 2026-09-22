@@ -16,11 +16,11 @@ namespace
 // followed by its values, one "name"=data line each unless binary data
 // continues on the next line after a trailing backslash. Backslashes in names
 // are doubled. Wine compares key and value names without regard to case.
-const QByteArray s_header = QByteArrayLiteral("WINE REGISTRY Version 2");
-const QByteArray s_explorerKey = QByteArrayLiteral("Software\\\\Wine\\\\Explorer");
-const QByteArray s_desktopsKey = QByteArrayLiteral("Software\\\\Wine\\\\Explorer\\\\Desktops");
-const QByteArray s_desktopValue = QByteArrayLiteral("Desktop");
-const QByteArray s_defaultValue = QByteArrayLiteral("Default");
+const QByteArray registryHeader = QByteArrayLiteral("WINE REGISTRY Version 2");
+const QByteArray explorerKey = QByteArrayLiteral("Software\\\\Wine\\\\Explorer");
+const QByteArray desktopsKey = QByteArrayLiteral("Software\\\\Wine\\\\Explorer\\\\Desktops");
+const QByteArray desktopValue = QByteArrayLiteral("Desktop");
+const QByteArray defaultValue = QByteArrayLiteral("Default");
 
 // Lines [key, end) of one key's section.
 struct Section
@@ -173,15 +173,15 @@ bool wineIsRegistry(const QByteArray &text)
     if (line.endsWith('\r')) {
         line.chop(1);
     }
-    return line == s_header;
+    return line == registryHeader;
 }
 
 WineDesktopValues wineDesktopValues(const QByteArray &text)
 {
     const QList<QByteArray> lines = text.split('\n');
     return {
-        .desktop = stringValue(lines, s_explorerKey, s_desktopValue),
-        .defaultSize = stringValue(lines, s_desktopsKey, s_defaultValue),
+        .desktop = stringValue(lines, explorerKey, desktopValue),
+        .defaultSize = stringValue(lines, desktopsKey, defaultValue),
     };
 }
 
@@ -191,9 +191,9 @@ std::optional<QByteArray> wineWithVirtualDesktop(const QByteArray &text, const Q
         return std::nullopt;
     }
     QList<QByteArray> lines = text.split('\n');
-    setValue(lines, s_explorerKey, s_desktopValue, s_defaultValue, modifiedSeconds);
+    setValue(lines, explorerKey, desktopValue, defaultValue, modifiedSeconds);
     const QByteArray sizeText = QByteArray::number(size.width()) + 'x' + QByteArray::number(size.height());
-    setValue(lines, s_desktopsKey, s_defaultValue, sizeText, modifiedSeconds);
+    setValue(lines, desktopsKey, defaultValue, sizeText, modifiedSeconds);
     return lines.join('\n');
 }
 
@@ -203,7 +203,7 @@ std::optional<QByteArray> wineWithoutVirtualDesktop(const QByteArray &text)
         return std::nullopt;
     }
     QList<QByteArray> lines = text.split('\n');
-    removeValue(lines, s_explorerKey, s_desktopValue);
-    removeValue(lines, s_desktopsKey, s_defaultValue);
+    removeValue(lines, explorerKey, desktopValue);
+    removeValue(lines, desktopsKey, defaultValue);
     return lines.join('\n');
 }

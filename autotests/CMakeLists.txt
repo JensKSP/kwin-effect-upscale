@@ -134,32 +134,35 @@ if(KWin_VERSION VERSION_LESS 6.7)
     # confusion that cost most of a night. run-integration-test.py allows a
     # session 600 s, and 900 s under instrumentation; these sit above both.
     set_tests_properties(upscale-integration PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
-    add_executable(upscale_x11_integration_test x11_integration_test.cpp x11_client.cpp)
-    target_link_libraries(
-        upscale_x11_integration_test
-        PRIVATE Qt6::Test Qt6::DBus KF6::ConfigCore XCB::XCB XCB::RANDR
-    )
-    add_test(
-        NAME upscale-x11-integration
-        COMMAND
-            ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-integration-test.py
-            $<TARGET_FILE:upscale_x11_integration_test> --x11
-    )
-    # Eight fullscreen transitions, each waiting on a client that commits a
-    # buffer every three seconds on the slowest machine this runs on, need
-    # more headroom than one session of the other test does.
-    set_tests_properties(upscale-x11-integration PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
+    # The X11 sessions: the request path, and a window a helper prepared.
+    foreach(session IN ITEMS integration prepared)
+        add_executable(upscale_x11_${session}_test x11_${session}_test.cpp x11_client.cpp)
+        target_link_libraries(
+            upscale_x11_${session}_test
+            PRIVATE Qt6::Test Qt6::DBus KF6::ConfigCore XCB::XCB XCB::RANDR
+        )
+        add_test(
+            NAME upscale-x11-${session}
+            COMMAND
+                ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-integration-test.py
+                $<TARGET_FILE:upscale_x11_${session}_test> --x11
+        )
+        # Eight fullscreen transitions, each waiting on a client that commits
+        # a buffer every three seconds on the slowest machine this runs on,
+        # need more headroom than one session of the other test does.
+        set_tests_properties(upscale-x11-${session} PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
+    endforeach()
+    set(sessions upscale-integration upscale-x11-integration upscale-x11-prepared)
     if(NOT UPSCALE_SESSION_TESTS)
         # Disabled rather than unregistered, so the test binaries are still
         # compiled and linked by a package build and only the sessions are
         # skipped. ctest reports them as disabled, which is visible in the log
         # rather than silently absent from it.
-        set_tests_properties(upscale-integration upscale-x11-integration PROPERTIES DISABLED TRUE)
+        set_tests_properties(${sessions} PROPERTIES DISABLED TRUE)
     endif()
     if(UPSCALE_SANITIZER)
         set_tests_properties(
-            upscale-integration
-            upscale-x11-integration
+            ${sessions}
             PROPERTIES
                 TIMEOUT 1200
                 ENVIRONMENT

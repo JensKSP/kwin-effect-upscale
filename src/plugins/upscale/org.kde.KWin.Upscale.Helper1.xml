@@ -21,7 +21,7 @@
         effect wants width x height. An empty offer means the helper has nothing
         to offer; otherwise the question is shown to the user as it is.
     -->
-    <method name="Offer">
+    <method name="offer">
       <arg name="pid" type="u" direction="in"/>
       <arg name="windowClass" type="s" direction="in"/>
       <arg name="title" type="s" direction="in"/>
@@ -35,7 +35,7 @@
         accepted offer, restart is the text of the offer to restart the program
         now; it is empty when the helper cannot restart it.
     -->
-    <method name="Answer">
+    <method name="answer">
       <arg name="offer" type="s" direction="in"/>
       <arg name="answer" type="s" direction="in"/>
       <arg name="restart" type="s" direction="out"/>
@@ -45,7 +45,7 @@
         close; the helper waits for the program to exit, prepares it and starts
         it again.
     -->
-    <method name="Restart">
+    <method name="restart">
       <arg name="offer" type="s" direction="in"/>
       <arg name="started" type="b" direction="out"/>
     </method>
@@ -54,7 +54,7 @@
         size means the helper prepared this program to render at that size in
         this window, and the window is to be presented across its output.
     -->
-    <method name="Present">
+    <method name="present">
       <arg name="pid" type="u" direction="in"/>
       <arg name="windowClass" type="s" direction="in"/>
       <arg name="width" type="i" direction="out"/>
@@ -64,13 +64,13 @@
         The programs the helper has prepared, for the settings page: an
         identifier, a name the user recognises, and the size.
     -->
-    <method name="Prepared">
+    <method name="prepared">
       <arg name="programs" type="a(ssii)" direction="out"/>
     </method>
     <!--
         Undo a preparation, now or after the program's next exit.
     -->
-    <method name="Reset">
+    <method name="reset">
       <arg name="id" type="s" direction="in"/>
       <arg name="done" type="b" direction="out"/>
     </method>

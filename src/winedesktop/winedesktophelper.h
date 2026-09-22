@@ -87,6 +87,8 @@ private:
 
     void poll();
     bool advance(Job &job);
+    static bool stillRunning(Job &job);
+    void settle(const Job &job, WineDesktopRecord &record, WineWriteResult result);
     void startJob(const Job &job);
     bool hasJob(const QString &id) const;
 

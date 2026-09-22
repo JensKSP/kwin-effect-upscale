@@ -101,6 +101,10 @@ bool UpscaleX11Resolution::fullscreenRequest(X11Window *window, xcb_client_messa
         || (message->data.data32[0] == 2 && !window->isFullScreen());
     if (!fullscreen) {
         restore(window);
+        // Leaving fullscreen ends a prepared window's presentation for good,
+        // as it does when its user leaves it through KWin; see applyPrepared().
+        // Forgotten after the restore, which gives it back at its old size.
+        m_prepared.remove(window);
         return false;
     }
     const Request request = requestFor(window);
