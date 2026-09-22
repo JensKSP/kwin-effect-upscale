@@ -391,7 +391,8 @@ static QString x11Presentation(const UpscaleSnapshot &snapshot)
     return QString();
 }
 
-QString upscaleStatusText(const UpscaleSnapshot &snapshot)
+// What was asked of the game, and how: the first half of the "Desired" line.
+static QString wishText(const UpscaleSnapshot &snapshot)
 {
     QString wish;
     if (snapshot.requested.isValid()) {
@@ -435,12 +436,12 @@ QString upscaleStatusText(const UpscaleSnapshot &snapshot)
         wish = i18n("Select %1 × %2 in the game",
                     QString::number(snapshot.desired.width), QString::number(snapshot.desired.height));
     }
-    if (!snapshot.requestFailure.isEmpty()) {
-        wish += i18n("; request failed: %1", snapshot.requestFailure);
-    }
-    if (const QString presentedBy = x11Presentation(snapshot); !presentedBy.isEmpty()) {
-        wish += i18n("; %1", presentedBy);
-    }
+    return wish;
+}
+
+// What the effect is doing with the window.
+static QString stateText(const UpscaleSnapshot &snapshot)
+{
     QString state;
     if (snapshot.selected) {
         if (snapshot.scaling) {
@@ -455,6 +456,19 @@ QString upscaleStatusText(const UpscaleSnapshot &snapshot)
     } else {
         state = i18n("Inactive: %1", refusalText(snapshot));
     }
+    return state;
+}
+
+QString upscaleStatusText(const UpscaleSnapshot &snapshot)
+{
+    QString wish = wishText(snapshot);
+    if (!snapshot.requestFailure.isEmpty()) {
+        wish += i18n("; request failed: %1", snapshot.requestFailure);
+    }
+    if (const QString presentedBy = x11Presentation(snapshot); !presentedBy.isEmpty()) {
+        wish += i18n("; %1", presentedBy);
+    }
+    const QString state = stateText(snapshot);
     // The rate decides this, not the mode. A screen that is replaced clears
     // its frame statistics without clearing the last mode it presented in, so
     // a mode can outlive the measurement it belonged to and this would

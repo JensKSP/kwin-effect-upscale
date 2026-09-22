@@ -68,54 +68,17 @@ UpscaleMethodControls::UpscaleMethodControls(QObject *parent)
 
 void UpscaleMethodControls::build(QFormLayout *form, QWidget *parent, bool inherit)
 {
-    static constexpr std::array<UpscaleMethod, 6> s_everyMethod{
-        UpscaleMethod::Auto,
-        UpscaleMethod::AdvertisedMode,
-        UpscaleMethod::AdvertisedScale,
-        UpscaleMethod::AdvertisedModeAndScale,
-        UpscaleMethod::X11Resize,
-        UpscaleMethod::Off,
-    };
     for (std::size_t slot = 0; slot < upscalePresentationCount; ++slot) {
-        const auto presentation = UpscalePresentation(slot);
-        auto *box = new QComboBox(parent);
-        for (const UpscaleMethod method : s_everyMethod) {
-            if (upscaleMethodApplies(presentation, method)) {
-                m_offered[slot].push_back(method);
-                box->addItem(upscaleMethodLabel(method));
-            }
-        }
-        box->setObjectName(QLatin1String("method") + QString::number(slot));
-        m_boxes[slot] = box;
+        QComboBox *box = addBox(slot, parent);
         if (!inherit) {
             connect(box, &QComboBox::currentIndexChanged, this, &UpscaleMethodControls::changed);
-            form->addRow(upscalePresentationLabel(presentation), box);
+            form->addRow(upscalePresentationLabel(UpscalePresentation(slot)), box);
             continue;
         }
         connect(box, &QComboBox::currentIndexChanged, this, [this, slot]() {
             edited(slot);
         });
-        // A game's row as a game's other settings lay theirs out: the list,
-        // and the reset button at the right end of the row.
-        m_names[slot] = new QLabel(upscalePresentationLabel(presentation), parent);
-        m_names[slot]->setObjectName(QLatin1String("method") + QString::number(slot) + QLatin1String("Name"));
-        m_names[slot]->setBuddy(box);
-        m_resets[slot] = new QToolButton(parent);
-        m_resets[slot]->setObjectName(QLatin1String("method") + QString::number(slot) + QLatin1String("Reset"));
-        m_resets[slot]->setIcon(QIcon::fromTheme(QStringLiteral("edit-undo")));
-        m_resets[slot]->setAutoRaise(true);
-        m_resets[slot]->setToolTip(i18n("Use the measured method, or the one of All applications"));
-        m_resets[slot]->setAccessibleName(m_resets[slot]->toolTip());
-        m_resets[slot]->setEnabled(false);
-        connect(m_resets[slot], &QToolButton::clicked, this, [this, slot]() {
-            follow(slot);
-        });
-        auto *row = new QWidget(parent);
-        auto *layout = new QHBoxLayout(row);
-        layout->setContentsMargins(0, 0, 0, 0);
-        layout->addWidget(box);
-        layout->addStretch(1);
-        layout->addWidget(m_resets[slot]);
+        QWidget *row = inheritingRow(slot, parent);
         form->addRow(m_names[slot], row);
     }
     // One width for the six, so they read as the one table they are rather
@@ -127,6 +90,56 @@ void UpscaleMethodControls::build(QFormLayout *form, QWidget *parent, bool inher
     for (QComboBox *box : m_boxes) {
         box->setMinimumWidth(widest);
     }
+}
+
+QComboBox *UpscaleMethodControls::addBox(std::size_t slot, QWidget *parent)
+{
+    static constexpr std::array<UpscaleMethod, 6> s_everyMethod{
+        UpscaleMethod::Auto,
+        UpscaleMethod::AdvertisedMode,
+        UpscaleMethod::AdvertisedScale,
+        UpscaleMethod::AdvertisedModeAndScale,
+        UpscaleMethod::X11Resize,
+        UpscaleMethod::Off,
+    };
+    const auto presentation = UpscalePresentation(slot);
+    auto *box = new QComboBox(parent);
+    for (const UpscaleMethod method : s_everyMethod) {
+        if (upscaleMethodApplies(presentation, method)) {
+            m_offered[slot].push_back(method);
+            box->addItem(upscaleMethodLabel(method));
+        }
+    }
+    box->setObjectName(QLatin1String("method") + QString::number(slot));
+    m_boxes[slot] = box;
+    return box;
+}
+
+// A game's row as a game's other settings lay theirs out: the list, and the
+// reset button at the right end of the row, under a name of its own.
+QWidget *UpscaleMethodControls::inheritingRow(std::size_t slot, QWidget *parent)
+{
+    const QString name = QLatin1String("method") + QString::number(slot);
+    m_names[slot] = new QLabel(upscalePresentationLabel(UpscalePresentation(slot)), parent);
+    m_names[slot]->setObjectName(name + QLatin1String("Name"));
+    m_names[slot]->setBuddy(m_boxes[slot]);
+    m_resets[slot] = new QToolButton(parent);
+    m_resets[slot]->setObjectName(name + QLatin1String("Reset"));
+    m_resets[slot]->setIcon(QIcon::fromTheme(QStringLiteral("edit-undo")));
+    m_resets[slot]->setAutoRaise(true);
+    m_resets[slot]->setToolTip(i18n("Use the measured method, or the one of All applications"));
+    m_resets[slot]->setAccessibleName(m_resets[slot]->toolTip());
+    m_resets[slot]->setEnabled(false);
+    connect(m_resets[slot], &QToolButton::clicked, this, [this, slot]() {
+        follow(slot);
+    });
+    auto *row = new QWidget(parent);
+    auto *layout = new QHBoxLayout(row);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->addWidget(m_boxes[slot]);
+    layout->addStretch(1);
+    layout->addWidget(m_resets[slot]);
+    return row;
 }
 
 void UpscaleMethodControls::setEnabled(bool enabled)
@@ -171,7 +184,7 @@ void UpscaleMethodControls::show(const UpscaleStatedMethods &methods, const Upsc
         // following it.
         m_parents[slot] = measured[slot].value_or(global[slot]);
         m_own[slot] = methods[slot].has_value() && methods[slot] != measured[slot];
-        select(slot, m_own[slot] ? *methods[slot] : m_parents[slot]);
+        select(slot, m_own[slot] ? methods[slot].value_or(m_parents[slot]) : m_parents[slot]);
         mark(slot);
     }
 }

@@ -130,7 +130,7 @@ static UpscaleStatedMethods readMethods(const KConfigGroup &group)
         // advertisement for an X11 window, or a resize for a Wayland one.
         // Neither can be acted on, and neither is worth refusing the whole
         // entry over.
-        if (methods[slot] && !upscaleMethodApplies(presentation, *methods[slot])) {
+        if (const std::optional<UpscaleMethod> method = methods[slot]; method && !upscaleMethodApplies(presentation, *method)) {
             methods[slot] = UpscaleMethod::Off;
         }
     }
@@ -140,10 +140,8 @@ static UpscaleStatedMethods readMethods(const KConfigGroup &group)
 UpscaleMethod upscaleMethodFor(const UpscaleApplication *application, UpscalePresentation presentation)
 {
     const auto slot = std::size_t(presentation);
-    if (application && application->methods[slot]) {
-        return *application->methods[slot];
-    }
-    return upscaleGlobalMethods()[slot];
+    const std::optional<UpscaleMethod> stated = application ? application->methods[slot] : std::nullopt;
+    return stated.value_or(upscaleGlobalMethods()[slot]);
 }
 
 static const QHash<QString, ResolutionPreset> &presetNames()

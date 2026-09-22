@@ -69,6 +69,8 @@ Q_SIGNALS:
     void changed();
 
 private:
+    QComboBox *addBox(std::size_t slot, QWidget *parent);
+    QWidget *inheritingRow(std::size_t slot, QWidget *parent);
     void select(std::size_t slot, UpscaleMethod method);
     void mark(std::size_t slot);
     void edited(std::size_t slot);
