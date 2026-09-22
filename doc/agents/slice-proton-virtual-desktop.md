@@ -295,7 +295,7 @@ A one-off manual check before any code:
 | Server lock check (`F_GETLK` on the prefix's lock, and the holder's process so the wait outlives the game's view of the file system) (`wineserverlock.cpp`) | Done |
 | Locating the prefix from the game's process, with every check above (`wineprefix.cpp`; Linux `/proc` in `wineprocess_proc.cpp`, nothing elsewhere) | Done |
 | Setting and undoing the desktop after the game exited: proven directory only, under Proton's `pfx.lock`, atomic, the user's own desktop left alone (`winedesktopwrite.cpp`) | Done. `upscale-wine-prefix` and `upscale-wine-desktop-write` pass in the Trixie container with GCC and Clang, warnings as errors; Neon not run |
-| Companion service, its record of changed prefixes and the undo | Next |
+| Companion service `kwin-upscale-helper`: D-Bus activated as `org.kde.KWin.Upscale.Helper`, implementing the plugin's optional `org.kde.KWin.Upscale.Helper1` interface; its record of prepared prefixes in the user's state directory; waiting for the game and its server, writing, restarting through Steam, presenting, reset and "never" (`winedesktophelper.cpp`, `winedesktopservice.cpp`) | Done. `upscale-wine-desktop-helper` runs it against real processes and a held server lock; all four companion tests pass 20 times in a row in the Trixie container with GCC and Clang. The service, its D-Bus activation file and its user unit install; the RPM recipe lists them. Neon not run |
 | Centred display: question and restart offer | Open, with [What the effect says](slice-development-infrastructure.md) |
 | Effect: recognise, pin and present the Wine desktop window | Open |
 | Manual Wreckfest experiment | Not run |
@@ -307,8 +307,15 @@ A one-off manual check before any code:
   requirement and its ruling on "the private virtual desktop" have to be
   updated to say so: the consent is what allows a change that outlives
   uninstalling, and this form works through configuration, not at start.
-- Open: where the companion lives and how the plugin talks to it without
-  project-specific code in `src/plugins/upscale/`.
+- Decided 2026-09-22, by the plugin-folder rule: the plugin defines a generic,
+  optional interface, `org.kde.KWin.Upscale.Helper1`
+  (`src/plugins/upscale/org.kde.KWin.Upscale.Helper1.xml`): "a program does
+  not render at the size wanted; can you prepare it?" and "did you prepare this
+  window's program?". It knows nothing about Wine, and without a helper it
+  behaves as before. The companion lives in `src/winedesktop/`, outside the
+  plugin, and writes every text the user reads about it.
+- Open: the companion's texts use their own translation domain,
+  `kwin_upscale_helper`, which the translation extraction does not cover yet.
 
 ## Sources
 

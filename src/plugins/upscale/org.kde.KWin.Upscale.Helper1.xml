@@ -1,0 +1,78 @@
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<!--
+    SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+
+    SPDX-License-Identifier: GPL-2.0-or-later
+-->
+<node>
+  <!--
+      An optional helper, outside KWin, that can prepare a program to render at
+      a smaller size from its next start when the effect cannot make it do so
+      while it runs. The effect only asks; everything the helper does, and
+      every text the user reads about it, is the helper's.
+
+      The helper is found as the session service org.kde.KWin.Upscale.Helper,
+      object /Helper. Without one, the effect behaves as if nobody answered.
+  -->
+  <interface name="org.kde.KWin.Upscale.Helper1">
+    <!--
+        The program with this process draws at the output's size although the
+        effect wants width x height. An empty offer means the helper has nothing
+        to offer; otherwise the question is shown to the user as it is.
+    -->
+    <method name="Offer">
+      <arg name="pid" type="u" direction="in"/>
+      <arg name="windowClass" type="s" direction="in"/>
+      <arg name="title" type="s" direction="in"/>
+      <arg name="width" type="i" direction="in"/>
+      <arg name="height" type="i" direction="in"/>
+      <arg name="offer" type="s" direction="out"/>
+      <arg name="question" type="s" direction="out"/>
+    </method>
+    <!--
+        The user's answer to an offer: "accept", "later" or "never". After an
+        accepted offer, restart is the text of the offer to restart the program
+        now; it is empty when the helper cannot restart it.
+    -->
+    <method name="Answer">
+      <arg name="offer" type="s" direction="in"/>
+      <arg name="answer" type="s" direction="in"/>
+      <arg name="restart" type="s" direction="out"/>
+    </method>
+    <!--
+        The user chose to restart. The effect has asked the program's window to
+        close; the helper waits for the program to exit, prepares it and starts
+        it again.
+    -->
+    <method name="Restart">
+      <arg name="offer" type="s" direction="in"/>
+      <arg name="started" type="b" direction="out"/>
+    </method>
+    <!--
+        Asked for a window the effect would otherwise leave alone. A non-empty
+        size means the helper prepared this program to render at that size in
+        this window, and the window is to be presented across its output.
+    -->
+    <method name="Present">
+      <arg name="pid" type="u" direction="in"/>
+      <arg name="windowClass" type="s" direction="in"/>
+      <arg name="width" type="i" direction="out"/>
+      <arg name="height" type="i" direction="out"/>
+    </method>
+    <!--
+        The programs the helper has prepared, for the settings page: an
+        identifier, a name the user recognises, and the size.
+    -->
+    <method name="Prepared">
+      <arg name="programs" type="a(ssii)" direction="out"/>
+    </method>
+    <!--
+        Undo a preparation, now or after the program's next exit.
+    -->
+    <method name="Reset">
+      <arg name="id" type="s" direction="in"/>
+      <arg name="done" type="b" direction="out"/>
+    </method>
+  </interface>
+</node>
