@@ -9,7 +9,7 @@
 #include "wineprocess.h"
 #include "wineserverlock.h"
 
-#include <expected>
+#include <optional>
 
 /*
  * The prefix a running Wine game uses, proven rather than guessed.
@@ -56,11 +56,38 @@ struct WinePrefix
 };
 
 /*
+ * A located prefix, or why there is none. It reads like std::expected, which
+ * not every compiler this is built with offers yet.
+ */
+struct WineLocated
+{
+    std::optional<WinePrefix> prefix;
+    WinePrefixRefusal refusal = WinePrefixRefusal::ProcessUnreadable;
+
+    explicit operator bool() const
+    {
+        return prefix.has_value();
+    }
+    const WinePrefix *operator->() const
+    {
+        return &*prefix;
+    }
+    const WinePrefix &operator*() const
+    {
+        return *prefix;
+    }
+    WinePrefixRefusal error() const
+    {
+        return refusal;
+    }
+};
+
+/*
  * The prefix of a running Wine process owned by the given user. The window
  * class, when it is Proton's steam_app_<id>, has to name the same game as the
  * process's environment.
  */
-std::expected<WinePrefix, WinePrefixRefusal> wineLocatePrefix(const WineProcess &process, uid_t user, const QString &windowClass);
+WineLocated wineLocatePrefix(const WineProcess &process, uid_t user, const QString &windowClass);
 
 QString wineRegistryPath(const WinePrefix &prefix);
 

@@ -63,6 +63,7 @@ if (KWIN_BUILD_KCMS)
     set(kwin_upscale_config_SRCS
         upscale_config.cpp
         displaycontrols.cpp
+        preparedlist.cpp
         applicationcontrols.cpp
         resolutionchoice.cpp
         resolutionpreview.cpp

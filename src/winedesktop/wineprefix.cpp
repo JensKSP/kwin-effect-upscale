@@ -18,6 +18,11 @@ namespace
 
 const QString s_steamAppClass = QStringLiteral("steam_app_");
 
+WineLocated refused(WinePrefixRefusal refusal)
+{
+    return {.prefix = std::nullopt, .refusal = refusal};
+}
+
 // The prefix as the game names it: WINEPREFIX, or Wine's default below HOME.
 QString gamePrefixPath(const QProcessEnvironment &environment)
 {
@@ -82,37 +87,37 @@ std::optional<WinePrefixRefusal> checkSteam(WinePrefix &prefix, const QProcessEn
 
 } // namespace
 
-std::expected<WinePrefix, WinePrefixRefusal> wineLocatePrefix(const WineProcess &process, uid_t user, const QString &windowClass)
+WineLocated wineLocatePrefix(const WineProcess &process, uid_t user, const QString &windowClass)
 {
     if (process.owner != user) {
-        return std::unexpected(WinePrefixRefusal::OtherUser);
+        return refused(WinePrefixRefusal::OtherUser);
     }
     WinePrefix prefix;
     prefix.gamePath = gamePrefixPath(process.environment);
     if (prefix.gamePath.isEmpty()) {
-        return std::unexpected(WinePrefixRefusal::NoPrefix);
+        return refused(WinePrefixRefusal::NoPrefix);
     }
     prefix.path = process.root + prefix.gamePath;
     prefix.temporaryDirectory = process.root + QStringLiteral("/tmp");
     const std::optional<WinePrefixIdentity> identity = winePrefixIdentity(prefix.path);
     if (!identity) {
-        return std::unexpected(WinePrefixRefusal::NotADirectory);
+        return refused(WinePrefixRefusal::NotADirectory);
     }
     prefix.identity = *identity;
     struct stat status = {};
     if (::stat(QFile::encodeName(prefix.path).constData(), &status) != 0 || status.st_uid != user) {
-        return std::unexpected(WinePrefixRefusal::NotOwned);
+        return refused(WinePrefixRefusal::NotOwned);
     }
     if (const std::optional<WinePrefixRefusal> refusal = wineCheckRegistry(wineRegistryPath(prefix), user)) {
-        return std::unexpected(*refusal);
+        return refused(*refusal);
     }
     if (const std::optional<WinePrefixRefusal> refusal = checkSteam(prefix, process.environment, windowClass)) {
-        return std::unexpected(*refusal);
+        return refused(*refusal);
     }
     if (wineServerState(wineServerLockPath(prefix.temporaryDirectory, user, prefix.identity)) != WineServerState::Running) {
-        return std::unexpected(WinePrefixRefusal::ServerNotRunning);
+        return refused(WinePrefixRefusal::ServerNotRunning);
     }
-    return prefix;
+    return {.prefix = prefix, .refusal = {}};
 }
 
 QString wineRegistryPath(const WinePrefix &prefix)

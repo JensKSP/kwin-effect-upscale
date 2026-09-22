@@ -16,6 +16,7 @@
 #include "application.h"
 #include "applicationeditor.h"
 #include "placement.h"
+#include "preparedlist.h"
 #include "resolution.h"
 #include "upscaleconfig.h"
 
@@ -92,6 +93,8 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
         return new QFormLayout(box);
     };
     addApplicationControls(section(i18n("Applications")));
+    m_prepared = new UpscalePreparedList(widget());
+    page->addWidget(m_prepared);
     m_editor->setAllPanel(all);
     // One label column for "All applications" and a game's tabs alike, so
     // that moving between tabs or entries moves no field.
@@ -409,6 +412,7 @@ void UpscaleEffectConfig::load()
     // would let a later Apply write changes the user had just discarded.
     m_editor->load();
     updateApplicationSummary();
+    m_prepared->refresh();
     setNeedsSave(false);
 }
 

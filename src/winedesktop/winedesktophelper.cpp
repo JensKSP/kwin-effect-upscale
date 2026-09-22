@@ -115,7 +115,7 @@ WineDesktopHelper::Offered WineDesktopHelper::offer(uint pid, const QString &win
     if (!process) {
         return {};
     }
-    const std::expected<WinePrefix, WinePrefixRefusal> prefix = wineLocatePrefix(*process, ::getuid(), windowClass);
+    const WineLocated prefix = wineLocatePrefix(*process, ::getuid(), windowClass);
     if (!prefix) {
         qCInfo(WINEDESKTOP) << "No provable Wine prefix for process" << pid << "reason" << static_cast<int>(prefix.error());
         return {};
@@ -199,7 +199,7 @@ QSize WineDesktopHelper::present(uint pid, const QString &windowClass)
     if (!process) {
         return {};
     }
-    const std::expected<WinePrefix, WinePrefixRefusal> prefix = wineLocatePrefix(*process, ::getuid(), windowClass);
+    const WineLocated prefix = wineLocatePrefix(*process, ::getuid(), windowClass);
     if (!prefix) {
         return {};
     }
