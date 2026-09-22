@@ -44,6 +44,7 @@ void UpscaleX11Resolution::forget(X11Window *window)
         return;
     }
     m_requests.remove(window);
+    m_prepared.remove(window);
     m_scheduled.remove(window);
     m_waitingForBuffer.remove(window);
     m_withdrawals.remove(window);

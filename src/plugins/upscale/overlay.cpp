@@ -48,32 +48,38 @@ static QFont displayFont(double scale)
 // which is how KDE shows a value that is wrong. The overlay is drawn inside
 // the compositor with no palette of its own to take it from.
 static const QColor s_warningColor(0xda, 0x44, 0x53);
+// Breeze's highlight, for the selected answer of a question.
+static const QColor s_highlightColor(0x3d, 0xae, 0xe9);
 
 static QString withoutWarningMarks(QString line)
 {
-    line.remove(upscaleWarningStart);
-    line.remove(upscaleWarningEnd);
+    for (const QChar mark : {upscaleWarningStart, upscaleWarningEnd, upscaleHighlightStart, upscaleHighlightEnd}) {
+        line.remove(mark);
+    }
     return line;
 }
 
-// One line, white, with any part between warning marks in the warning colour.
+// One line, white, with any part between marks in the colour they name.
 static void drawLine(QPainter &painter, const QFontMetricsF &metrics, QPointF origin, const QString &line)
 {
     QString run;
-    bool warning = false;
+    QColor colour(255, 255, 255);
     const auto flush = [&]() {
         if (run.isEmpty()) {
             return;
         }
-        painter.setPen(warning ? s_warningColor : QColor(255, 255, 255));
+        painter.setPen(colour);
         painter.drawText(origin, run);
         origin.rx() += metrics.horizontalAdvance(run);
         run.clear();
     };
     for (const QChar character : line) {
-        if (character == upscaleWarningStart || character == upscaleWarningEnd) {
+        if (character == upscaleWarningStart || character == upscaleHighlightStart) {
             flush();
-            warning = character == upscaleWarningStart;
+            colour = character == upscaleWarningStart ? s_warningColor : s_highlightColor;
+        } else if (character == upscaleWarningEnd || character == upscaleHighlightEnd) {
+            flush();
+            colour = QColor(255, 255, 255);
         } else {
             run.append(character);
         }

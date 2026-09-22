@@ -22,6 +22,7 @@ namespace KWin
 {
 
 class UpscaleModeOverride;
+class UpscalePreparation;
 class UpscaleWaylandScale;
 class UpscaleX11Resolution;
 class UpscaleWaylandScale;
@@ -55,6 +56,7 @@ public:
 #endif
     bool isActive() const override;
     bool blocksDirectScanout() const override;
+    void grabbedKeyboardEvent(QKeyEvent *event) override;
     /** Whether the X11 resolution control has nothing in flight; see UpscaleX11Resolution::settled(). */
     bool x11RequestsSettled() const;
     int requestedEffectChainPosition() const override;
@@ -102,6 +104,10 @@ private:
     std::unique_ptr<UpscaleModeOverride> m_modeOverride;
     std::unique_ptr<UpscaleX11Resolution> m_x11Resolution;
     std::unique_ptr<UpscaleWaylandScale> m_waylandScale;
+    // Asks a helper, and the user, about a program that cannot be made to
+    // render smaller while it runs. Declared after the X11 control it uses,
+    // so that it goes first.
+    std::unique_ptr<UpscalePreparation> m_preparation;
 
     /** Auto's Wayland half for the selected window, or giving its scale back. */
     void askForSmallerBuffer(UpscaleOutput *output, EffectWindow *candidate, const UpscaleApplication *claimed) const;

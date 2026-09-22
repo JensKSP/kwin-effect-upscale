@@ -19,6 +19,7 @@
 #include <QSize>
 #include <QTimer>
 
+#include <functional>
 #include <memory>
 
 #if KWIN_BUILD_X11
@@ -71,6 +72,20 @@ public:
      * picture and the pointer agreed.
      */
     QPointF presentedUnder(const QPointF &position, SurfaceInterface **surface, QPointF *origin) const;
+    /**
+     * Presents @p window across its output at @p size, the size its program
+     * already renders at because a helper prepared it to (see
+     * UpscalePreparation). The window is made fullscreen and held at that
+     * size natively, and then presented the way a client's buffer of a
+     * requested size is presented without an emulated mode. Taking it out of
+     * fullscreen gives it back to its user for good.
+     */
+    void presentPrepared(EffectWindow *window, const QSize &size);
+    /**
+     * Called when validation judges that a window's client draws at another
+     * size than was asked of it, before the request is given back.
+     */
+    void setUnfollowed(std::function<void(EffectWindow *window, const QSize &size)> unfollowed);
 
 #if KWIN_BUILD_X11
     /** One live request: the window it went to and what it asked for. */
@@ -128,6 +143,9 @@ private:
     void refuse(const QString &key, const QString &reason);
     void restore(X11Window *window);
     void restoreAll();
+    void pinPrepared(X11Window *window);
+    bool applyPrepared(X11Window *window);
+    void unpinPrepared(X11Window *window);
 
     QHash<X11Window *, Request> m_requests;
     QHash<QString, QSize> m_requested;
@@ -147,6 +165,10 @@ private:
     // it, each with the token of the release that is current; see release().
     QHash<X11Window *, int> m_releases;
     QTimer m_expiration;
+    // Windows whose program a helper prepared to render at this size; see
+    // presentPrepared().
+    QHash<X11Window *, QSize> m_prepared;
+    std::function<void(EffectWindow *, const QSize &)> m_unfollowed;
     std::unique_ptr<UpscaleX11Input> m_input;
     bool m_enabled = false;
     bool m_restoring = false;

@@ -30,4 +30,18 @@ inline QString upscaleWarning(const QString &text)
     return QString(upscaleWarningStart) + text + QString(upscaleWarningEnd);
 }
 
+/**
+ * The marks around a part drawn in the highlight colour instead: the answer
+ * that is selected in a question, the way KDE highlights a focused choice.
+ * The same private use area, removed the same way.
+ */
+inline constexpr QChar upscaleHighlightStart{u'\uE002'};
+inline constexpr QChar upscaleHighlightEnd{u'\uE003'};
+
+/** @p text, marked to be drawn in the highlight colour. */
+inline QString upscaleHighlight(const QString &text)
+{
+    return QString(upscaleHighlightStart) + text + QString(upscaleHighlightEnd);
+}
+
 } // namespace KWin

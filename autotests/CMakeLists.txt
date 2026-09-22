@@ -82,14 +82,19 @@ if(KWin_VERSION VERSION_LESS 6.7)
         ../src/plugins/upscale/observation.cpp
         ../src/plugins/upscale/overlay.cpp
         ../src/plugins/upscale/placement.cpp
+        ../src/plugins/upscale/helper.cpp
+        ../src/plugins/upscale/preparation.cpp
+        ../src/plugins/upscale/question.cpp
         ../src/plugins/upscale/snapshot.cpp
         ../src/plugins/upscale/snapshot_metrics.cpp
         ../src/plugins/upscale/upscale.cpp
+        ../src/plugins/upscale/upscale_display.cpp
         ../src/plugins/upscale/autorequest.cpp
         ../src/plugins/upscale/x11geometry.cpp
         ../src/plugins/upscale/x11input.cpp
         ../src/plugins/upscale/x11resolution.cpp
         ../src/plugins/upscale/x11resolution_events.cpp
+        ../src/plugins/upscale/x11resolution_prepared.cpp
         ../src/plugins/upscale/x11resolution_present.cpp
         ../src/plugins/upscale/x11resolution_validate.cpp
         ../src/plugins/upscale/upscale.h
@@ -101,7 +106,7 @@ if(KWin_VERSION VERSION_LESS 6.7)
     target_include_directories(upscale_test_driver PRIVATE ../src/plugins/upscale)
     target_link_libraries(
         upscale_test_driver
-        PRIVATE kwin KF6::ConfigGui KF6::I18n Libdrm::Libdrm XCB::XCB XCB::RANDR
+        PRIVATE kwin Qt6::DBus KF6::ConfigGui KF6::I18n Libdrm::Libdrm XCB::XCB XCB::RANDR
     )
     set_target_properties(
         upscale_test_driver

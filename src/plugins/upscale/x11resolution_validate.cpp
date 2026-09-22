@@ -18,6 +18,10 @@
 #include "x11window.h"
 
 #include <KLocalizedString>
+#include <QLoggingCategory>
+#include <QTimer>
+
+Q_DECLARE_LOGGING_CATEGORY(KWIN_UPSCALE)
 #endif
 
 namespace KWin
@@ -89,6 +93,12 @@ void UpscaleX11Resolution::validate(const QString &key, int generation, int revi
             if (retry(key, generation)) {
                 return;
             }
+            // A client that went on drawing another size may still be one a
+            // helper can prepare for its next start.
+            SurfaceItem *surface = request.window->effectWindow()->windowItem()->surfaceItem();
+            if (m_unfollowed && surface && surface->bufferSize() != request.size) {
+                m_unfollowed(request.window->effectWindow(), request.size);
+            }
             refuse(key, unmet);
             return;
         }
@@ -99,6 +109,45 @@ void UpscaleX11Resolution::validate(const QString &key, int generation, int revi
         // The surface reached its requested size somewhere in the last three
         // seconds; a pointer that has not moved since still has to follow it.
         m_input->refresh();
+    }
+}
+
+bool UpscaleX11Resolution::retry(const QString &key, int generation)
+{
+    if (m_retries.value(key) != 0) {
+        return false;
+    }
+    // Clients can discard resize events during a loading/state transition.
+    // One retry returns to normal geometry first: duplicate ConfigureNotify
+    // events may be ignored if the toolkit cached the requested size already.
+    // Never loop on a client which cannot establish full-output presentation.
+    m_retries.insert(key, 1);
+    const auto windows = m_requests.keys();
+    for (X11Window *window : windows) {
+        if (m_requests.value(window).key != key) {
+            continue;
+        }
+        const QPointer<X11Window> guarded = window;
+        restore(window);
+        QTimer::singleShot(250, this, [this, guarded, generation]() {
+            if (guarded && generation == m_generation) {
+                schedule(guarded);
+            }
+        });
+    }
+    return true;
+}
+
+void UpscaleX11Resolution::refuse(const QString &key, const QString &reason)
+{
+    m_failures.insert(key, reason);
+    m_requested.remove(key);
+    qCWarning(KWIN_UPSCALE) << "X11 resolution control:" << key << reason;
+    const auto windows = m_requests.keys();
+    for (X11Window *window : windows) {
+        if (m_requests.value(window).key == key) {
+            restore(window);
+        }
     }
 }
 

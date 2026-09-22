@@ -8,6 +8,7 @@ set(upscale_SOURCES
     eligibility.cpp
     refusaltext.cpp
     framestatistics.cpp
+    helper.cpp
     main.cpp
     matching.cpp
     modeoverride.cpp
@@ -18,15 +19,19 @@ set(upscale_SOURCES
     observation.cpp
     overlay.cpp
     placement.cpp
+    preparation.cpp
+    question.cpp
     scaler.cpp
     snapshot.cpp
     snapshot_metrics.cpp
     upscale.cpp
+    upscale_display.cpp
     windowidentity.cpp
     x11geometry.cpp
     x11input.cpp
     x11resolution.cpp
     x11resolution_events.cpp
+    x11resolution_prepared.cpp
     x11resolution_present.cpp
     x11resolution_validate.cpp
     upscale.qrc

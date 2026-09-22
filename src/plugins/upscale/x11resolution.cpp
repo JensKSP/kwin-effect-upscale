@@ -246,6 +246,9 @@ void UpscaleX11Resolution::watch(EffectWindow *effectWindow)
         if (m_waitingForBuffer.remove(window)) {
             schedule(window);
         }
+        if (m_prepared.contains(window) && !m_requests.contains(window)) {
+            pinPrepared(window);
+        }
         present(window);
     });
     schedule(window);
@@ -358,6 +361,9 @@ void UpscaleX11Resolution::apply(X11Window *window)
     if (window->isDeleted()) {
         return;
     }
+    if (applyPrepared(window)) {
+        return;
+    }
     // Fullscreen is a state, not a size, and upscalePresentation() answers the
     // state. A client holds it while its window is still being sized during
     // startup - measured on Left 4 Dead 2, 2026-09-19: four resizes between
@@ -452,45 +458,6 @@ void UpscaleX11Resolution::ask(X11Window *window, const Request &request)
     }
 }
 
-bool UpscaleX11Resolution::retry(const QString &key, int generation)
-{
-    if (m_retries.value(key) != 0) {
-        return false;
-    }
-    // Clients can discard resize events during a loading/state transition.
-    // One retry returns to normal geometry first: duplicate ConfigureNotify
-    // events may be ignored if the toolkit cached the requested size already.
-    // Never loop on a client which cannot establish full-output presentation.
-    m_retries.insert(key, 1);
-    const auto windows = m_requests.keys();
-    for (X11Window *window : windows) {
-        if (m_requests.value(window).key != key) {
-            continue;
-        }
-        const QPointer<X11Window> guarded = window;
-        restore(window);
-        QTimer::singleShot(250, this, [this, guarded, generation]() {
-            if (guarded && generation == m_generation) {
-                schedule(guarded);
-            }
-        });
-    }
-    return true;
-}
-
-void UpscaleX11Resolution::refuse(const QString &key, const QString &reason)
-{
-    m_failures.insert(key, reason);
-    m_requested.remove(key);
-    qCWarning(KWIN_UPSCALE) << "X11 resolution control:" << key << reason;
-    const auto windows = m_requests.keys();
-    for (X11Window *window : windows) {
-        if (m_requests.value(window).key == key) {
-            restore(window);
-        }
-    }
-}
-
 // Gives the window back at once, whether or not its client has answered the
 // request. release() is the way to give one back that respects the answer;
 // this is for the cases that cannot wait for it: the client left fullscreen
@@ -534,6 +501,7 @@ void UpscaleX11Resolution::restore(X11Window *window)
     // client's state from before it could have answered.
     const bool held = upscaleX11EmulatedMode(window, request.position).has_value();
     const QScopedValueRollback restoring(m_restoring, true);
+    unpinPrepared(window);
     // KWin's logical geometry remained authoritative throughout. Hand its
     // normal native size back before ceasing geometry interception. This also
     // brings the X server back into agreement with KWin's geometry caches.
