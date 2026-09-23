@@ -25,21 +25,22 @@ UpscaleQuestion::~UpscaleQuestion()
     close();
 }
 
-bool UpscaleQuestion::ask(Effect *owner, UpscaleOutput *output, const QString &text, const QList<Answer> &answers, const QString &cancel,
-                          const Chosen &chosen)
+bool UpscaleQuestion::ask(Effect *owner, UpscaleOutput *output, const Content &content, const Chosen &chosen)
 {
-    if (isOpen() || !output || answers.isEmpty() || !effects->grabKeyboard(owner)) {
+    if (isOpen() || !output || content.answers.isEmpty() || !effects->grabKeyboard(owner)) {
         return false;
     }
     effects->startMouseInterception(owner, Qt::ArrowCursor);
     m_owner = owner;
     m_output = output;
-    m_answers = answers;
-    m_cancel = cancel;
+    m_answers = content.answers;
+    m_cancel = content.cancel;
     m_chosen = chosen;
-    m_text.setText(text, output->scale(), questionEmphasis);
+    // The name of what is asking, so that the question is not an anonymous
+    // box in the middle of a game, and then what it asks.
+    m_text.setText(upscaleHighlight(content.title) + QStringLiteral("\n\n") + content.text, output->scale(), questionEmphasis);
     m_buttons.clear();
-    for (qsizetype index = 0; index < answers.size(); ++index) {
+    for (qsizetype index = 0; index < content.answers.size(); ++index) {
         m_buttons.push_back(std::make_unique<UpscaleOverlay>());
     }
     select(0);

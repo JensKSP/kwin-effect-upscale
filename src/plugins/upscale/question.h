@@ -24,8 +24,9 @@ namespace KWin
 {
 
 /**
- * A question in the middle of an output, with the answers beside each other
- * underneath it: the on-screen display that asks rather than reports.
+ * A question in the middle of an output, under the name of what is asking and
+ * with the answers beside each other underneath: the on-screen display that
+ * asks rather than reports.
  *
  * It is drawn like the passive blocks, after the game pass and outside the
  * captured image, but it takes the keyboard until it is answered, because a
@@ -42,17 +43,25 @@ public:
         QString id;
         QString label;
     };
+    /** What is asked: the name of what asks, the question, and the answers. */
+    struct Content
+    {
+        QString title;
+        QString text;
+        QList<Answer> answers;
+        // The answer Escape chooses.
+        QString cancel;
+    };
     using Chosen = std::function<void(const QString &id)>;
 
     UpscaleQuestion();
     ~UpscaleQuestion();
 
     /**
-     * Shows @p text with @p answers on @p output. Escape chooses @p cancel.
-     * Nothing is shown, and false returned, while another question is open or
-     * while another effect holds the keyboard.
+     * Shows @p content on @p output. Nothing is shown, and false returned,
+     * while another question is open or another effect holds the keyboard.
      */
-    bool ask(Effect *owner, UpscaleOutput *output, const QString &text, const QList<Answer> &answers, const QString &cancel, const Chosen &chosen);
+    bool ask(Effect *owner, UpscaleOutput *output, const Content &content, const Chosen &chosen);
     bool isOpen() const;
     /** The question while it is open; empty otherwise. */
     QString text() const;

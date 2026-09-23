@@ -202,20 +202,20 @@ void UpscaleX11PreparedTest::asksTheUserAndRestartsTheGame()
     request(QStringLiteral("upscale-test-unfollowed"), QByteArrayLiteral("upscale-x11-test 1920 1080"));
     QTRY_COMPARE(helper.offers.size(), 1);
     QCOMPARE(helper.offers.first(), QStringLiteral("%1 upscale-x11-test 1920 1080").arg(QCoreApplication::applicationPid()));
-    QTRY_VERIFY2(status().contains(QStringLiteral("question: Set this game up?")), qPrintable(status()));
+    QTRY_VERIFY2(status().contains(QStringLiteral("Set this game up?")), qPrintable(status()));
 
     // The first answer is selected; moving away and back leaves it selected.
     press(Qt::Key_Right);
     press(Qt::Key_Left);
     press(Qt::Key_Return);
     QTRY_COMPARE(helper.answers, QStringList{QStringLiteral("offer-1 accept")});
-    QTRY_VERIFY2(status().contains(QStringLiteral("question: Restart it?")), qPrintable(status()));
+    QTRY_VERIFY2(status().contains(QStringLiteral("Restart it?")), qPrintable(status()));
 
     // Restarting asks the window to close and leaves the rest to the helper.
     press(Qt::Key_Return);
     QTRY_COMPARE(helper.restarts, QStringList{QStringLiteral("offer-1")});
     QTRY_COMPARE(game.closeRequests(), 1);
-    QVERIFY2(!status().contains(QStringLiteral("question: Restart it?")), qPrintable(status()));
+    QVERIFY2(!status().contains(QStringLiteral("Restart it?")), qPrintable(status()));
     unregisterHelper();
 }
 
@@ -227,11 +227,11 @@ void UpscaleX11PreparedTest::postponesWithEscape()
     QVERIFY(game.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 3840, 2160), true));
     QTRY_VERIFY_WITH_TIMEOUT(game.isFullscreen(), 10000);
     request(QStringLiteral("upscale-test-unfollowed"), QByteArrayLiteral("upscale-x11-test 1920 1080"));
-    QTRY_VERIFY2(status().contains(QStringLiteral("question: Set this game up?")), qPrintable(status()));
+    QTRY_VERIFY2(status().contains(QStringLiteral("Set this game up?")), qPrintable(status()));
     press(Qt::Key_Escape);
     QTRY_COMPARE(helper.answers, QStringList{QStringLiteral("offer-1 later")});
     QTest::qWait(500);
-    QVERIFY2(!status().contains(QStringLiteral("question: Set this game up?")), qPrintable(status()));
+    QVERIFY2(!status().contains(QStringLiteral("Set this game up?")), qPrintable(status()));
     QVERIFY(helper.restarts.isEmpty());
     QCOMPARE(game.closeRequests(), 0);
 
@@ -250,7 +250,7 @@ void UpscaleX11PreparedTest::answersWithAClick()
     QVERIFY(game.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 3840, 2160), true));
     QTRY_VERIFY_WITH_TIMEOUT(game.isFullscreen(), 10000);
     request(QStringLiteral("upscale-test-unfollowed"), QByteArrayLiteral("upscale-x11-test 1920 1080"));
-    QTRY_VERIFY2(status().contains(QStringLiteral("question: Set this game up?")), qPrintable(status()));
+    QTRY_VERIFY2(status().contains(QStringLiteral("Set this game up?")), qPrintable(status()));
     // The three answers side by side, once they have been drawn; the third is
     // "Never for this game".
     QStringList areas;
@@ -259,7 +259,7 @@ void UpscaleX11PreparedTest::answersWithAClick()
     const QPointF middle(never.at(0).toDouble() + (never.at(2).toDouble() / 2), never.at(1).toDouble() + (never.at(3).toDouble() / 2));
     request(QStringLiteral("upscale-test-click"), QByteArray::number(middle.x()) + ' ' + QByteArray::number(middle.y()));
     QTRY_COMPARE(helper.answers, QStringList{QStringLiteral("offer-1 never")});
-    QTRY_VERIFY2(!status().contains(QStringLiteral("question: Set this game up?")), qPrintable(status()));
+    QTRY_VERIFY2(!status().contains(QStringLiteral("Set this game up?")), qPrintable(status()));
     unregisterHelper();
 }
 

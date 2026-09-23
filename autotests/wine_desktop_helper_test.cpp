@@ -50,6 +50,7 @@ private Q_SLOTS:
     void writesALostDesktopAgain();
     void followsANewSize();
     void undoesWhatIsNoLongerWanted();
+    void stopsWhenTheGameKeepsItsOwnResolution();
 
 private:
     std::unique_ptr<QProcess> startGame() const;
@@ -314,6 +315,38 @@ void WineDesktopHelperTest::undoesWhatIsNoLongerWanted()
     QTRY_COMPARE(finished.size(), 2);
     QCOMPARE(values(), WineDesktopValues{});
     QVERIFY(m_helper->prepared().isEmpty());
+}
+
+void WineDesktopHelperTest::stopsWhenTheGameKeepsItsOwnResolution()
+{
+    QSignalSpy finished(&*m_helper, &WineDesktopHelper::jobFinished);
+    {
+        auto server = startServer();
+        const std::unique_ptr<QProcess> game = startGame();
+        QVERIFY(!acceptOffer(*game).isEmpty());
+        game->kill();
+        game->waitForFinished();
+    }
+    QTRY_COMPARE(finished.size(), 1);
+    QCOMPARE(values().defaultSize, QStringLiteral("2560x1440"));
+    {
+        // Asked again for the size the prefix already holds: the game does not
+        // take it, so the desktop goes after this run and nothing is offered.
+        auto server = startServer();
+        const std::unique_ptr<QProcess> game = startGame();
+        QCOMPARE(m_helper->offer(game->processId(), s_class, QStringLiteral("Wreckfest"), s_size).offer, QString());
+        game->kill();
+        game->waitForFinished();
+    }
+    QTRY_COMPARE(finished.size(), 2);
+    QCOMPARE(values(), WineDesktopValues{});
+    QVERIFY(m_helper->prepared().isEmpty());
+    // And not offered again, until the settings page resets it.
+    {
+        auto server = startServer();
+        const std::unique_ptr<QProcess> game = startGame();
+        QCOMPARE(m_helper->offer(game->processId(), s_class, QStringLiteral("Wreckfest"), s_size).offer, QString());
+    }
 }
 
 QTEST_GUILESS_MAIN(WineDesktopHelperTest)

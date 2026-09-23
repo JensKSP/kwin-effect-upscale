@@ -47,6 +47,7 @@ public:
     UpscaleQuestion &question();
 
 private:
+    void ask(EffectWindow *window);
     void askToSetUp(const QPointer<EffectWindow> &window, const QString &offer, const QString &question);
     void askToRestart(const QPointer<EffectWindow> &window, const QString &offer, const QString &question);
 

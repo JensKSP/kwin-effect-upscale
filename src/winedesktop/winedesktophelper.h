@@ -92,8 +92,13 @@ private:
         // Set when the write first finds the prefix busy after the program has
         // gone; a job does not wait on a prefix for ever.
         std::optional<QDeadlineTimer> giveUp;
+        // Set when the program and its server were first seen gone: a server
+        // writes the registry out as it exits, so the write waits a moment
+        // longer than the process it watched.
+        std::optional<QDeadlineTimer> settled;
     };
 
+    std::optional<Pending> locate(uint pid, const QString &windowClass, const QString &title);
     void poll();
     bool advance(Job &job);
     static bool stillRunning(Job &job);

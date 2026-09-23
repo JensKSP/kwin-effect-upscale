@@ -366,6 +366,17 @@ Implemented 2026-09-22 as an optional helper, not yet verified with a game:
   size it wants now. A changed resolution is written after that run; a game
   the effect no longer acts on, or whose fullscreen method is Off, has its
   desktop undone after that run instead of being presented.
+- **It does not hold every game.** The modes Wine offers inside a virtual
+  desktop reach the output's own resolution, so a game that keeps a higher
+  resolution in its own settings asks for it, gets it, and the desktop grows to
+  it; measured with Wreckfest on 2026-09-23. The route holds a game that takes
+  the current or the desktop resolution. For the others the display says that
+  the game keeps a resolution of its own, and the size it draws at is shown in
+  red.
+- **A preparation that did not help is taken back.** Where a game is asked for
+  the size its prefix was already prepared for and still draws at the output's
+  size, the helper undoes the desktop after that run and does not offer it for
+  that game again; a reset on the settings page asks anew.
 - **Prepared Games** on the settings page lists what the helper set up, with a
   Reset for each. Uninstalling the package cannot undo a preparation, because
   nothing runs as the user afterwards; the question says so.

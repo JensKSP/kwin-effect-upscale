@@ -9,10 +9,15 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 Written down on Jens's instruction on 2026-09-22, and accepted by him the same
 day as the route for Wine and Proton games that ignore resizing, on the
-condition that the user is asked first and offered a restart. Implementation
-has started; nothing below has been tested in a game yet. Every mechanism is
-established from source reading only; the citations name the upstream file and
-line in the versions listed under [sources](#sources).
+condition that the user is asked first and offered a restart. The route is
+implemented and ran in a session with Wreckfest on 2026-09-23: everything the
+effect and the companion do worked, and the route still did not hold that game,
+because a virtual desktop does not keep a game from choosing a larger mode; see
+[why a virtual desktop does not hold every game](#why-a-virtual-desktop-does-not-hold-every-game).
+An additional route for such games is open: Jens rejected every launch-time one
+as too invasive, and asks for the least invasive and most generic mechanism
+there is. The citations name the upstream file and line in the versions listed
+under [sources](#sources).
 
 ## Start state and evidence
 
@@ -71,12 +76,14 @@ share a prefix, the question says so and names them.
    (`dlls/win32u/sysparams.c:2889-2903`, `2944-2951`).
 4. **The effect offers to restart the game** in the same centred display, so
    the change takes effect at once instead of at the next start.
-5. **From the next start** every process in the prefix sees a W × H monitor.
-   The largest mode is W × H, so even a stored 3840 × 2160 lands on W × H
-   (`FindClosestMatchingMode1`, DXVK `src/dxgi/dxgi_swapchain.cpp:849-885`;
-   `add_modes`, `dlls/win32u/sysparams.c:2323-2371`). Xwayland hands KWin one
-   toplevel, the "Wine Desktop" window, whose buffer is W × H
-   (`hw/xwayland/xwayland-window.c:1349-1385`).
+5. **From the next start** every process in the prefix sees a W × H monitor,
+   and a game that takes that resolution renders at it. A game that keeps a
+   larger one in its own settings does not: the modes offered inside the
+   desktop still reach the output's own resolution, so it asks for that and the
+   desktop is grown to it; see
+   [why a virtual desktop does not hold every game](#why-a-virtual-desktop-does-not-hold-every-game).
+   For the first kind, Xwayland hands KWin one toplevel, the "Wine Desktop"
+   window, whose buffer is W × H (`hw/xwayland/xwayland-window.c:1349-1385`).
 6. **The effect enlarges it**: it makes the window fullscreen in KWin while
    holding its X size at W × H, the sequence its X11 path already uses
    (`x11resolution_events.cpp`), upscales with FSR 1 and maps input.
@@ -314,7 +321,73 @@ A one-off manual check before any code:
 | Proton outside Steam (umu, Heroic): Proton's layout, `pfx` in `STEAM_COMPAT_DATA_PATH`, is recognised and its lock taken whatever the directory is called; only Steam's own layout, the directory named after `SteamAppId`, is offered a restart | Done. `crossChecksProton` in `upscale-wine-prefix` |
 | Settings page: "Prepared Games", each with Reset, shown only while a helper answers and prepared something (`preparedlist.cpp`) | Done. `upscale-prepared-list` runs it against a stand-in helper on a private session bus |
 | Builds and tests, 2026-09-22 | Trixie container, GCC and Clang, warnings as errors: 26 of 26 pass, among them `upscale-x11-prepared`, which runs a real KWin session with Xwayland: a stand-in helper answers `present`, the ordinary 1920 × 1080 window is made fullscreen, held at its size, presented by the effect at 3840 × 2160, and given back at its size when its client leaves fullscreen. Neon container (KWin master), GCC and Clang: 20 of 20 pass (the X11 sessions run only against KWin before 6.7, as before). clang-tidy over `src/`: see the commit that fixed its findings |
-| Manual Wreckfest experiment | Not run |
+| First session test with Wreckfest, 2026-09-23 | Ran. The question appeared, Set up and Restart game and apply were answered, the helper wrote both values into the prefix at 07:00:20 and had Steam start the game again. The second run still drew 3840 × 2160, and the effect's request failed again. Cause found in source, see below: a virtual desktop does not keep a game from choosing a larger mode. The helper then undid its own change, as designed, when the effect reported that it wanted nothing for that window |
+
+## Why a virtual desktop does not hold every game
+
+Found on 2026-09-23, from the session test above and Proton's Wine
+(commit dc26e61):
+
+- Explorer creates the desktop at the size in `Desktops\Default`
+  (`programs/explorer/desktop.c:868-914`, `1300-1345`).
+- The modes offered inside it are built from that size up to `ctx->primary`
+  (`dlls/win32u/sysparams.c:2907-2971`), and `ctx->primary` is the host's
+  current mode, taken from the driver before any stored mode is read
+  (`sysparams.c:2339`). So every mode up to the output's own stays on offer.
+- A game with a higher resolution in its own settings therefore asks for it,
+  Wine grants it, and the virtual desktop is grown to it
+  (`dlls/win32u/defwnd.c:3148-3170`). That is what the session test saw.
+
+So the route holds a game that takes the current or the desktop resolution,
+and not one that insists on a stored larger one. Wreckfest is the second kind.
+
+Rejected as the way to close that gap: making KWin report its window manager
+name as `steamcompmgr`, which would let Wine take the prefix's stored mode as
+the host's (`sysparams.c:2338`). Proton's Wine branches on that name in about
+twenty places, among them fullscreen, maximise, minimise, focus and activation
+(`dlls/winex11.drv/window.c:1005`, `1445`, `1554`, `1878`, `1922`, `3718`,
+`3756`, `event.c:329`, `686`, `937`, `dlls/win32u/window.c:4823`, `5954`,
+`defwnd.c:261`, `514`, `1896`, `sysparams.c:3044`, `4625`). Every Proton
+program in the session would take gamescope's paths. Jens rejected it on
+2026-09-23, with the launch-time routes (gamescope or a private Xwayland per
+game, whether through Steam's launch options or a compatibility tool) as too
+invasive. A solution has to stay least invasive and as generic as possible.
+
+## What was searched for instead, and found wanting
+
+Asked on 2026-09-23 for the least invasive and most generic lever that would
+hold a game which keeps a larger resolution in its own settings, under the
+rules that only the effect and its companion act, that the game's start command
+and its own configuration stay untouched, and that no other program notices
+anything. The answer, from the sources:
+
+- **Nothing generic exists.** Wine decides every size either from the host
+  output (the driver's current mode, `sysparams.c:2339`) or, in Xwayland, per
+  requesting client; a third party can reach neither.
+- **One brittle candidate**, recorded for the knowledge and not implemented:
+  Wine trusts a display-device cache in the prefix's registry when it is
+  present and complete (`sysparams.c:719-786`, `2731-2820`, `3061`), and keys
+  that come from `system.reg` are not volatile, so a companion could fabricate
+  `HARDWARE\DEVICEMAP\VIDEO` and `Control\Video\{guid}\Sources\...` with a
+  mode list that has no 4K, plus `EmulateModeset` for that one executable
+  (`sysparams.c:6183-6204`). The game's first mode request would then be the
+  wanted size, Wine would make it a real RandR request, and Xwayland's
+  per-client emulation would hold it for the rest of the session
+  (`hw/xwayland/xwayland-output.c:1040-1094`). Against it: the virtual desktop
+  must be off, Wine overwrites the cache on the first mode change and explorer
+  saves its own view when the game exits, so the companion would have to
+  fabricate Wine's internal display state again after every session; two links
+  are unverified (the refresh rate in `is_same_devmode`,
+  `winex11.drv/display.c:178-185`, and KWin 6.3.6, which has no code for
+  Xwayland's emulation property while master has). Fabricating Wine's internal
+  display cache in a user's prefix is the opposite of least invasive.
+- **What would make it generic**, and both are elsewhere: Xwayland letting a
+  window manager set an emulated mode for another client, or Proton honouring a
+  size the window manager imposes while a present rectangle is set.
+
+So the route keeps the games it holds, and for the others the effect says
+plainly that the game keeps a resolution of its own. A prefix that was prepared
+and did not help is undone again by the helper and not offered a second time.
 
 ## Decisions and open questions
 

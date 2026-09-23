@@ -39,6 +39,11 @@ constexpr std::chrono::hours offerLifetime{1};
 // ever, since a lock that cannot be tested also reads as busy.
 constexpr std::chrono::hours busyLimit{12};
 
+// How long after the program and its server are gone the registry is written:
+// a Wine server writes the registry out while it exits, and the lock it held
+// goes at the very end of that.
+constexpr std::chrono::seconds settleDelay{2};
+
 bool launchThroughSteam(const WineDesktopRecord &record)
 {
     if (record.steamAppId.isEmpty()) {
@@ -58,10 +63,9 @@ QString sizeText(const QSize &size)
 QString question(const QString &title, const QSize &size)
 {
     return i18nc("@info the question shown in the middle of the screen; %1 is the game's window title, %2 a resolution",
-                 "%1 ignores the resolution it is asked for and renders at the full size of the screen.\n"
-                 "It can be set up to render at %2 inside a Wine desktop that is enlarged to the screen.\n"
-                 "This is stored in the game's Wine prefix and takes effect from its next start.\n"
-                 "It stays there if the upscaler is uninstalled, until it is reset in the upscaler's settings.",
+                 "%1 does not take the resolution it is asked for.\n"
+                 "Set it up to render at %2 from its next start?\n"
+                 "The setting stays with the game until you undo it in the upscaler's settings.",
                  title,
                  sizeText(size));
 }
@@ -69,8 +73,8 @@ QString question(const QString &title, const QSize &size)
 QString restartQuestion(const QString &title)
 {
     return i18nc("@info the offer shown in the middle of the screen; %1 is the game's window title",
-                 "Restart %1 now so that the change takes effect?\n"
-                 "Progress that has not been saved may be lost.",
+                 "Restart %1 now to apply the change?\n"
+                 "Unsaved progress may be lost.",
                  title);
 }
 
@@ -85,6 +89,15 @@ WineDesktopTarget targetFor(const WinePrefix &prefix, const QProcessEnvironment 
         .temporaryDirectory = hostTemporaryDirectory,
         .directory = nullptr,
     };
+}
+
+bool holdsWhatWasWritten(const WineDesktopRecord &record, bool clear, const QSize &size)
+{
+    if (!record.target.directory) {
+        return true;
+    }
+    const WineDesktopValues values = wineDesktopValuesIn(*record.target.directory);
+    return clear ? !values.desktop && !values.defaultSize : wineIsDesktop(values, size);
 }
 
 std::optional<pid_t> hostServer(const WineDesktopRecord &record)
@@ -114,16 +127,18 @@ void WineDesktopHelper::setTiming(std::chrono::milliseconds poll, std::chrono::m
     m_closeGrace = closeGrace;
 }
 
-WineDesktopHelper::Offered WineDesktopHelper::offer(uint pid, const QString &windowClass, const QString &title, const QSize &size)
+// The prefix of a running program, its server and the record kept for it, or
+// nothing when any of the proofs fails.
+std::optional<WineDesktopHelper::Pending> WineDesktopHelper::locate(uint pid, const QString &windowClass, const QString &title)
 {
-    const std::optional<WineProcess> process = size.isEmpty() ? std::nullopt : wineProcess(pid);
+    const std::optional<WineProcess> process = wineProcess(pid);
     if (!process) {
-        return {};
+        return std::nullopt;
     }
     const WineLocated prefix = wineLocatePrefix(*process, ::getuid(), windowClass);
     if (!prefix) {
         qCInfo(KWIN_UPSCALE_WINEDESKTOP) << "No provable Wine prefix for process" << pid << "reason" << static_cast<int>(prefix.error());
-        return {};
+        return std::nullopt;
     }
     // Waiting for this process is what makes the later write safe. A server
     // in a process namespace this helper cannot see has no number here, and
@@ -131,27 +146,53 @@ WineDesktopHelper::Offered WineDesktopHelper::offer(uint pid, const QString &win
     const std::optional<pid_t> server = wineServerProcess(wineServerLockPath(prefix->temporaryDirectory, ::getuid(), prefix->identity));
     if (!server) {
         qCInfo(KWIN_UPSCALE_WINEDESKTOP) << "The Wine server of process" << pid << "is out of sight";
-        return {};
-    }
-    const QString id = wineRecordId(prefix->identity);
-    WineDesktopRecord record = m_records->find(id).value_or(WineDesktopRecord{});
-    if (record.never || record.written == size) {
-        return {};
+        return std::nullopt;
     }
     // Held from now on: after the game has gone, it still reaches the
     // directory proven now, whatever paths the host has.
     const std::shared_ptr<WineDirectory> directory = WineDirectory::open(prefix->path, prefix->identity);
     if (!directory) {
-        return {};
+        return std::nullopt;
     }
+    const QString id = wineRecordId(prefix->identity);
+    WineDesktopRecord record = m_records->find(id).value_or(WineDesktopRecord{});
     record.id = id;
     record.title = title;
     record.target = targetFor(*prefix, process->environment);
     record.target.directory = directory;
     record.steamAppId = prefix->steamAppId;
+    return Pending{.record = record, .game = static_cast<pid_t>(pid), .server = *server, .expiry = QDeadlineTimer(offerLifetime)};
+}
+
+WineDesktopHelper::Offered WineDesktopHelper::offer(uint pid, const QString &windowClass, const QString &title, const QSize &size)
+{
+    std::optional<Pending> pending = size.isEmpty() ? std::nullopt : locate(pid, windowClass, title);
+    if (!pending) {
+        return {};
+    }
+    WineDesktopRecord &record = pending->record;
+    if (record.never) {
+        qCInfo(KWIN_UPSCALE_WINEDESKTOP) << "Nothing offered for" << title << "prefix" << record.id << ": the answer was never";
+        return {};
+    }
+    if (record.written == size) {
+        // The prefix holds a desktop of exactly this size and the game still
+        // does not take it. Such a game names a larger resolution in its own
+        // settings, and a desktop does not keep it from choosing it: the modes
+        // offered inside one reach the output's own resolution. So the desktop
+        // is taken away again after this run and not offered for this game
+        // again; a reset on the settings page asks anew.
+        qCInfo(KWIN_UPSCALE_WINEDESKTOP) << title << "keeps its own resolution although its prefix was prepared for" << size
+                                         << "; undoing that and not asking again";
+        record.never = true;
+        m_records->store(record);
+        afterRun(record, pid, pending->server, record.target.directory, std::nullopt);
+        return {};
+    }
     record.wanted = size;
+    qCInfo(KWIN_UPSCALE_WINEDESKTOP) << "Offering" << sizeText(size) << "to" << title << "prefix" << record.id << "server" << pending->server;
     const QString offer = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    m_offers.insert(offer, Pending{.record = record, .game = static_cast<pid_t>(pid), .server = *server, .expiry = QDeadlineTimer(offerLifetime)});
+    m_offers.insert(offer, *pending);
     return {.offer = offer, .question = question(title, size)};
 }
 
@@ -161,6 +202,7 @@ QString WineDesktopHelper::answer(const QString &offer, const QString &answer)
     if (pending.record.id.isEmpty() || pending.expiry.hasExpired()) {
         return {};
     }
+    qCInfo(KWIN_UPSCALE_WINEDESKTOP) << "Answer" << answer << "for" << pending.record.title << "prefix" << pending.record.id;
     if (answer == neverAnswer) {
         WineDesktopRecord record = pending.record;
         record.never = true;
@@ -183,6 +225,7 @@ QString WineDesktopHelper::answer(const QString &offer, const QString &answer)
         .terminated = false,
         .directory = pending.record.target.directory,
         .giveUp = std::nullopt,
+        .settled = std::nullopt,
     });
     return pending.record.steamAppId.isEmpty() ? QString() : restartQuestion(pending.record.title);
 }
@@ -211,6 +254,7 @@ QSize WineDesktopHelper::present(uint pid, const QString &windowClass, const QSi
     }
     std::optional<WineDesktopRecord> record = m_records->find(wineRecordId(prefix->identity));
     if (!record || !record->written) {
+        qCInfo(KWIN_UPSCALE_WINEDESKTOP) << "Nothing prepared for prefix" << wineRecordId(prefix->identity) << prefix->path;
         return {};
     }
     const std::shared_ptr<WineDirectory> directory = WineDirectory::open(prefix->path, prefix->identity);
@@ -223,6 +267,8 @@ QSize WineDesktopHelper::present(uint pid, const QString &windowClass, const QSi
     // that overlapped the write saves its own copy when it exits, and Proton
     // rebuilds a prefix it is downgraded to. Then this run has none.
     const bool held = wineIsDesktop(wineDesktopValuesIn(*directory), written);
+    qCInfo(KWIN_UPSCALE_WINEDESKTOP) << "Asked about prefix" << record->id << "of" << record->title << ": wants" << wanted << "written"
+                                     << written << "desktop in prefix" << held;
     if (wanted.isEmpty()) {
         // The effect no longer wants this program smaller: undone after this
         // run, and this run is left as it is. A desktop the prefix has lost
@@ -264,6 +310,7 @@ void WineDesktopHelper::afterRun(const WineDesktopRecord &record, uint pid, pid_
         .terminated = false,
         .directory = directory,
         .giveUp = std::nullopt,
+        .settled = std::nullopt,
     });
 }
 
@@ -308,6 +355,7 @@ bool WineDesktopHelper::reset(const QString &id)
         .terminated = false,
         .directory = nullptr,
         .giveUp = std::nullopt,
+        .settled = std::nullopt,
     });
     return true;
 }
@@ -362,6 +410,13 @@ bool WineDesktopHelper::stillRunning(Job &job)
 bool WineDesktopHelper::advance(Job &job)
 {
     if (stillRunning(job)) {
+        job.settled.reset();
+        return false;
+    }
+    if (!job.settled) {
+        job.settled = QDeadlineTimer(settleDelay);
+    }
+    if (!job.settled->hasExpired()) {
         return false;
     }
     std::optional<WineDesktopRecord> record = m_records->find(job.id);
@@ -369,8 +424,15 @@ bool WineDesktopHelper::advance(Job &job)
         return true;
     }
     record->target.directory = job.directory;
-    const WineWriteResult result = job.clear ? wineClearDesktop(record->target, ::getuid(), job.size)
-                                             : wineSetDesktop(record->target, ::getuid(), job.size, record->written, QDateTime::currentSecsSinceEpoch());
+    WineWriteResult result = job.clear ? wineClearDesktop(record->target, ::getuid(), job.size)
+                                       : wineSetDesktop(record->target, ::getuid(), job.size, record->written, QDateTime::currentSecsSinceEpoch());
+    // What was written is read back: a server that wrote its own copy over it
+    // leaves the prefix without the change, and then it is written again after
+    // the next run rather than reported as done.
+    if (result == WineWriteResult::Written && !holdsWhatWasWritten(*record, job.clear, job.size)) {
+        qCWarning(KWIN_UPSCALE_WINEDESKTOP) << "The prefix of" << record->title << "did not keep what was written";
+        result = WineWriteResult::WrittenMeanwhile;
+    }
     if (result == WineWriteResult::WrittenMeanwhile) {
         // Recorded as written, so that the next write knows it as this
         // companion's own, and written again once that server has gone.
@@ -395,6 +457,10 @@ bool WineDesktopHelper::advance(Job &job)
 
 void WineDesktopHelper::settle(const Job &job, WineDesktopRecord &record, WineWriteResult result)
 {
+    const WineDesktopValues values = record.target.directory ? wineDesktopValuesIn(*record.target.directory) : WineDesktopValues{};
+    qCInfo(KWIN_UPSCALE_WINEDESKTOP) << (job.clear ? "Undo of" : "Preparation of") << record.title << job.size << "result"
+                                     << static_cast<int>(result) << "prefix now holds" << values.desktop.value_or(QString())
+                                     << values.defaultSize.value_or(QString());
     if (result == WineWriteResult::Written && job.clear) {
         record.written.reset();
         record.never ? m_records->store(record) : m_records->remove(job.id);

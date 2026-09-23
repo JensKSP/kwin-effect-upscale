@@ -15,9 +15,17 @@
 #include "window.h"
 
 #include <KLocalizedString>
+#include <QTimer>
 
 namespace KWin
 {
+
+// The name this effect is known by, as its metadata gives it: a question in
+// the middle of a game says who is asking.
+static QString upscaleName()
+{
+    return i18nc("@title the name of this effect, above a question it asks", "Upscale");
+}
 
 static const QString acceptAnswer = QStringLiteral("accept");
 static const QString laterAnswer = QStringLiteral("later");
@@ -62,7 +70,13 @@ void UpscalePreparation::askToSetUp(const QPointer<EffectWindow> &window, const 
         {laterAnswer, i18nc("@action:button in the question in the middle of the screen", "Not now")},
         {neverAnswer, i18nc("@action:button in the question in the middle of the screen", "Never for this game")},
     };
-    const bool shown = m_question.ask(m_owner, window->screen(), question, answers, laterAnswer, [this, window, offer](const QString &answer) {
+    const UpscaleQuestion::Content content{
+        .title = upscaleName(),
+        .text = question,
+        .answers = answers,
+        .cancel = laterAnswer,
+    };
+    const bool shown = m_question.ask(m_owner, window->screen(), content, [this, window, offer](const QString &answer) {
         m_helper.answer(offer, answer, [this, window, offer](const QString &restart) {
             if (window && !restart.isEmpty()) {
                 askToRestart(window, offer, restart);
@@ -82,7 +96,13 @@ void UpscalePreparation::askToRestart(const QPointer<EffectWindow> &window, cons
         {restartAnswer, i18nc("@action:button in the question in the middle of the screen", "Restart game and apply")},
         {laterAnswer, i18nc("@action:button in the question in the middle of the screen", "Later")},
     };
-    m_question.ask(m_owner, window->screen(), question, answers, laterAnswer, [this, window, offer](const QString &answer) {
+    const UpscaleQuestion::Content content{
+        .title = upscaleName(),
+        .text = question,
+        .answers = answers,
+        .cancel = laterAnswer,
+    };
+    m_question.ask(m_owner, window->screen(), content, [this, window, offer](const QString &answer) {
         if (answer != restartAnswer) {
             return;
         }
@@ -104,6 +124,27 @@ void UpscalePreparation::windowAdded(EffectWindow *window)
     if (!window->isX11Client() || !window->isNormalWindow() || window->isFullScreen()) {
         return;
     }
+    const QPointer<EffectWindow> guarded = window;
+    // Not before the window has an output. What the effect wants is decided
+    // per output, and "nothing" is what tells the helper to undo a
+    // preparation, so it may not be said while nothing is known yet.
+    if (!window->window()->output()) {
+        QTimer::singleShot(0, this, [this, guarded]() {
+            if (guarded && guarded->window()->output()) {
+                ask(guarded);
+            }
+        });
+        return;
+    }
+    ask(window);
+#else
+    Q_UNUSED(window)
+#endif
+}
+
+#if KWIN_BUILD_X11
+void UpscalePreparation::ask(EffectWindow *window)
+{
     const Window *internal = window->window();
     QSize wanted = upscaleWantedSize(internal);
     // Off in the fullscreen slot, where such a game presents itself, asks the
@@ -117,9 +158,7 @@ void UpscalePreparation::windowAdded(EffectWindow *window)
             m_x11->presentPrepared(guarded, size);
         }
     });
-#else
-    Q_UNUSED(window)
-#endif
 }
+#endif
 
 } // namespace KWin
