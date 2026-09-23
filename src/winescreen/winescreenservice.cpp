@@ -4,8 +4,8 @@
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
-#include "winedesktopservice.h"
-#include "winedesktophelper.h"
+#include "winescreenservice.h"
+#include "winescreenhelper.h"
 
 #include <QDBusMetaType>
 
@@ -56,7 +56,7 @@ static QList<WineScreen> screensOf(const QList<ProgramScreen> &screens)
     return described;
 }
 
-WineDesktopService::WineDesktopService(WineDesktopHelper *helper, QObject *parent)
+WineScreenService::WineScreenService(WineScreenHelper *helper, QObject *parent)
     : QObject(parent)
     , m_helper(helper)
 {
@@ -66,41 +66,41 @@ WineDesktopService::WineDesktopService(WineDesktopHelper *helper, QObject *paren
     qDBusRegisterMetaType<QList<ProgramScreen>>();
 }
 
-QString WineDesktopService::offer(uint pid, const QString &windowClass, const QString &title, const QList<ProgramScreen> &screens,
+QString WineScreenService::offer(uint pid, const QString &windowClass, const QString &title, const QList<ProgramScreen> &screens,
                                  QString &question)
 {
-    const WineDesktopHelper::Offered offered = m_helper->offer(pid, windowClass, title, screensOf(screens));
+    const WineScreenHelper::Offered offered = m_helper->offer(pid, windowClass, title, screensOf(screens));
     question = offered.question;
     return offered.offer;
 }
 
-QString WineDesktopService::answer(const QString &offer, const QString &answer)
+QString WineScreenService::answer(const QString &offer, const QString &answer)
 {
     return m_helper->answer(offer, answer);
 }
 
-bool WineDesktopService::restart(const QString &offer)
+bool WineScreenService::restart(const QString &offer)
 {
     return m_helper->restart(offer);
 }
 
-QSize WineDesktopService::present(uint pid, const QString &windowClass, const QList<ProgramScreen> &wanted)
+QSize WineScreenService::present(uint pid, const QString &windowClass, const QList<ProgramScreen> &wanted)
 {
     return m_helper->present(pid, windowClass, screensOf(wanted));
 }
 
-QList<PreparedProgram> WineDesktopService::prepared()
+QList<PreparedProgram> WineScreenService::prepared()
 {
     QList<PreparedProgram> programs;
-    const QList<WineDesktopRecord> records = m_helper->prepared();
-    for (const WineDesktopRecord &record : records) {
+    const QList<WineScreenRecord> records = m_helper->prepared();
+    for (const WineScreenRecord &record : records) {
         const QSize size = record.written.value_or(QSize());
         programs.append({.id = record.id, .title = record.title, .width = size.width(), .height = size.height()});
     }
     return programs;
 }
 
-bool WineDesktopService::reset(const QString &id)
+bool WineScreenService::reset(const QString &id)
 {
     return m_helper->reset(id);
 }

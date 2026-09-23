@@ -5,9 +5,9 @@
 */
 
 #include "lockholder.h"
-#include "winedesktophelper.h"
 #include "wineprocess.h"
 #include "wineregistry.h"
+#include "winescreenhelper.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -45,7 +45,7 @@ const QString s_class = QStringLiteral("steam_app_228380");
  * environment, and its Wine server is a process holding the lock below the
  * real /tmp, named after the test's prefix, so it meets nothing else there.
  */
-class WineDesktopHelperTest : public QObject
+class WineScreenHelperTest : public QObject
 {
     Q_OBJECT
 
@@ -74,12 +74,12 @@ private:
     std::optional<QTemporaryDir> m_root;
     QString m_prefix;
     QString m_lockDirectory;
-    std::optional<WineDesktopRecords> m_records;
-    std::optional<WineDesktopHelper> m_helper;
+    std::optional<WineScreenRecords> m_records;
+    std::optional<WineScreenHelper> m_helper;
     QStringList m_launched;
 };
 
-void WineDesktopHelperTest::init()
+void WineScreenHelperTest::init()
 {
     if (!wineProcess(QCoreApplication::applicationPid())) {
         QSKIP("This platform cannot read another process's environment.");
@@ -97,19 +97,19 @@ void WineDesktopHelperTest::init()
     m_helper.emplace(&*m_records);
     m_helper->setTiming(std::chrono::milliseconds(20), std::chrono::milliseconds(200));
     m_launched.clear();
-    m_helper->setLauncher([this](const WineDesktopRecord &record) {
+    m_helper->setLauncher([this](const WineScreenRecord &record) {
         m_launched.append(record.steamAppId);
         return true;
     });
 }
 
-void WineDesktopHelperTest::cleanup()
+void WineScreenHelperTest::cleanup()
 {
     m_helper.reset();
     QDir(m_lockDirectory).removeRecursively();
 }
 
-std::unique_ptr<QProcess> WineDesktopHelperTest::startGame() const
+std::unique_ptr<QProcess> WineScreenHelperTest::startGame() const
 {
     auto game = std::make_unique<QProcess>();
     QProcessEnvironment environment;
@@ -131,12 +131,12 @@ std::unique_ptr<QProcess> WineDesktopHelperTest::startGame() const
     return game;
 }
 
-std::unique_ptr<LockHolder> WineDesktopHelperTest::startServer() const
+std::unique_ptr<LockHolder> WineScreenHelperTest::startServer() const
 {
     return std::make_unique<LockHolder>(m_lockDirectory + QStringLiteral("/lock"));
 }
 
-std::optional<QSize> WineDesktopHelperTest::screen() const
+std::optional<QSize> WineScreenHelperTest::screen() const
 {
     QFile registry(m_prefix + QStringLiteral("/system.reg"));
     if (!registry.open(QIODevice::ReadOnly)) {
@@ -147,7 +147,7 @@ std::optional<QSize> WineDesktopHelperTest::screen() const
 }
 
 // The prefix as Wine leaves it: the devices it found, and no screen of ours.
-void WineDesktopHelperTest::writePrefix() const
+void WineScreenHelperTest::writePrefix() const
 {
     for (const auto &[name, text] : {std::pair{QStringLiteral("/system.reg"), s_machine}, std::pair{QStringLiteral("/user.reg"), s_user}}) {
         QFile registry(m_prefix + name);
@@ -156,18 +156,18 @@ void WineDesktopHelperTest::writePrefix() const
     }
 }
 
-QString WineDesktopHelperTest::acceptOffer(QProcess &game)
+QString WineScreenHelperTest::acceptOffer(QProcess &game)
 {
-    const WineDesktopHelper::Offered offered = m_helper->offer(game.processId(), s_class, QStringLiteral("Wreckfest"), s_screens);
+    const WineScreenHelper::Offered offered = m_helper->offer(game.processId(), s_class, QStringLiteral("Wreckfest"), s_screens);
     if (offered.offer.isEmpty() || !offered.question.contains(QStringLiteral("2560 × 1440"))) {
         return {};
     }
     return m_helper->answer(offered.offer, QStringLiteral("accept")).isEmpty() ? QString() : offered.offer;
 }
 
-void WineDesktopHelperTest::preparesTheGameAfterItsServerExits()
+void WineScreenHelperTest::preparesTheGameAfterItsServerExits()
 {
-    QSignalSpy finished(&*m_helper, &WineDesktopHelper::jobFinished);
+    QSignalSpy finished(&*m_helper, &WineScreenHelper::jobFinished);
     auto server = startServer();
     QVERIFY(server->locked());
     const std::unique_ptr<QProcess> game = startGame();
@@ -187,9 +187,9 @@ void WineDesktopHelperTest::preparesTheGameAfterItsServerExits()
     QVERIFY(!m_helper->busy());
 }
 
-void WineDesktopHelperTest::restartsTheGameWhenAsked()
+void WineScreenHelperTest::restartsTheGameWhenAsked()
 {
-    QSignalSpy finished(&*m_helper, &WineDesktopHelper::jobFinished);
+    QSignalSpy finished(&*m_helper, &WineScreenHelper::jobFinished);
     auto server = startServer();
     const std::unique_ptr<QProcess> game = startGame();
     const QString offer = acceptOffer(*game);
@@ -202,9 +202,9 @@ void WineDesktopHelperTest::restartsTheGameWhenAsked()
     QCOMPARE(m_launched, QStringList{QStringLiteral("228380")});
 }
 
-void WineDesktopHelperTest::presentsOnlyWhatItPrepared()
+void WineScreenHelperTest::presentsOnlyWhatItPrepared()
 {
-    QSignalSpy finished(&*m_helper, &WineDesktopHelper::jobFinished);
+    QSignalSpy finished(&*m_helper, &WineScreenHelper::jobFinished);
     {
         auto server = startServer();
         const std::unique_ptr<QProcess> game = startGame();
@@ -222,9 +222,9 @@ void WineDesktopHelperTest::presentsOnlyWhatItPrepared()
     QCOMPARE(m_helper->prepared().size(), 1);
 }
 
-void WineDesktopHelperTest::resetsItsDesktop()
+void WineScreenHelperTest::resetsItsDesktop()
 {
-    QSignalSpy finished(&*m_helper, &WineDesktopHelper::jobFinished);
+    QSignalSpy finished(&*m_helper, &WineScreenHelper::jobFinished);
     {
         auto server = startServer();
         const std::unique_ptr<QProcess> game = startGame();
@@ -246,23 +246,23 @@ void WineDesktopHelperTest::resetsItsDesktop()
     QVERIFY(!m_records->find(id));
 }
 
-void WineDesktopHelperTest::remembersNever()
+void WineScreenHelperTest::remembersNever()
 {
     auto server = startServer();
     const std::unique_ptr<QProcess> game = startGame();
-    const WineDesktopHelper::Offered first = m_helper->offer(game->processId(), s_class, QStringLiteral("Wreckfest"), s_screens);
+    const WineScreenHelper::Offered first = m_helper->offer(game->processId(), s_class, QStringLiteral("Wreckfest"), s_screens);
     QVERIFY(!first.offer.isEmpty());
     QCOMPARE(m_helper->answer(first.offer, QStringLiteral("never")), QString());
     QCOMPARE(m_helper->offer(game->processId(), s_class, QStringLiteral("Wreckfest"), s_screens).offer, QString());
-    const WineDesktopHelper::Offered unknown = m_helper->offer(game->processId(), s_class, QStringLiteral("Wreckfest"), {});
+    const WineScreenHelper::Offered unknown = m_helper->offer(game->processId(), s_class, QStringLiteral("Wreckfest"), {});
     QCOMPARE(unknown.offer, QString());
     QCOMPARE(screen(), std::nullopt);
     QVERIFY(!m_helper->busy());
 }
 
-void WineDesktopHelperTest::writesALostDesktopAgain()
+void WineScreenHelperTest::writesALostDesktopAgain()
 {
-    QSignalSpy finished(&*m_helper, &WineDesktopHelper::jobFinished);
+    QSignalSpy finished(&*m_helper, &WineScreenHelper::jobFinished);
     {
         auto server = startServer();
         const std::unique_ptr<QProcess> game = startGame();
@@ -286,9 +286,9 @@ void WineDesktopHelperTest::writesALostDesktopAgain()
     QCOMPARE(screen(), s_size);
 }
 
-void WineDesktopHelperTest::followsANewSize()
+void WineScreenHelperTest::followsANewSize()
 {
-    QSignalSpy finished(&*m_helper, &WineDesktopHelper::jobFinished);
+    QSignalSpy finished(&*m_helper, &WineScreenHelper::jobFinished);
     {
         auto server = startServer();
         const std::unique_ptr<QProcess> game = startGame();
@@ -315,9 +315,9 @@ void WineDesktopHelperTest::followsANewSize()
 // The screen is described for the rate the output runs at, so a rate that
 // changed is written again even though the size did not: the modes a game is
 // offered are the ones its screen has.
-void WineDesktopHelperTest::followsANewRate()
+void WineScreenHelperTest::followsANewRate()
 {
-    QSignalSpy finished(&*m_helper, &WineDesktopHelper::jobFinished);
+    QSignalSpy finished(&*m_helper, &WineScreenHelper::jobFinished);
     {
         auto server = startServer();
         const std::unique_ptr<QProcess> game = startGame();
@@ -353,9 +353,9 @@ void WineDesktopHelperTest::followsANewRate()
 // judged by what it draws, because it draws nothing. The run this companion
 // started itself is watched instead: a server that comes and goes without the
 // effect asking about a window of it takes the description back.
-void WineDesktopHelperTest::takesBackAPreparationAGameWillNotStartWith()
+void WineScreenHelperTest::takesBackAPreparationAGameWillNotStartWith()
 {
-    QSignalSpy finished(&*m_helper, &WineDesktopHelper::jobFinished);
+    QSignalSpy finished(&*m_helper, &WineScreenHelper::jobFinished);
     {
         auto server = startServer();
         const std::unique_ptr<QProcess> game = startGame();
@@ -386,9 +386,9 @@ void WineDesktopHelperTest::takesBackAPreparationAGameWillNotStartWith()
     }
 }
 
-void WineDesktopHelperTest::undoesWhatIsNoLongerWanted()
+void WineScreenHelperTest::undoesWhatIsNoLongerWanted()
 {
-    QSignalSpy finished(&*m_helper, &WineDesktopHelper::jobFinished);
+    QSignalSpy finished(&*m_helper, &WineScreenHelper::jobFinished);
     {
         auto server = startServer();
         const std::unique_ptr<QProcess> game = startGame();
@@ -412,9 +412,9 @@ void WineDesktopHelperTest::undoesWhatIsNoLongerWanted()
     QVERIFY(m_helper->prepared().isEmpty());
 }
 
-void WineDesktopHelperTest::stopsWhenTheGameKeepsItsOwnResolution()
+void WineScreenHelperTest::stopsWhenTheGameKeepsItsOwnResolution()
 {
-    QSignalSpy finished(&*m_helper, &WineDesktopHelper::jobFinished);
+    QSignalSpy finished(&*m_helper, &WineScreenHelper::jobFinished);
     {
         auto server = startServer();
         const std::unique_ptr<QProcess> game = startGame();
@@ -445,6 +445,6 @@ void WineDesktopHelperTest::stopsWhenTheGameKeepsItsOwnResolution()
     }
 }
 
-QTEST_GUILESS_MAIN(WineDesktopHelperTest)
+QTEST_GUILESS_MAIN(WineScreenHelperTest)
 
-#include "wine_desktop_helper_test.moc"
+#include "wine_screen_helper_test.moc"

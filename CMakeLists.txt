@@ -213,7 +213,7 @@ include(KWinBuiltinEffectShim)
 include(UpscaleInstrumentation)
 
 add_subdirectory(src/plugins/upscale)
-add_subdirectory(src/winedesktop)
+add_subdirectory(src/winescreen)
 if(BUILD_TESTING)
     add_subdirectory(autotests)
 endif()

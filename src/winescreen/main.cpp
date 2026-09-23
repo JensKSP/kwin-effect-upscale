@@ -4,14 +4,15 @@
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
-#include "winedesktophelper.h"
-#include "winedesktopservice.h"
+#include "winescreenhelper.h"
+#include "winescreenservice.h"
 
 #include <KLocalizedString>
 
 #include <QCoreApplication>
 #include <QDBusConnection>
 #include <QDir>
+#include <QFile>
 #include <QStandardPaths>
 #include <QTimer>
 
@@ -27,9 +28,16 @@ int main(int argc, char **argv)
 
     const QString state = QStandardPaths::writableLocation(QStandardPaths::StateLocation);
     QDir().mkpath(state);
-    WineDesktopRecords records(state + QStringLiteral("/winedesktop"));
-    WineDesktopHelper helper(&records);
-    WineDesktopService service(&helper);
+    const QString written = state + QStringLiteral("/screens");
+    // The file was called winedesktop while this companion wrote a virtual
+    // desktop rather than a screen. A prefix prepared back then is only ever
+    // undone again if its record comes along, so the old name is taken over.
+    if (!QFile::exists(written)) {
+        QFile::rename(state + QStringLiteral("/winedesktop"), written);
+    }
+    WineScreenRecords records(written);
+    WineScreenHelper helper(&records);
+    WineScreenService service(&helper);
 
     QDBusConnection bus = QDBusConnection::sessionBus();
     if (!bus.registerObject(QStringLiteral("/Helper"), &service, QDBusConnection::ExportScriptableSlots) || !bus.registerService(QStringLiteral("org.kde.KWin.Upscale.Helper"))) {

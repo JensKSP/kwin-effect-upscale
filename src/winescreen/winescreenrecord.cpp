@@ -4,17 +4,17 @@
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
-#include "winedesktoprecord.h"
+#include "winescreenrecord.h"
 
 #include <QSettings>
 
 namespace
 {
 
-WineDesktopRecord readRecord(QSettings &settings, const QString &id)
+WineScreenRecord readRecord(QSettings &settings, const QString &id)
 {
     settings.beginGroup(id);
-    WineDesktopRecord record{
+    WineScreenRecord record{
         .id = id,
         .title = settings.value(QStringLiteral("Title")).toString(),
         .target =
@@ -49,15 +49,15 @@ QString wineRecordId(const WinePrefixIdentity &identity)
     return QStringLiteral("%1-%2").arg(static_cast<qulonglong>(identity.device), 0, 16).arg(static_cast<qulonglong>(identity.inode), 0, 16);
 }
 
-WineDesktopRecords::WineDesktopRecords(QString path)
+WineScreenRecords::WineScreenRecords(QString path)
     : m_path(std::move(path))
 {
 }
 
-QList<WineDesktopRecord> WineDesktopRecords::all() const
+QList<WineScreenRecord> WineScreenRecords::all() const
 {
     QSettings settings(m_path, QSettings::IniFormat);
-    QList<WineDesktopRecord> records;
+    QList<WineScreenRecord> records;
     const QStringList ids = settings.childGroups();
     for (const QString &id : ids) {
         records.append(readRecord(settings, id));
@@ -65,7 +65,7 @@ QList<WineDesktopRecord> WineDesktopRecords::all() const
     return records;
 }
 
-std::optional<WineDesktopRecord> WineDesktopRecords::find(const QString &id) const
+std::optional<WineScreenRecord> WineScreenRecords::find(const QString &id) const
 {
     QSettings settings(m_path, QSettings::IniFormat);
     if (!settings.childGroups().contains(id)) {
@@ -74,7 +74,7 @@ std::optional<WineDesktopRecord> WineDesktopRecords::find(const QString &id) con
     return readRecord(settings, id);
 }
 
-void WineDesktopRecords::store(const WineDesktopRecord &record)
+void WineScreenRecords::store(const WineScreenRecord &record)
 {
     QSettings settings(m_path, QSettings::IniFormat);
     settings.remove(record.id);
@@ -95,7 +95,7 @@ void WineDesktopRecords::store(const WineDesktopRecord &record)
     settings.endGroup();
 }
 
-void WineDesktopRecords::remove(const QString &id)
+void WineScreenRecords::remove(const QString &id)
 {
     QSettings settings(m_path, QSettings::IniFormat);
     settings.remove(id);

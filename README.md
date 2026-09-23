@@ -305,6 +305,40 @@ One additional cost is not represented in either measurement: while the effect
 is active, it blocks direct scanout, so a game that could otherwise bypass
 composition no longer does so.
 
+## System requirements
+
+The effect runs inside KWin, so what it needs is a session that has one and a
+graphics stack that can do the arithmetic. None of it is assumed: every item
+below is asked for at runtime, on the machine the effect is running on. When
+the answer is no, the effect is either never loaded or leaves that frame to
+KWin's ordinary rendering — it does not guess, and it does not degrade the
+image to fit. There is no GPU vendor list either. FSR 1 is arithmetic any
+conforming implementation runs, so AMD, Intel and NVIDIA are asked the same
+questions and answer for themselves.
+
+| What has to be there | Why, and what happens without it |
+| --- | --- |
+| **A Plasma Wayland session**, KWin 6.3.6 or newer | The effect is a KWin plugin loaded by the running compositor; there is nothing else to start. Games inside that session may be native Wayland or Xwayland clients. A separate X11 desktop session is not a target and is untested. |
+| **The KWin the package was built against** | A KWin effect is a compositor plugin and follows KWin's effect ABI. Each package depends on the exact KWin it was built with and refuses to install against another, so a KWin upgrade needs the matching build. |
+| **KWin's OpenGL compositing**, which is the default | The scaling happens in shaders. Under the software renderer the effect reports itself unsupported and KWin never loads it. |
+| **OpenGL 3.1, or OpenGL ES 3.0** | That is what supplies GLSL 1.40 and GLSL ES 3.00, the languages the shaders are written in. Checked before the effect loads; below it, the effect is not offered at all. |
+| **High-precision floats in fragment shaders**, on OpenGL ES | GLSL ES makes `highp` optional in a fragment shader, and medium precision can neither address a 4K pixel grid nor sample HDR without losing detail. Where the implementation does not offer it, the effect stays unloaded rather than filtering badly. |
+| **Rendering into a 10-bit-per-channel texture**, and into a 32-bit float one for a linear destination | The filter needs somewhere to put the captured frame, and a linear destination carries values outside zero to one that only floating point holds. The texture is allocated and its framebuffer checked for completeness; a failure returns the window to ordinary rendering. |
+| **A largest texture size covering the buffer and the output** | `GL_MAX_TEXTURE_SIZE` is read from the driver, not assumed from the screen. Anything larger is refused rather than silently cropped. |
+| **Colour handling the shaders decode** | The output's transfer function has to be sRGB, gamma 2.2, PQ or linear, with finite, ordered luminances. Any other one refuses that window by name, and the window can be tried again after an output or colour change. |
+
+Nothing else is needed beside the package: no Vulkan, no particular driver, no
+gamescope, no launcher wrapper and no daemon.
+
+While the effect is scaling a window it holds one texture the size of the
+game's buffer, and with sharpening on a second the size of the output — about
+33 MB at 3840 x 2160, or four times that where the destination is linear.
+Switching sharpening off releases the larger one.
+
+The developer handbook lists
+[every limit the effect asks about](doc/upscaling.md#fitting-a-request-to-what-the-machine-can-actually-do),
+how it asks, and what it does with a refusal.
+
 ## Trying it
 
 ### Downloads
@@ -451,7 +485,10 @@ snapshot version without Git.
 
 ## Building from source
 
-### Requirements
+### Build requirements
+
+These are what it takes to compile the effect;
+[System requirements](#system-requirements) is what it takes to run it.
 
 The effect is built against the KWin installed on the machine and loaded into
 it, so the development files must belong to the KWin version that will actually

@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include "winedesktopwrite.h"
+#include "winescreenwrite.h"
 
 #include <QList>
 #include <QSize>
@@ -19,14 +19,14 @@
  * it only ever undoes its own change and never asks again after "never". It
  * lives in the user's state directory, not in the prefix.
  */
-struct WineDesktopRecord
+struct WineScreenRecord
 {
     // The prefix's device and inode in hexadecimal; the same prefix keeps it
     // whatever path leads to it.
     QString id;
     // The window title the user saw, for the settings page.
     QString title;
-    WineDesktopTarget target;
+    WineScreenTarget target;
     QString steamAppId;
     // The size wanted, and the size this companion wrote into the prefix if it
     // did; they differ while a change waits for the game to exit.
@@ -42,14 +42,14 @@ struct WineDesktopRecord
 
 QString wineRecordId(const WinePrefixIdentity &identity);
 
-class WineDesktopRecords
+class WineScreenRecords
 {
 public:
-    explicit WineDesktopRecords(QString path);
+    explicit WineScreenRecords(QString path);
 
-    QList<WineDesktopRecord> all() const;
-    std::optional<WineDesktopRecord> find(const QString &id) const;
-    void store(const WineDesktopRecord &record);
+    QList<WineScreenRecord> all() const;
+    std::optional<WineScreenRecord> find(const QString &id) const;
+    void store(const WineScreenRecord &record);
     void remove(const QString &id);
 
 private:

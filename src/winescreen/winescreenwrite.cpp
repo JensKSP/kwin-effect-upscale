@@ -4,7 +4,7 @@
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
-#include "winedesktopwrite.h"
+#include "winescreenwrite.h"
 #include "wineprefix.h"
 #include "wineregistry.h"
 
@@ -67,14 +67,14 @@ private:
 const char machineRegistry[] = "system.reg";
 const char userRegistry[] = "user.reg";
 
-bool serverRunning(const WineDesktopTarget &target, uid_t user)
+bool serverRunning(const WineScreenTarget &target, uid_t user)
 {
     return wineServerState(wineServerLockPath(target.temporaryDirectory, user, target.identity)) != WineServerState::Stopped;
 }
 
 // The directory to work in: the one held since the prefix was proven, or the
 // path opened now, either only while it is still that directory.
-std::shared_ptr<WineDirectory> directoryFor(const WineDesktopTarget &target)
+std::shared_ptr<WineDirectory> directoryFor(const WineScreenTarget &target)
 {
     if (target.directory) {
         return target.directory->isStill(target.identity) ? target.directory : nullptr;
@@ -154,7 +154,7 @@ WineDesktopValues desktopValuesIn(const WineDirectory &directory)
 
 // The registry's text, once it is certain that it may be replaced now. A prefix
 // whose programs run in a virtual desktop of the user's is not ours to describe.
-WineWriteResult read(const WineDesktopTarget &target, uid_t user, const std::shared_ptr<WineDirectory> &directory, QByteArray &text)
+WineWriteResult read(const WineScreenTarget &target, uid_t user, const std::shared_ptr<WineDirectory> &directory, QByteArray &text)
 {
     if (!directory || !plainRegistry(directory->descriptor(), machineRegistry, user)) {
         return WineWriteResult::Unreachable;
@@ -174,7 +174,7 @@ WineWriteResult read(const WineDesktopTarget &target, uid_t user, const std::sha
     return WineWriteResult::Written;
 }
 
-WineWriteResult replace(const WineDesktopTarget &target, uid_t user, const std::shared_ptr<WineDirectory> &directory, const QByteArray &text)
+WineWriteResult replace(const WineScreenTarget &target, uid_t user, const std::shared_ptr<WineDirectory> &directory, const QByteArray &text)
 {
     if (!replaceRegistry(directory->descriptor(), machineRegistry, text)) {
         return WineWriteResult::WriteFailed;
@@ -226,7 +226,7 @@ QList<WineScreen> wineScreensIn(const WineDirectory &directory)
     return contents && wineIsRegistry(*contents) ? wineScreens(*contents) : QList<WineScreen>{};
 }
 
-WineWriteResult wineSetScreens(const WineDesktopTarget &target, uid_t user, const QList<WineScreen> &screens, qint64 modifiedSeconds)
+WineWriteResult wineSetScreens(const WineScreenTarget &target, uid_t user, const QList<WineScreen> &screens, qint64 modifiedSeconds)
 {
     const ProtonLock proton(target.steamCompatData);
     if (!proton.held()) {
@@ -246,7 +246,7 @@ WineWriteResult wineSetScreens(const WineDesktopTarget &target, uid_t user, cons
     return replace(target, user, directory, *changed);
 }
 
-WineWriteResult wineClearScreen(const WineDesktopTarget &target, uid_t user)
+WineWriteResult wineClearScreen(const WineScreenTarget &target, uid_t user)
 {
     const ProtonLock proton(target.steamCompatData);
     if (!proton.held()) {

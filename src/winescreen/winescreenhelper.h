@@ -6,8 +6,8 @@
 
 #pragma once
 
-#include "winedesktoprecord.h"
 #include "wineregistry.h"
+#include "winescreenrecord.h"
 
 #include <QDeadlineTimer>
 #include <QHash>
@@ -27,7 +27,7 @@
  * restart, starts the game again. It remembers what it wrote so that it only
  * ever undoes its own change, and it remembers "never".
  */
-class WineDesktopHelper : public QObject
+class WineScreenHelper : public QObject
 {
     Q_OBJECT
 
@@ -39,9 +39,9 @@ public:
     };
 
     // How the game is started again; replaced in tests.
-    using Launcher = std::function<bool(const WineDesktopRecord &record)>;
+    using Launcher = std::function<bool(const WineScreenRecord &record)>;
 
-    explicit WineDesktopHelper(WineDesktopRecords *records, QObject *parent = nullptr);
+    explicit WineScreenHelper(WineScreenRecords *records, QObject *parent = nullptr);
 
     Offered offer(uint pid, const QString &windowClass, const QString &title, const QList<WineScreen> &screens);
     QString answer(const QString &offer, const QString &answer);
@@ -54,7 +54,7 @@ public:
      * and none at all undoes the preparation after this run.
      */
     QSize present(uint pid, const QString &windowClass, const QList<WineScreen> &wanted);
-    QList<WineDesktopRecord> prepared() const;
+    QList<WineScreenRecord> prepared() const;
     bool reset(const QString &id);
 
     // Whether an offer awaits an answer or a prefix awaits its write; the
@@ -71,7 +71,7 @@ Q_SIGNALS:
 private:
     struct Pending
     {
-        WineDesktopRecord record;
+        WineScreenRecord record;
         pid_t game = 0;
         pid_t server = 0;
         // The screens the program is to see, its own first.
@@ -127,13 +127,13 @@ private:
     void proven(const QString &id);
     bool advance(Job &job);
     static bool stillRunning(Job &job);
-    void settle(const Job &job, WineDesktopRecord &record, WineWriteResult result);
+    void settle(const Job &job, WineScreenRecord &record, WineWriteResult result);
     void startJob(const Job &job);
-    void afterRun(const WineDesktopRecord &record, uint pid, pid_t server, const std::shared_ptr<WineDirectory> &directory,
+    void afterRun(const WineScreenRecord &record, uint pid, pid_t server, const std::shared_ptr<WineDirectory> &directory,
                   const QList<WineScreen> &screens);
     bool hasJob(const QString &id) const;
 
-    WineDesktopRecords *m_records;
+    WineScreenRecords *m_records;
     QHash<QString, Pending> m_offers;
     QList<Job> m_jobs;
     QList<Probation> m_probation;

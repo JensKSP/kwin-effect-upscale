@@ -12,7 +12,7 @@
 #include <QSize>
 #include <QString>
 
-class WineDesktopHelper;
+class WineScreenHelper;
 
 // One entry of prepared(): identifier, title, width, height, as a(ssii).
 struct PreparedProgram
@@ -48,13 +48,13 @@ const QDBusArgument &operator>>(const QDBusArgument &argument, ProgramScreen &sc
  * plugin's org.kde.KWin.Upscale.Helper1.xml, answered by the Wine desktop
  * helper.
  */
-class WineDesktopService : public QObject
+class WineScreenService : public QObject
 {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface", "org.kde.KWin.Upscale.Helper1")
 
 public:
-    explicit WineDesktopService(WineDesktopHelper *helper, QObject *parent = nullptr);
+    explicit WineScreenService(WineScreenHelper *helper, QObject *parent = nullptr);
 
 public Q_SLOTS:
     Q_SCRIPTABLE QString offer(uint pid, const QString &windowClass, const QString &title, const QList<ProgramScreen> &screens,
@@ -66,5 +66,5 @@ public Q_SLOTS:
     Q_SCRIPTABLE bool reset(const QString &id);
 
 private:
-    WineDesktopHelper *m_helper;
+    WineScreenHelper *m_helper;
 };

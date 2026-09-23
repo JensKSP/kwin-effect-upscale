@@ -51,7 +51,7 @@ private:
     int m_descriptor;
 };
 
-struct WineDesktopTarget
+struct WineScreenTarget
 {
     // The prefix by the path the game used, and the identity proven for it.
     QString prefix;
@@ -90,7 +90,7 @@ enum class WineWriteResult {
  * program is on, in place of anything this companion described before. A prefix
  * whose programs run in a virtual desktop of the user's is left alone.
  */
-WineWriteResult wineSetScreens(const WineDesktopTarget &target, uid_t user, const QList<WineScreen> &screens, qint64 modifiedSeconds);
+WineWriteResult wineSetScreens(const WineScreenTarget &target, uid_t user, const QList<WineScreen> &screens, qint64 modifiedSeconds);
 
 /*
  * The screens the prefix describes now, empty when it describes none or cannot
@@ -102,4 +102,4 @@ QList<WineScreen> wineScreensIn(const WineDirectory &directory);
  * Takes the description away again, so that the prefix asks the display server
  * for its screen as it did before.
  */
-WineWriteResult wineClearScreen(const WineDesktopTarget &target, uid_t user);
+WineWriteResult wineClearScreen(const WineScreenTarget &target, uid_t user);

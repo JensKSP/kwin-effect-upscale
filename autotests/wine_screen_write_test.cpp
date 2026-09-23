@@ -5,8 +5,8 @@
 */
 
 #include "lockholder.h"
-#include "winedesktopwrite.h"
 #include "wineregistry.h"
+#include "winescreenwrite.h"
 
 #include <QDir>
 #include <QFile>
@@ -69,7 +69,7 @@ private:
     void writeRegistry(const QByteArray &text, const QString &name = QStringLiteral("system.reg")) const;
 
     std::optional<QTemporaryDir> m_root;
-    WineDesktopTarget m_target;
+    WineScreenTarget m_target;
 };
 
 void WineDesktopWriteTest::init()
@@ -220,4 +220,4 @@ void WineDesktopWriteTest::keepsTheFilesPermissions()
 
 QTEST_GUILESS_MAIN(WineDesktopWriteTest)
 
-#include "wine_desktop_write_test.moc"
+#include "wine_screen_write_test.moc"
