@@ -16,7 +16,7 @@
 #include <optional>
 
 /*
- * Setting and removing the virtual desktop in a prefix whose game has exited.
+ * Describing and undescribing the screen in a prefix whose game has exited.
  *
  * The prefix was located and proven while the game ran, and is reached through
  * the directory held open since then. Without that, it is reached by the path
@@ -76,35 +76,30 @@ enum class WineWriteResult {
     // A Wine server holds the prefix, or Proton is preparing it: try again
     // after it has finished.
     Busy,
-    // The path no longer leads to the proven prefix, or its user.reg is not
-    // one to replace.
+    // The path no longer leads to the proven prefix, its registry is not one to
+    // replace, or the prefix has not described its devices yet.
     Unreachable,
-    // The prefix has a virtual desktop the user set; it is left alone.
+    // The prefix runs its programs in a virtual desktop the user set; it is left
+    // alone.
     DesktopOfTheUser,
     WriteFailed,
 };
 
 /*
- * Gives the prefix a virtual desktop of that size. `ours` is the size this
- * companion set before, if it did: a desktop of exactly that size is replaced,
- * any other one is the user's.
+ * Tells the prefix its screen is that size and runs at that rate, in place of
+ * anything this companion described before. A prefix whose programs run in a
+ * virtual desktop of the user's is left alone.
  */
-WineWriteResult wineSetDesktop(const WineDesktopTarget &target, uid_t user, const QSize &size, const std::optional<QSize> &ours, qint64 modifiedSeconds);
+WineWriteResult wineSetScreen(const WineDesktopTarget &target, uid_t user, const QSize &size, int refreshRate, qint64 modifiedSeconds);
 
 /*
- * Whether the values are a virtual desktop of that size, as this companion
- * writes one.
+ * The size of the screen the prefix describes now, and nothing when it describes
+ * none or cannot be read.
  */
-bool wineIsDesktop(const WineDesktopValues &values, const QSize &size);
+std::optional<QSize> wineScreenIn(const WineDirectory &directory);
 
 /*
- * The two values as the prefix holds them now; empty when the registry cannot
- * be read.
+ * Takes the description away again, so that the prefix asks the display server
+ * for its screen as it did before.
  */
-WineDesktopValues wineDesktopValuesIn(const WineDirectory &directory);
-
-/*
- * Removes the desktop this companion set, `ours`. A desktop the user changed
- * since is left as it is.
- */
-WineWriteResult wineClearDesktop(const WineDesktopTarget &target, uid_t user, const QSize &ours);
+WineWriteResult wineClearScreen(const WineDesktopTarget &target, uid_t user);

@@ -42,7 +42,7 @@ public:
 
     explicit WineDesktopHelper(WineDesktopRecords *records, QObject *parent = nullptr);
 
-    Offered offer(uint pid, const QString &windowClass, const QString &title, const QSize &size);
+    Offered offer(uint pid, const QString &windowClass, const QString &title, const QSize &size, int refreshRate);
     QString answer(const QString &offer, const QString &answer);
     bool restart(const QString &offer);
     /*
@@ -51,7 +51,7 @@ public:
      * is the size the effect wants now: another one prepares the program for
      * it after this run, and none undoes the preparation after this run.
      */
-    QSize present(uint pid, const QString &windowClass, const QSize &wanted);
+    QSize present(uint pid, const QString &windowClass, const QSize &wanted, int refreshRate);
     QList<WineDesktopRecord> prepared() const;
     bool reset(const QString &id);
 
@@ -72,6 +72,8 @@ private:
         WineDesktopRecord record;
         pid_t game = 0;
         pid_t server = 0;
+        // The rate the screen runs at, for the modes the prefix is told about.
+        int rate = 0;
         QDeadlineTimer expiry;
     };
 
@@ -81,9 +83,10 @@ private:
         QString offer;
         pid_t game = 0;
         pid_t server = 0;
-        // Clearing writes `size` away; setting writes it.
+        // Clearing writes `size` away; setting writes it, at this rate.
         bool clear = false;
         QSize size;
+        int rate = 0;
         bool relaunch = false;
         QDeadlineTimer closeDeadline;
         bool terminated = false;
@@ -105,7 +108,7 @@ private:
     void settle(const Job &job, WineDesktopRecord &record, WineWriteResult result);
     void startJob(const Job &job);
     void afterRun(const WineDesktopRecord &record, uint pid, pid_t server, const std::shared_ptr<WineDirectory> &directory,
-                  const std::optional<QSize> &size);
+                  const std::optional<QSize> &size, int rate);
     bool hasJob(const QString &id) const;
 
     WineDesktopRecords *m_records;

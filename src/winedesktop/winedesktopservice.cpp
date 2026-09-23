@@ -35,9 +35,10 @@ WineDesktopService::WineDesktopService(WineDesktopHelper *helper, QObject *paren
     qDBusRegisterMetaType<QList<PreparedProgram>>();
 }
 
-QString WineDesktopService::offer(uint pid, const QString &windowClass, const QString &title, int width, int height, QString &question)
+QString WineDesktopService::offer(uint pid, const QString &windowClass, const QString &title, const QSize &size, int refreshRate,
+                                  QString &question)
 {
-    const WineDesktopHelper::Offered offered = m_helper->offer(pid, windowClass, title, QSize(width, height));
+    const WineDesktopHelper::Offered offered = m_helper->offer(pid, windowClass, title, size, refreshRate);
     question = offered.question;
     return offered.offer;
 }
@@ -52,11 +53,9 @@ bool WineDesktopService::restart(const QString &offer)
     return m_helper->restart(offer);
 }
 
-int WineDesktopService::present(uint pid, const QString &windowClass, int wantedWidth, int wantedHeight, int &height)
+QSize WineDesktopService::present(uint pid, const QString &windowClass, const QSize &wanted, int refreshRate)
 {
-    const QSize size = m_helper->present(pid, windowClass, QSize(wantedWidth, wantedHeight));
-    height = size.height();
-    return size.width();
+    return m_helper->present(pid, windowClass, wanted, refreshRate);
 }
 
 QList<PreparedProgram> WineDesktopService::prepared()

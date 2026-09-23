@@ -96,8 +96,8 @@ bool holdsWhatWasWritten(const WineDesktopRecord &record, bool clear, const QSiz
     if (!record.target.directory) {
         return true;
     }
-    const WineDesktopValues values = wineDesktopValuesIn(*record.target.directory);
-    return clear ? !values.desktop && !values.defaultSize : wineIsDesktop(values, size);
+    const std::optional<QSize> screen = wineScreenIn(*record.target.directory);
+    return clear ? !screen : screen == size;
 }
 
 std::optional<pid_t> hostServer(const WineDesktopRecord &record)
@@ -161,32 +161,33 @@ std::optional<WineDesktopHelper::Pending> WineDesktopHelper::locate(uint pid, co
     record.target = targetFor(*prefix, process->environment);
     record.target.directory = directory;
     record.steamAppId = prefix->steamAppId;
-    return Pending{.record = record, .game = static_cast<pid_t>(pid), .server = *server, .expiry = QDeadlineTimer(offerLifetime)};
+    return Pending{.record = record, .game = static_cast<pid_t>(pid), .server = *server, .rate = 0, .expiry = QDeadlineTimer(offerLifetime)};
 }
 
-WineDesktopHelper::Offered WineDesktopHelper::offer(uint pid, const QString &windowClass, const QString &title, const QSize &size)
+WineDesktopHelper::Offered WineDesktopHelper::offer(uint pid, const QString &windowClass, const QString &title, const QSize &size, int refreshRate)
 {
     std::optional<Pending> pending = size.isEmpty() ? std::nullopt : locate(pid, windowClass, title);
     if (!pending) {
         return {};
     }
+    pending->rate = refreshRate;
     WineDesktopRecord &record = pending->record;
     if (record.never) {
         qCInfo(KWIN_UPSCALE_WINEDESKTOP) << "Nothing offered for" << title << "prefix" << record.id << ": the answer was never";
         return {};
     }
     if (record.written == size) {
-        // The prefix holds a desktop of exactly this size and the game still
-        // does not take it. Such a game names a larger resolution in its own
-        // settings, and a desktop does not keep it from choosing it: the modes
-        // offered inside one reach the output's own resolution. So the desktop
-        // is taken away again after this run and not offered for this game
-        // again; a reset on the settings page asks anew.
+        // The prefix already describes a screen of exactly this size and the
+        // game still draws at the output's. Such a game renders at a size of
+        // its own whatever the screen offers, which is beyond what this
+        // companion can reach: the description is taken away again after this
+        // run and not offered for this game again; a reset on the settings page
+        // asks anew.
         qCInfo(KWIN_UPSCALE_WINEDESKTOP) << title << "keeps its own resolution although its prefix was prepared for" << size
                                          << "; undoing that and not asking again";
         record.never = true;
         m_records->store(record);
-        afterRun(record, pid, pending->server, record.target.directory, std::nullopt);
+        afterRun(record, pid, pending->server, record.target.directory, std::nullopt, refreshRate);
         return {};
     }
     record.wanted = size;
@@ -220,6 +221,7 @@ QString WineDesktopHelper::answer(const QString &offer, const QString &answer)
         .server = pending.server,
         .clear = false,
         .size = pending.record.wanted,
+        .rate = pending.rate,
         .relaunch = false,
         .closeDeadline = {},
         .terminated = false,
@@ -242,7 +244,7 @@ bool WineDesktopHelper::restart(const QString &offer)
     return false;
 }
 
-QSize WineDesktopHelper::present(uint pid, const QString &windowClass, const QSize &wanted)
+QSize WineDesktopHelper::present(uint pid, const QString &windowClass, const QSize &wanted, int refreshRate)
 {
     const std::optional<WineProcess> process = wineProcess(pid);
     if (!process) {
@@ -263,18 +265,18 @@ QSize WineDesktopHelper::present(uint pid, const QString &windowClass, const QSi
         return {};
     }
     const QSize written = *record->written;
-    // The prefix may have lost the desktop since it was written: a Wine server
-    // that overlapped the write saves its own copy when it exits, and Proton
-    // rebuilds a prefix it is downgraded to. Then this run has none.
-    const bool held = wineIsDesktop(wineDesktopValuesIn(*directory), written);
+    // The prefix may have lost the description since it was written: a Wine
+    // server that overlapped the write saves its own copy when it exits, and
+    // Proton rebuilds a prefix it is downgraded to. Then this run has none.
+    const bool held = wineScreenIn(*directory) == written;
     qCInfo(KWIN_UPSCALE_WINEDESKTOP) << "Asked about prefix" << record->id << "of" << record->title << ": wants" << wanted << "written"
-                                     << written << "desktop in prefix" << held;
+                                     << written << "screen described in prefix" << held;
     if (wanted.isEmpty()) {
         // The effect no longer wants this program smaller: undone after this
-        // run, and this run is left as it is. A desktop the prefix has lost
+        // run, and this run is left as it is. A description the prefix has lost
         // already leaves nothing to undo but the record of it.
         if (held) {
-            afterRun(*record, pid, *server, directory, std::nullopt);
+            afterRun(*record, pid, *server, directory, std::nullopt, refreshRate);
         } else if (!hasJob(record->id)) {
             record->written.reset();
             record->never ? m_records->store(*record) : m_records->remove(record->id);
@@ -285,15 +287,15 @@ QSize WineDesktopHelper::present(uint pid, const QString &windowClass, const QSi
         // Written again, or at the size the effect wants now, after this run.
         record->wanted = wanted;
         m_records->store(*record);
-        afterRun(*record, pid, *server, directory, wanted);
+        afterRun(*record, pid, *server, directory, wanted, refreshRate);
     }
     return held ? written : QSize();
 }
 
-// Queues the write that follows this run of the program: the desktop at
-// `size`, or, without one, the desktop taken away again.
+// Queues the write that follows this run of the program: the screen at `size`,
+// or, without one, the description taken away again.
 void WineDesktopHelper::afterRun(const WineDesktopRecord &record, uint pid, pid_t server, const std::shared_ptr<WineDirectory> &directory,
-                                 const std::optional<QSize> &size)
+                                 const std::optional<QSize> &size, int rate)
 {
     if (hasJob(record.id)) {
         return;
@@ -305,6 +307,7 @@ void WineDesktopHelper::afterRun(const WineDesktopRecord &record, uint pid, pid_
         .server = server,
         .clear = !size,
         .size = size.value_or(record.written.value_or(QSize())),
+        .rate = rate,
         .relaunch = false,
         .closeDeadline = {},
         .terminated = false,
@@ -424,8 +427,8 @@ bool WineDesktopHelper::advance(Job &job)
         return true;
     }
     record->target.directory = job.directory;
-    WineWriteResult result = job.clear ? wineClearDesktop(record->target, ::getuid(), job.size)
-                                       : wineSetDesktop(record->target, ::getuid(), job.size, record->written, QDateTime::currentSecsSinceEpoch());
+    WineWriteResult result = job.clear ? wineClearScreen(record->target, ::getuid())
+                                       : wineSetScreen(record->target, ::getuid(), job.size, job.rate, QDateTime::currentSecsSinceEpoch());
     // What was written is read back: a server that wrote its own copy over it
     // leaves the prefix without the change, and then it is written again after
     // the next run rather than reported as done.
@@ -457,10 +460,9 @@ bool WineDesktopHelper::advance(Job &job)
 
 void WineDesktopHelper::settle(const Job &job, WineDesktopRecord &record, WineWriteResult result)
 {
-    const WineDesktopValues values = record.target.directory ? wineDesktopValuesIn(*record.target.directory) : WineDesktopValues{};
+    const std::optional<QSize> screen = record.target.directory ? wineScreenIn(*record.target.directory) : std::nullopt;
     qCInfo(KWIN_UPSCALE_WINEDESKTOP) << (job.clear ? "Undo of" : "Preparation of") << record.title << job.size << "result"
-                                     << static_cast<int>(result) << "prefix now holds" << values.desktop.value_or(QString())
-                                     << values.defaultSize.value_or(QString());
+                                     << static_cast<int>(result) << "prefix now describes" << screen.value_or(QSize());
     if (result == WineWriteResult::Written && job.clear) {
         record.written.reset();
         record.never ? m_records->store(record) : m_records->remove(job.id);
@@ -475,8 +477,8 @@ void WineDesktopHelper::settle(const Job &job, WineDesktopRecord &record, WineWr
         return;
     }
     qCWarning(KWIN_UPSCALE_WINEDESKTOP) << "Left the prefix of" << record.title << "unchanged, result" << static_cast<int>(result);
-    // The user has a desktop of their own there now; this one is theirs to
-    // keep, and nothing of it is this companion's to undo any more.
+    // The user runs the prefix in a virtual desktop of their own now; that is
+    // theirs to keep, and there is nothing of ours left in it to undo.
     if (result == WineWriteResult::DesktopOfTheUser && !job.clear) {
         record.written.reset();
         m_records->store(record);

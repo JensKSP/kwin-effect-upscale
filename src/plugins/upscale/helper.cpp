@@ -6,11 +6,14 @@
 
 #include "helper.h"
 
+#include "compatibility.h"
+
 #include "effect/effectwindow.h"
 #include "window.h"
 
 #include <QDBusConnection>
 #include <QDBusMessage>
+#include <QDBusMetaType>
 #include <QDBusPendingCallWatcher>
 
 namespace KWin
@@ -44,7 +47,8 @@ void UpscaleHelper::call(const QString &method, const QVariantList &arguments, c
 
 void UpscaleHelper::offer(EffectWindow *window, const QSize &size, const Offered &reply)
 {
-    call(QStringLiteral("offer"), identify(window) + QVariantList{size.width(), size.height()}, [reply](const QDBusMessage &message) {
+    const QVariantList arguments = identify(window) + QVariantList{QVariant::fromValue(size), upscaleRefreshRate(window->screen())};
+    call(QStringLiteral("offer"), arguments, [reply](const QDBusMessage &message) {
         const QVariantList values = message.arguments();
         if (values.size() == 2) {
             reply(values.at(0).toString(), values.at(1).toString());
@@ -71,11 +75,12 @@ void UpscaleHelper::present(EffectWindow *window, const QSize &wanted, const Pre
 {
     QVariantList arguments = identify(window);
     arguments.removeLast();
-    arguments << wanted.width() << wanted.height();
+    arguments << QVariant::fromValue(wanted) << upscaleRefreshRate(window->screen());
     call(QStringLiteral("present"), arguments, [reply](const QDBusMessage &message) {
         const QVariantList values = message.arguments();
-        if (values.size() == 2) {
-            reply(QSize(values.at(0).toInt(), values.at(1).toInt()));
+        if (values.size() == 1) {
+            // A size arrives as the two numbers of a D-Bus structure.
+            reply(qdbus_cast<QSize>(values.at(0)));
         }
     });
 }

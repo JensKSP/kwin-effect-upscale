@@ -18,7 +18,7 @@
 namespace
 {
 
-const QByteArray s_registry = QByteArrayLiteral(
+const QByteArray s_user = QByteArrayLiteral(
     "WINE REGISTRY Version 2\n"
     ";; All keys relative to \\\\User\\\\S-1-5-21-0-0-0-1000\n"
     "\n"
@@ -27,7 +27,22 @@ const QByteArray s_registry = QByteArrayLiteral(
     "[Control Panel\\\\Desktop] 1789805658\n"
     "\"ActiveWndTrackTimeout\"=dword:00000000\n");
 
+// A prefix that has run once and kept what it found: a graphics card with an
+// identifier of its own, and a monitor.
+const QByteArray s_machine = QByteArrayLiteral(
+    "WINE REGISTRY Version 2\n"
+    ";; All keys relative to \\\\Machine\n"
+    "\n"
+    "#arch=win64\n"
+    "\n"
+    "[System\\\\ControlSet001\\\\Enum\\\\DISPLAY\\\\Default_Monitor\\\\0000&0000] 1790154356\n"
+    "\"DeviceDesc\"=\"Generic Non-PnP Monitor\"\n"
+    "\n"
+    "[System\\\\ControlSet001\\\\Enum\\\\PCI\\\\VEN_1002&DEV_1586&SUBSYS_00000000&REV_00\\\\00000000\\\\Device Parameters] 1790154350\n"
+    "\"VideoID\"=\"{65aaded5-ba18-41e2-9572-7290231b645a}\"\n");
+
 const QSize s_size(2560, 1440);
+constexpr int s_rate = 60;
 
 } // namespace
 
@@ -37,9 +52,10 @@ class WineDesktopWriteTest : public QObject
 
 private Q_SLOTS:
     void init();
-    void setsAndClearsItsDesktop();
-    void replacesOnlyItsOwnDesktop();
-    void leavesTheUsersDesktopAlone();
+    void describesAndUndescribesTheScreen();
+    void describesAnotherSizeOverItsOwn();
+    void leavesAPrefixWithAVirtualDesktopAlone();
+    void refusesAPrefixThatDescribesNoDevices();
     void waitsForARunningServer();
     void waitsForProton();
     void refusesADirectoryThatIsNoLongerTheProvenOne();
@@ -48,8 +64,8 @@ private Q_SLOTS:
     void keepsTheFilesPermissions();
 
 private:
-    QByteArray registry() const;
-    void writeRegistry(const QByteArray &text) const;
+    QByteArray registry(const QString &name = QStringLiteral("system.reg")) const;
+    void writeRegistry(const QByteArray &text, const QString &name = QStringLiteral("system.reg")) const;
 
     std::optional<QTemporaryDir> m_root;
     WineDesktopTarget m_target;
@@ -69,55 +85,64 @@ void WineDesktopWriteTest::init()
         .directory = nullptr,
     };
     m_target.identity = winePrefixIdentity(m_target.prefix).value_or(WinePrefixIdentity{});
-    writeRegistry(s_registry);
+    writeRegistry(s_machine);
+    writeRegistry(s_user, QStringLiteral("user.reg"));
 }
 
-QByteArray WineDesktopWriteTest::registry() const
+QByteArray WineDesktopWriteTest::registry(const QString &name) const
 {
-    QFile file(m_target.prefix + QStringLiteral("/user.reg"));
+    QFile file(m_target.prefix + QStringLiteral("/") + name);
     return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
 }
 
-void WineDesktopWriteTest::writeRegistry(const QByteArray &text) const
+void WineDesktopWriteTest::writeRegistry(const QByteArray &text, const QString &name) const
 {
-    QFile file(m_target.prefix + QStringLiteral("/user.reg"));
+    QFile file(m_target.prefix + QStringLiteral("/") + name);
     QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
     file.write(text);
 }
 
-void WineDesktopWriteTest::setsAndClearsItsDesktop()
+void WineDesktopWriteTest::describesAndUndescribesTheScreen()
 {
-    QCOMPARE(wineSetDesktop(m_target, ::getuid(), s_size, std::nullopt, 1790000000), WineWriteResult::Written);
-    QCOMPARE(wineDesktopValues(registry()), (WineDesktopValues{.desktop = QStringLiteral("Default"), .defaultSize = QStringLiteral("2560x1440")}));
-    QVERIFY(registry().startsWith(s_registry));
-    QCOMPARE(wineClearDesktop(m_target, ::getuid(), s_size), WineWriteResult::Written);
-    QCOMPARE(wineDesktopValues(registry()), WineDesktopValues{});
-    QVERIFY(registry().startsWith(s_registry));
-    QCOMPARE(wineClearDesktop(m_target, ::getuid(), s_size), WineWriteResult::Written);
+    QCOMPARE(wineSetScreen(m_target, ::getuid(), s_size, s_rate, 1790000000), WineWriteResult::Written);
+    QCOMPARE(wineScreen(registry()), s_size);
+    QVERIFY(registry().startsWith(s_machine));
+    // The user's own registry is not touched for this.
+    QCOMPARE(registry(QStringLiteral("user.reg")), s_user);
+    QCOMPARE(wineClearScreen(m_target, ::getuid()), WineWriteResult::Written);
+    QCOMPARE(registry(), s_machine);
+    QCOMPARE(wineClearScreen(m_target, ::getuid()), WineWriteResult::Written);
 }
 
-void WineDesktopWriteTest::replacesOnlyItsOwnDesktop()
+void WineDesktopWriteTest::describesAnotherSizeOverItsOwn()
 {
-    QCOMPARE(wineSetDesktop(m_target, ::getuid(), s_size, std::nullopt, 1790000000), WineWriteResult::Written);
-    QCOMPARE(wineSetDesktop(m_target, ::getuid(), QSize(1920, 1080), s_size, 1790000001), WineWriteResult::Written);
-    QCOMPARE(wineDesktopValues(registry()).defaultSize, QStringLiteral("1920x1080"));
-    QCOMPARE(wineSetDesktop(m_target, ::getuid(), s_size, std::nullopt, 1790000002), WineWriteResult::DesktopOfTheUser);
-    QCOMPARE(wineClearDesktop(m_target, ::getuid(), s_size), WineWriteResult::DesktopOfTheUser);
-    QCOMPARE(wineDesktopValues(registry()).defaultSize, QStringLiteral("1920x1080"));
+    QCOMPARE(wineSetScreen(m_target, ::getuid(), s_size, s_rate, 1790000000), WineWriteResult::Written);
+    QCOMPARE(wineSetScreen(m_target, ::getuid(), QSize(1920, 1080), s_rate, 1790000001), WineWriteResult::Written);
+    QCOMPARE(wineScreen(registry()), QSize(1920, 1080));
+    QVERIFY(registry().startsWith(s_machine));
 }
 
-void WineDesktopWriteTest::leavesTheUsersDesktopAlone()
+void WineDesktopWriteTest::leavesAPrefixWithAVirtualDesktopAlone()
 {
-    const QByteArray users = s_registry + "\n[Software\\\\Wine\\\\Explorer] 1789805658\n\"Desktop\"=\"shell\"\n";
-    writeRegistry(users);
-    QCOMPARE(wineSetDesktop(m_target, ::getuid(), s_size, s_size, 1790000000), WineWriteResult::DesktopOfTheUser);
-    QCOMPARE(registry(), users);
+    const QByteArray users = s_user + "\n[Software\\\\Wine\\\\Explorer] 1789805658\n\"Desktop\"=\"shell\"\n";
+    writeRegistry(users, QStringLiteral("user.reg"));
+    QCOMPARE(wineSetScreen(m_target, ::getuid(), s_size, s_rate, 1790000000), WineWriteResult::DesktopOfTheUser);
+    QCOMPARE(registry(), s_machine);
     // A size left behind when the user switched their desktop off is theirs too.
-    const QByteArray switchedOff = s_registry + "\n[Software\\\\Wine\\\\Explorer\\\\Desktops] 1789805658\n\"Default\"=\"2560x1440\"\n";
-    writeRegistry(switchedOff);
-    QCOMPARE(wineSetDesktop(m_target, ::getuid(), s_size, s_size, 1790000000), WineWriteResult::DesktopOfTheUser);
-    QCOMPARE(wineClearDesktop(m_target, ::getuid(), s_size), WineWriteResult::DesktopOfTheUser);
-    QCOMPARE(registry(), switchedOff);
+    const QByteArray switchedOff = s_user + "\n[Software\\\\Wine\\\\Explorer\\\\Desktops] 1789805658\n\"Default\"=\"2560x1440\"\n";
+    writeRegistry(switchedOff, QStringLiteral("user.reg"));
+    QCOMPARE(wineSetScreen(m_target, ::getuid(), s_size, s_rate, 1790000000), WineWriteResult::DesktopOfTheUser);
+    QCOMPARE(wineClearScreen(m_target, ::getuid()), WineWriteResult::DesktopOfTheUser);
+    QCOMPARE(registry(), s_machine);
+}
+
+void WineDesktopWriteTest::refusesAPrefixThatDescribesNoDevices()
+{
+    writeRegistry(QByteArrayLiteral("WINE REGISTRY Version 2\n\n#arch=win64\n"));
+    QCOMPARE(wineSetScreen(m_target, ::getuid(), s_size, s_rate, 1790000000), WineWriteResult::Unreachable);
+    QVERIFY(!wineScreen(registry()));
+    // There is nothing to undo either, and nothing is reported as undone wrongly.
+    QCOMPARE(wineClearScreen(m_target, ::getuid()), WineWriteResult::Written);
 }
 
 void WineDesktopWriteTest::waitsForARunningServer()
@@ -127,10 +152,10 @@ void WineDesktopWriteTest::waitsForARunningServer()
     {
         const LockHolder server(lock);
         QVERIFY(server.locked());
-        QCOMPARE(wineSetDesktop(m_target, ::getuid(), s_size, std::nullopt, 1790000000), WineWriteResult::Busy);
-        QCOMPARE(registry(), s_registry);
+        QCOMPARE(wineSetScreen(m_target, ::getuid(), s_size, s_rate, 1790000000), WineWriteResult::Busy);
+        QCOMPARE(registry(), s_machine);
     }
-    QCOMPARE(wineSetDesktop(m_target, ::getuid(), s_size, std::nullopt, 1790000000), WineWriteResult::Written);
+    QCOMPARE(wineSetScreen(m_target, ::getuid(), s_size, s_rate, 1790000000), WineWriteResult::Written);
 }
 
 void WineDesktopWriteTest::waitsForProton()
@@ -138,10 +163,10 @@ void WineDesktopWriteTest::waitsForProton()
     {
         const LockHolder proton(m_target.steamCompatData + QStringLiteral("/pfx.lock"), LockHolder::Kind::Proton);
         QVERIFY(proton.locked());
-        QCOMPARE(wineSetDesktop(m_target, ::getuid(), s_size, std::nullopt, 1790000000), WineWriteResult::Busy);
-        QCOMPARE(registry(), s_registry);
+        QCOMPARE(wineSetScreen(m_target, ::getuid(), s_size, s_rate, 1790000000), WineWriteResult::Busy);
+        QCOMPARE(registry(), s_machine);
     }
-    QCOMPARE(wineSetDesktop(m_target, ::getuid(), s_size, std::nullopt, 1790000000), WineWriteResult::Written);
+    QCOMPARE(wineSetScreen(m_target, ::getuid(), s_size, s_rate, 1790000000), WineWriteResult::Written);
 }
 
 void WineDesktopWriteTest::refusesADirectoryThatIsNoLongerTheProvenOne()
@@ -150,9 +175,9 @@ void WineDesktopWriteTest::refusesADirectoryThatIsNoLongerTheProvenOne()
     // old one's inode.
     QVERIFY(QDir().rename(m_target.prefix, m_target.prefix + QStringLiteral("-old")));
     QVERIFY(QDir().mkpath(m_target.prefix));
-    writeRegistry(s_registry);
-    QCOMPARE(wineSetDesktop(m_target, ::getuid(), s_size, std::nullopt, 1790000000), WineWriteResult::Unreachable);
-    QCOMPARE(registry(), s_registry);
+    writeRegistry(s_machine);
+    QCOMPARE(wineSetScreen(m_target, ::getuid(), s_size, s_rate, 1790000000), WineWriteResult::Unreachable);
+    QCOMPARE(registry(), s_machine);
 }
 
 void WineDesktopWriteTest::writesTheHeldDirectoryWhereverItsPathLeads()
@@ -164,14 +189,14 @@ void WineDesktopWriteTest::writesTheHeldDirectoryWhereverItsPathLeads()
     const QString moved = m_target.prefix + QStringLiteral("-moved");
     QVERIFY(QDir().rename(m_target.prefix, moved));
     QVERIFY(QDir().mkpath(m_target.prefix));
-    writeRegistry(s_registry);
-    QCOMPARE(wineSetDesktop(m_target, ::getuid(), s_size, std::nullopt, 1790000000), WineWriteResult::Written);
-    QCOMPARE(registry(), s_registry);
-    QCOMPARE(wineDesktopValuesIn(*m_target.directory).defaultSize, QStringLiteral("2560x1440"));
-    QFile held(moved + QStringLiteral("/user.reg"));
+    writeRegistry(s_machine);
+    QCOMPARE(wineSetScreen(m_target, ::getuid(), s_size, s_rate, 1790000000), WineWriteResult::Written);
+    QCOMPARE(registry(), s_machine);
+    QCOMPARE(wineScreenIn(*m_target.directory), s_size);
+    QFile held(moved + QStringLiteral("/system.reg"));
     QVERIFY(held.open(QIODevice::ReadOnly));
-    QCOMPARE(wineDesktopValues(held.readAll()).desktop, QStringLiteral("Default"));
-    QCOMPARE(QDir(moved).entryList(QDir::Files), QStringList{QStringLiteral("user.reg")});
+    QCOMPARE(wineScreen(held.readAll()), s_size);
+    QCOMPARE(QDir(moved).entryList(QDir::Files), (QStringList{QStringLiteral("system.reg"), QStringLiteral("user.reg")}));
 }
 
 void WineDesktopWriteTest::refusesAHeldDirectoryThatWasRemoved()
@@ -179,16 +204,16 @@ void WineDesktopWriteTest::refusesAHeldDirectoryThatWasRemoved()
     m_target.directory = WineDirectory::open(m_target.prefix, m_target.identity);
     QVERIFY(m_target.directory);
     QVERIFY(QDir(m_target.prefix).removeRecursively());
-    QCOMPARE(wineSetDesktop(m_target, ::getuid(), s_size, std::nullopt, 1790000000), WineWriteResult::Unreachable);
+    QCOMPARE(wineSetScreen(m_target, ::getuid(), s_size, s_rate, 1790000000), WineWriteResult::Unreachable);
     QVERIFY(!WineDirectory::open(m_root->filePath(QStringLiteral("compatdata")), m_target.identity));
 }
 
 void WineDesktopWriteTest::keepsTheFilesPermissions()
 {
-    const QString path = m_target.prefix + QStringLiteral("/user.reg");
+    const QString path = m_target.prefix + QStringLiteral("/system.reg");
     const QFileDevice::Permissions permissions = QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ReadGroup;
     QVERIFY(QFile::setPermissions(path, permissions));
-    QCOMPARE(wineSetDesktop(m_target, ::getuid(), s_size, std::nullopt, 1790000000), WineWriteResult::Written);
+    QCOMPARE(wineSetScreen(m_target, ::getuid(), s_size, s_rate, 1790000000), WineWriteResult::Written);
     QCOMPARE(QFileInfo(path).permissions() & ~(QFileDevice::ReadUser | QFileDevice::WriteUser), permissions);
 }
 

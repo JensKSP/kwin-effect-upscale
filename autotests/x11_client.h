@@ -26,6 +26,10 @@ public:
     void resize(const QSize &size);
     /** Where the last pointer motion landed, in the window's own coordinates. */
     QPoint lastMotion() const;
+    /** Where the last button press landed, in the window's own coordinates. */
+    QPoint lastPress() const;
+    /** How many button presses the window has received. */
+    int presses() const;
     /**
      * How many ConfigureNotify events the window has received, synthetic
      * ones included. A resize the window manager refuses is still answered
@@ -58,6 +62,8 @@ private:
     QPoint m_position;
     QSize m_size;
     QPoint m_lastMotion{-1, -1};
+    QPoint m_lastPress{-1, -1};
+    int m_presses = 0;
     int m_configureNotifies = 0;
     int m_closeRequests = 0;
     xcb_atom_t m_protocols = XCB_NONE;

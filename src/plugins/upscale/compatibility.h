@@ -187,6 +187,26 @@ inline RenderLoop *upscaleRenderLoop(UpscaleOutput *output)
 #endif
 }
 
+// How often a screen refreshes, in hertz, from the millihertz KWin counts in.
+// The rate sits on the screen itself in the supported versions and on the
+// backend output in KWin master, in the header a toolchain without std::expected
+// cannot compile. There it stays unknown, and a helper told nothing about it
+// describes modes at the standard rate alone.
+inline int upscaleRefreshRate(UpscaleOutput *output)
+{
+    if (!output) {
+        return 0;
+    }
+#if !UPSCALE_REGION_API
+    const uint32_t rate = output->refreshRate();
+#elif UPSCALE_PRESENTATION_API
+    const uint32_t rate = output->backendOutput() ? output->backendOutput()->refreshRate() : 0;
+#else
+    const uint32_t rate = 0;
+#endif
+    return static_cast<int>((rate + 500) / 1000);
+}
+
 inline bool upscaleFiltersDirectly(const ColorDescription &colors)
 {
     return colors.transferFunction().type != TransferFunction::linear;

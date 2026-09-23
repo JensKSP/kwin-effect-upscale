@@ -161,8 +161,9 @@ that ships in the same package, when the user agrees to it in a question the
 effect puts on the screen. Nothing is changed without that agreement, the user
 is told that the change outlives the package until it is reset, and resetting
 it is one click on the settings page. The game is still started the way it
-always is; the helper changes its configuration, not its start. For Wine and
-Proton games this is [a virtual desktop in their prefix](#games-that-ignore-resizing-a-virtual-desktop-in-their-prefix).
+always is; the helper changes configuration the game reads, never how it is
+started. For Wine and
+Proton games this is [a smaller screen in their prefix](#games-that-ignore-resizing-a-smaller-screen-in-their-prefix).
 
 **Sommelier is still worth reading, as a source of technique rather than a
 route.** It solves, in a proxy, several of the problems this effect has from
@@ -328,16 +329,25 @@ Proton or Wine version, and actual window-system backend. Xwayland is required;
 test native Wayland drivers where the selected runtime supports them, without
 assuming that choosing Vulkan also chooses Wayland.
 
-### Games that ignore resizing: a virtual desktop in their prefix
+### Games that ignore resizing: a smaller screen in their prefix
 
 A Wine or Proton game in exclusive fullscreen through Xwayland renders at the
-monitor size Wine reports, and Wine takes that size from Xwayland's RandR,
-which is shared by every X11 program; no window manager can change it for one
-program, and resizing the window does not reach the game's swapchain. What
-does reach it is Wine's own virtual desktop: in a prefix configured with one,
-Wine reports the desktop's size as the monitor, and the game renders at it.
+monitor size Wine reports, and no window manager can change that size for one
+program: Xwayland's RandR is shared by every X11 program, and resizing the
+window does not reach the game's swapchain.
 
-Implemented 2026-09-22 as an optional helper, not yet verified with a game:
+What does reach it is where Wine gets that size from. Wine keeps its own
+description of the display inside the prefix, in `system.reg`, and reads it
+before it asks the display server; it asks the server only when that
+description is missing or incomplete, and writes what it finds into keys that
+live no longer than its server, reached through a key that is only a link
+(`dlls/win32u/sysparams.c`, `update_display_cache_from_registry`,
+`lock_display_devices` and `write_source_to_registry`). A description of our own
+where that link would go is read instead, at every start and after every refresh
+Wine makes.
+
+Implemented 2026-09-23 as an optional helper, verified in a prefix of its own
+and not yet with a game:
 
 - When the effect's X11 request is refused because the game went on drawing
   another size, the effect asks the helper
@@ -353,30 +363,47 @@ Implemented 2026-09-22 as an optional helper, not yet verified with a game:
   the effect offers **Restart game and apply**, with the warning that unsaved
   progress may be lost; **Not now** asks again next time and **Never for this
   game** does not.
-- After the game and its Wine server have exited, the helper writes
-  `Explorer "Desktop"="Default"` and `Explorer\Desktops "Default"` with the
-  chosen size into the prefix's `user.reg`, and nothing else. A virtual
-  desktop the user set is left alone.
-- From the next start the game renders at the chosen size inside a Wine desktop
-  window of that size. The effect makes that window fullscreen, holds it at its
-  size and upscales it like any other smaller buffer.
+- After the game and its Wine server have exited, the helper adds two keys to
+  the prefix's `system.reg` and nothing else: the screen of the chosen size,
+  with the modes it offers, and the value that names it. Which graphics card and
+  monitor the screen belongs to the prefix has described itself, since the first
+  time it ran; without that there is nothing to write. A prefix whose programs
+  run in a virtual desktop of the user's is left alone.
+- From the next start every program in that prefix sees a monitor of the chosen
+  size and one size in its mode list: that size, in the colour depths Wine offers
+  and at the rate the output runs at. Wine refuses a mode that is not in the
+  list, so a game can neither ask for a larger size nor pick a smaller one out of
+  a menu. The mode change itself stays inside the prefix, so the X screen never
+  changes and no other program notices.
+- **Why one size and not a list.** A game offered several sizes chooses one of
+  them by its own rules: Wreckfest, measured on 2026-09-23, threw away the 4K in
+  its settings and came up asking for a resolution, with the smallest of the
+  offered ones preselected. The size a program renders at is the effect's to
+  decide, so the prefix offers exactly that size. The game's own resolution list
+  then holds one entry, and **Reset** on the settings page gives it back.
+- The game's own window is then a window of the chosen size, which the effect
+  holds at that size and upscales like any other smaller buffer.
+- **Measured on 2026-09-23** in a prefix of its own, on a 3840×2160 X screen,
+  with Proton Experimental's Wine: a Windows program reported a 2560×1440 screen
+  and current mode, its fullscreen window was a 2560×1440 X11 window, a mode
+  change to 1920×1080 succeeded without touching the X server, and the
+  description was still read after the program had changed the mode and after
+  the prefix's server had been restarted.
 - The question holds the keyboard and the pointer until it is answered: arrow
   keys, Tab, Return and Escape, or hovering and a click.
 - Each time a prepared game's window appears, the effect tells the helper the
   size it wants now. A changed resolution is written after that run; a game
-  the effect no longer acts on, or whose fullscreen method is Off, has its
-  desktop undone after that run instead of being presented.
-- **It does not hold every game.** The modes Wine offers inside a virtual
-  desktop reach the output's own resolution, so a game that keeps a higher
-  resolution in its own settings asks for it, gets it, and the desktop grows to
-  it; measured with Wreckfest on 2026-09-23. The route holds a game that takes
-  the current or the desktop resolution. For the others the display says that
-  the game keeps a resolution of its own, and the size it draws at is shown in
-  red.
+  the effect no longer acts on, or whose fullscreen method is Off, has the
+  description taken away after that run instead of being presented.
+- **It does not hold every game.** A game that renders at a size of its own
+  whatever the screen offers is beyond it: Wine refuses a mode that is not in
+  the list, and what a game does then is the game's own business. For those the
+  display says that the game keeps a resolution of its own, and the size it
+  draws at is shown in red.
 - **A preparation that did not help is taken back.** Where a game is asked for
   the size its prefix was already prepared for and still draws at the output's
-  size, the helper undoes the desktop after that run and does not offer it for
-  that game again; a reset on the settings page asks anew.
+  size, the helper takes the description away after that run and does not offer
+  it for that game again; a reset on the settings page asks anew.
 - **Prepared Games** on the settings page lists what the helper set up, with a
   Reset for each. Uninstalling the package cannot undo a preparation, because
   nothing runs as the user afterwards; the question says so.
@@ -2088,16 +2115,30 @@ scaler then paints the buffer across the frame, and an input event filter
 installed ahead of KWin's forwarding gives the seat a transformation that
 scales pointer coordinates by the requested size over the frame's size in X
 pixels, in addition to KWin's own translation — the same factor Xwayland's
-emulation applies, on absolute positions and relative deltas alike. Where
-KWin's hit test finds nothing under the pointer, because the surface's input
-region is still the client's own size, the filter focuses the surface on the
-seat itself and withdraws that focus when the pointer leaves the frame or KWin
-finds a window of its own on top. KWin's delivery and cursor are untouched;
-the filter delivers and consumes nothing. Whether Xwayland or the effect
+emulation applies, on absolute positions and relative deltas alike. Over the
+part of the frame the client's own window does not cover, KWin's hit test goes
+through that window's input region and finds whatever lies under the game
+instead — the desktop, a panel, or nothing at all — so the filter focuses the
+presented surface on the seat itself there, and withdraws that focus when the
+pointer leaves the frame or KWin finds a window stacked above the presented one,
+a dialog or this effect's own display. Where the pointer is the filter's rather
+than KWin's, the click and the wheel are delivered by the filter as well, ahead
+of KWin's own click handling, which would otherwise raise and activate the
+window under the game; a press there activates the presented window instead.
+Motion stays KWin's to forward, to the surface on the seat. The window under a
+presented one still sees the pointer enter it, because KWin focuses it before
+any filter runs, and never sees a button. Whether Xwayland or the effect
 presents a window is decided once, when the requested buffer first arrives,
 from the emulation property, so the two paths never scale twice. Status names
 which of the two is presenting. Touch, tablet, pointer confinement regions and
 the locked-pointer position hint are not mapped.
+
+Measured on 2026-09-23, before this: a Proton game presented across a 4K output
+took the pointer only inside its own 2560 x 1440 window, and a click in the rest
+of the screen raised the desktop behind it. The regression test
+`keepsThePointerOverWhatItPresents` puts a window under a presented one and
+checks that the pointer arrives in the game's own coordinates and that the click
+is the game's.
 
 KWin 6.3.6 normally configures a fullscreen X window to the full output size,
 which can make a resizing application recreate its window repeatedly. An

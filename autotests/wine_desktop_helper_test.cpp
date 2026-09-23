@@ -24,8 +24,18 @@
 namespace
 {
 
-const QByteArray s_registry = QByteArrayLiteral("WINE REGISTRY Version 2\n\n[Control Panel\\\\Desktop] 1789805658\n");
+const QByteArray s_user = QByteArrayLiteral("WINE REGISTRY Version 2\n\n[Control Panel\\\\Desktop] 1789805658\n");
+// A prefix that has run once and kept the devices it found.
+const QByteArray s_machine = QByteArrayLiteral(
+    "WINE REGISTRY Version 2\n"
+    "\n"
+    "[System\\\\ControlSet001\\\\Enum\\\\DISPLAY\\\\Default_Monitor\\\\0000&0000] 1790154356\n"
+    "\"DeviceDesc\"=\"Generic Non-PnP Monitor\"\n"
+    "\n"
+    "[System\\\\ControlSet001\\\\Enum\\\\PCI\\\\VEN_1002&DEV_1586&SUBSYS_00000000&REV_00\\\\00000000\\\\Device Parameters] 1790154350\n"
+    "\"VideoID\"=\"{65aaded5-ba18-41e2-9572-7290231b645a}\"\n");
 const QSize s_size(2560, 1440);
+constexpr int s_rate = 60;
 const QString s_class = QStringLiteral("steam_app_228380");
 
 } // namespace
@@ -55,7 +65,8 @@ private Q_SLOTS:
 private:
     std::unique_ptr<QProcess> startGame() const;
     std::unique_ptr<LockHolder> startServer() const;
-    WineDesktopValues values() const;
+    std::optional<QSize> screen() const;
+    void writePrefix() const;
     QString acceptOffer(QProcess &game);
 
     std::optional<QTemporaryDir> m_root;
@@ -75,10 +86,7 @@ void WineDesktopHelperTest::init()
     QVERIFY(m_root->isValid());
     m_prefix = m_root->filePath(QStringLiteral("compatdata/228380/pfx"));
     QVERIFY(QDir().mkpath(m_prefix));
-    QFile registry(m_prefix + QStringLiteral("/user.reg"));
-    QVERIFY(registry.open(QIODevice::WriteOnly));
-    registry.write(s_registry);
-    registry.close();
+    writePrefix();
     const std::optional<WinePrefixIdentity> identity = winePrefixIdentity(m_prefix);
     QVERIFY(identity);
     m_lockDirectory = QFileInfo(wineServerLockPath(QStringLiteral("/tmp"), ::getuid(), *identity)).path();
@@ -126,15 +134,25 @@ std::unique_ptr<LockHolder> WineDesktopHelperTest::startServer() const
     return std::make_unique<LockHolder>(m_lockDirectory + QStringLiteral("/lock"));
 }
 
-WineDesktopValues WineDesktopHelperTest::values() const
+std::optional<QSize> WineDesktopHelperTest::screen() const
 {
-    QFile registry(m_prefix + QStringLiteral("/user.reg"));
-    return registry.open(QIODevice::ReadOnly) ? wineDesktopValues(registry.readAll()) : WineDesktopValues{};
+    QFile registry(m_prefix + QStringLiteral("/system.reg"));
+    return registry.open(QIODevice::ReadOnly) ? wineScreen(registry.readAll()) : std::nullopt;
+}
+
+// The prefix as Wine leaves it: the devices it found, and no screen of ours.
+void WineDesktopHelperTest::writePrefix() const
+{
+    for (const auto &[name, text] : {std::pair{QStringLiteral("/system.reg"), s_machine}, std::pair{QStringLiteral("/user.reg"), s_user}}) {
+        QFile registry(m_prefix + name);
+        QVERIFY(registry.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        registry.write(text);
+    }
 }
 
 QString WineDesktopHelperTest::acceptOffer(QProcess &game)
 {
-    const WineDesktopHelper::Offered offered = m_helper->offer(game.processId(), s_class, QStringLiteral("Wreckfest"), s_size);
+    const WineDesktopHelper::Offered offered = m_helper->offer(game.processId(), s_class, QStringLiteral("Wreckfest"), s_size, s_rate);
     if (offered.offer.isEmpty() || !offered.question.contains(QStringLiteral("2560 × 1440"))) {
         return {};
     }
@@ -154,11 +172,11 @@ void WineDesktopHelperTest::preparesTheGameAfterItsServerExits()
     game->waitForFinished();
     QTest::qWait(100);
     QVERIFY(finished.isEmpty());
-    QCOMPARE(values(), WineDesktopValues{});
+    QCOMPARE(screen(), std::nullopt);
     server.reset();
     QTRY_COMPARE(finished.size(), 1);
     QCOMPARE(finished.first().at(1).value<WineWriteResult>(), WineWriteResult::Written);
-    QCOMPARE(values().defaultSize, QStringLiteral("2560x1440"));
+    QCOMPARE(screen(), s_size);
     QVERIFY(m_launched.isEmpty());
     QVERIFY(!m_helper->busy());
 }
@@ -184,7 +202,7 @@ void WineDesktopHelperTest::presentsOnlyWhatItPrepared()
     {
         auto server = startServer();
         const std::unique_ptr<QProcess> game = startGame();
-        QCOMPARE(m_helper->present(game->processId(), s_class, s_size), QSize());
+        QCOMPARE(m_helper->present(game->processId(), s_class, s_size, s_rate), QSize());
         QVERIFY(!acceptOffer(*game).isEmpty());
         game->kill();
         game->waitForFinished();
@@ -192,9 +210,9 @@ void WineDesktopHelperTest::presentsOnlyWhatItPrepared()
     QTRY_COMPARE(finished.size(), 1);
     auto server = startServer();
     const std::unique_ptr<QProcess> desktop = startGame();
-    QCOMPARE(m_helper->present(desktop->processId(), s_class, s_size), s_size);
-    QCOMPARE(m_helper->present(desktop->processId(), QStringLiteral("steam_app_550"), s_size), QSize());
-    QCOMPARE(m_helper->offer(desktop->processId(), s_class, QStringLiteral("Wreckfest"), s_size).offer, QString());
+    QCOMPARE(m_helper->present(desktop->processId(), s_class, s_size, s_rate), s_size);
+    QCOMPARE(m_helper->present(desktop->processId(), QStringLiteral("steam_app_550"), s_size, s_rate), QSize());
+    QCOMPARE(m_helper->offer(desktop->processId(), s_class, QStringLiteral("Wreckfest"), s_size, s_rate).offer, QString());
     QCOMPARE(m_helper->prepared().size(), 1);
 }
 
@@ -214,10 +232,10 @@ void WineDesktopHelperTest::resetsItsDesktop()
     QVERIFY(m_helper->reset(id));
     QTest::qWait(100);
     QCOMPARE(finished.size(), 1);
-    QCOMPARE(values().desktop, QStringLiteral("Default"));
+    QCOMPARE(screen(), s_size);
     server.reset();
     QTRY_COMPARE(finished.size(), 2);
-    QCOMPARE(values(), WineDesktopValues{});
+    QCOMPARE(screen(), std::nullopt);
     QVERIFY(m_helper->prepared().isEmpty());
     QVERIFY(!m_records->find(id));
 }
@@ -226,13 +244,13 @@ void WineDesktopHelperTest::remembersNever()
 {
     auto server = startServer();
     const std::unique_ptr<QProcess> game = startGame();
-    const WineDesktopHelper::Offered first = m_helper->offer(game->processId(), s_class, QStringLiteral("Wreckfest"), s_size);
+    const WineDesktopHelper::Offered first = m_helper->offer(game->processId(), s_class, QStringLiteral("Wreckfest"), s_size, s_rate);
     QVERIFY(!first.offer.isEmpty());
     QCOMPARE(m_helper->answer(first.offer, QStringLiteral("never")), QString());
-    QCOMPARE(m_helper->offer(game->processId(), s_class, QStringLiteral("Wreckfest"), s_size).offer, QString());
-    const WineDesktopHelper::Offered unknown = m_helper->offer(game->processId(), s_class, QStringLiteral("Wreckfest"), QSize());
+    QCOMPARE(m_helper->offer(game->processId(), s_class, QStringLiteral("Wreckfest"), s_size, s_rate).offer, QString());
+    const WineDesktopHelper::Offered unknown = m_helper->offer(game->processId(), s_class, QStringLiteral("Wreckfest"), QSize(), s_rate);
     QCOMPARE(unknown.offer, QString());
-    QCOMPARE(values(), WineDesktopValues{});
+    QCOMPARE(screen(), std::nullopt);
     QVERIFY(!m_helper->busy());
 }
 
@@ -248,21 +266,18 @@ void WineDesktopHelperTest::writesALostDesktopAgain()
     }
     QTRY_COMPARE(finished.size(), 1);
     // A server that overlapped the write saved its own copy on exit.
-    QFile registry(m_prefix + QStringLiteral("/user.reg"));
-    QVERIFY(registry.open(QIODevice::WriteOnly | QIODevice::Truncate));
-    registry.write(s_registry);
-    registry.close();
+    writePrefix();
     {
         auto server = startServer();
         const std::unique_ptr<QProcess> desktop = startGame();
-        QCOMPARE(m_helper->present(desktop->processId(), s_class, s_size), QSize());
-        QCOMPARE(m_helper->present(desktop->processId(), s_class, s_size), QSize());
+        QCOMPARE(m_helper->present(desktop->processId(), s_class, s_size, s_rate), QSize());
+        QCOMPARE(m_helper->present(desktop->processId(), s_class, s_size, s_rate), QSize());
         desktop->kill();
         desktop->waitForFinished();
     }
     QTRY_COMPARE(finished.size(), 2);
     QCOMPARE(finished.last().at(1).value<WineWriteResult>(), WineWriteResult::Written);
-    QCOMPARE(values().defaultSize, QStringLiteral("2560x1440"));
+    QCOMPARE(screen(), s_size);
 }
 
 void WineDesktopHelperTest::followsANewSize()
@@ -281,13 +296,13 @@ void WineDesktopHelperTest::followsANewSize()
         // size is written after it.
         auto server = startServer();
         const std::unique_ptr<QProcess> desktop = startGame();
-        QCOMPARE(m_helper->present(desktop->processId(), s_class, QSize(1920, 1080)), s_size);
-        QCOMPARE(values().defaultSize, QStringLiteral("2560x1440"));
+        QCOMPARE(m_helper->present(desktop->processId(), s_class, QSize(1920, 1080), s_rate), s_size);
+        QCOMPARE(screen(), s_size);
         desktop->kill();
         desktop->waitForFinished();
     }
     QTRY_COMPARE(finished.size(), 2);
-    QCOMPARE(values().defaultSize, QStringLiteral("1920x1080"));
+    QCOMPARE(screen(), QSize(1920, 1080));
     QCOMPARE(m_helper->prepared().value(0).written, QSize(1920, 1080));
 }
 
@@ -307,13 +322,13 @@ void WineDesktopHelperTest::undoesWhatIsNoLongerWanted()
         // the desktop goes after this run.
         auto server = startServer();
         const std::unique_ptr<QProcess> desktop = startGame();
-        QCOMPARE(m_helper->present(desktop->processId(), s_class, QSize()), QSize());
-        QCOMPARE(values().desktop, QStringLiteral("Default"));
+        QCOMPARE(m_helper->present(desktop->processId(), s_class, QSize(), s_rate), QSize());
+        QCOMPARE(screen(), s_size);
         desktop->kill();
         desktop->waitForFinished();
     }
     QTRY_COMPARE(finished.size(), 2);
-    QCOMPARE(values(), WineDesktopValues{});
+    QCOMPARE(screen(), std::nullopt);
     QVERIFY(m_helper->prepared().isEmpty());
 }
 
@@ -328,24 +343,25 @@ void WineDesktopHelperTest::stopsWhenTheGameKeepsItsOwnResolution()
         game->waitForFinished();
     }
     QTRY_COMPARE(finished.size(), 1);
-    QCOMPARE(values().defaultSize, QStringLiteral("2560x1440"));
+    QCOMPARE(screen(), s_size);
     {
-        // Asked again for the size the prefix already holds: the game does not
-        // take it, so the desktop goes after this run and nothing is offered.
+        // Asked again for the size the prefix already describes: the game does
+        // not take it, so the description goes after this run and nothing is
+        // offered.
         auto server = startServer();
         const std::unique_ptr<QProcess> game = startGame();
-        QCOMPARE(m_helper->offer(game->processId(), s_class, QStringLiteral("Wreckfest"), s_size).offer, QString());
+        QCOMPARE(m_helper->offer(game->processId(), s_class, QStringLiteral("Wreckfest"), s_size, s_rate).offer, QString());
         game->kill();
         game->waitForFinished();
     }
     QTRY_COMPARE(finished.size(), 2);
-    QCOMPARE(values(), WineDesktopValues{});
+    QCOMPARE(screen(), std::nullopt);
     QVERIFY(m_helper->prepared().isEmpty());
     // And not offered again, until the settings page resets it.
     {
         auto server = startServer();
         const std::unique_ptr<QProcess> game = startGame();
-        QCOMPARE(m_helper->offer(game->processId(), s_class, QStringLiteral("Wreckfest"), s_size).offer, QString());
+        QCOMPARE(m_helper->offer(game->processId(), s_class, QStringLiteral("Wreckfest"), s_size, s_rate).offer, QString());
     }
 }
 

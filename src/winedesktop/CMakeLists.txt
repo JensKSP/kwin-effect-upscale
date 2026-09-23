@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-# The helper that gives a Wine or Proton game a virtual desktop of the size the
+# The helper that tells a Wine or Proton game's prefix its screen is the size the
 # effect chose. It is not part of the plugin: the plugin only knows the
 # optional org.kde.KWin.Upscale.Helper1 interface it defines, and works the same
 # without anything answering it.
@@ -11,6 +11,7 @@ add_library(
     winedesktophelper.cpp
     winedesktoprecord.cpp
     winedesktopwrite.cpp
+    winedisplaymode.cpp
     wineprefix.cpp
     wineregistry.cpp
     wineserverlock.cpp

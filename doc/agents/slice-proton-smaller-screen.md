@@ -3,21 +3,30 @@ SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de
 SPDX-License-Identifier: GPL-2.0-or-later
 -->
 
-# Slice: Wine and Proton games through a virtual desktop in their prefix
+# Slice: Wine and Proton games through a smaller screen in their prefix
 
 ## Status
 
-Written down on Jens's instruction on 2026-09-22, and accepted by him the same
+Written down on Jens's instruction on 2026-09-22 and accepted by him the same
 day as the route for Wine and Proton games that ignore resizing, on the
-condition that the user is asked first and offered a restart. The route is
-implemented and ran in a session with Wreckfest on 2026-09-23: everything the
-effect and the companion do worked, and the route still did not hold that game,
-because a virtual desktop does not keep a game from choosing a larger mode; see
-[why a virtual desktop does not hold every game](#why-a-virtual-desktop-does-not-hold-every-game).
-An additional route for such games is open: Jens rejected every launch-time one
-as too invasive, and asks for the least invasive and most generic mechanism
-there is. The citations name the upstream file and line in the versions listed
-under [sources](#sources).
+condition that the user is asked first and offered a restart. The first form of
+it, a Wine virtual desktop, ran in a session with Wreckfest on 2026-09-23:
+everything the effect and the companion do worked, and the game still drew
+3840 × 2160, because a virtual desktop does not keep a game from choosing a
+larger mode; see
+[why a virtual desktop did not hold every game](#why-a-virtual-desktop-did-not-hold-every-game).
+
+Jens refused to leave it there and asked for an automatic route at Wine level
+that holds most games with the least change. That route was found, measured and
+implemented on 2026-09-23: the companion describes a smaller screen in the
+game's own prefix, where Wine reads its display from before it asks the display
+server, so the game's own mode choice can reach no further than that screen. See
+[the screen in the prefix](#the-screen-in-the-prefix) for the mechanism and
+[the experiment that ran](#the-experiment-that-ran-2026-09-23) for the
+measurement. What remains open is a session test with a game.
+
+The citations name the upstream file and line in the versions listed under
+[sources](#sources).
 
 ## Start state and evidence
 
@@ -53,8 +62,8 @@ DXVK D3D11, exclusive fullscreen) does not follow: it supplies 3840 × 2160 on a
 
 ## The proposal
 
-A Wine virtual desktop in the game's own prefix makes Wine report the desktop
-size as the monitor. Proton gives every Steam game its own prefix
+A screen of our own in the game's own prefix makes Wine report that size as the
+monitor and offer no larger mode. Proton gives every Steam game its own prefix
 (`steamapps/compatdata/<appid>/pfx`), so there the change reaches only that
 game. Other launchers usually keep one prefix per game too; where several games
 share a prefix, the question says so and names them.
@@ -67,40 +76,74 @@ share a prefix, the question says so and names them.
    (`dlls/winex11.drv/window.c:1246-1262`).
 2. **The effect asks the user** in a centred on-screen display whether it may
    set this game up to render smaller. Nothing is written without a yes.
-3. **A companion writes two registry values** into that game's `user.reg`,
-   only while no Wine server runs for the prefix:
-   `[Software\\Wine\\Explorer] "Desktop"="Default"` and
-   `[Software\\Wine\\Explorer\\Desktops] "Default"="<W>x<H>"`, where W × H is
-   the size the effect chose. The name must be `Default`: win32u takes the
-   virtual desktop's size from `Desktops\Default` only
-   (`dlls/win32u/sysparams.c:2889-2903`, `2944-2951`).
+3. **A companion describes a W × H screen** in that game's `system.reg`, only
+   while no Wine server runs for the prefix; see
+   [the screen in the prefix](#the-screen-in-the-prefix).
 4. **The effect offers to restart the game** in the same centred display, so
    the change takes effect at once instead of at the next start.
-5. **From the next start** every process in the prefix sees a W × H monitor,
-   and a game that takes that resolution renders at it. A game that keeps a
-   larger one in its own settings does not: the modes offered inside the
-   desktop still reach the output's own resolution, so it asks for that and the
-   desktop is grown to it; see
-   [why a virtual desktop does not hold every game](#why-a-virtual-desktop-does-not-hold-every-game).
-   For the first kind, Xwayland hands KWin one toplevel, the "Wine Desktop"
-   window, whose buffer is W × H (`hw/xwayland/xwayland-window.c:1349-1385`).
-6. **The effect enlarges it**: it makes the window fullscreen in KWin while
-   holding its X size at W × H, the sequence its X11 path already uses
+5. **From the next start** every process in the prefix sees a W × H monitor and
+   a mode list that reaches no further, so a game that takes the current mode
+   renders at W × H and a game that asks for a larger one is given the closest
+   the list holds (DXVK `src/dxgi/dxgi_output.cpp:588-603`, called from
+   `src/dxgi/dxgi_swapchain.cpp:870`). The mode change stays inside the prefix
+   (`sysparams.c:4623`), so the X screen never changes.
+6. **The effect enlarges the game's window**: it makes it fullscreen in KWin
+   while holding its X size at W × H, the sequence its X11 path already uses
    (`x11resolution_events.cpp`), upscales with FSR 1 and maps input.
 
-Nothing in Proton resets these values. The proton script edits only
-`system.reg`, never mentions a desktop, and copies default files only where
-none exist (proton script `copy_pfx`). A downgrade of Proton, `destroyprefix`
-or a new prefix removes them. The companion must therefore check again, never
-assume.
+Nothing in Proton resets the description. The proton script edits `system.reg`
+only by the lines it names (xinput, DDE, shared GPU resources), `wine.inf` has
+no video or device-map keys, and a downgrade of Proton, `destroyprefix` or a new
+prefix removes the description altogether. The companion must therefore check
+again at every start, never assume.
 
-An earlier probe on Trixie's Wine agrees: a virtual desktop supplied the small
-buffer in a decorated, non-fullscreen window, and letting the window grow to the
-screen grew the buffer to 4K
-([probe](slice-resolution-control.md#source-led-compatibility-investigations)).
-Wine ignores window-manager resizes of a virtual desktop
-(`dlls/winex11.drv/window.c:2018-2027`), but the X window itself still grows,
-which is why the effect has to hold its size.
+## The screen in the prefix
+
+Wine keeps its own description of the display inside the prefix and reads it
+before it asks the display server. Found on 2026-09-23 in Proton's Wine
+(commit dc26e61):
+
+- `lock_display_devices` calls the driver only when reading the description
+  fails (`sysparams.c:3061-3068`); a complete description means the display
+  server is never asked, in any process of that prefix, for the whole session.
+- The description is read from `HKLM\HARDWARE\DEVICEMAP\VIDEO` and the key it
+  names below `System\CurrentControlSet\Hardware Profiles\Current`
+  (`read_source_from_registry`, `sysparams.c:719-786`,
+  `update_display_cache_from_registry`, `2731-2820`): the state flags, the dots
+  per inch, the mode list with its count, the current and the registry mode, the
+  graphics card and the monitor.
+- Wine itself creates that key as a **volatile symbolic link** to the values it
+  writes for the session (`write_source_to_registry`, `sysparams.c:1930-1950`).
+  A real, non-volatile key of ours in its place is read instead, and keys loaded
+  from a registry file are never volatile, so a later volatile create does not
+  change ours (`server/registry.c:700-727`).
+- The mode list is what decides the game's choice: Wine refuses a mode that is
+  not in it (`find_display_mode`, `source_get_full_mode`, `sysparams.c:4251-4305`,
+  `4674`), and the list Wine would build itself reaches the host's own mode
+  whatever the prefix says (`2339`, `2909`). Ours holds one size, the chosen one,
+  in the three colour depths Wine offers and at 60 Hz plus the output's own rate.
+  A list entry's rate of zero would match any request; the honest rates are
+  written instead.
+- One size rather than a capped list, decided after the session test of
+  2026-09-23: Wreckfest read a capped list, discarded the 3840 x 2160 in its own
+  settings, and came up with its resolution question and the smallest offered
+  size preselected. Which size a game picks from a list is the game's own
+  business; the size it is to render at is the effect's. With one size there is
+  nothing to pick.
+- The current mode is written without a rate, as Wine writes it, and no
+  `Physical` value is written, so the raw and the virtual monitor rectangle
+  coincide (`sysparams.c:773`, `monitor_get_rect`, `2573-2596`) and no DPI
+  scaling stands between the game and its window.
+- What the mode change itself does: with Proton's default `emulate_modeset`
+  (`sysparams.c:170`) `apply_display_settings` reports success without calling
+  the driver (`4623`), writes the new mode into our key (`4630-4636`) and forces
+  a refresh, which reads our key again (`3068`). Wine's own values go to the
+  volatile key nobody reads. So the description survives a mode change, and the
+  server saves it with the file, so it survives the session.
+- The graphics card and the monitor are not fabricated: the prefix describes
+  them itself, in keys below `System\ControlSet001\Enum` that outlast a session
+  and exist once a program of its own has run. Without them the companion
+  refuses to write.
 
 ## Additions laid down by Jens, 2026-09-22
 
@@ -176,15 +219,18 @@ prefix and its server lock.
   saved its own copy on exit or a Proton downgrade rebuilt the prefix, is
   written again after that run. Taking the server lock instead would make the
   overlapping launch fail, since a server that finds its lock taken exits.
-- Change only the two keys and leave every other byte alone.
-- Never overwrite a `Desktop` value the user set (winecfg, protontricks). The
-  companion keeps its own record of the prefixes it changed, in
-  `$XDG_STATE_HOME`, and undoes only its own change.
+- Change only the two keys and leave every other byte alone. The keys are
+  written whole, so a description Wine added to since is replaced with the
+  values it should have, and removing it removes what Wine added as well.
+- Never touch a prefix whose programs run in a virtual desktop the user set
+  (winecfg, protontricks): there explorer's desktop and our screen would
+  describe different sizes. The companion keeps its own record of the prefixes
+  it changed, in `$XDG_STATE_HOME`, and undoes only its own change.
 - Undo when the user resets it on the settings page: at once for a game that
   is not running, after exit for one that is. Follow the settings when the
-  game's window next appears: the effect tells the helper the size it wants
-  now, and a changed size is written, or the desktop undone when the effect no
-  longer acts on the game, after that run.
+  game's window next appears: the effect tells the helper the size and the rate
+  it wants now, and a changed size is written, or the description taken away
+  when the effect no longer acts on the game, after that run.
 - The settings page lists the games set up this way and offers to reset them.
 - **Uninstalling cannot undo it.** Once the package is gone nothing runs as the
   user, and a root maintainer script cannot safely edit per-user prefixes. The
@@ -273,7 +319,9 @@ behaves as without it.
   Experimental 11 on Debian Trixie's KWin 6.3.6, and one game under Wine outside
   Steam: the question, the restart, a W × H buffer upscaled across the output
   with working input, and a clean undo from the settings page. The status names
-  every flavour not yet verified.
+  every flavour not yet verified. A game that renders at a size of its own
+  whatever its screen offers is outside this scope, and the helper takes its own
+  preparation back for it.
 - **Full acceptance:** every flavour listed under the additions, including
   Flatpak and Snap installs and Wine's Wayland driver, across the handbook's
   matrix (D3D9, D3D11, D3D12, OpenGL, Vulkan; exclusive and borderless) on real
@@ -290,43 +338,62 @@ behaves as without it.
   W × H; the effect shows it fullscreen and upscaled.
 - Reset from the settings page restores the prefix byte for byte except the two
   keys, and the next start is at full size.
+- A prefix that has not described its own devices yet, or whose programs run in a
+  virtual desktop of the user's, is refused rather than written.
 
-## Planned experiment (not run)
+## The experiment that ran, 2026-09-23
 
-A one-off manual check before any code:
+In a prefix of its own under `build/`, with Proton Experimental 11.0-20260917b's
+Wine, on a 3840 × 2160 X server of its own. No game, no prefix of Jens's and no
+session of his was touched.
 
-1. Close Wreckfest and wait until its Wine server has exited. Back up
-   `/srv/games/steam-jens/steamapps/compatdata/228380/pfx/user.reg`.
-2. Append the two keys with `"Default"="2560x1440"`.
-3. Start the game normally. Expected: a decorated 2560 × 1440 "Wine Desktop"
-   window with class `steam_app_228380` and the game inside; 2560 × 1440 is the
-   largest mode in the game's settings.
-4. Make it fullscreen from KWin's window menu. Expected: the buffer grows to
-   3840 × 2160 with the game in the top-left 2560 × 1440.
-5. Pick 1920 × 1080 in the game and note whether the desktop window shrinks.
-6. Quit, wait for the Wine server to exit, restore the backup.
+1. A fresh prefix on that X server, then a Windows program that prints
+   `GetSystemMetrics` and `EnumDisplaySettings` and opens a window of the screen's
+   size. It reported `screen=3840x2160 current=3840x2160`.
+2. With no Wine server running, the two keys were added to `system.reg` for
+   2560 × 1440 — once from Wine's own values, shrunk, and once generated from
+   nothing but the prefix's `Enum` keys, which is what the companion does.
+3. The same program then reported `screen=2560x1440 current=2560x1440`, and its
+   fullscreen window was a **2560 × 1440 X11 window at 0,0 on the 3840 × 2160
+   X screen**, which is the shape the effect pins and presents.
+4. A mode change to 1920 × 1080 from inside the program returned success, moved
+   the screen and its window to 1920 × 1080, and the X screen stayed 3840 × 2160.
+5. After that change the description was still the one written: Wine had added
+   only `Depth` and a stray `SymbolicLinkValue` to the key.
+6. The prefix's server was killed and the program run again from the file on
+   disk: `screen=2560x1440`. No re-seeding was needed.
+
+What this does not show, and the session test with a game has to: that a game
+whose own settings name a larger resolution is snapped down to the list rather
+than refusing to start, and that KWin and the effect present the game's own
+window as they present the test client's.
 
 ## Progress
 
 | Step | State |
 | --- | --- |
-| Registry edit: set and remove the two values in `user.reg` text, leaving every other byte (`src/winedesktop/wineregistry.cpp`) | Done. `upscale-wine-registry` passes in the Trixie container with GCC and Clang, warnings as errors; Neon not run |
+| Registry edit: describe and undescribe the screen in `system.reg` text, leaving every other byte, and read the user's virtual desktop out of `user.reg` (`src/winedesktop/wineregistry.cpp`); the binary modes win32u reads (`winedisplaymode.cpp`) | Done. `upscale-wine-registry` and `upscale-wine-display-mode` pass in both containers with GCC and Clang, warnings as errors |
 | Server lock check (`F_GETLK` on the prefix's lock, and the holder's process so the wait outlives the game's view of the file system) (`wineserverlock.cpp`) | Done |
 | Locating the prefix from the game's process, with every check above (`wineprefix.cpp`; Linux `/proc` in `wineprocess_proc.cpp`, nothing elsewhere) | Done |
-| Setting and undoing the desktop after the game exited: proven directory only, under Proton's `pfx.lock`, atomic, the user's own desktop left alone (`winedesktopwrite.cpp`) | Done. `upscale-wine-prefix` and `upscale-wine-desktop-write` pass in the Trixie container with GCC and Clang, warnings as errors; Neon not run |
+| Describing and undescribing the screen after the game exited: proven directory only, under Proton's `pfx.lock`, atomic, a prefix with the user's own virtual desktop left alone (`winedesktopwrite.cpp`) | Done. `upscale-wine-prefix` and `upscale-wine-desktop-write` pass in the Trixie container with GCC and Clang, warnings as errors; Neon not run |
 | Companion service `kwin-upscale-helper`: D-Bus activated as `org.kde.KWin.Upscale.Helper`, implementing the plugin's optional `org.kde.KWin.Upscale.Helper1` interface; its record of prepared prefixes in the user's state directory; waiting for the game and its server, writing, restarting through Steam, presenting, reset and "never" (`winedesktophelper.cpp`, `winedesktopservice.cpp`) | Done. `upscale-wine-desktop-helper` runs it against real processes and a held server lock; all four companion tests pass 20 times in a row in the Trixie container with GCC and Clang. The service, its D-Bus activation file and its user unit install; the RPM recipe lists them. Neon not run |
 | Centred display: question and restart offer (`question.cpp`, `preparation.cpp`; the selected answer in Breeze's highlight colour) | Done. It holds the keyboard (arrow keys and Tab choose, Return answers, Escape postpones) and the pointer (hovering selects, a click chooses), through `windowInputMouseEvent` on KWin before the pointer events and `pointerMotion`/`pointerButton` after them; the build probes which. Tested in `upscale-x11-prepared`: the test driver reports a window that stays large, as validation would, passes keys and clicks through KWin's input; the helper is asked, the question appears, the selection moves, Return answers, the restart offer follows, the window is asked to close and the helper to restart, Escape postpones, a click on "Never for this game" answers never, and a window is never asked twice. Only the older pointer API runs in a session test; the newer one is compiled in the Neon container. A controller reaches KWin only as the keyboard or mouse Steam Input makes of it, so the question has no controller input of its own |
 | Effect: ask the helper after a refusal where the client drew another size (`x11resolution_validate.cpp`), and for each new ordinary X11 window; pin and present a prepared window fullscreen at its own size, and give it back when its user leaves fullscreen or the effect lets go (`x11resolution.cpp`, `x11resolution_prepared.cpp`, `helper.cpp`) | Done. `upscale-x11-prepared` covers the presentation and its end in a real KWin session with Xwayland. What remains untested is the trigger itself: validation finding a client that goes on drawing another size, the way Wine does, has no stand-in client yet, so the test driver reports it instead. Nothing has run in a session with a game |
 | Following the settings: `present` tells the helper the size the effect wants now, for every ordinary X11 window; a prepared game whose size changed is written at the new size after that run, and one the effect no longer acts on, or whose fullscreen method is Off, is undone after that run and not presented (`preparation.cpp`, `winedesktophelper.cpp`) | Done. `followsANewSize` and `undoesWhatIsNoLongerWanted` in `upscale-wine-desktop-helper`; the session test checks the wanted size the effect sends |
 | Proton outside Steam (umu, Heroic): Proton's layout, `pfx` in `STEAM_COMPAT_DATA_PATH`, is recognised and its lock taken whatever the directory is called; only Steam's own layout, the directory named after `SteamAppId`, is offered a restart | Done. `crossChecksProton` in `upscale-wine-prefix` |
 | Settings page: "Prepared Games", each with Reset, shown only while a helper answers and prepared something (`preparedlist.cpp`) | Done. `upscale-prepared-list` runs it against a stand-in helper on a private session bus |
+| The route changed from a virtual desktop to a described screen, 2026-09-23 | Done. The helper's write target and the effect's message changed; the helper is now told the output's refresh rate as well, since the modes it describes carry one. Everything else — consent, proof of the prefix, restart, records, undo, "never", the settings page — is unchanged. Measured in a prefix of its own, see [the experiment that ran](#the-experiment-that-ran-2026-09-23) |
 | Builds and tests, 2026-09-22 | Trixie container, GCC and Clang, warnings as errors: 26 of 26 pass, among them `upscale-x11-prepared`, which runs a real KWin session with Xwayland: a stand-in helper answers `present`, the ordinary 1920 × 1080 window is made fullscreen, held at its size, presented by the effect at 3840 × 2160, and given back at its size when its client leaves fullscreen. Neon container (KWin master), GCC and Clang: 20 of 20 pass (the X11 sessions run only against KWin before 6.7, as before). clang-tidy over `src/`: see the commit that fixed its findings |
-| First session test with Wreckfest, 2026-09-23 | Ran. The question appeared, Set up and Restart game and apply were answered, the helper wrote both values into the prefix at 07:00:20 and had Steam start the game again. The second run still drew 3840 × 2160, and the effect's request failed again. Cause found in source, see below: a virtual desktop does not keep a game from choosing a larger mode. The helper then undid its own change, as designed, when the effect reported that it wanted nothing for that window |
+| Builds and tests of the changed route, 2026-09-23 | Trixie container, GCC: 27 of 27 pass, the FSR regression tests and the install included. Neon container (KWin master), GCC: 21 of 21 pass. Clang in both, clang-tidy, the lint stages and coverage: see the commit |
+| Session test with Wreckfest on the described screen, 2026-09-23 | Ran. The game renders at the size the prefix describes, the effect presents and upscales it, and the frame rate is what the smaller buffer gives. Two things came out of it: a capped list let the game throw away its stored 4K and preselect the smallest offered size, so the prefix now describes one size only; and the pointer over the presented window belonged to whatever lay under it, which the effect's input filter now claims. Jens saw both. Outstanding from this run: the prefix's own resolution list holds one entry while a game is prepared, which is deliberate, and the game asks once about its resolution when its stored one is gone |
+| The pointer over a presented X11 window, 2026-09-23 | Done. KWin's hit test goes through the client's input region, so beyond the game's own window it found the desktop: the pointer went there and a click raised it in front of the game. The filter now focuses the presented surface wherever the effect presents it, unless KWin found a window stacked above, and delivers the click and the wheel itself ahead of KWin's own click handling, which would otherwise act on the window underneath. `keepsThePointerOverWhatItPresents` in `upscale-x11-prepared` puts a window under a presented one and checks that the pointer arrives in the game's coordinates, that the click is the game's and that the window underneath gets none; `upscale-x11-integration` checks the mapping beyond the client's own window as well. The window underneath still sees the pointer enter it, which no filter can prevent |
+| First session test with Wreckfest, 2026-09-23 | Ran with the virtual desktop. The question appeared, Set up and Restart game and apply were answered, the helper wrote both values into the prefix at 07:00:20 and had Steam start the game again. The second run still drew 3840 × 2160, and the effect's request failed again. Cause found in source, see below: a virtual desktop does not keep a game from choosing a larger mode. The helper then undid its own change, as designed, when the effect reported that it wanted nothing for that window |
 
-## Why a virtual desktop does not hold every game
+## Why a virtual desktop did not hold every game
 
 Found on 2026-09-23, from the session test above and Proton's Wine
-(commit dc26e61):
+(commit dc26e61). This is why the route now describes a screen instead of a
+desktop:
 
 - Explorer creates the desktop at the size in `Desktops\Default`
   (`programs/explorer/desktop.c:868-914`, `1300-1345`).
@@ -338,8 +405,11 @@ Found on 2026-09-23, from the session test above and Proton's Wine
   Wine grants it, and the virtual desktop is grown to it
   (`dlls/win32u/defwnd.c:3148-3170`). That is what the session test saw.
 
-So the route holds a game that takes the current or the desktop resolution,
-and not one that insists on a stored larger one. Wreckfest is the second kind.
+So a virtual desktop holds a game that takes the current or the desktop
+resolution, and not one that insists on a stored larger one. Wreckfest is the
+second kind. A described screen caps the mode list itself, which is the one
+thing the desktop could not do, and holds both kinds; the desktop is not used
+any more.
 
 Rejected as the way to close that gap: making KWin report its window manager
 name as `steamcompmgr`, which would let Wine take the prefix's stored mode as
@@ -353,41 +423,48 @@ program in the session would take gamescope's paths. Jens rejected it on
 game, whether through Steam's launch options or a compatibility tool) as too
 invasive. A solution has to stay least invasive and as generic as possible.
 
-## What was searched for instead, and found wanting
+## What else was searched for, and found wanting
 
 Asked on 2026-09-23 for the least invasive and most generic lever that would
-hold a game which keeps a larger resolution in its own settings, under the
-rules that only the effect and its companion act, that the game's start command
-and its own configuration stay untouched, and that no other program notices
-anything. The answer, from the sources:
+hold a game which keeps a larger resolution in its own settings, under the rules
+that only the effect and its companion act, that the game's start command and its
+own configuration stay untouched, and that no other program notices anything.
+What the sources gave, besides the screen in the prefix:
 
-- **Nothing generic exists.** Wine decides every size either from the host
-  output (the driver's current mode, `sysparams.c:2339`) or, in Xwayland, per
-  requesting client; a third party can reach neither.
-- **One brittle candidate**, recorded for the knowledge and not implemented:
-  Wine trusts a display-device cache in the prefix's registry when it is
-  present and complete (`sysparams.c:719-786`, `2731-2820`, `3061`), and keys
-  that come from `system.reg` are not volatile, so a companion could fabricate
-  `HARDWARE\DEVICEMAP\VIDEO` and `Control\Video\{guid}\Sources\...` with a
-  mode list that has no 4K, plus `EmulateModeset` for that one executable
-  (`sysparams.c:6183-6204`). The game's first mode request would then be the
-  wanted size, Wine would make it a real RandR request, and Xwayland's
-  per-client emulation would hold it for the rest of the session
-  (`hw/xwayland/xwayland-output.c:1040-1094`). Against it: the virtual desktop
-  must be off, Wine overwrites the cache on the first mode change and explorer
-  saves its own view when the game exits, so the companion would have to
-  fabricate Wine's internal display state again after every session; two links
-  are unverified (the refresh rate in `is_same_devmode`,
-  `winex11.drv/display.c:178-185`, and KWin 6.3.6, which has no code for
-  Xwayland's emulation property while master has). Fabricating Wine's internal
-  display cache in a user's prefix is the opposite of least invasive.
-- **What would make it generic**, and both are elsewhere: Xwayland letting a
-  window manager set an emulated mode for another client, or Proton honouring a
-  size the window manager imposes while a present rectangle is set.
+- **Making KWin call itself `steamcompmgr`**, which would let Wine take the
+  prefix's stored mode as the host's (`sysparams.c:2338`): rejected. Proton's
+  Wine branches on that name in about twenty places, among them fullscreen,
+  maximise, minimise, focus and activation
+  (`dlls/winex11.drv/window.c:1005`, `1445`, `1554`, `1878`, `1922`, `3718`,
+  `3756`, `event.c:329`, `686`, `937`, `dlls/win32u/window.c:4823`, `5954`,
+  `defwnd.c:261`, `514`, `1896`, `sysparams.c:3044`, `4625`). Every Proton
+  program in the session would take gamescope's paths. Jens rejected it with the
+  launch-time routes (gamescope or a private Xwayland per game, through Steam's
+  launch options or a compatibility tool) as too invasive.
+- **A real RandR request per program**, by switching `EmulateModeset` off for one
+  executable (`sysparams.c:6183-6204`) so Xwayland's per-client emulation holds
+  the mode (`hw/xwayland/xwayland-output.c:1040-1094`): it needs the described
+  screen anyway, since without it the game asks for the output's own mode, and
+  then its result depends on KWin's handling of Xwayland's emulation, which
+  6.3.6 has no code for. More parts for the same outcome; not taken.
+- **A Vulkan layer** the package installs (pressure-vessel imports host layers):
+  it can shrink what is presented, never what the game renders into, because the
+  render targets follow the mode the game chose. Dropped.
+- **DXVK configuration**: the only places DXVK reads are an environment variable
+  and the game's own directory (`src/util/config/config.cpp:1751-1760`), both
+  excluded, and no DXVK option caps a resolution anyway.
+- **`PROTON_LIMIT_RESOLUTIONS`** (`sysparams.c:6207-6213`): an environment
+  variable, so it needs the start command; and it truncates the list after the
+  largest mode was inserted first (`2199`), so the output's own mode stays.
+- **What would make even the hard cases generic**, and both are elsewhere:
+  Xwayland letting a window manager set an emulated mode for another client, or
+  Proton honouring a size the window manager imposes while a present rectangle is
+  set.
 
-So the route keeps the games it holds, and for the others the effect says
-plainly that the game keeps a resolution of its own. A prefix that was prepared
-and did not help is undone again by the helper and not offered a second time.
+So a game that renders at a size of its own whatever the screen offers is
+still beyond the route, and for those the effect says plainly that the game keeps
+a resolution of its own. A prefix that was prepared and did not help is undone
+again by the helper and not offered a second time.
 
 ## Decisions and open questions
 
@@ -403,12 +480,28 @@ and did not help is undone again by the helper and not offered a second time.
   window's program?". It knows nothing about Wine, and without a helper it
   behaves as before. The companion lives in `src/winedesktop/`, outside the
   plugin, and writes every text the user reads about it.
+- Decided 2026-09-23, after the session test: a described screen instead of a
+  virtual desktop, because only the description caps the modes a game may choose
+  from. The consent, the proof of the prefix, the restart and the undo are the
+  same; the interface gained the output's refresh rate, since a described mode
+  carries one.
 - Open: the companion's texts use their own translation domain,
   `kwin_upscale_helper`, which the translation extraction does not cover yet.
+- Open: the companion's own names still say desktop (`src/winedesktop/`,
+  `WineDesktopHelper`, `kwin.upscale.winedesktop`). They describe a screen now;
+  renaming them is a change of its own, kept out of the one that changed the
+  route.
+- Open: one screen is described, so the prefix's programs see one monitor. A
+  game in fullscreen wants no more, and the virtual desktop was no different, but
+  a program that arranges itself across two screens would see only one.
+- Open: the description carries the rate the output had when it was written. An
+  output switched to another rate afterwards is not written again until the size
+  changes too.
 
 ## Sources
 
 Read locally, not vendored: Proton's Wine at commit dc26e61 (Proton 11),
 the proton script of Proton Experimental 11.0-20260917b, DXVK 3.1.1,
 Xwayland 24.1.6, KWin 6.3.6, steam-runtime-tools v0.20260805.0 and
-plasma-workspace 6.3.6.
+plasma-workspace 6.3.6. The experiment ran against the same Proton
+Experimental's Wine, on Xvfb, in a prefix under `build/`.

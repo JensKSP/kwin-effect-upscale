@@ -61,7 +61,7 @@ not imply that already implemented diagnostics or resolution control are absent.
 | FSR rendering, aspect ratio and integer scaling, HDR/VRR and acceptance | [FSR rendering](slice-fsr1-hdr-vrr.md) |
 | Application matching, setting overrides and submitted applications | [The applications we know about](slice-application-profiles.md) |
 | Obtaining original smaller game buffers | [Resolution control](slice-resolution-control.md) |
-| Proton games that ignore resizing, through a Wine virtual desktop in their prefix | [Proton virtual desktop](slice-proton-virtual-desktop.md) |
+| Proton games that ignore resizing, through a smaller screen described in their prefix | [Proton smaller screen](slice-proton-smaller-screen.md) |
 | Validated package and release publication | [Build and release pipeline](slice-build-release-pipeline.md) |
 | How the pipeline is composed, named and paid for | [Pipeline modules](slice-pipeline-modules.md) |
 | GitHub contribution, security and maintenance workflow | [GitHub project workflow](slice-github-project-workflow.md) |

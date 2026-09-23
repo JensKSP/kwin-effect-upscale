@@ -18,15 +18,18 @@
   <interface name="org.kde.KWin.Upscale.Helper1">
     <!--
         The program with this process draws at the output's size although the
-        effect wants width x height. An empty offer means the helper has nothing
-        to offer; otherwise the question is shown to the user as it is.
+        effect wants this size. The rate is the one the output runs at, in hertz,
+        for a helper that describes a whole screen to the program. An empty offer
+        means the helper has nothing to offer; otherwise the question is shown to
+        the user as it is.
     -->
     <method name="offer">
       <arg name="pid" type="u" direction="in"/>
       <arg name="windowClass" type="s" direction="in"/>
       <arg name="title" type="s" direction="in"/>
-      <arg name="width" type="i" direction="in"/>
-      <arg name="height" type="i" direction="in"/>
+      <arg name="size" type="(ii)" direction="in"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.In3" value="QSize"/>
+      <arg name="refreshRate" type="i" direction="in"/>
       <arg name="offer" type="s" direction="out"/>
       <arg name="question" type="s" direction="out"/>
     </method>
@@ -51,20 +54,22 @@
     </method>
     <!--
         Asked for a window the effect would otherwise leave alone, with the
-        size the effect wants its program to render at now; empty when it
-        wants nothing smaller. A non-empty answer means the helper prepared
-        this program to render at that size in this window, and the window is
-        to be presented across its output. A helper that prepared the program
-        for another size than the one wanted now prepares it for this one, or
-        undoes the preparation, from the program's next start.
+        size the effect wants its program to render at now and the rate the
+        output runs at; an empty size when it wants nothing smaller. A non-empty
+        answer means the helper prepared this program to render at that size in
+        this window, and the window is to be presented across its output. A
+        helper that prepared the program for another size than the one wanted now
+        prepares it for this one, or undoes the preparation, from the program's
+        next start.
     -->
     <method name="present">
       <arg name="pid" type="u" direction="in"/>
       <arg name="windowClass" type="s" direction="in"/>
-      <arg name="wantedWidth" type="i" direction="in"/>
-      <arg name="wantedHeight" type="i" direction="in"/>
-      <arg name="width" type="i" direction="out"/>
-      <arg name="height" type="i" direction="out"/>
+      <arg name="wanted" type="(ii)" direction="in"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.In2" value="QSize"/>
+      <arg name="refreshRate" type="i" direction="in"/>
+      <arg name="size" type="(ii)" direction="out"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QSize"/>
     </method>
     <!--
         The programs the helper has prepared, for the settings page: an

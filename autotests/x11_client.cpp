@@ -64,7 +64,7 @@ bool X11Client::show(const QByteArray &identity, const QRect &geometry, bool ful
     m_protocols = atom(QByteArrayLiteral("WM_PROTOCOLS"));
     m_deleteWindow = atom(QByteArrayLiteral("WM_DELETE_WINDOW"));
     m_window = xcb_generate_id(m_connection);
-    const uint32_t values[] = {0xff0000, XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_POINTER_MOTION};
+    const uint32_t values[] = {0xff0000, XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_BUTTON_PRESS};
     xcb_create_window(m_connection, XCB_COPY_FROM_PARENT, m_window, m_screen->root,
                       geometry.x(), geometry.y(), geometry.width(), geometry.height(), 0,
                       XCB_WINDOW_CLASS_INPUT_OUTPUT, m_screen->root_visual,
@@ -171,6 +171,16 @@ void X11Client::reportProcess()
 QPoint X11Client::lastMotion() const
 {
     return m_lastMotion;
+}
+
+QPoint X11Client::lastPress() const
+{
+    return m_lastPress;
+}
+
+int X11Client::presses() const
+{
+    return m_presses;
 }
 
 int X11Client::closeRequests() const
@@ -296,6 +306,10 @@ void X11Client::dispatch()
         } else if (type == XCB_MOTION_NOTIFY) {
             const auto motion = reinterpret_cast<xcb_motion_notify_event_t *>(event);
             m_lastMotion = QPoint(motion->event_x, motion->event_y);
+        } else if (type == XCB_BUTTON_PRESS) {
+            const auto press = reinterpret_cast<xcb_button_press_event_t *>(event);
+            m_lastPress = QPoint(press->event_x, press->event_y);
+            ++m_presses;
         }
         std::free(event);
     }

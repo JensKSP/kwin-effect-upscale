@@ -34,6 +34,24 @@ class UpscaleX11Input;
 class Window;
 class X11Window;
 
+/**
+ * What the effect presents under a point, for mapping the pointer to it: the
+ * window, its surface, the origin pointer coordinates are taken from and the
+ * factor they are scaled by. Empty where the effect presents nothing there.
+ */
+struct UpscalePresentedPointer
+{
+    Window *window = nullptr;
+    SurfaceInterface *surface = nullptr;
+    QPointF origin;
+    QPointF scale{1, 1};
+
+    bool isEmpty() const
+    {
+        return !window || !surface;
+    }
+};
+
 #if KWIN_BUILD_X11
 /**
  * The size the settings want @p window's program to render at on its output:
@@ -72,15 +90,15 @@ public:
     /** Who is enlarging this window's buffer to the output right now. */
     UpscaleX11Presentation presentation(const Window *window) const;
     /**
-     * The window the effect is presenting under @p position, as the factor
-     * its pointer coordinates have to be scaled by, with its surface and the
-     * origin they are taken from. Exactly one by one when there is none, and
-     * when Xwayland presents the window there, because then its surface is
-     * the frame's size and nothing needs scaling. The ratio of the surface to
-     * the frame is the ratio the scaler enlarges by, which is what keeps the
-     * picture and the pointer agreed.
+     * What the effect presents under @p position: the window, its surface, the
+     * origin pointer coordinates are taken from and the factor they have to be
+     * scaled by. Nothing at all where the effect presents nothing, and where
+     * Xwayland presents the window, because then its surface is the frame's
+     * size and nothing needs scaling. The ratio of the surface to the frame is
+     * the ratio the scaler enlarges by, which is what keeps the picture and the
+     * pointer agreed.
      */
-    QPointF presentedUnder(const QPointF &position, SurfaceInterface **surface, QPointF *origin) const;
+    UpscalePresentedPointer presentedUnder(const QPointF &position) const;
     /**
      * Presents @p window across its output at @p size, the size its program
      * already renders at because a helper prepared it to (see

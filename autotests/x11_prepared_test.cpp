@@ -33,10 +33,10 @@ public:
     QStringList restarts;
 
 public Q_SLOTS:
-    Q_SCRIPTABLE QString offer(uint pid, const QString &windowClass, const QString &title, int width, int height, QString &question)
+    Q_SCRIPTABLE QString offer(uint pid, const QString &windowClass, const QString &title, const QSize &size, int refreshRate, QString &question)
     {
         Q_UNUSED(title)
-        offers.append(QStringLiteral("%1 %2 %3 %4").arg(pid).arg(windowClass).arg(width).arg(height));
+        offers.append(QStringLiteral("%1 %2 %3 %4 %5").arg(pid).arg(windowClass).arg(size.width()).arg(size.height()).arg(refreshRate));
         question = QStringLiteral("Set this game up?");
         return QStringLiteral("offer-1");
     }
@@ -50,13 +50,13 @@ public Q_SLOTS:
         restarts.append(offer);
         return true;
     }
-    Q_SCRIPTABLE int present(uint pid, const QString &windowClass, int wantedWidth, int wantedHeight, int &height)
+    Q_SCRIPTABLE QSize present(uint pid, const QString &windowClass, const QSize &asking, int refreshRate)
     {
         Q_UNUSED(windowClass)
+        Q_UNUSED(refreshRate)
         asked.append(pid);
-        wanted.append(QSize(wantedWidth, wantedHeight));
-        height = size.height();
-        return size.width();
+        wanted.append(asking);
+        return size;
     }
 };
 
@@ -73,6 +73,7 @@ private Q_SLOTS:
     void init();
     void cleanup();
     void presentsAWindowAHelperPrepared();
+    void keepsThePointerOverWhatItPresents();
     void leavesAWindowNobodyPrepared();
     void asksTheUserAndRestartsTheGame();
     void postponesWithEscape();
@@ -147,6 +148,40 @@ void UpscaleX11PreparedTest::presentsAWindowAHelperPrepared()
     unregisterHelper();
 }
 
+// The pointer over the part of the output a presented window covers on screen
+// but its own X11 window does not. KWin's hit test goes through the client's
+// input region and finds whatever lies under the game there - in a session the
+// desktop, here a window of its own - so without this the pointer, and a click
+// with it, would go to that window instead of the game.
+void UpscaleX11PreparedTest::keepsThePointerOverWhatItPresents()
+{
+    TestHelper helper;
+    helper.size = QSize(1920, 1080);
+    registerHelper(&helper);
+
+    X11Client below(false);
+    QVERIFY(below.show(QByteArrayLiteral("upscale-x11-below"), QRect(0, 0, 3840, 2160), false));
+    X11Client game(false);
+    game.reportProcess();
+    QVERIFY(game.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 1920, 1080), false));
+    QTRY_VERIFY_WITH_TIMEOUT(game.isFullscreen(), 10000);
+    QTRY_VERIFY2(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()));
+
+    // Three quarters across the output, which is outside the game's own
+    // 1920 x 1080 window and inside the picture it is presented as.
+    request(QStringLiteral("upscale-test-pointer"), QByteArrayLiteral("2880 1620"));
+    QTRY_COMPARE(game.lastMotion(), QPoint(1440, 810));
+
+    // And a click there is the game's, not the window under it. The window
+    // under it does see the pointer enter, because KWin's own hit test focuses
+    // it before this effect points the seat at the game, which no filter can
+    // prevent; what it must never see is the click.
+    request(QStringLiteral("upscale-test-click"), QByteArrayLiteral("2880 1620"));
+    QTRY_COMPARE(game.presses(), 1);
+    QCOMPARE(game.lastPress(), QPoint(1440, 810));
+    QCOMPARE(below.presses(), 0);
+}
+
 void UpscaleX11PreparedTest::leavesAWindowNobodyPrepared()
 {
     // Without a helper nobody answers, and the window stays as it is.
@@ -201,7 +236,9 @@ void UpscaleX11PreparedTest::asksTheUserAndRestartsTheGame()
     // of a Wine game in exclusive fullscreen: the helper is asked.
     request(QStringLiteral("upscale-test-unfollowed"), QByteArrayLiteral("upscale-x11-test 1920 1080"));
     QTRY_COMPARE(helper.offers.size(), 1);
-    QCOMPARE(helper.offers.first(), QStringLiteral("%1 upscale-x11-test 1920 1080").arg(QCoreApplication::applicationPid()));
+    // The rate the virtual output runs at, which the helper needs for the modes
+    // it describes.
+    QCOMPARE(helper.offers.first(), QStringLiteral("%1 upscale-x11-test 1920 1080 60").arg(QCoreApplication::applicationPid()));
     QTRY_VERIFY2(status().contains(QStringLiteral("Set this game up?")), qPrintable(status()));
 
     // The first answer is selected; moving away and back leaves it selected.

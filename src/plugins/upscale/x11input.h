@@ -13,11 +13,14 @@
 
 #include <QPointer>
 
+#include <functional>
+
 namespace KWin
 {
 class SeatInterface;
 class SurfaceInterface;
 class UpscaleX11Resolution;
+class Window;
 
 /**
  * Maps pointer input to an X11 window the effect presents itself.
@@ -33,12 +36,18 @@ class UpscaleX11Resolution;
  * Xwayland's own mode emulation solves the first by scaling the coordinates
  * it receives by surface size over output size, and never meets the second,
  * because its viewport makes the surface the output's size. This filter does
- * the same one step earlier: it gives the seat a transformation that scales
- * as well as translates, and where KWin found nothing under the pointer but a
- * presented window's frame is there, it focuses that surface on the seat
- * itself and unfocuses it when the pointer leaves the frame. A window KWin
- * does find on top, such as a dialog, is left to KWin. Events are never
- * delivered or consumed here; KWin's forwarding does that as always.
+ * the same one step earlier: it gives the seat a transformation that scales as
+ * well as translates, and over the rest of the frame it focuses that surface on
+ * the seat itself, whatever KWin's hit test found beside the surface - the
+ * desktop, a panel, nothing at all - and unfocuses it when the pointer leaves
+ * the frame. A window stacked above the presented one, a dialog or an on-screen
+ * display, is left to KWin.
+ *
+ * Where the pointer is this filter's rather than KWin's, the events for it are
+ * delivered here as well, because the filters in between would otherwise act on
+ * the window KWin found: a click would raise and activate what lies under the
+ * game instead of reaching the game. Motion is left to KWin's forwarding, which
+ * sends it to the surface on the seat, the presented one.
  */
 class UpscaleX11Input : public InputEventFilter
 {
@@ -59,6 +68,9 @@ private:
     // is one where nothing was applied.
     QPointF apply(const QPointF &position);
     void withdraw(SeatInterface *seat);
+    // Sends what KWin's forwarding would have sent, and answers whether it did,
+    // which is whether the event is not KWin's to handle any more.
+    bool deliver(const std::function<void(SeatInterface *seat)> &send);
 
     const UpscaleX11Resolution *m_control;
     // The surface whose seat state this filter changed. KWin refreshes its
@@ -67,6 +79,9 @@ private:
     // own focus: its transformation where KWin focuses the window, a leave
     // where only this filter did.
     QPointer<SurfaceInterface> m_surface;
+    // The presented window whose pointer this is, while it is not the window
+    // KWin found under it.
+    QPointer<Window> m_claimed;
 };
 
 } // namespace KWin

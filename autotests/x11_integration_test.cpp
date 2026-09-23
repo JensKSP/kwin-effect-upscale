@@ -288,6 +288,10 @@ void UpscaleX11IntegrationTest::presentsWithoutEmulation()
     // motion would pass the wrong assertion.
     movePointer(QPoint(1920, 1080));
     QTRY_COMPARE(target.lastMotion(), QPoint(960, 540));
+    // Also beyond the client's own window, which its input region ends at: the
+    // whole output is the window's while the effect presents it there.
+    movePointer(QPoint(3000, 1800));
+    QTRY_COMPARE(target.lastMotion(), QPoint(1500, 900));
     // Releasing the window hands KWin's own mapping back at once, without a
     // focus or geometry change to prompt it.
     configure(false);

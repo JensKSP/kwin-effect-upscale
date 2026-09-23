@@ -119,7 +119,7 @@ void UpscaleX11Resolution::present(X11Window *window)
 }
 #endif
 
-QPointF UpscaleX11Resolution::presentedUnder(const QPointF &position, SurfaceInterface **surface, QPointF *origin) const
+UpscalePresentedPointer UpscaleX11Resolution::presentedUnder(const QPointF &position) const
 {
 #if KWIN_BUILD_X11
     for (auto request = m_requests.cbegin(); request != m_requests.cend(); ++request) {
@@ -127,18 +127,18 @@ QPointF UpscaleX11Resolution::presentedUnder(const QPointF &position, SurfaceInt
         if (window->isDeleted() || !window->surface() || !window->frameGeometry().contains(position)) {
             continue;
         }
-        const QPointF scale = presentationScale(request.value(), origin);
-        if (scale != QPointF(1, 1)) {
-            *surface = window->surface();
-            return scale;
+        UpscalePresentedPointer presented;
+        presented.scale = presentationScale(request.value(), &presented.origin);
+        if (presented.scale != QPointF(1, 1)) {
+            presented.window = window;
+            presented.surface = window->surface();
+            return presented;
         }
     }
 #else
     Q_UNUSED(position)
-    Q_UNUSED(origin)
 #endif
-    *surface = nullptr;
-    return QPointF(1, 1);
+    return {};
 }
 
 } // namespace KWin

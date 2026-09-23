@@ -21,11 +21,6 @@
 namespace
 {
 
-QString sizeText(const QSize &size)
-{
-    return QStringLiteral("%1x%2").arg(size.width()).arg(size.height());
-}
-
 // Proton flock()s <compatdata>/pfx.lock while it prepares a prefix and waits
 // for it without a time limit (its filelock.py). Holding it while writing makes
 // a launch in the meantime wait instead of reading a half-changed prefix. It is
@@ -67,7 +62,10 @@ private:
     bool m_held = false;
 };
 
-const char registryName[] = "user.reg";
+// The prefix describes its screen in the machine's registry and the user's
+// virtual desktop in the user's own.
+const char machineRegistry[] = "system.reg";
+const char userRegistry[] = "user.reg";
 
 bool serverRunning(const WineDesktopTarget &target, uid_t user)
 {
@@ -86,16 +84,16 @@ std::shared_ptr<WineDirectory> directoryFor(const WineDesktopTarget &target)
 
 // A plain file with a single name, owned by the user: renaming a new file
 // over it replaces what Wine reads.
-bool plainRegistry(int directory, uid_t user)
+bool plainRegistry(int directory, const char *name, uid_t user)
 {
     struct stat status = {};
-    return ::fstatat(directory, registryName, &status, AT_SYMLINK_NOFOLLOW) == 0 && S_ISREG(status.st_mode) && status.st_nlink == 1
+    return ::fstatat(directory, name, &status, AT_SYMLINK_NOFOLLOW) == 0 && S_ISREG(status.st_mode) && status.st_nlink == 1
         && status.st_uid == user;
 }
 
-std::optional<QByteArray> readRegistry(int directory)
+std::optional<QByteArray> readRegistry(int directory, const char *name)
 {
-    const int descriptor = ::openat(directory, registryName, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+    const int descriptor = ::openat(directory, name, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
     if (descriptor < 0) {
         return std::nullopt;
     }
@@ -123,15 +121,15 @@ bool writeAll(int descriptor, const QByteArray &text)
     return ::fsync(descriptor) == 0;
 }
 
-// Replaces user.reg in one step: a new file beside it with the permissions the
-// old one had, then a rename over it.
-bool replaceRegistry(int directory, const QByteArray &text)
+// Replaces a registry file in one step: a new file beside it with the
+// permissions the old one had, then a rename over it.
+bool replaceRegistry(int directory, const char *name, const QByteArray &text)
 {
     struct stat status = {};
-    if (::fstatat(directory, registryName, &status, AT_SYMLINK_NOFOLLOW) != 0) {
+    if (::fstatat(directory, name, &status, AT_SYMLINK_NOFOLLOW) != 0) {
         return false;
     }
-    const QByteArray temporary = QByteArray(registryName) + ".upscale-" + QUuid::createUuid().toByteArray(QUuid::Id128);
+    const QByteArray temporary = QByteArray(name) + ".upscale-" + QUuid::createUuid().toByteArray(QUuid::Id128);
     const mode_t mode = status.st_mode & 07777;
     const int descriptor = ::openat(directory, temporary.constData(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, mode);
     if (descriptor < 0) {
@@ -139,23 +137,36 @@ bool replaceRegistry(int directory, const QByteArray &text)
     }
     // The mode given to openat() passes through the umask; this one does not.
     const bool written = ::fchmod(descriptor, mode) == 0 && writeAll(descriptor, text);
-    if (::close(descriptor) != 0 || !written || ::renameat(directory, temporary.constData(), directory, registryName) != 0) {
+    if (::close(descriptor) != 0 || !written || ::renameat(directory, temporary.constData(), directory, name) != 0) {
         ::unlinkat(directory, temporary.constData(), 0);
         return false;
     }
     return true;
 }
 
-// The registry's text, once it is certain that it may be replaced now.
+// The two values that would give the prefix a virtual desktop, from the user's
+// own registry.
+WineDesktopValues desktopValuesIn(const WineDirectory &directory)
+{
+    const std::optional<QByteArray> contents = readRegistry(directory.descriptor(), userRegistry);
+    return contents && wineIsRegistry(*contents) ? wineDesktopValues(*contents) : WineDesktopValues{};
+}
+
+// The registry's text, once it is certain that it may be replaced now. A prefix
+// whose programs run in a virtual desktop of the user's is not ours to describe.
 WineWriteResult read(const WineDesktopTarget &target, uid_t user, const std::shared_ptr<WineDirectory> &directory, QByteArray &text)
 {
-    if (!directory || !plainRegistry(directory->descriptor(), user)) {
+    if (!directory || !plainRegistry(directory->descriptor(), machineRegistry, user)) {
         return WineWriteResult::Unreachable;
     }
     if (serverRunning(target, user)) {
         return WineWriteResult::Busy;
     }
-    const std::optional<QByteArray> contents = readRegistry(directory->descriptor());
+    const WineDesktopValues desktop = desktopValuesIn(*directory);
+    if (desktop.desktop || desktop.defaultSize) {
+        return WineWriteResult::DesktopOfTheUser;
+    }
+    const std::optional<QByteArray> contents = readRegistry(directory->descriptor(), machineRegistry);
     if (!contents || !wineIsRegistry(*contents)) {
         return WineWriteResult::Unreachable;
     }
@@ -165,7 +176,7 @@ WineWriteResult read(const WineDesktopTarget &target, uid_t user, const std::sha
 
 WineWriteResult replace(const WineDesktopTarget &target, uid_t user, const std::shared_ptr<WineDirectory> &directory, const QByteArray &text)
 {
-    if (!replaceRegistry(directory->descriptor(), text)) {
+    if (!replaceRegistry(directory->descriptor(), machineRegistry, text)) {
         return WineWriteResult::WriteFailed;
     }
     // A server that started between the check and the rename may have read
@@ -175,11 +186,6 @@ WineWriteResult replace(const WineDesktopTarget &target, uid_t user, const std::
 }
 
 } // namespace
-
-bool wineIsDesktop(const WineDesktopValues &values, const QSize &size)
-{
-    return values.desktop == QStringLiteral("Default") && values.defaultSize == sizeText(size);
-}
 
 std::shared_ptr<WineDirectory> WineDirectory::open(const QString &path, const WinePrefixIdentity &identity)
 {
@@ -214,13 +220,13 @@ bool WineDirectory::isStill(const WinePrefixIdentity &identity) const
     return ::fstat(m_descriptor, &status) == 0 && status.st_nlink > 0 && status.st_dev == identity.device && status.st_ino == identity.inode;
 }
 
-WineDesktopValues wineDesktopValuesIn(const WineDirectory &directory)
+std::optional<QSize> wineScreenIn(const WineDirectory &directory)
 {
-    const std::optional<QByteArray> contents = readRegistry(directory.descriptor());
-    return contents && wineIsRegistry(*contents) ? wineDesktopValues(*contents) : WineDesktopValues{};
+    const std::optional<QByteArray> contents = readRegistry(directory.descriptor(), machineRegistry);
+    return contents && wineIsRegistry(*contents) ? wineScreen(*contents) : std::nullopt;
 }
 
-WineWriteResult wineSetDesktop(const WineDesktopTarget &target, uid_t user, const QSize &size, const std::optional<QSize> &ours, qint64 modifiedSeconds)
+WineWriteResult wineSetScreen(const WineDesktopTarget &target, uid_t user, const QSize &size, int refreshRate, qint64 modifiedSeconds)
 {
     const ProtonLock proton(target.steamCompatData);
     if (!proton.held()) {
@@ -231,21 +237,16 @@ WineWriteResult wineSetDesktop(const WineDesktopTarget &target, uid_t user, cons
     if (const WineWriteResult result = read(target, user, directory, text); result != WineWriteResult::Written) {
         return result;
     }
-    // A value of either kind that this companion did not set is the user's,
-    // including a size left behind when they switched their desktop off.
-    const WineDesktopValues values = wineDesktopValues(text);
-    const bool absent = !values.desktop && !values.defaultSize;
-    if (!absent && !(ours && wineIsDesktop(values, *ours))) {
-        return WineWriteResult::DesktopOfTheUser;
-    }
-    const std::optional<QByteArray> changed = wineWithVirtualDesktop(text, size, modifiedSeconds);
+    // Without the devices the prefix described for itself there is nothing to
+    // describe a screen for; it has them once a program of its own has run.
+    const std::optional<QByteArray> changed = wineWithScreen(text, size, refreshRate, modifiedSeconds);
     if (!changed) {
         return WineWriteResult::Unreachable;
     }
     return replace(target, user, directory, *changed);
 }
 
-WineWriteResult wineClearDesktop(const WineDesktopTarget &target, uid_t user, const QSize &ours)
+WineWriteResult wineClearScreen(const WineDesktopTarget &target, uid_t user)
 {
     const ProtonLock proton(target.steamCompatData);
     if (!proton.held()) {
@@ -256,14 +257,10 @@ WineWriteResult wineClearDesktop(const WineDesktopTarget &target, uid_t user, co
     if (const WineWriteResult result = read(target, user, directory, text); result != WineWriteResult::Written) {
         return result;
     }
-    const WineDesktopValues values = wineDesktopValues(text);
-    if (!values.desktop && !values.defaultSize) {
+    if (!wineScreen(text)) {
         return WineWriteResult::Written;
     }
-    if (!wineIsDesktop(values, ours)) {
-        return WineWriteResult::DesktopOfTheUser;
-    }
-    const std::optional<QByteArray> changed = wineWithoutVirtualDesktop(text);
+    const std::optional<QByteArray> changed = wineWithoutScreen(text);
     if (!changed) {
         return WineWriteResult::Unreachable;
     }

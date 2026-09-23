@@ -441,7 +441,11 @@ endif()
 
 # The Wine virtual desktop companion lives outside the plugin folder and needs
 # nothing but Qt Core.
-foreach(test IN ITEMS wine_registry wine_prefix wine_desktop_write wine_desktop_helper)
+foreach(
+    test
+    IN
+    ITEMS wine_registry wine_display_mode wine_prefix wine_desktop_write wine_desktop_helper
+)
     add_executable(upscale_${test}_test ${test}_test.cpp)
     target_link_libraries(upscale_${test}_test PRIVATE upscale_winedesktop Qt6::Test)
     string(REPLACE "_" "-" name ${test})
