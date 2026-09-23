@@ -32,6 +32,10 @@ struct WineDesktopRecord
     // did; they differ while a change waits for the game to exit.
     QSize wanted;
     std::optional<QSize> written;
+    // The rate the described screen runs at, as it was written. A screen the
+    // output no longer runs at is described again, so that the modes a game
+    // is offered stay the ones its screen has.
+    int rate = 0;
     bool never = false;
 };
 

@@ -15,6 +15,7 @@
 #include <QObject>
 #include <QPoint>
 #include <QPointer>
+#include <QRectF>
 #include <QSet>
 #include <QSize>
 #include <QTimer>
@@ -45,6 +46,10 @@ struct UpscalePresentedPointer
     SurfaceInterface *surface = nullptr;
     QPointF origin;
     QPointF scale{1, 1};
+    // The part of the output the client's own window covers, which is where
+    // KWin's hit test finds the window and nowhere else: its own size, not the
+    // size it is presented at.
+    QRectF client;
 
     bool isEmpty() const
     {

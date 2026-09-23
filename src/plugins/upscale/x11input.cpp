@@ -12,6 +12,7 @@
 #include "effect/effecthandler.h"
 #include "input_event.h"
 #include "pointer_input.h"
+#include "wayland/pointerconstraints_v1.h"
 #include "wayland/seat.h"
 #include "wayland/surface.h"
 #include "wayland_server.h"
@@ -68,6 +69,25 @@ static bool isAbove(Window *window, Window *presented)
     return stacking.indexOf(window->effectWindow()) > stacking.indexOf(presented->effectWindow());
 }
 
+// A game that locks the pointer, as mouse look does, is given that lock by KWin
+// only while KWin's own focus is on its surface, and that focus follows where the
+// cursor is in the client's own rectangle rather than in the picture the user
+// sees. So the cursor is put inside that rectangle once, which is what makes KWin
+// take the lock; a locked pointer is neither shown nor moved afterwards, so
+// nothing of this reaches the user. Only where KWin would take the lock at all:
+// over the window it would ask about, and while that window is the active one.
+static void engageLock(const UpscalePresentedPointer &presented, const QPointF &position)
+{
+    LockedPointerV1Interface *lock = presented.surface->lockedPointer();
+    if (!lock || lock->isLocked() || presented.client.contains(position) || presented.client.isEmpty()) {
+        return;
+    }
+    if (!effects || effects->activeWindow() != presented.window->effectWindow()) {
+        return;
+    }
+    input()->pointer()->warp(presented.client.center());
+}
+
 QPointF UpscaleX11Input::apply(const QPointF &position)
 {
     SeatInterface *seat = waylandServer() ? waylandServer()->seat() : nullptr;
@@ -105,6 +125,9 @@ QPointF UpscaleX11Input::apply(const QPointF &position)
     // events for it are this filter's to deliver, or the filters between here
     // and KWin's forwarding would act on the window underneath.
     m_claimed = input()->pointer()->focus() == presented.window ? nullptr : presented.window;
+    if (m_claimed) {
+        engageLock(presented, position);
+    }
     return presented.scale;
 }
 

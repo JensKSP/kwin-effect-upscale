@@ -2126,12 +2126,28 @@ than KWin's, the click and the wheel are delivered by the filter as well, ahead
 of KWin's own click handling, which would otherwise raise and activate the
 window under the game; a press there activates the presented window instead.
 Motion stays KWin's to forward, to the surface on the seat. The window under a
-presented one still sees the pointer enter it, because KWin focuses it before
-any filter runs, and never sees a button. Whether Xwayland or the effect
+presented one still sees the pointer enter it, because KWin focuses it before any
+filter runs, and never sees a button; the keyboard stays with the presented
+window, which KWin's own protection of a fullscreen window keeps even under a
+focus policy that follows the pointer. Whether Xwayland or the effect
 presents a window is decided once, when the requested buffer first arrives,
 from the emulation property, so the two paths never scale twice. Status names
 which of the two is presenting. Touch, tablet, pointer confinement regions and
 the locked-pointer position hint are not mapped.
+
+**Mouse look.** A game that hides the cursor and grabs the pointer has Xwayland
+ask the compositor to lock it, and Xwayland asks only for the window that holds
+the seat's pointer focus, which is the presented one because the filter focuses
+it. KWin takes such a lock only while its own focus is on that window as well,
+and that follows the cursor's place in the client's own rectangle, not in the
+picture. So where a presented window has asked for a lock that KWin has not
+taken, and that window is the active one, the effect puts the cursor inside the
+client's own rectangle once: KWin then takes the lock, and a locked pointer is
+neither shown nor moved afterwards, so nothing of it reaches the user. Once a
+lock or a confinement is in force the cursor cannot leave that rectangle, so it
+stays in force. A confinement's region is the client's own, unscaled, and is
+still not mapped: it holds the cursor in the part of the output the client's
+window covers rather than in the picture.
 
 Measured on 2026-09-23, before this: a Proton game presented across a 4K output
 took the pointer only inside its own 2560 x 1440 window, and a click in the rest

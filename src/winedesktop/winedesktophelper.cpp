@@ -283,8 +283,9 @@ QSize WineDesktopHelper::present(uint pid, const QString &windowClass, const QSi
         }
         return {};
     }
-    if (!held || wanted != written) {
-        // Written again, or at the size the effect wants now, after this run.
+    if (!held || wanted != written || refreshRate != record->rate) {
+        // Written again, at the size the effect wants now, or for the rate the
+        // output runs at now, after this run.
         record->wanted = wanted;
         m_records->store(*record);
         afterRun(*record, pid, *server, directory, wanted, refreshRate);
@@ -440,6 +441,7 @@ bool WineDesktopHelper::advance(Job &job)
         // Recorded as written, so that the next write knows it as this
         // companion's own, and written again once that server has gone.
         record->written = job.clear ? std::nullopt : std::optional<QSize>(job.size);
+        record->rate = job.rate;
         m_records->store(*record);
     }
     if (result == WineWriteResult::Busy || result == WineWriteResult::WrittenMeanwhile) {
@@ -470,6 +472,7 @@ void WineDesktopHelper::settle(const Job &job, WineDesktopRecord &record, WineWr
     }
     if (result == WineWriteResult::Written) {
         record.written = job.size;
+        record.rate = job.rate;
         m_records->store(record);
         if (job.relaunch && !m_launcher(record)) {
             qCWarning(KWIN_UPSCALE_WINEDESKTOP) << "Could not start" << record.title << "again";

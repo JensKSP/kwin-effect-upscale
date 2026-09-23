@@ -59,6 +59,7 @@ private Q_SLOTS:
     void remembersNever();
     void writesALostDesktopAgain();
     void followsANewSize();
+    void followsANewRate();
     void undoesWhatIsNoLongerWanted();
     void stopsWhenTheGameKeepsItsOwnResolution();
 
@@ -304,6 +305,43 @@ void WineDesktopHelperTest::followsANewSize()
     QTRY_COMPARE(finished.size(), 2);
     QCOMPARE(screen(), QSize(1920, 1080));
     QCOMPARE(m_helper->prepared().value(0).written, QSize(1920, 1080));
+}
+
+// The screen is described for the rate the output runs at, so a rate that
+// changed is written again even though the size did not: the modes a game is
+// offered are the ones its screen has.
+void WineDesktopHelperTest::followsANewRate()
+{
+    QSignalSpy finished(&*m_helper, &WineDesktopHelper::jobFinished);
+    {
+        auto server = startServer();
+        const std::unique_ptr<QProcess> game = startGame();
+        QVERIFY(!acceptOffer(*game).isEmpty());
+        game->kill();
+        game->waitForFinished();
+    }
+    QTRY_COMPARE(finished.size(), 1);
+    {
+        auto server = startServer();
+        const std::unique_ptr<QProcess> game = startGame();
+        // The same size at another rate: this run is presented, and the screen
+        // is described again after it.
+        QCOMPARE(m_helper->present(game->processId(), s_class, s_size, 120), s_size);
+        game->kill();
+        game->waitForFinished();
+    }
+    QTRY_COMPARE(finished.size(), 2);
+    QCOMPARE(screen(), s_size);
+    {
+        // And at the rate it was written for, nothing is written again.
+        auto server = startServer();
+        const std::unique_ptr<QProcess> game = startGame();
+        QCOMPARE(m_helper->present(game->processId(), s_class, s_size, 120), s_size);
+        game->kill();
+        game->waitForFinished();
+    }
+    QTest::qWait(500);
+    QCOMPARE(finished.size(), 2);
 }
 
 void WineDesktopHelperTest::undoesWhatIsNoLongerWanted()

@@ -51,16 +51,22 @@ static bool fillsFrame(X11Window *window, SurfaceItem *surface)
 // are counted in, as the factor pointer coordinates have to shrink by. One
 // while nothing has to: while Xwayland presents the window and scales the
 // coordinates itself, and while the buffer is not yet the requested size.
-static QPointF presentationScale(const UpscaleX11Resolution::Request &request, QPointF *origin)
+static QPointF presentationScale(const UpscaleX11Resolution::Request &request, QPointF *origin, QRectF *client)
 {
     X11Window *window = request.window;
     SurfaceItem *surface = surfaceItem(window);
     if (!request.presentedByEffect || !surface || surface->bufferSize() != request.size || window->frameGeometry().isEmpty()) {
         return QPointF(1, 1);
     }
-    const QSizeF frame = window->frameGeometry().size() * kwinApp()->xwaylandScale();
+    const qreal scale = kwinApp()->xwaylandScale();
+    const QSizeF frame = window->frameGeometry().size() * scale;
     if (origin) {
         *origin = window->bufferGeometry().topLeft();
+    }
+    if (client) {
+        // The window's own size on the output, in the pixels the output is
+        // counted in: what the client asked KWin for, not what it is shown as.
+        *client = QRectF(window->bufferGeometry().topLeft(), QSizeF(request.size.width() / scale, request.size.height() / scale));
     }
     return QPointF(request.size.width() / frame.width(), request.size.height() / frame.height());
 }
@@ -128,7 +134,7 @@ UpscalePresentedPointer UpscaleX11Resolution::presentedUnder(const QPointF &posi
             continue;
         }
         UpscalePresentedPointer presented;
-        presented.scale = presentationScale(request.value(), &presented.origin);
+        presented.scale = presentationScale(request.value(), &presented.origin, &presented.client);
         if (presented.scale != QPointF(1, 1)) {
             presented.window = window;
             presented.surface = window->surface();

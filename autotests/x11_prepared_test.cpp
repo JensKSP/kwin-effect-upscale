@@ -74,6 +74,8 @@ private Q_SLOTS:
     void cleanup();
     void presentsAWindowAHelperPrepared();
     void keepsThePointerOverWhatItPresents();
+    void keepsTheKeyboardWhereThePointerIs();
+    void letsAPresentedGameLockThePointer();
     void leavesAWindowNobodyPrepared();
     void asksTheUserAndRestartsTheGame();
     void postponesWithEscape();
@@ -81,6 +83,7 @@ private Q_SLOTS:
 
 private:
     QString status();
+    QString driver(const QString &property);
     void request(const QString &name, const QByteArray &contents);
     void press(Qt::Key key);
     void registerHelper(TestHelper *helper);
@@ -94,6 +97,17 @@ QString UpscaleX11PreparedTest::status()
 {
     const QDBusReply<QString> reply = m_effects.call(QStringLiteral("supportInformation"), QStringLiteral("upscale_test_driver"));
     return reply.isValid() ? reply.value() : reply.error().message();
+}
+
+// One of the test driver's own properties, from its support information.
+QString UpscaleX11PreparedTest::driver(const QString &property)
+{
+    for (const QString &line : status().split(QLatin1Char('\n'))) {
+        if (line.startsWith(property + QLatin1String(": "))) {
+            return line.mid(property.size() + 2).trimmed();
+        }
+    }
+    return {};
 }
 
 void UpscaleX11PreparedTest::init()
@@ -180,6 +194,76 @@ void UpscaleX11PreparedTest::keepsThePointerOverWhatItPresents()
     QTRY_COMPARE(game.presses(), 1);
     QCOMPARE(game.lastPress(), QPoint(1440, 810));
     QCOMPARE(below.presses(), 0);
+}
+
+// A focus policy that follows the pointer activates the window KWin's own hit
+// test finds, which beyond a presented window's own rectangle is the one
+// underneath it. The keyboard has to stay with the game the user sees there.
+// KWin's own protection of a fullscreen window is what keeps it; this holds the
+// combination, because the effect cannot keep KWin's hit test off that window.
+void UpscaleX11PreparedTest::keepsTheKeyboardWhereThePointerIs()
+{
+    const KSharedConfig::Ptr config = KSharedConfig::openConfig(QStringLiteral("kwinrc"));
+    KConfigGroup windows(config, QStringLiteral("Windows"));
+    windows.writeEntry("FocusPolicy", "FocusFollowsMouse");
+    windows.sync();
+    QDBusInterface kwin(QStringLiteral("org.kde.KWin"), QStringLiteral("/KWin"), QStringLiteral("org.kde.KWin"),
+                        QDBusConnection::sessionBus());
+    kwin.call(QStringLiteral("reconfigure"));
+
+    TestHelper helper;
+    helper.size = QSize(1920, 1080);
+    registerHelper(&helper);
+
+    X11Client below(false);
+    QVERIFY(below.show(QByteArrayLiteral("upscale-x11-below"), QRect(0, 0, 3840, 2160), false));
+    // Whether the policy is in force at all: the pointer alone activates this
+    // window while nothing is presented over it.
+    request(QStringLiteral("upscale-test-pointer"), QByteArrayLiteral("2880 1620"));
+    QTRY_VERIFY2(below.isFocused(), "the focus policy does not follow the pointer in this session");
+    X11Client game(false);
+    game.reportProcess();
+    QVERIFY(game.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 1920, 1080), false));
+    QTRY_VERIFY_WITH_TIMEOUT(game.isFullscreen(), 10000);
+    QTRY_VERIFY2(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()));
+    QTRY_VERIFY(game.isFocused());
+
+    // Into the part of the output the game's own window does not cover, where
+    // KWin's hit test finds the window underneath.
+    request(QStringLiteral("upscale-test-pointer"), QByteArrayLiteral("2880 1620"));
+    QTRY_COMPARE(game.lastMotion(), QPoint(1440, 810));
+    QTest::qWait(500);
+    QVERIFY2(game.isFocused(), "the game lost the keyboard to the window under it");
+    QCOMPARE(game.focusLosses(), 0);
+
+    windows.writeEntry("FocusPolicy", "ClickToFocus");
+    windows.sync();
+    kwin.call(QStringLiteral("reconfigure"));
+}
+
+// Mouse look: the game hides the cursor and grabs the pointer, which Xwayland
+// turns into a request to lock it. KWin takes that lock only while its own focus
+// is on the game's own rectangle, so with the cursor anywhere else in the picture
+// the lock would stay unanswered and the game's view would not turn.
+void UpscaleX11PreparedTest::letsAPresentedGameLockThePointer()
+{
+    TestHelper helper;
+    helper.size = QSize(1920, 1080);
+    registerHelper(&helper);
+
+    X11Client game(false);
+    game.reportProcess();
+    QVERIFY(game.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 1920, 1080), false));
+    QTRY_VERIFY_WITH_TIMEOUT(game.isFullscreen(), 10000);
+    QTRY_VERIFY2(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()));
+
+    // The cursor where the game's own window is not, and the game taking the
+    // pointer from there.
+    request(QStringLiteral("upscale-test-pointer"), QByteArrayLiteral("2880 1620"));
+    QTRY_COMPARE(game.lastMotion(), QPoint(1440, 810));
+    QVERIFY(game.takePointer());
+    request(QStringLiteral("upscale-test-pointer"), QByteArrayLiteral("2884 1624"));
+    QTRY_COMPARE_WITH_TIMEOUT(driver(QStringLiteral("pointerLock")), QStringLiteral("engaged"), 5000);
 }
 
 void UpscaleX11PreparedTest::leavesAWindowNobodyPrepared()

@@ -64,7 +64,7 @@ bool X11Client::show(const QByteArray &identity, const QRect &geometry, bool ful
     m_protocols = atom(QByteArrayLiteral("WM_PROTOCOLS"));
     m_deleteWindow = atom(QByteArrayLiteral("WM_DELETE_WINDOW"));
     m_window = xcb_generate_id(m_connection);
-    const uint32_t values[] = {0xff0000, XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_BUTTON_PRESS};
+    const uint32_t values[] = {0xff0000, XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_FOCUS_CHANGE};
     xcb_create_window(m_connection, XCB_COPY_FROM_PARENT, m_window, m_screen->root,
                       geometry.x(), geometry.y(), geometry.width(), geometry.height(), 0,
                       XCB_WINDOW_CLASS_INPUT_OUTPUT, m_screen->root_visual,
@@ -181,6 +181,39 @@ QPoint X11Client::lastPress() const
 int X11Client::presses() const
 {
     return m_presses;
+}
+
+bool X11Client::takePointer()
+{
+    // A cursor of one transparent pixel: Xwayland reads the window's cursor and
+    // treats the window as one that hides it.
+    const xcb_pixmap_t pixmap = xcb_generate_id(m_connection);
+    xcb_create_pixmap(m_connection, 1, pixmap, m_window, 1, 1);
+    m_blankCursor = xcb_generate_id(m_connection);
+    xcb_create_cursor(m_connection, m_blankCursor, pixmap, pixmap, 0, 0, 0, 0, 0, 0, 0, 0);
+    xcb_free_pixmap(m_connection, pixmap);
+    xcb_change_window_attributes(m_connection, m_window, XCB_CW_CURSOR, &m_blankCursor);
+    const xcb_grab_pointer_cookie_t cookie =
+        xcb_grab_pointer(m_connection, 1, m_window,
+                         XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE,
+                         XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, m_window, m_blankCursor, XCB_CURRENT_TIME);
+    xcb_generic_error_t *error = nullptr;
+    xcb_grab_pointer_reply_t *reply = xcb_grab_pointer_reply(m_connection, cookie, &error);
+    const bool taken = reply && reply->status == XCB_GRAB_STATUS_SUCCESS;
+    std::free(reply);
+    std::free(error);
+    xcb_flush(m_connection);
+    return taken;
+}
+
+bool X11Client::isFocused() const
+{
+    return m_focused;
+}
+
+int X11Client::focusLosses() const
+{
+    return m_focusLosses;
 }
 
 int X11Client::closeRequests() const
@@ -306,6 +339,11 @@ void X11Client::dispatch()
         } else if (type == XCB_MOTION_NOTIFY) {
             const auto motion = reinterpret_cast<xcb_motion_notify_event_t *>(event);
             m_lastMotion = QPoint(motion->event_x, motion->event_y);
+        } else if (type == XCB_FOCUS_IN) {
+            m_focused = true;
+        } else if (type == XCB_FOCUS_OUT) {
+            m_focused = false;
+            ++m_focusLosses;
         } else if (type == XCB_BUTTON_PRESS) {
             const auto press = reinterpret_cast<xcb_button_press_event_t *>(event);
             m_lastPress = QPoint(press->event_x, press->event_y);

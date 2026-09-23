@@ -17,6 +17,10 @@
 #include "scene/imageitem.h"
 #include "scene/surfaceitem.h"
 #include "scene/windowitem.h"
+#include "wayland/pointerconstraints_v1.h"
+#include "wayland/seat.h"
+#include "wayland/surface.h"
+#include "wayland_server.h"
 #include "window.h"
 
 #include <KConfigGroup>
@@ -165,6 +169,10 @@ class UpscaleTestDriver : public Effect
     // and where its answers are, as x,y,width,height separated by semicolons.
     Q_PROPERTY(QString question READ question)
     Q_PROPERTY(QString answers READ answers)
+    // What the seat's pointer lock is doing, for the mouse look of a presented
+    // game: "engaged", "asked" while the client has one KWin has not taken, or
+    // "none".
+    Q_PROPERTY(QString pointerLock READ pointerLock)
 
 public:
     UpscaleTestDriver()
@@ -291,6 +299,16 @@ public:
     QString question() const
     {
         return m_effect->question();
+    }
+
+    QString pointerLock() const
+    {
+        SurfaceInterface *surface = waylandServer() ? waylandServer()->seat()->focusedPointerSurface() : nullptr;
+        LockedPointerV1Interface *lock = surface ? surface->lockedPointer() : nullptr;
+        if (!lock) {
+            return QStringLiteral("none");
+        }
+        return lock->isLocked() ? QStringLiteral("engaged") : QStringLiteral("asked");
     }
 
     QString answers() const
