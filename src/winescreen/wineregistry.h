@@ -35,7 +35,8 @@
  *
  * In user.reg it reads the two values that give a prefix a virtual desktop. The
  * companion does not write them: a desktop is the user's own setting, and a
- * prefix that has one is left alone.
+ * prefix that has one is not prepared. An earlier preparation can still be
+ * removed without changing the user's desktop.
  *
  * These functions only transform the files' text. They change the lines they are
  * about and nothing else, so every other byte stays as Wine wrote it. When and

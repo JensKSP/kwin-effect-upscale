@@ -222,10 +222,12 @@ prefix and its server lock.
 - Change only the two keys and leave every other byte alone. The keys are
   written whole, so a description Wine added to since is replaced with the
   values it should have, and removing it removes what Wine added as well.
-- Never touch a prefix whose programs run in a virtual desktop the user set
+- Never prepare a prefix whose programs run in a virtual desktop the user set
   (winecfg, protontricks): there explorer's desktop and our screen would
   describe different sizes. The companion keeps its own record of the prefixes
-  it changed, in `$XDG_STATE_HOME`, and undoes only its own change.
+  it changed, in `$XDG_STATE_HOME`, and undoes only its own change. Reset remains
+  available when the user enables a virtual desktop after preparation and
+  leaves the user's desktop settings unchanged.
 - Undo when the user resets it on the settings page: at once for a game that
   is not running, after exit for one that is. Follow the settings when the
   game's window next appears: the effect tells the helper the size and the rate
@@ -369,6 +371,99 @@ than refusing to start, and that KWin and the effect present the game's own
 window as they present the test client's.
 
 ## Progress
+
+### Build repair and pull request review, 2026-09-23
+
+PR #21 at `04fb2f2` failed before tests in every compiler job: the helper
+split left the job's private functions and timing constants in the other
+translation unit, omitted its prefix declarations, and defined the logging
+category twice. The private dependencies now live with the job implementation;
+the helper owns the one logging definition and the job declares it. Static
+analysis then found two naming issues and excessive complexity in `advance()`;
+the names now follow the configured rules and the write step has its own
+function, with behavior unchanged.
+
+Observed on the repaired working tree, in the maintained containers:
+
+- Trixie GCC and Clang: warnings as errors, all 26 runtime tests passed with
+  each compiler, and both staged installs passed.
+- Neon GCC and Clang: all targets built with warnings as errors. Neon runtime
+  tests were not run; this is the build-only KWin master compatibility check.
+- Trixie coverage: all 26 runtime tests passed; plugin line coverage is 92.5%
+  (4725 of 5110 lines), above the 90% gate.
+- Trixie address/undefined-behavior sanitizers and ThreadSanitizer: all 26
+  runtime tests passed in each run. The 60-second fuzzing check also passed.
+- Both pre-commit stages passed, including tooling regression tests.
+  clang-tidy passed after the full source scan's findings were corrected and
+  the affected helper files were rechecked. Plugin metadata validation passed.
+
+The changes are local and uncommitted. PR #21 still points to `04fb2f2`, with
+the old failed CI checks and pending CodeRabbit approval. Hosted CI, arm64 and
+package builds have not been rerun.
+
+The review reproduced three outstanding correctness findings with isolated
+probes under `build/`, linked against the Trixie helper library:
+
+- `holdsWhatWasWritten()` compares the requested screen list with the stored
+  one without allowing the writer's normalization. Both two requested screens
+  with only one known monitor and a requested refresh rate of zero cause
+  repeated `WrittenMeanwhile` retries after a successful write. Neither job
+  finishes or reaches its requested restart; the busy deadline is twelve hours.
+- A user who enables a Wine virtual desktop after preparation cannot reset
+  the companion's screen description: the shared registry read rejects the
+  clear with `DesktopOfTheUser`. The keys in `system.reg` remain.
+- Losing the prefix's screen description and then calling `present()` followed
+  by `offer()` marks the game `never` even though it has not run with the
+  preparation. The existing rewrite job prevents the requested undo from
+  replacing it.
+
+### Preparation repair before hardware acceptance, 2026-09-23
+
+The three findings above are now addressed in the working tree:
+
+- Read-back verification belongs to the registry writer, against the text it
+  actually produced. Capping the monitor count and substituting a refresh rate
+  are successful writes, not concurrent changes. The helper's restart test now
+  covers both normalizations and verifies that the following presentation does
+  not queue another write.
+- A user's virtual desktop prevents a new preparation, but not removal of an
+  earlier one. A refused update retains its preparation record so Reset remains
+  available. Writer and helper tests check removal and unchanged `user.reg`.
+- An offer waits for a pending repair and checks the prefix itself before
+  calling a prepared game unsupported. A lost description is restored after
+  the run, whether or not `present()` was called before `offer()`.
+
+The helper fixture and the companion's test build declarations have their own
+files to keep the expanded tests below the code-line limit. The focused Trixie
+GCC writer and helper tests passed. Both pre-commit stages passed before the
+remaining review cleanups. All 26 GCC runtime tests then passed, but the hook
+reported a concurrent source change and stopped before the staged install;
+the finishing checks were repeated against the settled tree. Both hook stages
+passed again, Trixie GCC and Clang each passed all 26 runtime tests and the
+staged install, and Neon GCC and Clang built all targets with warnings as
+errors. Neon runtime tests were not run. The full production clang-tidy scan
+and plugin metadata validation passed. Coverage and sanitizer results above
+precede these behavior changes; hosted checks will rerun them after the push.
+
+Other valid review cleanups restore the X11 test's previous focus policy even
+on an early assertion failure and clarify the README's package requirements
+and per-texture memory estimate. Two review suggestions conflict with current
+requirements: the pointer API fallback supports copying the plugin into KWin
+and is not generated build identity, while durable design belongs in the
+handbook under the current documentation rules. The older concurrent registry
+writer finding remains open: the Proton lock and server checks do not establish
+exclusion against every possible registry writer. Wine 11's `server/request.c`
+confirms that taking the server's lock can cause a concurrent launch to exit,
+as the existing design notes explain; the current recovery checks do not
+prove preservation of an unrelated edit made between the read and rename.
+
+Jens's next hardware acceptance sequence is Wreckfest, Extreme Tux Racer,
+SuperTuxKart and Left 4 Dead 2 on wzpc. Final review and merge follow only if
+those results and the PR checks are satisfactory. Further listed OSS games
+and Flatpak/Snap experiments follow that baseline; they are not acceptance
+claims for this candidate.
+
+### Implementation and acceptance
 
 | Step | State |
 | --- | --- |

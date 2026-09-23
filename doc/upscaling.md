@@ -372,7 +372,8 @@ and not yet with a game:
   monitors they belong to the prefix has described itself, since the first time
   it ran; a screen without a monitor of its own would have no size at all, so
   there are never more screens than monitors the prefix knows. A prefix whose
-  programs run in a virtual desktop of the user's is left alone.
+  programs run in a virtual desktop of the user's is not prepared. Reset can
+  still remove an earlier preparation, without changing that virtual desktop.
 - The description is what a Wine build reads before it asks the display server,
   and it was tested against Wine 11. A build the helper has not seen is written
   for all the same, because refusing would take the feature from every build
@@ -418,6 +419,10 @@ and not yet with a game:
   nothing to judge: the run the helper started itself is watched, and a game
   whose Wine server comes and goes without the effect ever asking about a window
   of it has the description taken back too.
+  A record alone does not establish failure: if the prefix has lost the screen
+  description, the helper restores it after the run and does not mark the game
+  unsupported. A repair already waiting for the game to exit is allowed to
+  complete before its effect is judged.
 - **Prepared Games** on the settings page lists what the helper set up, with a
   Reset for each. Uninstalling the package cannot undo a preparation, because
   nothing runs as the user afterwards; the question says so.

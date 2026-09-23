@@ -56,6 +56,7 @@ private Q_SLOTS:
     void describesAndUndescribesTheScreen();
     void describesAnotherSizeOverItsOwn();
     void leavesAPrefixWithAVirtualDesktopAlone();
+    void clearsPreparationAfterTheUserEnablesADesktop();
     void refusesAPrefixThatDescribesNoDevices();
     void waitsForARunningServer();
     void waitsForProton();
@@ -133,8 +134,20 @@ void WineDesktopWriteTest::leavesAPrefixWithAVirtualDesktopAlone()
     const QByteArray switchedOff = s_user + "\n[Software\\\\Wine\\\\Explorer\\\\Desktops] 1789805658\n\"Default\"=\"2560x1440\"\n";
     writeRegistry(switchedOff, QStringLiteral("user.reg"));
     QCOMPARE(wineSetScreens(m_target, ::getuid(), s_screens, 1790000000), WineWriteResult::DesktopOfTheUser);
-    QCOMPARE(wineClearScreen(m_target, ::getuid()), WineWriteResult::DesktopOfTheUser);
+    QCOMPARE(wineClearScreen(m_target, ::getuid()), WineWriteResult::Written);
     QCOMPARE(registry(), s_machine);
+}
+
+void WineDesktopWriteTest::clearsPreparationAfterTheUserEnablesADesktop()
+{
+    QCOMPARE(wineSetScreens(m_target, ::getuid(), s_screens, 1790000000), WineWriteResult::Written);
+    const QByteArray users = s_user + "\n[Software\\\\Wine\\\\Explorer] 1789805658\n\"Desktop\"=\"shell\"\n";
+    writeRegistry(users, QStringLiteral("user.reg"));
+    QCOMPARE(wineSetScreens(m_target, ::getuid(), s_smaller, 1790000001), WineWriteResult::DesktopOfTheUser);
+    QCOMPARE(wineScreens(registry()), s_screens);
+    QCOMPARE(wineClearScreen(m_target, ::getuid()), WineWriteResult::Written);
+    QCOMPARE(registry(), s_machine);
+    QCOMPARE(registry(QStringLiteral("user.reg")), users);
 }
 
 void WineDesktopWriteTest::refusesAPrefixThatDescribesNoDevices()

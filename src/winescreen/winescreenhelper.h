@@ -127,6 +127,7 @@ private:
     void proven(const QString &id);
     bool advance(Job &job);
     static bool stillRunning(Job &job);
+    static WineWriteResult writeScreen(const Job &job, const WineScreenRecord &record);
     void settle(const Job &job, WineScreenRecord &record, WineWriteResult result);
     void startJob(const Job &job);
     void afterRun(const WineScreenRecord &record, uint pid, pid_t server, const std::shared_ptr<WineDirectory> &directory,

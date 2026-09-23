@@ -16,6 +16,7 @@
 #include <QDBusReply>
 #include <QFile>
 #include <QSaveFile>
+#include <QScopeGuard>
 #include <QTest>
 
 // Stands in for a helper answering org.kde.KWin.Upscale.Helper1: it prepared
@@ -247,10 +248,21 @@ void UpscaleX11PreparedTest::keepsTheKeyboardWhereThePointerIs()
 {
     const KSharedConfig::Ptr config = KSharedConfig::openConfig(QStringLiteral("kwinrc"));
     KConfigGroup windows(config, QStringLiteral("Windows"));
+    const QString previousPolicy = windows.readEntry("FocusPolicy", "ClickToFocus");
+    const bool hadPolicy = windows.hasKey("FocusPolicy");
     windows.writeEntry("FocusPolicy", "FocusFollowsMouse");
     windows.sync();
     QDBusInterface kwin(QStringLiteral("org.kde.KWin"), QStringLiteral("/KWin"), QStringLiteral("org.kde.KWin"),
                         QDBusConnection::sessionBus());
+    const auto restorePolicy = qScopeGuard([&] {
+        if (hadPolicy) {
+            windows.writeEntry("FocusPolicy", previousPolicy);
+        } else {
+            windows.deleteEntry("FocusPolicy");
+        }
+        windows.sync();
+        kwin.call(QStringLiteral("reconfigure"));
+    });
     kwin.call(QStringLiteral("reconfigure"));
 
     TestHelper helper;
@@ -277,10 +289,6 @@ void UpscaleX11PreparedTest::keepsTheKeyboardWhereThePointerIs()
     QTest::qWait(500);
     QVERIFY2(game.isFocused(), "the game lost the keyboard to the window under it");
     QCOMPARE(game.focusLosses(), 0);
-
-    windows.writeEntry("FocusPolicy", "ClickToFocus");
-    windows.sync();
-    kwin.call(QStringLiteral("reconfigure"));
 }
 
 // Mouse look: the game hides the cursor and grabs the pointer, which Xwayland

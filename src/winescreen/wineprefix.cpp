@@ -147,7 +147,7 @@ bool wineBuildTested(const QString &build)
     // The description was written and read back against Wine 11, Proton's and
     // upstream's. What decides is the major version in the build's name, wherever
     // in it the first number stands.
-    static constexpr int tested = 11;
+    static constexpr int s_tested = 11;
     const QRegularExpressionMatch major = QRegularExpression(QStringLiteral("(\\d+)")).match(build);
-    return major.hasMatch() && major.captured(1).toInt() == tested;
+    return major.hasMatch() && major.captured(1).toInt() == s_tested;
 }

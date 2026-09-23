@@ -79,8 +79,8 @@ enum class WineWriteResult {
     // The path no longer leads to the proven prefix, its registry is not one to
     // replace, or the prefix has not described its devices yet.
     Unreachable,
-    // The prefix runs its programs in a virtual desktop the user set; it is left
-    // alone.
+    // A new description was refused because the user set a virtual desktop.
+    // Clearing an earlier preparation is still allowed.
     DesktopOfTheUser,
     WriteFailed,
 };
@@ -100,6 +100,7 @@ QList<WineScreen> wineScreensIn(const WineDirectory &directory);
 
 /*
  * Takes the description away again, so that the prefix asks the display server
- * for its screen as it did before.
+ * for its screen as it did before. This also works after the user enables a
+ * virtual desktop; their user.reg is left untouched.
  */
 WineWriteResult wineClearScreen(const WineScreenTarget &target, uid_t user);

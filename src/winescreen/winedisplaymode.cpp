@@ -106,7 +106,7 @@ std::optional<int> wineDisplayModeRate(const QByteArray &value)
     if (value.size() < recordSize - fieldsAt) {
         return std::nullopt;
     }
-    const quint32 rate = qFromLittleEndian<quint32>(value.constData() + rateAt - fieldsAt);
+    const auto rate = qFromLittleEndian<quint32>(value.constData() + rateAt - fieldsAt);
     return rate == 0 ? std::nullopt : std::optional(static_cast<int>(rate));
 }
 

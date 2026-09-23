@@ -9,14 +9,11 @@
 
 #include <KLocalizedString>
 
-#include <QDateTime>
 #include <QDir>
 #include <QLoggingCategory>
 #include <QProcess>
 #include <QUuid>
 
-#include <algorithm>
-#include <csignal>
 #include <unistd.h>
 
 Q_LOGGING_CATEGORY(KWIN_UPSCALE_WINESCREEN, "kwin.upscale.winescreen", QtInfoMsg)
@@ -33,21 +30,6 @@ const QString hostTemporaryDirectory = QStringLiteral("/tmp");
 
 // An offer nobody answered does not keep the service alive for ever.
 constexpr std::chrono::hours offerLifetime{1};
-
-// How long a write waits for a prefix that stays busy after its program has
-// gone: long enough for the game to be played again in between, and not for
-// ever, since a lock that cannot be tested also reads as busy.
-constexpr std::chrono::hours busyLimit{12};
-
-// How long the run this companion started itself is waited for before the watch
-// on it is given up: Steam takes its time over a game, and a start the user
-// cancelled leaves the preparation as it is.
-constexpr std::chrono::minutes watchLimit{5};
-
-// How long after the program and its server are gone the registry is written:
-// a Wine server writes the registry out while it exits, and the lock it held
-// goes at the very end of that.
-constexpr std::chrono::seconds settleDelay{2};
 
 bool launchThroughSteam(const WineScreenRecord &record)
 {
@@ -94,20 +76,6 @@ WineScreenTarget targetFor(const WinePrefix &prefix, const QProcessEnvironment &
         .temporaryDirectory = hostTemporaryDirectory,
         .directory = nullptr,
     };
-}
-
-bool holdsWhatWasWritten(const WineScreenRecord &record, bool clear, const QList<WineScreen> &screens)
-{
-    if (!record.target.directory) {
-        return true;
-    }
-    const QList<WineScreen> described = wineScreensIn(*record.target.directory);
-    return clear ? described.isEmpty() : described == screens;
-}
-
-std::optional<pid_t> hostServer(const WineScreenRecord &record)
-{
-    return wineServerProcess(wineServerLockPath(record.target.temporaryDirectory, ::getuid(), record.target.identity));
 }
 
 } // namespace
@@ -182,7 +150,18 @@ WineScreenHelper::Offered WineScreenHelper::offer(uint pid, const QString &windo
         qCInfo(KWIN_UPSCALE_WINESCREEN) << "Nothing offered for" << title << "prefix" << record.id << ": the answer was never";
         return {};
     }
+    // A pending repair has not been tried by the game yet. In particular,
+    // present() can have queued it before resize validation asks us again.
+    if (hasJob(record.id)) {
+        return {};
+    }
     if (record.written == size) {
+        if (wineScreensIn(*record.target.directory).value(0).rect.size() != size) {
+            // Consent survives a lost description; restore it after this run
+            // rather than treating the stale record as a failed experiment.
+            afterRun(record, pid, pending->server, record.target.directory, screens);
+            return {};
+        }
         // The prefix already describes a screen of exactly this size and the
         // game still draws at the output's. Such a game renders at a size of
         // its own whatever the screen offers, which is beyond what this

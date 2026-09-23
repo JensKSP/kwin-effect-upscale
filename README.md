@@ -308,9 +308,10 @@ composition no longer does so.
 ## System requirements
 
 The effect runs inside KWin, so what it needs is a session that has one and a
-graphics stack that can do the arithmetic. None of it is assumed: every item
-below is asked for at runtime, on the machine the effect is running on. When
-the answer is no, the effect is either never loaded or leaves that frame to
+graphics stack that can do the arithmetic. The package enforces KWin binary
+compatibility at installation; the effect checks the graphics requirements
+at runtime, on the machine it is running on. When the answer is no, the
+effect is either never loaded or leaves that frame to
 KWin's ordinary rendering — it does not guess, and it does not degrade the
 image to fit. There is no GPU vendor list either. FSR 1 is arithmetic any
 conforming implementation runs, so AMD, Intel and NVIDIA are asked the same
@@ -332,7 +333,8 @@ gamescope, no launcher wrapper and no daemon.
 
 While the effect is scaling a window it holds one texture the size of the
 game's buffer, and with sharpening on a second the size of the output — about
-33 MB at 3840 x 2160, or four times that where the destination is linear.
+33 MB per texture at 3840 x 2160, or four times that per texture where the
+destination is linear.
 Switching sharpening off releases the larger one.
 
 The developer handbook lists

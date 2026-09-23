@@ -439,15 +439,4 @@ if(KWIN_BUILD_KCMS)
     upscale_add_build_info(upscale_config-buildinfo_test)
 endif()
 
-# The companion that describes a screen in a Wine prefix lives outside the
-# plugin folder and needs nothing but Qt Core.
-foreach(
-    test
-    IN
-    ITEMS wine_registry wine_display_mode wine_prefix wine_screen_write wine_screen_helper
-)
-    add_executable(upscale_${test}_test ${test}_test.cpp)
-    target_link_libraries(upscale_${test}_test PRIVATE upscale_winescreen Qt6::Test)
-    string(REPLACE "_" "-" name ${test})
-    add_test(NAME upscale-${name} COMMAND upscale_${test}_test)
-endforeach()
+include(winescreen.cmake)

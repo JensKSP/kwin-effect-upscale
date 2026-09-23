@@ -4,14 +4,42 @@
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
+#include "wineprefix.h"
 #include "winescreenhelper.h"
 
 #include <QDateTime>
 #include <QLoggingCategory>
 
+#include <algorithm>
 #include <csignal>
+#include <unistd.h>
 
-Q_LOGGING_CATEGORY(KWIN_UPSCALE_WINESCREEN, "kwin.upscale.winescreen", QtInfoMsg)
+Q_DECLARE_LOGGING_CATEGORY(KWIN_UPSCALE_WINESCREEN)
+
+namespace
+{
+
+// How long a write waits for a prefix that stays busy after its program has
+// gone: long enough for the game to be played again in between, and not for
+// ever, since a lock that cannot be tested also reads as busy.
+constexpr std::chrono::hours busyLimit{12};
+
+// How long the run this companion started itself is waited for before the watch
+// on it is given up: Steam takes its time over a game, and a start the user
+// cancelled leaves the preparation as it is.
+constexpr std::chrono::minutes watchLimit{5};
+
+// How long after the program and its server are gone the registry is written:
+// a Wine server writes the registry out while it exits, and the lock it held
+// goes at the very end of that.
+constexpr std::chrono::seconds settleDelay{2};
+
+std::optional<pid_t> hostServer(const WineScreenRecord &record)
+{
+    return wineServerProcess(wineServerLockPath(record.target.temporaryDirectory, ::getuid(), record.target.identity));
+}
+
+} // namespace
 
 void WineScreenHelper::afterRun(const WineScreenRecord &record, uint pid, pid_t server, const std::shared_ptr<WineDirectory> &directory,
                                 const QList<WineScreen> &screens)
@@ -161,6 +189,20 @@ bool WineScreenHelper::stillRunning(Job &job)
     return job.server > 0 && wineProcessExists(job.server);
 }
 
+WineWriteResult WineScreenHelper::writeScreen(const Job &job, const WineScreenRecord &record)
+{
+    if (!job.clear) {
+        const QString build = wineBuild(record.target.steamCompatData);
+        if (!wineBuildTested(build)) {
+            qCInfo(KWIN_UPSCALE_WINESCREEN) << "Describing the screen in a prefix of"
+                                            << (build.isEmpty() ? QStringLiteral("a Wine build this companion cannot tell") : build)
+                                            << ", which it was not tested against; a screen it does not read leaves the game at full size";
+        }
+    }
+    return job.clear ? wineClearScreen(record.target, ::getuid())
+                     : wineSetScreens(record.target, ::getuid(), job.screens, QDateTime::currentSecsSinceEpoch());
+}
+
 bool WineScreenHelper::advance(Job &job)
 {
     if (stillRunning(job)) {
@@ -178,20 +220,7 @@ bool WineScreenHelper::advance(Job &job)
         return true;
     }
     record->target.directory = job.directory;
-    if (!job.clear) {
-        const QString build = wineBuild(record->target.steamCompatData);
-        if (!wineBuildTested(build)) {
-            qCInfo(KWIN_UPSCALE_WINESCREEN) << "Describing the screen in a prefix of"
-                                            << (build.isEmpty() ? QStringLiteral("a Wine build this companion cannot tell") : build)
-                                            << ", which it was not tested against; a screen it does not read leaves the game at full size";
-        }
-    }
-    WineWriteResult result = job.clear ? wineClearScreen(record->target, ::getuid())
-                                       : wineSetScreens(record->target, ::getuid(), job.screens, QDateTime::currentSecsSinceEpoch());
-    if (result == WineWriteResult::Written && !holdsWhatWasWritten(*record, job.clear, job.screens)) {
-        qCWarning(KWIN_UPSCALE_WINESCREEN) << "The prefix of" << record->title << "did not keep what was written";
-        result = WineWriteResult::WrittenMeanwhile;
-    }
+    const WineWriteResult result = writeScreen(job, *record);
     if (result == WineWriteResult::WrittenMeanwhile) {
         record->written = job.clear ? std::nullopt : std::optional<QSize>(job.screens.value(0).rect.size());
         record->described = job.clear ? QString() : wineScreensText(job.screens);
@@ -235,8 +264,6 @@ void WineScreenHelper::settle(const Job &job, WineScreenRecord &record, WineWrit
         return;
     }
     qCWarning(KWIN_UPSCALE_WINESCREEN) << "Left the prefix of" << record.title << "unchanged, result" << static_cast<int>(result);
-    if (result == WineWriteResult::DesktopOfTheUser && !job.clear) {
-        record.written.reset();
-        m_records->store(record);
-    }
+    // A refused update did not remove an earlier preparation. Keep its record
+    // so Reset can still remove it, including after the user enables a desktop.
 }

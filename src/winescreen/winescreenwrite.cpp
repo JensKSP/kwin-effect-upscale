@@ -152,8 +152,7 @@ WineDesktopValues desktopValuesIn(const WineDirectory &directory)
     return contents && wineIsRegistry(*contents) ? wineDesktopValues(*contents) : WineDesktopValues{};
 }
 
-// The registry's text, once it is certain that it may be replaced now. A prefix
-// whose programs run in a virtual desktop of the user's is not ours to describe.
+// The registry's text, once it is certain that it may be replaced now.
 WineWriteResult read(const WineScreenTarget &target, uid_t user, const std::shared_ptr<WineDirectory> &directory, QByteArray &text)
 {
     if (!directory || !plainRegistry(directory->descriptor(), machineRegistry, user)) {
@@ -161,10 +160,6 @@ WineWriteResult read(const WineScreenTarget &target, uid_t user, const std::shar
     }
     if (serverRunning(target, user)) {
         return WineWriteResult::Busy;
-    }
-    const WineDesktopValues desktop = desktopValuesIn(*directory);
-    if (desktop.desktop || desktop.defaultSize) {
-        return WineWriteResult::DesktopOfTheUser;
     }
     const std::optional<QByteArray> contents = readRegistry(directory->descriptor(), machineRegistry);
     if (!contents || !wineIsRegistry(*contents)) {
@@ -182,7 +177,14 @@ WineWriteResult replace(const WineScreenTarget &target, uid_t user, const std::s
     // A server that started between the check and the rename may have read
     // the old file and will write it back when it exits; the caller records the
     // change and writes it again after that run.
-    return serverRunning(target, user) ? WineWriteResult::WrittenMeanwhile : WineWriteResult::Written;
+    if (serverRunning(target, user)) {
+        return WineWriteResult::WrittenMeanwhile;
+    }
+    // Compare with the registry actually produced: it may contain fewer
+    // monitors than requested and substitutes 60 Hz for an unknown rate.
+    // Checking here also covers Reset, which may have reopened the directory.
+    const std::optional<QByteArray> stored = readRegistry(directory->descriptor(), machineRegistry);
+    return stored && *stored == text ? WineWriteResult::Written : WineWriteResult::WrittenMeanwhile;
 }
 
 } // namespace
@@ -236,6 +238,10 @@ WineWriteResult wineSetScreens(const WineScreenTarget &target, uid_t user, const
     QByteArray text;
     if (const WineWriteResult result = read(target, user, directory, text); result != WineWriteResult::Written) {
         return result;
+    }
+    const WineDesktopValues desktop = desktopValuesIn(*directory);
+    if (desktop.desktop || desktop.defaultSize) {
+        return WineWriteResult::DesktopOfTheUser;
     }
     // Without the devices the prefix described for itself there is nothing to
     // describe a screen for; it has them once a program of its own has run.
