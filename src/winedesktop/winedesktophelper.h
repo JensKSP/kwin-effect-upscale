@@ -7,6 +7,7 @@
 #pragma once
 
 #include "winedesktoprecord.h"
+#include "wineregistry.h"
 
 #include <QDeadlineTimer>
 #include <QHash>
@@ -42,16 +43,17 @@ public:
 
     explicit WineDesktopHelper(WineDesktopRecords *records, QObject *parent = nullptr);
 
-    Offered offer(uint pid, const QString &windowClass, const QString &title, const QSize &size, int refreshRate);
+    Offered offer(uint pid, const QString &windowClass, const QString &title, const QList<WineScreen> &screens);
     QString answer(const QString &offer, const QString &answer);
     bool restart(const QString &offer);
     /*
      * The size the program in this window was prepared for, when it runs at it
      * now, so that the effect presents the window across its output. `wanted`
-     * is the size the effect wants now: another one prepares the program for
-     * it after this run, and none undoes the preparation after this run.
+     * is the screens the effect wants the program to see now, its own first:
+     * others than those described prepare the program for them after this run,
+     * and none at all undoes the preparation after this run.
      */
-    QSize present(uint pid, const QString &windowClass, const QSize &wanted, int refreshRate);
+    QSize present(uint pid, const QString &windowClass, const QList<WineScreen> &wanted);
     QList<WineDesktopRecord> prepared() const;
     bool reset(const QString &id);
 
@@ -72,8 +74,25 @@ private:
         WineDesktopRecord record;
         pid_t game = 0;
         pid_t server = 0;
-        // The rate the screen runs at, for the modes the prefix is told about.
-        int rate = 0;
+        // The screens the program is to see, its own first.
+        QList<WineScreen> screens;
+        QDeadlineTimer expiry;
+    };
+
+    /*
+     * The run that follows a preparation this companion started itself. A game
+     * that will not start with the screen it was described - because the size
+     * its own settings name is gone from the list - is the one case the
+     * preparation cannot be judged by what it draws, since it draws nothing.
+     * The run is watched instead: a server that comes and goes without the
+     * effect ever asking about a window of that program takes the description
+     * back and is not offered again.
+     */
+    struct Probation
+    {
+        QString id;
+        // Whether a Wine server for the prefix was seen at all yet.
+        bool started = false;
         QDeadlineTimer expiry;
     };
 
@@ -83,10 +102,10 @@ private:
         QString offer;
         pid_t game = 0;
         pid_t server = 0;
-        // Clearing writes `size` away; setting writes it, at this rate.
+        // Clearing takes the described screens away; setting describes these,
+        // the program's own first.
         bool clear = false;
-        QSize size;
-        int rate = 0;
+        QList<WineScreen> screens;
         bool relaunch = false;
         QDeadlineTimer closeDeadline;
         bool terminated = false;
@@ -103,17 +122,21 @@ private:
 
     std::optional<Pending> locate(uint pid, const QString &windowClass, const QString &title);
     void poll();
+    // The watched run reported what it did, or nothing yet; true when it is over.
+    bool watch(Probation &probation);
+    void proven(const QString &id);
     bool advance(Job &job);
     static bool stillRunning(Job &job);
     void settle(const Job &job, WineDesktopRecord &record, WineWriteResult result);
     void startJob(const Job &job);
     void afterRun(const WineDesktopRecord &record, uint pid, pid_t server, const std::shared_ptr<WineDirectory> &directory,
-                  const std::optional<QSize> &size, int rate);
+                  const QList<WineScreen> &screens);
     bool hasJob(const QString &id) const;
 
     WineDesktopRecords *m_records;
     QHash<QString, Pending> m_offers;
     QList<Job> m_jobs;
+    QList<Probation> m_probation;
     QTimer m_timer;
     std::chrono::milliseconds m_closeGrace{20000};
     Launcher m_launcher;

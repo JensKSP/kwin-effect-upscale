@@ -39,6 +39,11 @@ constexpr std::chrono::hours offerLifetime{1};
 // ever, since a lock that cannot be tested also reads as busy.
 constexpr std::chrono::hours busyLimit{12};
 
+// How long the run this companion started itself is waited for before the watch
+// on it is given up: Steam takes its time over a game, and a start the user
+// cancelled leaves the preparation as it is.
+constexpr std::chrono::minutes watchLimit{5};
+
 // How long after the program and its server are gone the registry is written:
 // a Wine server writes the registry out while it exits, and the lock it held
 // goes at the very end of that.
@@ -91,13 +96,13 @@ WineDesktopTarget targetFor(const WinePrefix &prefix, const QProcessEnvironment 
     };
 }
 
-bool holdsWhatWasWritten(const WineDesktopRecord &record, bool clear, const QSize &size)
+bool holdsWhatWasWritten(const WineDesktopRecord &record, bool clear, const QList<WineScreen> &screens)
 {
     if (!record.target.directory) {
         return true;
     }
-    const std::optional<QSize> screen = wineScreenIn(*record.target.directory);
-    return clear ? !screen : screen == size;
+    const QList<WineScreen> described = wineScreensIn(*record.target.directory);
+    return clear ? described.isEmpty() : described == screens;
 }
 
 std::optional<pid_t> hostServer(const WineDesktopRecord &record)
@@ -161,16 +166,17 @@ std::optional<WineDesktopHelper::Pending> WineDesktopHelper::locate(uint pid, co
     record.target = targetFor(*prefix, process->environment);
     record.target.directory = directory;
     record.steamAppId = prefix->steamAppId;
-    return Pending{.record = record, .game = static_cast<pid_t>(pid), .server = *server, .rate = 0, .expiry = QDeadlineTimer(offerLifetime)};
+    return Pending{.record = record, .game = static_cast<pid_t>(pid), .server = *server, .screens = {}, .expiry = QDeadlineTimer(offerLifetime)};
 }
 
-WineDesktopHelper::Offered WineDesktopHelper::offer(uint pid, const QString &windowClass, const QString &title, const QSize &size, int refreshRate)
+WineDesktopHelper::Offered WineDesktopHelper::offer(uint pid, const QString &windowClass, const QString &title, const QList<WineScreen> &screens)
 {
+    const QSize size = screens.value(0).rect.size();
     std::optional<Pending> pending = size.isEmpty() ? std::nullopt : locate(pid, windowClass, title);
     if (!pending) {
         return {};
     }
-    pending->rate = refreshRate;
+    pending->screens = screens;
     WineDesktopRecord &record = pending->record;
     if (record.never) {
         qCInfo(KWIN_UPSCALE_WINEDESKTOP) << "Nothing offered for" << title << "prefix" << record.id << ": the answer was never";
@@ -187,7 +193,7 @@ WineDesktopHelper::Offered WineDesktopHelper::offer(uint pid, const QString &win
                                          << "; undoing that and not asking again";
         record.never = true;
         m_records->store(record);
-        afterRun(record, pid, pending->server, record.target.directory, std::nullopt, refreshRate);
+        afterRun(record, pid, pending->server, record.target.directory, {});
         return {};
     }
     record.wanted = size;
@@ -220,8 +226,7 @@ QString WineDesktopHelper::answer(const QString &offer, const QString &answer)
         .game = pending.game,
         .server = pending.server,
         .clear = false,
-        .size = pending.record.wanted,
-        .rate = pending.rate,
+        .screens = pending.screens,
         .relaunch = false,
         .closeDeadline = {},
         .terminated = false,
@@ -244,7 +249,7 @@ bool WineDesktopHelper::restart(const QString &offer)
     return false;
 }
 
-QSize WineDesktopHelper::present(uint pid, const QString &windowClass, const QSize &wanted, int refreshRate)
+QSize WineDesktopHelper::present(uint pid, const QString &windowClass, const QList<WineScreen> &wanted)
 {
     const std::optional<WineProcess> process = wineProcess(pid);
     if (!process) {
@@ -264,39 +269,41 @@ QSize WineDesktopHelper::present(uint pid, const QString &windowClass, const QSi
     if (!directory || !server) {
         return {};
     }
+    proven(record->id);
     const QSize written = *record->written;
+    const QSize wantedSize = wanted.value(0).rect.size();
     // The prefix may have lost the description since it was written: a Wine
     // server that overlapped the write saves its own copy when it exits, and
     // Proton rebuilds a prefix it is downgraded to. Then this run has none.
-    const bool held = wineScreenIn(*directory) == written;
-    qCInfo(KWIN_UPSCALE_WINEDESKTOP) << "Asked about prefix" << record->id << "of" << record->title << ": wants" << wanted << "written"
-                                     << written << "screen described in prefix" << held;
-    if (wanted.isEmpty()) {
+    const bool held = wineScreensIn(*directory).value(0).rect.size() == written;
+    qCInfo(KWIN_UPSCALE_WINEDESKTOP) << "Asked about prefix" << record->id << "of" << record->title << ": wants"
+                                     << wineScreensText(wanted) << "written" << written << "screen described in prefix" << held;
+    if (wantedSize.isEmpty()) {
         // The effect no longer wants this program smaller: undone after this
         // run, and this run is left as it is. A description the prefix has lost
         // already leaves nothing to undo but the record of it.
         if (held) {
-            afterRun(*record, pid, *server, directory, std::nullopt, refreshRate);
+            afterRun(*record, pid, *server, directory, {});
         } else if (!hasJob(record->id)) {
             record->written.reset();
             record->never ? m_records->store(*record) : m_records->remove(record->id);
         }
         return {};
     }
-    if (!held || wanted != written || refreshRate != record->rate) {
-        // Written again, at the size the effect wants now, or for the rate the
-        // output runs at now, after this run.
-        record->wanted = wanted;
+    if (!held || wantedSize != written || wineScreensText(wanted) != record->described) {
+        // Described again after this run: at the size the effect wants now, or
+        // for the screens the session has now.
+        record->wanted = wantedSize;
         m_records->store(*record);
-        afterRun(*record, pid, *server, directory, wanted, refreshRate);
+        afterRun(*record, pid, *server, directory, wanted);
     }
     return held ? written : QSize();
 }
 
-// Queues the write that follows this run of the program: the screen at `size`,
-// or, without one, the description taken away again.
+// Queues the write that follows this run of the program: those screens, or,
+// without any, the description taken away again.
 void WineDesktopHelper::afterRun(const WineDesktopRecord &record, uint pid, pid_t server, const std::shared_ptr<WineDirectory> &directory,
-                                 const std::optional<QSize> &size, int rate)
+                                 const QList<WineScreen> &screens)
 {
     if (hasJob(record.id)) {
         return;
@@ -306,9 +313,8 @@ void WineDesktopHelper::afterRun(const WineDesktopRecord &record, uint pid, pid_
         .offer = {},
         .game = static_cast<pid_t>(pid),
         .server = server,
-        .clear = !size,
-        .size = size.value_or(record.written.value_or(QSize())),
-        .rate = rate,
+        .clear = screens.isEmpty(),
+        .screens = screens,
         .relaunch = false,
         .closeDeadline = {},
         .terminated = false,
@@ -353,7 +359,7 @@ bool WineDesktopHelper::reset(const QString &id)
         .game = 0,
         .server = hostServer(*record).value_or(0),
         .clear = true,
-        .size = *record->written,
+        .screens = {},
         .relaunch = false,
         .closeDeadline = {},
         .terminated = false,
@@ -366,7 +372,7 @@ bool WineDesktopHelper::reset(const QString &id)
 
 bool WineDesktopHelper::busy() const
 {
-    if (!m_jobs.isEmpty()) {
+    if (!m_jobs.isEmpty() || !m_probation.isEmpty()) {
         return true;
     }
     return std::ranges::any_of(m_offers, [](const Pending &pending) {
@@ -391,9 +397,53 @@ void WineDesktopHelper::poll()
             ++index;
         }
     }
-    if (m_jobs.isEmpty()) {
+    for (qsizetype index = 0; index < m_probation.size();) {
+        if (watch(m_probation[index])) {
+            m_probation.removeAt(index);
+        } else {
+            ++index;
+        }
+    }
+    if (m_jobs.isEmpty() && m_probation.isEmpty()) {
         m_timer.stop();
     }
+}
+
+// The run that followed a preparation this companion started. Its server coming
+// and going without the effect asking about a window of it is a game that will
+// not start with the screen it was described; the description goes, and it is
+// not offered again.
+bool WineDesktopHelper::watch(Probation &probation)
+{
+    const std::optional<WineDesktopRecord> record = m_records->find(probation.id);
+    if (!record || !record->written) {
+        return true;
+    }
+    if (hostServer(*record)) {
+        probation.started = true;
+        return false;
+    }
+    if (!probation.started) {
+        // Still waiting for the game to come up; Steam takes its time, and a
+        // start the user cancelled leaves the preparation as it is.
+        return probation.expiry.hasExpired();
+    }
+    qCWarning(KWIN_UPSCALE_WINEDESKTOP) << record->title << "ran and ended without drawing a window after its prefix was described for"
+                                        << *record->written << "; taking that back and not offering it again";
+    WineDesktopRecord failed = *record;
+    failed.never = true;
+    m_records->store(failed);
+    afterRun(failed, 0, 0, nullptr, {});
+    return true;
+}
+
+// The effect asked about a window of this prefix, so its program starts and
+// draws with the screen it was described.
+void WineDesktopHelper::proven(const QString &id)
+{
+    m_probation.removeIf([&id](const Probation &probation) {
+        return probation.id == id;
+    });
 }
 
 bool WineDesktopHelper::stillRunning(Job &job)
@@ -428,20 +478,33 @@ bool WineDesktopHelper::advance(Job &job)
         return true;
     }
     record->target.directory = job.directory;
+    if (!job.clear) {
+        // The description is what a Wine build reads before it asks the display
+        // server, and this companion was tested against one. A build it has not
+        // seen is written for all the same, since every build after this one
+        // would otherwise lose the feature, and named here so that a report
+        // about such a build says which it was.
+        const QString build = wineBuild(record->target.steamCompatData);
+        if (!wineBuildTested(build)) {
+            qCInfo(KWIN_UPSCALE_WINEDESKTOP) << "Describing the screen in a prefix of"
+                                             << (build.isEmpty() ? QStringLiteral("a Wine build this companion cannot tell") : build)
+                                             << ", which it was not tested against; a screen it does not read leaves the game at full size";
+        }
+    }
     WineWriteResult result = job.clear ? wineClearScreen(record->target, ::getuid())
-                                       : wineSetScreen(record->target, ::getuid(), job.size, job.rate, QDateTime::currentSecsSinceEpoch());
+                                       : wineSetScreens(record->target, ::getuid(), job.screens, QDateTime::currentSecsSinceEpoch());
     // What was written is read back: a server that wrote its own copy over it
     // leaves the prefix without the change, and then it is written again after
     // the next run rather than reported as done.
-    if (result == WineWriteResult::Written && !holdsWhatWasWritten(*record, job.clear, job.size)) {
+    if (result == WineWriteResult::Written && !holdsWhatWasWritten(*record, job.clear, job.screens)) {
         qCWarning(KWIN_UPSCALE_WINEDESKTOP) << "The prefix of" << record->title << "did not keep what was written";
         result = WineWriteResult::WrittenMeanwhile;
     }
     if (result == WineWriteResult::WrittenMeanwhile) {
         // Recorded as written, so that the next write knows it as this
         // companion's own, and written again once that server has gone.
-        record->written = job.clear ? std::nullopt : std::optional<QSize>(job.size);
-        record->rate = job.rate;
+        record->written = job.clear ? std::nullopt : std::optional<QSize>(job.screens.value(0).rect.size());
+        record->described = job.clear ? QString() : wineScreensText(job.screens);
         m_records->store(*record);
     }
     if (result == WineWriteResult::Busy || result == WineWriteResult::WrittenMeanwhile) {
@@ -462,20 +525,24 @@ bool WineDesktopHelper::advance(Job &job)
 
 void WineDesktopHelper::settle(const Job &job, WineDesktopRecord &record, WineWriteResult result)
 {
-    const std::optional<QSize> screen = record.target.directory ? wineScreenIn(*record.target.directory) : std::nullopt;
-    qCInfo(KWIN_UPSCALE_WINEDESKTOP) << (job.clear ? "Undo of" : "Preparation of") << record.title << job.size << "result"
-                                     << static_cast<int>(result) << "prefix now describes" << screen.value_or(QSize());
+    const QList<WineScreen> described = record.target.directory ? wineScreensIn(*record.target.directory) : QList<WineScreen>{};
+    qCInfo(KWIN_UPSCALE_WINEDESKTOP) << (job.clear ? "Undo of" : "Preparation of") << record.title << wineScreensText(job.screens) << "result"
+                                     << static_cast<int>(result) << "prefix now describes" << wineScreensText(described);
     if (result == WineWriteResult::Written && job.clear) {
         record.written.reset();
         record.never ? m_records->store(record) : m_records->remove(job.id);
         return;
     }
     if (result == WineWriteResult::Written) {
-        record.written = job.size;
-        record.rate = job.rate;
+        record.written = job.screens.value(0).rect.size();
+        record.described = wineScreensText(job.screens);
         m_records->store(record);
         if (job.relaunch && !m_launcher(record)) {
             qCWarning(KWIN_UPSCALE_WINEDESKTOP) << "Could not start" << record.title << "again";
+        } else if (job.relaunch) {
+            // The run this companion started is watched: see Probation.
+            m_probation.append({.id = job.id, .started = false, .expiry = QDeadlineTimer(watchLimit)});
+            m_timer.start();
         }
         return;
     }

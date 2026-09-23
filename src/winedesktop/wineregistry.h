@@ -7,6 +7,8 @@
 #pragma once
 
 #include <QByteArray>
+#include <QList>
+#include <QRect>
 #include <QSize>
 #include <QString>
 
@@ -59,11 +61,34 @@ struct WineScreenDevices
 {
     QByteArray card;
     QByteArray cardId;
-    QByteArray monitor;
+    // Every monitor the prefix knows, in the order it describes them. One
+    // screen can be described per monitor and no more, because a screen without
+    // one has no size at all.
+    QList<QByteArray> monitors;
 
     bool isEmpty() const;
     bool operator==(const WineScreenDevices &other) const = default;
 };
+
+/*
+ * One screen to describe: where it lies on the desktop, how large it is, and how
+ * often it refreshes. The size is the one its programs are to render at, which
+ * for the screen a prepared program is on is smaller than the output really is.
+ */
+struct WineScreen
+{
+    QRect rect;
+    int rate = 0;
+
+    bool operator==(const WineScreen &other) const = default;
+};
+
+/*
+ * Those screens in one line, as the record of a prepared prefix keeps them, so
+ * that screens described before can be compared with the ones wanted now:
+ * "2560x1440+0+0@120;3840x2160+3840+0@60".
+ */
+QString wineScreensText(const QList<WineScreen> &screens);
 
 /*
  * Whether the text is a registry file this code understands: Wine's own header
@@ -83,18 +108,20 @@ WineDesktopValues wineDesktopValues(const QByteArray &text);
 WineScreenDevices wineScreenDevices(const QByteArray &text);
 
 /*
- * The size of the screen described in system.reg, and nothing when none is.
+ * The screens described in system.reg, in the order Wine reads them; empty when
+ * none are described.
  */
-std::optional<QSize> wineScreen(const QByteArray &text);
+QList<WineScreen> wineScreens(const QByteArray &text);
 
 /*
- * system.reg describing a screen of that size, running at that rate, in place of
- * any screen described before. A key that is missing is added at the end with
- * the given modification time, in seconds since 1970. Returns nothing for text
- * that is not a registry file, for an empty size, or for a prefix that has not
- * described its devices yet.
+ * system.reg describing those screens, the first of them the one a prepared
+ * program is on, in place of any screens described before. A key that is missing
+ * is added at the end with the given modification time, in seconds since 1970.
+ * Returns nothing for text that is not a registry file, for a screen of no size,
+ * or for a prefix that has not described its devices yet. Screens beyond the
+ * monitors the prefix knows are left out, since Wine would give them no size.
  */
-std::optional<QByteArray> wineWithScreen(const QByteArray &text, const QSize &size, int refreshRate, qint64 modifiedSeconds);
+std::optional<QByteArray> wineWithScreens(const QByteArray &text, const QList<WineScreen> &screens, qint64 modifiedSeconds);
 
 /*
  * system.reg without the screen this companion described, so that Wine asks the

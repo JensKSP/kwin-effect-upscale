@@ -12,6 +12,7 @@
 #include <QCoreApplication>
 #include <QDBusConnection>
 #include <QDBusInterface>
+#include <QDBusMetaType>
 #include <QDBusReply>
 #include <QFile>
 #include <QSaveFile>
@@ -19,6 +20,35 @@
 
 // Stands in for a helper answering org.kde.KWin.Upscale.Helper1: it prepared
 // every program it is asked about to render at `size`.
+// One screen as the interface spells them, a(iiiii).
+struct TestScreen
+{
+    int x = 0;
+    int y = 0;
+    int width = 0;
+    int height = 0;
+    int rate = 0;
+};
+Q_DECLARE_METATYPE(TestScreen)
+
+QDBusArgument &operator<<(QDBusArgument &argument, const TestScreen &screen)
+{
+    argument.beginStructure();
+    argument << screen.x << screen.y << screen.width << screen.height << screen.rate;
+    argument.endStructure();
+    return argument;
+}
+
+const QDBusArgument &operator>>(const QDBusArgument &argument, TestScreen &screen)
+{
+    argument.beginStructure();
+    argument >> screen.x >> screen.y >> screen.width >> screen.height >> screen.rate;
+    argument.endStructure();
+    // The signature QtDBus requires of a demarshaller returns its argument.
+    // NOLINTNEXTLINE(bugprone-return-const-ref-from-parameter)
+    return argument;
+}
+
 class TestHelper : public QObject
 {
     Q_OBJECT
@@ -29,14 +59,18 @@ public:
     QList<uint> asked;
     QList<QSize> wanted;
     QStringList offers;
+    // The screens the effect last sent, its own first.
+    QList<TestScreen> offered;
     QStringList answers;
     QStringList restarts;
 
 public Q_SLOTS:
-    Q_SCRIPTABLE QString offer(uint pid, const QString &windowClass, const QString &title, const QSize &size, int refreshRate, QString &question)
+    Q_SCRIPTABLE QString offer(uint pid, const QString &windowClass, const QString &title, const QList<TestScreen> &screens, QString &question)
     {
         Q_UNUSED(title)
-        offers.append(QStringLiteral("%1 %2 %3 %4 %5").arg(pid).arg(windowClass).arg(size.width()).arg(size.height()).arg(refreshRate));
+        const TestScreen own = screens.value(0);
+        offers.append(QStringLiteral("%1 %2 %3 %4 %5").arg(pid).arg(windowClass).arg(own.width).arg(own.height).arg(own.rate));
+        offered = screens;
         question = QStringLiteral("Set this game up?");
         return QStringLiteral("offer-1");
     }
@@ -50,12 +84,13 @@ public Q_SLOTS:
         restarts.append(offer);
         return true;
     }
-    Q_SCRIPTABLE QSize present(uint pid, const QString &windowClass, const QSize &asking, int refreshRate)
+    Q_SCRIPTABLE QSize present(uint pid, const QString &windowClass, const QList<TestScreen> &asking)
     {
         Q_UNUSED(windowClass)
-        Q_UNUSED(refreshRate)
         asked.append(pid);
-        wanted.append(asking);
+        const TestScreen own = asking.value(0);
+        wanted.append(QSize(own.width, own.height));
+        offered = asking;
         return size;
     }
 };
@@ -148,6 +183,13 @@ void UpscaleX11PreparedTest::presentsAWindowAHelperPrepared()
     QCOMPARE(helper.asked.value(0), uint(QCoreApplication::applicationPid()));
     // The helper is told what the effect wants now: Quality on a 4K output.
     QCOMPARE(helper.wanted.value(0), QSize(2560, 1440));
+    // Every screen of the session, the window's own first: a program that is
+    // told about one screen where the session has two sees one.
+    QCOMPARE(helper.offered.size(), 2);
+    QCOMPARE(helper.offered.value(0).width, 2560);
+    QCOMPARE(helper.offered.value(0).height, 1440);
+    QCOMPARE(helper.offered.value(1).width, 3840);
+    QCOMPARE(helper.offered.value(1).height, 2160);
     QCOMPARE(game.geometry().size(), QSize(1920, 1080));
     QTRY_VERIFY2(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()));
     QVERIFY2(status().contains(QStringLiteral("Supplied input: 1920 × 1080")), qPrintable(status()));
@@ -295,6 +337,8 @@ void UpscaleX11PreparedTest::press(Qt::Key key)
 
 void UpscaleX11PreparedTest::registerHelper(TestHelper *helper)
 {
+    qDBusRegisterMetaType<TestScreen>();
+    qDBusRegisterMetaType<QList<TestScreen>>();
     QDBusConnection bus = QDBusConnection::sessionBus();
     QVERIFY(bus.registerObject(QStringLiteral("/Helper"), helper, QDBusConnection::ExportScriptableSlots));
     QVERIFY(bus.registerService(QStringLiteral("org.kde.KWin.Upscale.Helper")));

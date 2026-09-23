@@ -27,18 +27,49 @@ const QDBusArgument &operator>>(const QDBusArgument &argument, PreparedProgram &
     return argument;
 }
 
+QDBusArgument &operator<<(QDBusArgument &argument, const ProgramScreen &screen)
+{
+    argument.beginStructure();
+    argument << screen.x << screen.y << screen.width << screen.height << screen.rate;
+    argument.endStructure();
+    return argument;
+}
+
+const QDBusArgument &operator>>(const QDBusArgument &argument, ProgramScreen &screen)
+{
+    argument.beginStructure();
+    argument >> screen.x >> screen.y >> screen.width >> screen.height >> screen.rate;
+    argument.endStructure();
+    // The signature QtDBus requires of a demarshaller returns its argument.
+    // NOLINTNEXTLINE(bugprone-return-const-ref-from-parameter)
+    return argument;
+}
+
+// What the effect said, as the helper counts screens.
+static QList<WineScreen> screensOf(const QList<ProgramScreen> &screens)
+{
+    QList<WineScreen> described;
+    described.reserve(screens.size());
+    for (const ProgramScreen &screen : screens) {
+        described.append({.rect = QRect(screen.x, screen.y, screen.width, screen.height), .rate = screen.rate});
+    }
+    return described;
+}
+
 WineDesktopService::WineDesktopService(WineDesktopHelper *helper, QObject *parent)
     : QObject(parent)
     , m_helper(helper)
 {
     qDBusRegisterMetaType<PreparedProgram>();
     qDBusRegisterMetaType<QList<PreparedProgram>>();
+    qDBusRegisterMetaType<ProgramScreen>();
+    qDBusRegisterMetaType<QList<ProgramScreen>>();
 }
 
-QString WineDesktopService::offer(uint pid, const QString &windowClass, const QString &title, const QSize &size, int refreshRate,
-                                  QString &question)
+QString WineDesktopService::offer(uint pid, const QString &windowClass, const QString &title, const QList<ProgramScreen> &screens,
+                                 QString &question)
 {
-    const WineDesktopHelper::Offered offered = m_helper->offer(pid, windowClass, title, size, refreshRate);
+    const WineDesktopHelper::Offered offered = m_helper->offer(pid, windowClass, title, screensOf(screens));
     question = offered.question;
     return offered.offer;
 }
@@ -53,9 +84,9 @@ bool WineDesktopService::restart(const QString &offer)
     return m_helper->restart(offer);
 }
 
-QSize WineDesktopService::present(uint pid, const QString &windowClass, const QSize &wanted, int refreshRate)
+QSize WineDesktopService::present(uint pid, const QString &windowClass, const QList<ProgramScreen> &wanted)
 {
-    return m_helper->present(pid, windowClass, wanted, refreshRate);
+    return m_helper->present(pid, windowClass, screensOf(wanted));
 }
 
 QList<PreparedProgram> WineDesktopService::prepared()

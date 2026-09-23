@@ -492,9 +492,21 @@ again by the helper and not offered a second time.
   `WineDesktopHelper`, `kwin.upscale.winedesktop`). They describe a screen now;
   renaming them is a change of its own, kept out of the one that changed the
   route.
-- Open: one screen is described, so the prefix's programs see one monitor. A
-  game in fullscreen wants no more, and the virtual desktop was no different, but
-  a program that arranges itself across two screens would see only one.
+- Decided 2026-09-23: every output of the session is described, the game's own
+  first and at the wanted size, so that a program sees the screens the session
+  has. There are never more screens than monitors the prefix knows, because Wine
+  gives a screen without one no size. The record keeps the whole layout in one
+  line, so another rate, another size or a screen plugged or unplugged has the
+  prefix described again after the next run.
+- Decided 2026-09-23, on Jens's instruction: an untested Wine build is written
+  for and named in the log rather than refused, since refusing would take the
+  feature from every build released after this one. What the log names is
+  Proton's own version file beside the prefix; plain Wine says nothing, and that
+  is logged as well.
+- Decided 2026-09-23: the run the helper started itself is watched, so a game
+  that will not start with the screen it was described - the one case the
+  preparation cannot be judged by what the game draws - has the description taken
+  back and is not offered again.
 - Decided 2026-09-23: the record keeps the rate the screen was described for, so
   an output switched to another rate has its prefix described again after the next
   run, the same way a changed size does (`followsANewRate`).

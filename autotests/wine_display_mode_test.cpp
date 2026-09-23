@@ -96,21 +96,26 @@ void WineDisplayModeTest::offersSixtyHertzAndTheScreensOwnRate()
 
 void WineDisplayModeTest::tellsTheCurrentModeItsSizeAndPlace()
 {
-    const QByteArray mode = wineDisplayMode(QSize(2560, 1440), 0);
+    // A screen beside another one: its place is what puts it there.
+    const QByteArray mode = wineDisplayMode(QRect(3840, 0, 2560, 1440), 0);
     // The value holds the record from its dmFields member on.
     QCOMPARE(mode.size(), s_recordSize - 72);
-    QCOMPARE(wineDisplayModeSize(mode), QSize(2560, 1440));
+    QCOMPARE(wineDisplayModeRect(mode), QRect(3840, 0, 2560, 1440));
     // DM_POSITION, which the modes in the list do not claim.
     QCOMPARE(qFromLittleEndian<quint32>(mode.constData()) & 0x20u, 0x20u);
-    QVERIFY(!wineDisplayModeSize(QByteArray()));
-    QVERIFY(!wineDisplayModeSize(QByteArray(mode.size(), '\0')));
+    // The current mode leaves the rate unsaid, so that a program asking for any
+    // rate is given the one mode there is; the registry mode carries it.
+    QVERIFY(!wineDisplayModeRate(mode));
+    QCOMPARE(wineDisplayModeRate(wineDisplayMode(QRect(0, 0, 1920, 1080), 120)), 120);
+    QVERIFY(!wineDisplayModeRect(QByteArray()));
+    QVERIFY(!wineDisplayModeRect(QByteArray(mode.size(), '\0')));
 }
 
 void WineDisplayModeTest::refusesAnEmptySize()
 {
     QVERIFY(wineDisplayModes(QSize(), 60).isEmpty());
     QVERIFY(wineDisplayModes(QSize(0, 1440), 60).isEmpty());
-    QVERIFY(wineDisplayMode(QSize(), 60).isEmpty());
+    QVERIFY(wineDisplayMode(QRect(), 60).isEmpty());
 }
 
 QTEST_GUILESS_MAIN(WineDisplayModeTest)

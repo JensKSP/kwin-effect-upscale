@@ -86,17 +86,17 @@ enum class WineWriteResult {
 };
 
 /*
- * Tells the prefix its screen is that size and runs at that rate, in place of
- * anything this companion described before. A prefix whose programs run in a
- * virtual desktop of the user's is left alone.
+ * Tells the prefix it has those screens, the first of them the one the prepared
+ * program is on, in place of anything this companion described before. A prefix
+ * whose programs run in a virtual desktop of the user's is left alone.
  */
-WineWriteResult wineSetScreen(const WineDesktopTarget &target, uid_t user, const QSize &size, int refreshRate, qint64 modifiedSeconds);
+WineWriteResult wineSetScreens(const WineDesktopTarget &target, uid_t user, const QList<WineScreen> &screens, qint64 modifiedSeconds);
 
 /*
- * The size of the screen the prefix describes now, and nothing when it describes
- * none or cannot be read.
+ * The screens the prefix describes now, empty when it describes none or cannot
+ * be read.
  */
-std::optional<QSize> wineScreenIn(const WineDirectory &directory);
+QList<WineScreen> wineScreensIn(const WineDirectory &directory);
 
 /*
  * Takes the description away again, so that the prefix asks the display server

@@ -9,6 +9,7 @@
 #include "winedisplaymode.h"
 
 #include <QList>
+#include <QStringList>
 
 namespace
 {
@@ -27,10 +28,10 @@ const QByteArray defaultValue = QByteArrayLiteral("Default");
 // Where win32u looks for the screen: the value that names the source key, and
 // the source key itself, below the current hardware profile.
 const QByteArray videoMapKey = QByteArrayLiteral("HARDWARE\\\\DEVICEMAP\\\\VIDEO");
-const QByteArray videoValue = QByteArrayLiteral("\\\\Device\\\\Video0");
+const QByteArray videoValue = QByteArrayLiteral("\\\\Device\\\\Video");
 const QByteArray sourceKeys = QByteArrayLiteral(
     "System\\\\ControlSet001\\\\Hardware Profiles\\\\Current\\\\System\\\\CurrentControlSet\\\\Control\\\\Video\\\\");
-const QByteArray sourceKeyEnd = QByteArrayLiteral("\\\\0000");
+const QByteArray monitorValuePrefix = QByteArrayLiteral("MonitorID");
 const QByteArray sourcePath = QByteArrayLiteral("\\\\Registry\\\\Machine\\\\System\\\\CurrentControlSet\\\\Control\\\\Video\\\\");
 
 // What the source key says about the screen.
@@ -38,7 +39,6 @@ const QByteArray currentValue = QByteArrayLiteral("Current");
 const QByteArray registryValue = QByteArrayLiteral("Registry");
 const QByteArray dpiValue = QByteArrayLiteral("Dpi");
 const QByteArray cardValue = QByteArrayLiteral("GPUID");
-const QByteArray monitorValue = QByteArrayLiteral("MonitorID0");
 const QByteArray modesValue = QByteArrayLiteral("Modes");
 const QByteArray modeCountValue = QByteArrayLiteral("ModeCount");
 const QByteArray stateFlagsValue = QByteArrayLiteral("StateFlags");
@@ -47,6 +47,7 @@ const QByteArray stateFlagsValue = QByteArrayLiteral("StateFlags");
 // state flags a screen in use has: DISPLAY_DEVICE_ATTACHED_TO_DESKTOP and
 // DISPLAY_DEVICE_PRIMARY_DEVICE. A screen without the first has no size at all.
 constexpr quint32 standardDpi = 96;
+constexpr quint32 attached = 1;
 constexpr quint32 attachedAndPrimary = 5;
 constexpr int standardRate = 60;
 
@@ -285,11 +286,40 @@ bool isKind(const QList<QByteArray> &parts, const QByteArray &kind, qsizetype co
     return parts.size() == count && parts.first().compare(kind, Qt::CaseInsensitive) == 0;
 }
 
+// What follows a card's own name in a screen's key: the screen's number among
+// that card's, as Wine writes it.
+QByteArray sourceIndex(qsizetype index)
+{
+    return separator + QByteArray::number(index, 16).rightJustified(4, '0');
+}
+
+// The rate a described screen runs at, which the registry mode carries; the
+// current mode leaves it unsaid, as Wine's own does.
+int rateIn(const QList<QByteArray> &lines, const Section &section)
+{
+    return wineDisplayModeRate(binaryIn(lines, section, registryValue)).value_or(0);
+}
+
 } // namespace
 
 bool WineScreenDevices::isEmpty() const
 {
-    return card.isEmpty() || cardId.isEmpty() || monitor.isEmpty();
+    return card.isEmpty() || cardId.isEmpty() || monitors.isEmpty();
+}
+
+QString wineScreensText(const QList<WineScreen> &screens)
+{
+    QStringList described;
+    described.reserve(screens.size());
+    for (const WineScreen &screen : screens) {
+        described.append(QStringLiteral("%1x%2+%3+%4@%5")
+                             .arg(screen.rect.width())
+                             .arg(screen.rect.height())
+                             .arg(screen.rect.x())
+                             .arg(screen.rect.y())
+                             .arg(screen.rate));
+    }
+    return described.join(QLatin1Char(';'));
 }
 
 bool wineIsRegistry(const QByteArray &text)
@@ -334,46 +364,70 @@ WineScreenDevices wineScreenDevices(const QByteArray &text)
                 devices.cardId = id->toLatin1();
             }
         }
-        if (devices.monitor.isEmpty() && isKind(parts, monitorKind, 3)) {
-            devices.monitor = device;
+        if (isKind(parts, monitorKind, 3)) {
+            devices.monitors.append(device);
         }
     }
     return devices;
 }
 
-std::optional<QSize> wineScreen(const QByteArray &text)
+QList<WineScreen> wineScreens(const QByteArray &text)
 {
     const QList<QByteArray> lines = text.split('\n');
-    const Section section = findSectionStarting(lines, sourceKeys);
-    if (section.key < 0) {
-        return std::nullopt;
+    QList<WineScreen> screens;
+    for (qsizetype index = 0; index < lines.size(); ++index) {
+        if (!isKeyLine(lines[index]) || !startsWithIgnoringCase(lines[index], '[' + sourceKeys)) {
+            continue;
+        }
+        const Section section = sectionFrom(lines, index);
+        const std::optional<QRect> rect = wineDisplayModeRect(binaryIn(lines, section, currentValue));
+        if (!rect) {
+            continue;
+        }
+        screens.append({.rect = *rect, .rate = rateIn(lines, section)});
     }
-    return wineDisplayModeSize(binaryIn(lines, section, currentValue));
+    return screens;
 }
 
-std::optional<QByteArray> wineWithScreen(const QByteArray &text, const QSize &size, int refreshRate, qint64 modifiedSeconds)
+std::optional<QByteArray> wineWithScreens(const QByteArray &text, const QList<WineScreen> &screens, qint64 modifiedSeconds)
 {
     const WineScreenDevices devices = wineScreenDevices(text);
-    if (!wineIsRegistry(text) || size.isEmpty() || devices.isEmpty()) {
+    if (!wineIsRegistry(text) || screens.isEmpty() || devices.isEmpty()) {
         return std::nullopt;
+    }
+    // A screen needs a monitor of its own, or Wine gives it no size at all.
+    const qsizetype count = std::min(screens.size(), devices.monitors.size());
+    for (qsizetype index = 0; index < count; ++index) {
+        if (screens.at(index).rect.size().isEmpty()) {
+            return std::nullopt;
+        }
     }
     QList<QByteArray> lines = text.split('\n');
     removeSections(lines, videoMapKey);
     removeSections(lines, sourceKeys);
 
-    const QByteArray source = devices.cardId + sourceKeyEnd;
-    appendKey(lines, videoMapKey, {textValueLine(videoValue, sourcePath + source)}, modifiedSeconds);
+    QList<QByteArray> map;
+    for (qsizetype index = 0; index < count; ++index) {
+        const QByteArray source = devices.cardId + sourceIndex(index);
+        map.append(textValueLine(videoValue + QByteArray::number(index), sourcePath + source));
+    }
+    appendKey(lines, videoMapKey, map, modifiedSeconds);
 
-    const QByteArray modes = wineDisplayModes(size, refreshRate);
-    QList<QByteArray> values = binaryValueLines(currentValue, wineDisplayMode(size, 0));
-    values.append(numberValueLine(dpiValue, standardDpi));
-    values.append(textValueLine(cardValue, devices.card));
-    values.append(numberValueLine(modeCountValue, static_cast<quint32>(wineDisplayModeCount(modes))));
-    values.append(binaryValueLines(modesValue, modes));
-    values.append(textValueLine(monitorValue, devices.monitor));
-    values.append(binaryValueLines(registryValue, wineDisplayMode(size, refreshRate > 0 ? refreshRate : standardRate)));
-    values.append(numberValueLine(stateFlagsValue, attachedAndPrimary));
-    appendKey(lines, sourceKeys + source, values, modifiedSeconds);
+    for (qsizetype index = 0; index < count; ++index) {
+        const WineScreen &screen = screens.at(index);
+        const QByteArray modes = wineDisplayModes(screen.rect.size(), screen.rate);
+        QList<QByteArray> values = binaryValueLines(currentValue, wineDisplayMode(screen.rect, 0));
+        values.append(numberValueLine(dpiValue, standardDpi));
+        values.append(textValueLine(cardValue, devices.card));
+        values.append(numberValueLine(modeCountValue, static_cast<quint32>(wineDisplayModeCount(modes))));
+        values.append(binaryValueLines(modesValue, modes));
+        values.append(textValueLine(monitorValuePrefix + "0", devices.monitors.at(index)));
+        values.append(binaryValueLines(registryValue, wineDisplayMode(screen.rect, screen.rate > 0 ? screen.rate : standardRate)));
+        // The screen the prepared program is on comes first and is the primary
+        // one, which is where a program puts what it does not place itself.
+        values.append(numberValueLine(stateFlagsValue, index == 0 ? attachedAndPrimary : attached));
+        appendKey(lines, sourceKeys + devices.cardId + sourceIndex(index), values, modifiedSeconds);
+    }
     return lines.join('\n');
 }
 

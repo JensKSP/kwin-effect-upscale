@@ -18,18 +18,20 @@
   <interface name="org.kde.KWin.Upscale.Helper1">
     <!--
         The program with this process draws at the output's size although the
-        effect wants this size. The rate is the one the output runs at, in hertz,
-        for a helper that describes a whole screen to the program. An empty offer
-        means the helper has nothing to offer; otherwise the question is shown to
-        the user as it is.
+        effect wants it smaller. The screens are the ones the program should see:
+        every output of the session, as place, size and rate in hertz, in the
+        pixels X11 counts them in, the program's own screen first and at the size
+        the effect wants. A helper that describes a whole screen to the program
+        needs them all, or the program would see one screen where the session has
+        several. An empty offer means the helper has nothing to offer; otherwise
+        the question is shown to the user as it is.
     -->
     <method name="offer">
       <arg name="pid" type="u" direction="in"/>
       <arg name="windowClass" type="s" direction="in"/>
       <arg name="title" type="s" direction="in"/>
-      <arg name="size" type="(ii)" direction="in"/>
-      <annotation name="org.qtproject.QtDBus.QtTypeName.In3" value="QSize"/>
-      <arg name="refreshRate" type="i" direction="in"/>
+      <arg name="screens" type="a(iiiii)" direction="in"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.In3" value="QList&lt;ProgramScreen&gt;"/>
       <arg name="offer" type="s" direction="out"/>
       <arg name="question" type="s" direction="out"/>
     </method>
@@ -54,20 +56,18 @@
     </method>
     <!--
         Asked for a window the effect would otherwise leave alone, with the
-        size the effect wants its program to render at now and the rate the
-        output runs at; an empty size when it wants nothing smaller. A non-empty
-        answer means the helper prepared this program to render at that size in
-        this window, and the window is to be presented across its output. A
-        helper that prepared the program for another size than the one wanted now
-        prepares it for this one, or undoes the preparation, from the program's
-        next start.
+        screens the effect wants its program to see now, as in offer; an empty
+        list when it wants nothing smaller. A non-empty answer means the helper
+        prepared this program to render at that size in this window, and the
+        window is to be presented across its output. A helper that prepared the
+        program for other screens than the ones wanted now prepares it for these,
+        or undoes the preparation, from the program's next start.
     -->
     <method name="present">
       <arg name="pid" type="u" direction="in"/>
       <arg name="windowClass" type="s" direction="in"/>
-      <arg name="wanted" type="(ii)" direction="in"/>
-      <annotation name="org.qtproject.QtDBus.QtTypeName.In2" value="QSize"/>
-      <arg name="refreshRate" type="i" direction="in"/>
+      <arg name="wanted" type="a(iiiii)" direction="in"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.In2" value="QList&lt;ProgramScreen&gt;"/>
       <arg name="size" type="(ii)" direction="out"/>
       <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QSize"/>
     </method>

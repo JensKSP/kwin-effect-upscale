@@ -10,6 +10,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QRegularExpression>
 
 #include <sys/stat.h>
 
@@ -125,4 +126,28 @@ WineLocated wineLocatePrefix(const WineProcess &process, uid_t user, const QStri
 QString wineRegistryPath(const WinePrefix &prefix)
 {
     return prefix.path + QStringLiteral("/user.reg");
+}
+
+QString wineBuild(const QString &steamCompatData)
+{
+    if (steamCompatData.isEmpty()) {
+        return {};
+    }
+    // Proton writes the build it prepared the prefix with beside the prefix,
+    // one line, as "11.0-100" or "experimental-11.0-20260917b".
+    QFile version(steamCompatData + QStringLiteral("/version"));
+    if (!version.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+    return QString::fromLatin1(version.readLine(64)).trimmed();
+}
+
+bool wineBuildTested(const QString &build)
+{
+    // The description was written and read back against Wine 11, Proton's and
+    // upstream's. What decides is the major version in the build's name, wherever
+    // in it the first number stands.
+    static constexpr int tested = 11;
+    const QRegularExpressionMatch major = QRegularExpression(QStringLiteral("(\\d+)")).match(build);
+    return major.hasMatch() && major.captured(1).toInt() == tested;
 }

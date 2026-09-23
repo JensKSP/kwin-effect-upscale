@@ -220,13 +220,13 @@ bool WineDirectory::isStill(const WinePrefixIdentity &identity) const
     return ::fstat(m_descriptor, &status) == 0 && status.st_nlink > 0 && status.st_dev == identity.device && status.st_ino == identity.inode;
 }
 
-std::optional<QSize> wineScreenIn(const WineDirectory &directory)
+QList<WineScreen> wineScreensIn(const WineDirectory &directory)
 {
     const std::optional<QByteArray> contents = readRegistry(directory.descriptor(), machineRegistry);
-    return contents && wineIsRegistry(*contents) ? wineScreen(*contents) : std::nullopt;
+    return contents && wineIsRegistry(*contents) ? wineScreens(*contents) : QList<WineScreen>{};
 }
 
-WineWriteResult wineSetScreen(const WineDesktopTarget &target, uid_t user, const QSize &size, int refreshRate, qint64 modifiedSeconds)
+WineWriteResult wineSetScreens(const WineDesktopTarget &target, uid_t user, const QList<WineScreen> &screens, qint64 modifiedSeconds)
 {
     const ProtonLock proton(target.steamCompatData);
     if (!proton.held()) {
@@ -239,7 +239,7 @@ WineWriteResult wineSetScreen(const WineDesktopTarget &target, uid_t user, const
     }
     // Without the devices the prefix described for itself there is nothing to
     // describe a screen for; it has them once a program of its own has run.
-    const std::optional<QByteArray> changed = wineWithScreen(text, size, refreshRate, modifiedSeconds);
+    const std::optional<QByteArray> changed = wineWithScreens(text, screens, modifiedSeconds);
     if (!changed) {
         return WineWriteResult::Unreachable;
     }
@@ -257,7 +257,7 @@ WineWriteResult wineClearScreen(const WineDesktopTarget &target, uid_t user)
     if (const WineWriteResult result = read(target, user, directory, text); result != WineWriteResult::Written) {
         return result;
     }
-    if (!wineScreen(text)) {
+    if (wineScreens(text).isEmpty()) {
         return WineWriteResult::Written;
     }
     const std::optional<QByteArray> changed = wineWithoutScreen(text);

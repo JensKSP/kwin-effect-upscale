@@ -98,3 +98,19 @@ QString wineRegistryPath(const WinePrefix &prefix);
  * plain file with a single name, owned by the user, in Wine's format.
  */
 std::optional<WinePrefixRefusal> wineCheckRegistry(const QString &path, uid_t user);
+
+/*
+ * The Wine build behind a prefix, as far as the prefix says: Proton writes its
+ * own version beside the prefix, and plain Wine writes nothing. Empty where
+ * there is nothing to read.
+ */
+QString wineBuild(const QString &steamCompatData);
+
+/*
+ * Whether that build is one the screen description was tested against. The
+ * description is written either way - a build this companion has not seen is
+ * assumed to read it as the tested ones do, since refusing would take the
+ * feature away from every build released after this one - and an untested build
+ * is named in the log, so that a report about one says so.
+ */
+bool wineBuildTested(const QString &build);

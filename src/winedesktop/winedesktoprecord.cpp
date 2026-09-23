@@ -32,7 +32,7 @@ WineDesktopRecord readRecord(QSettings &settings, const QString &id)
         .steamAppId = settings.value(QStringLiteral("SteamAppId")).toString(),
         .wanted = settings.value(QStringLiteral("Wanted")).toSize(),
         .written = std::nullopt,
-        .rate = settings.value(QStringLiteral("Rate")).toInt(),
+        .described = settings.value(QStringLiteral("Described")).toString(),
         .never = settings.value(QStringLiteral("Never"), false).toBool(),
     };
     if (settings.contains(QStringLiteral("Written"))) {
@@ -90,7 +90,7 @@ void WineDesktopRecords::store(const WineDesktopRecord &record)
     if (record.written) {
         settings.setValue(QStringLiteral("Written"), *record.written);
     }
-    settings.setValue(QStringLiteral("Rate"), record.rate);
+    settings.setValue(QStringLiteral("Described"), record.described);
     settings.setValue(QStringLiteral("Never"), record.never);
     settings.endGroup();
 }

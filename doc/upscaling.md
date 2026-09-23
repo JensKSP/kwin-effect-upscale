@@ -364,11 +364,21 @@ and not yet with a game:
   progress may be lost; **Not now** asks again next time and **Never for this
   game** does not.
 - After the game and its Wine server have exited, the helper adds two keys to
-  the prefix's `system.reg` and nothing else: the screen of the chosen size,
-  with the modes it offers, and the value that names it. Which graphics card and
-  monitor the screen belongs to the prefix has described itself, since the first
-  time it ran; without that there is nothing to write. A prefix whose programs
-  run in a virtual desktop of the user's is left alone.
+  the prefix's `system.reg` and nothing else: one screen per output of the
+  session, the game's own at the chosen size and every other at its own, with
+  the modes each offers, and the value that names them. Describing only the
+  game's screen would let a program see one screen where the session has two,
+  which is a change wider than the size it is there for. Which graphics card and
+  monitors they belong to the prefix has described itself, since the first time
+  it ran; a screen without a monitor of its own would have no size at all, so
+  there are never more screens than monitors the prefix knows. A prefix whose
+  programs run in a virtual desktop of the user's is left alone.
+- The description is what a Wine build reads before it asks the display server,
+  and it was tested against Wine 11. A build the helper has not seen is written
+  for all the same, because refusing would take the feature from every build
+  released after this one, and the log names it, so that a report about such a
+  build says which it was. A build that reads the description differently leaves
+  the game at full size rather than wrong.
 - From the next start every program in that prefix sees a monitor of the chosen
   size and one size in its mode list: that size, in the colour depths Wine offers
   and at the rate the output runs at. Wine refuses a mode that is not in the
@@ -403,7 +413,11 @@ and not yet with a game:
 - **A preparation that did not help is taken back.** Where a game is asked for
   the size its prefix was already prepared for and still draws at the output's
   size, the helper takes the description away after that run and does not offer
-  it for that game again; a reset on the settings page asks anew.
+  it for that game again; a reset on the settings page asks anew. The same holds
+  for a game that will not start with the screen it was described, which draws
+  nothing to judge: the run the helper started itself is watched, and a game
+  whose Wine server comes and goes without the effect ever asking about a window
+  of it has the description taken back too.
 - **Prepared Games** on the settings page lists what the helper set up, with a
   Reset for each. Uninstalling the package cannot undo a preparation, because
   nothing runs as the user afterwards; the question says so.

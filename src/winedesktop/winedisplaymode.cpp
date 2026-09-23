@@ -19,6 +19,7 @@ namespace
 // same record from dmFields on.
 constexpr qsizetype recordSize = 220;
 constexpr qsizetype fieldsAt = 72;
+constexpr qsizetype positionAt = 76;
 constexpr qsizetype specVersionAt = 64;
 constexpr qsizetype sizeAt = 68;
 constexpr qsizetype depthAt = 168;
@@ -88,17 +89,28 @@ int wineDisplayModeCount(const QByteArray &modes)
     return static_cast<int>(modes.size() / recordSize);
 }
 
-QByteArray wineDisplayMode(const QSize &size, int refreshRate)
+QByteArray wineDisplayMode(const QRect &rect, int refreshRate)
 {
-    if (size.isEmpty()) {
+    if (rect.size().isEmpty()) {
         return {};
     }
-    QByteArray mode = record(size, depths.back(), refreshRate);
+    QByteArray mode = record(rect.size(), depths.back(), refreshRate);
     setNumber(mode, fieldsAt, modeFields | positionField);
+    setNumber(mode, positionAt, static_cast<quint32>(rect.x()));
+    setNumber(mode, positionAt + 4, static_cast<quint32>(rect.y()));
     return mode.last(recordSize - fieldsAt);
 }
 
-std::optional<QSize> wineDisplayModeSize(const QByteArray &value)
+std::optional<int> wineDisplayModeRate(const QByteArray &value)
+{
+    if (value.size() < recordSize - fieldsAt) {
+        return std::nullopt;
+    }
+    const quint32 rate = qFromLittleEndian<quint32>(value.constData() + rateAt - fieldsAt);
+    return rate == 0 ? std::nullopt : std::optional(static_cast<int>(rate));
+}
+
+std::optional<QRect> wineDisplayModeRect(const QByteArray &value)
 {
     if (value.size() < recordSize - fieldsAt) {
         return std::nullopt;
@@ -107,5 +119,6 @@ std::optional<QSize> wineDisplayModeSize(const QByteArray &value)
         return qFromLittleEndian<quint32>(value.constData() + at - fieldsAt);
     };
     const QSize size(static_cast<int>(number(widthAt)), static_cast<int>(number(heightAt)));
-    return size.isEmpty() ? std::nullopt : std::optional(size);
+    const QPoint position(static_cast<int>(number(positionAt)), static_cast<int>(number(positionAt + 4)));
+    return size.isEmpty() ? std::nullopt : std::optional(QRect(position, size));
 }

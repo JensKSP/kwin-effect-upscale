@@ -42,6 +42,7 @@ private Q_SLOTS:
     void refusesARegistryItCannotReplace();
     void crossChecksProton();
     void readsARunningProcess();
+    void namesAnUntestedWineBuild();
 
 private:
     WineProcess process(const QString &prefix) const;
@@ -191,6 +192,28 @@ void WinePrefixTest::readsARunningProcess()
     QCOMPARE(self->workingDirectory, QDir::currentPath());
     QCOMPARE(self->environment.value(QStringLiteral("PATH")), qEnvironmentVariable("PATH"));
     QVERIFY(QFileInfo::exists(self->root + QCoreApplication::applicationFilePath()));
+}
+
+void WinePrefixTest::namesAnUntestedWineBuild()
+{
+    // Proton writes its build beside the prefix; plain Wine writes nothing.
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QVERIFY(wineBuild(root.path()).isEmpty());
+    QVERIFY(wineBuild(QString()).isEmpty());
+    QFile version(root.filePath(QStringLiteral("version")));
+    QVERIFY(version.open(QIODevice::WriteOnly));
+    version.write("11.0-100\n");
+    version.close();
+    QCOMPARE(wineBuild(root.path()), QStringLiteral("11.0-100"));
+
+    // The build the description was tested against, and the ones it was not:
+    // each of those is written for all the same, and named in the log.
+    QVERIFY(wineBuildTested(QStringLiteral("11.0-100")));
+    QVERIFY(wineBuildTested(QStringLiteral("experimental-11.0-20260917b")));
+    QVERIFY(!wineBuildTested(QStringLiteral("12.0-1")));
+    QVERIFY(!wineBuildTested(QStringLiteral("10.0-4b")));
+    QVERIFY(!wineBuildTested(QString()));
 }
 
 QTEST_GUILESS_MAIN(WinePrefixTest)

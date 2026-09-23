@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <QDBusArgument>
 #include <QObject>
 #include <QSize>
 #include <QString>
@@ -19,6 +20,20 @@ namespace KWin
 {
 
 class EffectWindow;
+
+/**
+ * One screen a program is to see, as the interface counts them: where it lies in
+ * the pixels X11 counts, how large, and how often it refreshes. The first of them
+ * is the screen the program's window is on, at the size the effect wants.
+ */
+struct UpscaleProgramScreen
+{
+    int x = 0;
+    int y = 0;
+    int width = 0;
+    int height = 0;
+    int rate = 0;
+};
 
 /**
  * The optional helper described in org.kde.KWin.Upscale.Helper1.xml.
@@ -38,6 +53,8 @@ public:
     using Answered = std::function<void(const QString &restart)>;
     using Prepared = std::function<void(const QSize &size)>;
 
+    UpscaleHelper();
+
     void offer(EffectWindow *window, const QSize &size, const Offered &reply);
     void answer(const QString &offer, const QString &answer, const Answered &reply);
     void restart(const QString &offer);
@@ -48,3 +65,8 @@ private:
 };
 
 } // namespace KWin
+
+Q_DECLARE_METATYPE(KWin::UpscaleProgramScreen)
+
+QDBusArgument &operator<<(QDBusArgument &argument, const KWin::UpscaleProgramScreen &screen);
+const QDBusArgument &operator>>(const QDBusArgument &argument, KWin::UpscaleProgramScreen &screen);

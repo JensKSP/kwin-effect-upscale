@@ -7,6 +7,7 @@
 #pragma once
 
 #include <QByteArray>
+#include <QRect>
 #include <QSize>
 
 #include <optional>
@@ -42,13 +43,21 @@ QByteArray wineDisplayModes(const QSize &size, int refreshRate);
 int wineDisplayModeCount(const QByteArray &modes);
 
 /*
- * One mode as the Current and Registry values hold it. A rate of zero leaves
- * the rate unsaid, which is how Wine itself stores the current mode.
+ * One mode as the Current and Registry values hold it: the screen's size and
+ * where it lies on the desktop, which is what places one screen beside another.
+ * A rate of zero leaves the rate unsaid, which is how Wine itself stores the
+ * current mode.
  */
-QByteArray wineDisplayMode(const QSize &size, int refreshRate);
+QByteArray wineDisplayMode(const QRect &rect, int refreshRate);
 
 /*
- * The size in such a value, and nothing when the data is not one mode in that
+ * The screen in such a value, and nothing when the data is not one mode in that
  * shape.
  */
-std::optional<QSize> wineDisplayModeSize(const QByteArray &value);
+std::optional<QRect> wineDisplayModeRect(const QByteArray &value);
+
+/*
+ * How often that mode says the screen refreshes; nothing where it leaves the
+ * rate unsaid, as the current mode does.
+ */
+std::optional<int> wineDisplayModeRate(const QByteArray &value);
