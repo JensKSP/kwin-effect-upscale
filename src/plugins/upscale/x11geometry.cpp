@@ -11,7 +11,11 @@
 #include "utils/c_ptr.h"
 #include "x11window.h"
 
+#include <QLoggingCategory>
+
 #include <array>
+
+Q_DECLARE_LOGGING_CATEGORY(KWIN_UPSCALE)
 #include <cstring>
 #include <xcb/randr.h>
 
@@ -141,6 +145,7 @@ static void configureHierarchy(WindowType *window, const QPoint &position, const
 
 void upscaleX11Configure(X11Window *window, const QPoint &position, const QSize &size, bool notify)
 {
+    qCDebug(KWIN_UPSCALE) << "X11 configure: window" << window->window() << "position" << position << "size" << size << "notify" << notify;
     configureHierarchy(window, position, size);
     if (notify) {
         // A refused ConfigureRequest still requires the actual client geometry

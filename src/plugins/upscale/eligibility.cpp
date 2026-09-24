@@ -140,7 +140,7 @@ static bool samePixel(double first, double second, double scale)
 // measurement of where to draw: the scaler is given the window's own geometry
 // as its destination, so a window that passes here is one whose enlargement
 // this effect may replace.
-bool upscaleCoversOutput(EffectWindow *window)
+bool upscaleCoversOutput(const EffectWindow *window)
 {
     UpscaleOutput *screen = window->screen();
     if (!screen) {
@@ -212,9 +212,10 @@ static UpscaleRefusal settingsRefusal(EffectWindow *window)
         // claimed one.
         return application ? UpscaleRefusal::Disabled : UpscaleRefusal::Unlisted;
     }
-    if (settings.resolution() == ResolutionPreset::Native) {
-        return UpscaleRefusal::NativeRule;
-    }
+    // Native is not a refusal. It asks the game for nothing smaller; a buffer
+    // that arrives smaller all the same - a game that kept a resolution of its
+    // own from an earlier run - is still enlarged with FSR rather than left to
+    // KWin's plain stretch. Laid down by Jens on 2026-09-21.
     const QSize pixels = window->screen()->pixelSize();
     if (!exceedsMinimumPixels({pixels.width(), pixels.height()}, settings.value(UpscaleSetting::MinimumPixels))) {
         return UpscaleRefusal::BelowMinimumPixels;

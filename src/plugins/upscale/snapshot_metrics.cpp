@@ -10,8 +10,27 @@
 #include <QString>
 #include <QStringList>
 
+#include <cstdlib>
+
 namespace KWin
 {
+
+// Within a hundred and twentieth of the output and a pixel: the fractional
+// scale travels in 120ths, so a client that honours it exactly can land that
+// far from the size computed here, and that is the game taking the request,
+// not declining it.
+bool upscaleDrawsTheChosenSize(const UpscaleSnapshot &snapshot)
+{
+    const QSize chosen(snapshot.desired.width, snapshot.desired.height);
+    if (chosen.isEmpty() || snapshot.supplied.isEmpty() || snapshot.destination.isEmpty()) {
+        return true;
+    }
+    const auto near = [](int drawn, int wished, int whole) {
+        return std::abs(drawn - wished) <= whole / 120 + 1;
+    };
+    return near(snapshot.supplied.width(), chosen.width(), snapshot.destination.width())
+        && near(snapshot.supplied.height(), chosen.height(), snapshot.destination.height());
+}
 
 // A line for programs rather than for people. Every key and every value here
 // is written with QStringLiteral and never translated, because a measurement

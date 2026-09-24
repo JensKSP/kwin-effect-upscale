@@ -15,10 +15,12 @@
 #include <QObject>
 #include <QPoint>
 #include <QPointer>
+#include <QRectF>
 #include <QSet>
 #include <QSize>
 #include <QTimer>
 
+#include <functional>
 #include <memory>
 
 #if KWIN_BUILD_X11
@@ -32,6 +34,37 @@ class SurfaceInterface;
 class UpscaleX11Input;
 class Window;
 class X11Window;
+
+/**
+ * What the effect presents under a point, for mapping the pointer to it: the
+ * window, its surface, the origin pointer coordinates are taken from and the
+ * factor they are scaled by. Empty where the effect presents nothing there.
+ */
+struct UpscalePresentedPointer
+{
+    Window *window = nullptr;
+    SurfaceInterface *surface = nullptr;
+    QPointF origin;
+    QPointF scale{1, 1};
+    // The part of the output the client's own window covers, which is where
+    // KWin's hit test finds the window and nowhere else: its own size, not the
+    // size it is presented at.
+    QRectF client;
+
+    bool isEmpty() const
+    {
+        return !window || !surface;
+    }
+};
+
+#if KWIN_BUILD_X11
+/**
+ * The size the settings want @p window's program to render at on its output:
+ * what an X11 request asks for, and what a helper is told a program it
+ * prepared should render at. Empty where they want nothing smaller.
+ */
+QSize upscaleWantedSize(const Window *window);
+#endif
 
 /** A live, profile-selected request; the client still owns its renderer. */
 class UpscaleX11Resolution : public QObject
@@ -62,15 +95,29 @@ public:
     /** Who is enlarging this window's buffer to the output right now. */
     UpscaleX11Presentation presentation(const Window *window) const;
     /**
-     * The window the effect is presenting under @p position, as the factor
-     * its pointer coordinates have to be scaled by, with its surface and the
-     * origin they are taken from. Exactly one by one when there is none, and
-     * when Xwayland presents the window there, because then its surface is
-     * the frame's size and nothing needs scaling. The ratio of the surface to
-     * the frame is the ratio the scaler enlarges by, which is what keeps the
-     * picture and the pointer agreed.
+     * What the effect presents under @p position: the window, its surface, the
+     * origin pointer coordinates are taken from and the factor they have to be
+     * scaled by. Nothing at all where the effect presents nothing, and where
+     * Xwayland presents the window, because then its surface is the frame's
+     * size and nothing needs scaling. The ratio of the surface to the frame is
+     * the ratio the scaler enlarges by, which is what keeps the picture and the
+     * pointer agreed.
      */
-    QPointF presentedUnder(const QPointF &position, SurfaceInterface **surface, QPointF *origin) const;
+    UpscalePresentedPointer presentedUnder(const QPointF &position) const;
+    /**
+     * Presents @p window across its output at @p size, the size its program
+     * already renders at because a helper prepared it to (see
+     * UpscalePreparation). The window is made fullscreen and held at that
+     * size natively, and then presented the way a client's buffer of a
+     * requested size is presented without an emulated mode. Taking it out of
+     * fullscreen gives it back to its user for good.
+     */
+    void presentPrepared(EffectWindow *window, const QSize &size);
+    /**
+     * Called when validation judges that a window's client draws at another
+     * size than was asked of it, before the request is given back.
+     */
+    void setUnfollowed(std::function<void(EffectWindow *window, const QSize &size)> unfollowed);
 
 #if KWIN_BUILD_X11
     /** One live request: the window it went to and what it asked for. */
@@ -98,6 +145,19 @@ public:
 private:
     using QObject::event;
 #if KWIN_BUILD_X11
+    struct PendingMap
+    {
+        xcb_generic_event_t event;
+        QList<xcb_generic_event_t> messages;
+        int token;
+    };
+    QHash<xcb_window_t, PendingMap> m_pendingMaps;
+    int m_nextMap = 0;
+    bool m_replayingEvents = false;
+    bool startupEvent(xcb_generic_event_t *generic);
+    bool holdMap(xcb_generic_event_t *generic);
+    void mapPending(xcb_window_t identifier, bool fullscreen = false);
+    void flushMaps();
     struct Attempt
     {
         QPointer<X11Window> window;
@@ -119,8 +179,8 @@ private:
     void apply(X11Window *window);
     void ask(X11Window *window, const Request &request);
     void present(X11Window *window);
-    Request requestFor(X11Window *window) const;
-    static QString keyFor(const Window *window);
+    Request requestFor(X11Window *window, bool enteringFullscreen = false) const;
+    static QString keyFor(const Window *window, bool enteringFullscreen = false);
     bool begin(const Request &request);
     void validate(const QString &key, int generation, int revision);
     static QString unmetCondition(const Request &request);
@@ -128,6 +188,9 @@ private:
     void refuse(const QString &key, const QString &reason);
     void restore(X11Window *window);
     void restoreAll();
+    void pinPrepared(X11Window *window);
+    bool applyPrepared(X11Window *window);
+    void unpinPrepared(X11Window *window);
 
     QHash<X11Window *, Request> m_requests;
     QHash<QString, QSize> m_requested;
@@ -147,6 +210,10 @@ private:
     // it, each with the token of the release that is current; see release().
     QHash<X11Window *, int> m_releases;
     QTimer m_expiration;
+    // Windows whose program a helper prepared to render at this size; see
+    // presentPrepared().
+    QHash<X11Window *, QSize> m_prepared;
+    std::function<void(EffectWindow *, const QSize &)> m_unfollowed;
     std::unique_ptr<UpscaleX11Input> m_input;
     bool m_enabled = false;
     bool m_restoring = false;

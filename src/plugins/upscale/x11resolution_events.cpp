@@ -43,7 +43,11 @@ void UpscaleX11Resolution::forget(X11Window *window)
     if (!m_watched.remove(window)) {
         return;
     }
+    if (m_requests.contains(window)) {
+        qCInfo(KWIN_UPSCALE) << "X11 requested window removed:" << m_requests.value(window).key << "window" << window->window();
+    }
     m_requests.remove(window);
+    m_prepared.remove(window);
     m_scheduled.remove(window);
     m_waitingForBuffer.remove(window);
     m_withdrawals.remove(window);
@@ -80,9 +84,6 @@ static X11Window *findWindow(xcb_window_t identifier)
 
 bool UpscaleX11Resolution::fullscreenRequest(X11Window *window, xcb_client_message_event_t *message)
 {
-    if (keyFor(window).isEmpty()) {
-        return false;
-    }
     if (m_stateAtom == XCB_ATOM_NONE) {
         m_stateAtom = Xcb::Atom(QByteArrayLiteral("_NET_WM_STATE"));
         m_fullscreenAtom = Xcb::Atom(QByteArrayLiteral("_NET_WM_STATE_FULLSCREEN"));
@@ -100,10 +101,18 @@ bool UpscaleX11Resolution::fullscreenRequest(X11Window *window, xcb_client_messa
         || (message->data.data32[0] == 2 && !window->isFullScreen());
     if (!fullscreen) {
         restore(window);
+        // Leaving fullscreen ends a prepared window's presentation for good,
+        // as it does when its user leaves it through KWin; see applyPrepared().
+        // Forgotten after the restore, which gives it back at its old size.
+        m_prepared.remove(window);
         return false;
     }
-    const Request request = requestFor(window);
-    if (!request.window || (!m_requests.contains(window) && !upscaleX11ModeMatches(window, request.position, request.size))) {
+    // The fullscreen request has not reached KWin yet. Resolve the settings
+    // for the state it requests, not the smaller window's current windowed
+    // state: refusing it here lets a native configure reach SFML before the
+    // later resize, and that stale event makes SFML recreate its window again.
+    const Request request = requestFor(window, true);
+    if (!request.window) {
         return false;
     }
     if (!begin(request)) {
@@ -187,7 +196,7 @@ void UpscaleX11Resolution::awaitWithdrawal(X11Window *window)
     const int token = ++m_nextWait;
     m_withdrawals.insert(window, token);
     m_overdue.remove(window);
-    qCDebug(KWIN_UPSCALE) << "Waiting for" << keyFor(window) << "to withdraw its emulated mode";
+    qCInfo(KWIN_UPSCALE) << "Waiting for" << keyFor(window) << "to withdraw its emulated mode";
     const QPointer<X11Window> guarded = window;
     QTimer::singleShot(s_validationWindow, this, [this, guarded, token]() {
         if (guarded && m_withdrawals.value(guarded) == token) {
@@ -218,6 +227,8 @@ void UpscaleX11Resolution::emulatedModeChanged(xcb_property_notify_event_t *prop
     if (!window) {
         return;
     }
+    qCInfo(KWIN_UPSCALE) << "X11 emulated mode changed: window" << window->window()
+                         << "mode" << upscaleX11EmulatedMode(window, upscaleX11Position(window)).value_or(QSize());
     // KWin handles this event after this filter, and its handling is what
     // sizes the window from the property. Whatever follows the event has to
     // follow that, so it is scheduled for after the event has been
@@ -255,6 +266,12 @@ void UpscaleX11Resolution::emulatedModeChanged(xcb_property_notify_event_t *prop
 
 bool UpscaleX11Resolution::event(xcb_generic_event_t *generic)
 {
+    if (m_replayingEvents) {
+        return false;
+    }
+    if (startupEvent(generic)) {
+        return true;
+    }
     const uint8_t type = generic->response_type & ~0x80;
     if (type == XCB_PROPERTY_NOTIFY) {
         // Bookkeeping about the client, which control being off does not
@@ -274,6 +291,9 @@ bool UpscaleX11Resolution::event(xcb_generic_event_t *generic)
         auto message = reinterpret_cast<xcb_client_message_event_t *>(generic);
         X11Window *window = findWindow(message->window);
         return window && !window->isDeleted() ? fullscreenRequest(window, message) : false;
+    }
+    if (type != XCB_CONFIGURE_REQUEST) {
+        return false;
     }
     auto configure = reinterpret_cast<xcb_configure_request_event_t *>(generic);
     X11Window *window = findWindow(configure->window);

@@ -8,6 +8,7 @@
 
 #include <array>
 #include <cstddef>
+#include <optional>
 
 namespace KWin
 {
@@ -42,9 +43,12 @@ inline constexpr std::size_t upscalePresentationCount = std::size_t(UpscalePrese
  * Auto is a method in its own right and not a choice among the others. On X11
  * it resizes, verifies that the window still covers its output and that the
  * pointer still lands where it looks, and puts the size back where it does
- * not. On Wayland it says nothing before the window exists and then asks that
- * one surface for a fractional scale, which is the only lever that can be sent
- * after the window and taken back again.
+ * not. On Wayland it tells the program a smaller screen mode when the program
+ * connects, which is the only thing SDL's exclusive fullscreen ever reads, and
+ * once the window exists asks a surface still drawing at full size for a
+ * fractional scale, the only lever that can be sent after the window and taken
+ * back again. It means the same whether an entry or the global profile
+ * answers; KWin's own clients, Xwayland above all, are never told anything.
  *
  * Off is not the same answer as Auto. Off records that the question was asked
  * about this program and that asking it anything is pointless or harmful;
@@ -152,7 +156,10 @@ constexpr UpscalePresentation upscalePresentationFor(bool x11, bool fullScreen, 
     return x11 ? UpscalePresentation::X11Windowed : UpscalePresentation::WaylandWindowed;
 }
 
-/** What a profile answers for each presentation. Absent is Auto. */
+/** An answer for each presentation, as the global profile gives them. */
 using UpscaleMethods = std::array<UpscaleMethod, upscalePresentationCount>;
+
+/** What a game states for each presentation; absent follows its parent. */
+using UpscaleStatedMethods = std::array<std::optional<UpscaleMethod>, upscalePresentationCount>;
 
 } // namespace KWin

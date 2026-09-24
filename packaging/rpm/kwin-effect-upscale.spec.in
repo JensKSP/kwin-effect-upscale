@@ -68,6 +68,9 @@ DESTDIR=%{buildroot} cmake --install build
 %{_libdir}/qt6/plugins/kwin/effects/plugins/upscale.so
 %{_libdir}/qt6/plugins/kwin/effects/configs/kwin_upscale_config.so
 %config(noreplace) %{_sysconfdir}/xdg/kwinupscalerc
+%{_libdir}/libexec/kwin-upscale-helper
+%{_datadir}/dbus-1/services/org.kde.KWin.Upscale.Helper.service
+%{_prefix}/lib/systemd/user/plasma-kwin-upscale-helper.service
 
 %changelog
 * Sun Sep 20 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de> - @VERSION@-1

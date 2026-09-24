@@ -12,6 +12,7 @@
 #include "x11resolution.h"
 
 #if KWIN_BUILD_X11
+#include "windowidentity.h"
 #include "x11geometry.h"
 #include "x11input.h"
 
@@ -19,9 +20,15 @@
 #include "main.h"
 #include "scene/surfaceitem.h"
 #include "scene/windowitem.h"
+#include "wayland/surface.h"
 #include "x11window.h"
 
+#include <QLoggingCategory>
+
 #include <cmath>
+#include <type_traits>
+
+Q_DECLARE_LOGGING_CATEGORY(KWIN_UPSCALE)
 #endif
 
 namespace KWin
@@ -47,20 +54,65 @@ static bool fillsFrame(X11Window *window, SurfaceItem *surface)
         && std::abs((destination.height() / frame.height()) - 1) < 1e-6;
 }
 
+template<typename Region>
+static bool isBufferRectangle(const Region &input, const QRectF &buffer)
+{
+    if constexpr (std::is_same_v<Region, QRegion>) {
+        return input == QRegion(buffer.toAlignedRect());
+    } else {
+        return input == Region(buffer);
+    }
+}
+
+// Xwayland's viewport scales coordinates, but an explicit X11 input shape
+// can remain at the drawable's size. Repair coverage only for that complete
+// rectangle: empty, inset or nonrectangular shapes may be intentional. This
+// reads committed state only; pointer events must not make X11 round trips.
+static bool emulatedInputCoverage(const UpscaleX11Resolution::Request &request, UpscalePresentedPointer *presented)
+{
+    X11Window *window = request.window;
+    SurfaceItem *item = surfaceItem(window);
+    SurfaceInterface *surface = window->surface();
+    const QSizeF frame = window->frameGeometry().size();
+    if (request.presentedByEffect || !item || !surface || item->bufferSize() != request.size
+        || surface->size() != frame || !fillsFrame(window, item)) {
+        return false;
+    }
+    const QRectF buffer(QPointF(), QSizeF(request.size) / kwinApp()->xwaylandScale());
+    // Requests pass upscaleWantedSize()/canUpscale(), which require both
+    // dimensions to be smaller and preserve aspect ratio. One-axis or native
+    // sizes are outside that contract and must not acquire input intervention.
+    if (buffer.width() >= frame.width() || buffer.height() >= frame.height()
+        || !isBufferRectangle(surface->input(), buffer)) {
+        return false;
+    }
+    presented->origin = window->bufferGeometry().topLeft();
+    presented->client = buffer.translated(presented->origin);
+    // Xwayland already maps absolute and relative motion into the drawable.
+    // Only focus and click ownership need help; leave their scale at one.
+    return true;
+}
+
 // How much larger than the client's window the frame is, in the pixels both
 // are counted in, as the factor pointer coordinates have to shrink by. One
 // while nothing has to: while Xwayland presents the window and scales the
 // coordinates itself, and while the buffer is not yet the requested size.
-static QPointF presentationScale(const UpscaleX11Resolution::Request &request, QPointF *origin)
+static QPointF presentationScale(const UpscaleX11Resolution::Request &request, QPointF *origin, QRectF *client)
 {
     X11Window *window = request.window;
     SurfaceItem *surface = surfaceItem(window);
     if (!request.presentedByEffect || !surface || surface->bufferSize() != request.size || window->frameGeometry().isEmpty()) {
         return QPointF(1, 1);
     }
-    const QSizeF frame = window->frameGeometry().size() * kwinApp()->xwaylandScale();
+    const qreal scale = kwinApp()->xwaylandScale();
+    const QSizeF frame = window->frameGeometry().size() * scale;
     if (origin) {
         *origin = window->bufferGeometry().topLeft();
+    }
+    if (client) {
+        // The window's own size on the output, in the pixels the output is
+        // counted in: what the client asked KWin for, not what it is shown as.
+        *client = QRectF(window->bufferGeometry().topLeft(), QSizeF(request.size.width() / scale, request.size.height() / scale));
     }
     return QPointF(request.size.width() / frame.width(), request.size.height() / frame.height());
 }
@@ -107,10 +159,20 @@ void UpscaleX11Resolution::present(X11Window *window)
         return;
     }
     if (!request->presentedByEffect) {
+        // A measured client may need its mode as acknowledgement of the
+        // resize. Presenting its smaller drawable ourselves can hide a stale
+        // viewport inside the game; let validation retry the missing answer.
+        const UpscaleApplication *application = upscaleApplicationForWindow(window);
+        if (application && application->x11RequiresEmulatedMode) {
+            return;
+        }
         if (fillsFrame(window, surface) || upscaleX11ModeMatches(window, request->position, request->size)) {
             return;
         }
         request->presentedByEffect = true;
+        qCInfo(KWIN_UPSCALE) << "X11 presentation taken by effect:" << request->key << "window" << window->window()
+                             << "buffer" << surface->bufferSize() << "previous presentation" << surface->destinationSize()
+                             << "frame" << window->frameGeometry() << "pointer scale" << presentationScale(*request, nullptr, nullptr);
     }
     if (!fillsFrame(window, surface)) {
         surface->setDestinationSize(window->frameGeometry().size());
@@ -119,7 +181,7 @@ void UpscaleX11Resolution::present(X11Window *window)
 }
 #endif
 
-QPointF UpscaleX11Resolution::presentedUnder(const QPointF &position, SurfaceInterface **surface, QPointF *origin) const
+UpscalePresentedPointer UpscaleX11Resolution::presentedUnder(const QPointF &position) const
 {
 #if KWIN_BUILD_X11
     for (auto request = m_requests.cbegin(); request != m_requests.cend(); ++request) {
@@ -127,18 +189,18 @@ QPointF UpscaleX11Resolution::presentedUnder(const QPointF &position, SurfaceInt
         if (window->isDeleted() || !window->surface() || !window->frameGeometry().contains(position)) {
             continue;
         }
-        const QPointF scale = presentationScale(request.value(), origin);
-        if (scale != QPointF(1, 1)) {
-            *surface = window->surface();
-            return scale;
+        UpscalePresentedPointer presented;
+        presented.scale = presentationScale(request.value(), &presented.origin, &presented.client);
+        if (presented.scale != QPointF(1, 1) || emulatedInputCoverage(request.value(), &presented)) {
+            presented.window = window;
+            presented.surface = window->surface();
+            return presented;
         }
     }
 #else
     Q_UNUSED(position)
-    Q_UNUSED(origin)
 #endif
-    *surface = nullptr;
-    return QPointF(1, 1);
+    return {};
 }
 
 } // namespace KWin

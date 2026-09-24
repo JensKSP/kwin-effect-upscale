@@ -16,6 +16,7 @@
 #include "application.h"
 #include "applicationeditor.h"
 #include "placement.h"
+#include "preparedlist.h"
 #include "resolution.h"
 #include "upscaleconfig.h"
 
@@ -92,6 +93,8 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
         return new QFormLayout(box);
     };
     addApplicationControls(section(i18n("Applications")));
+    m_prepared = new UpscalePreparedList(widget());
+    page->addWidget(m_prepared);
     m_editor->setAllPanel(all);
     // One label column for "All applications" and a game's tabs alike, so
     // that moving between tabs or entries moves no field.
@@ -239,23 +242,21 @@ void UpscaleEffectConfig::connectControls()
 // so that a new package can deliver a corrected entry without touching what
 // the user changed. Its restore is therefore separate from this page's
 // Defaults, which restores the values above and leaves the list alone.
-// The global profile's six answers, which unlike every other setting do not
-// reach the games in the list: a method is a measurement of one program, so a
-// game's unset slot means Automatic rather than this. They are asked of a
-// program only while "All applications" is checked, and stay editable while it
-// is not, so that they can be set before it is.
+// The global profile's six answers. A game in the list follows them wherever
+// it states no method of its own and the package measured none, as it follows
+// every other global setting. A program not in the list is asked by them only
+// while "All applications" is checked, and they stay editable while it is not,
+// so that they can be set before it is.
 void UpscaleEffectConfig::addUnlistedControls(QFormLayout *layout)
 {
-    auto scope = new QLabel(i18n("For applications not in the list:"), widget());
-    layout->addRow(scope);
     // The global profile's own six answers, for a window no profile claimed.
-    // Off throughout by default: nothing is known about how an unmeasured
-    // program answers, so one asked anything may keep its own resolution or
-    // open at the wrong size. Setting one to Automatic is a choice a person
-    // makes, not one they inherit.
+    // Auto throughout by default, as a game's are; what keeps an unmeasured
+    // program untouched is "All applications" being unchecked, which it is
+    // until a person checks it.
     m_methods = new UpscaleMethodControls(this);
     m_methods->build(layout, widget());
     connect(m_methods, &UpscaleMethodControls::changed, this, [this]() {
+        updatePreview();
         setNeedsSave(true);
     });
 }
@@ -286,8 +287,8 @@ void UpscaleEffectConfig::alignLabels(const QList<QFormLayout *> &forms)
 }
 
 // Everything on the page that follows another control: the scale follows the
-// preset, the preview both and the limit, and every game's Global choices
-// follow the lot.
+// preset, the preview both and the limit, and every game's controls follow
+// the lot wherever the game states nothing of its own.
 //
 // Nothing here is greyed out by a switch being off. Every value on this panel
 // is a default a game takes when it switches on what the global profile
@@ -308,12 +309,14 @@ void UpscaleEffectConfig::updatePreview()
                                   "common resolutions of %1.",
                                   largest.name));
     m_preview->show(preset, m_percentage->value(), upscaleResolutionPixels(m_minimumPixels, UpscaleConfig::minimumPixels()));
-    if (m_editor) {
-        m_editor->setGlobalSettings(shownSettings());
+    if (m_editor && m_methods) {
+        UpscaleMethods methods;
+        m_methods->store(methods);
+        m_editor->setGlobalSettings(shownSettings(), methods);
     }
 }
 
-// What a game's Global choices name, which is what "All applications" shows
+// What a game's controls follow, which is what "All applications" shows
 // rather than what was last applied: a person who changes the preset there
 // and then looks at a game expects the game to follow the new one.
 UpscaleSettings UpscaleEffectConfig::shownSettings() const
@@ -409,6 +412,7 @@ void UpscaleEffectConfig::load()
     // would let a later Apply write changes the user had just discarded.
     m_editor->load();
     updateApplicationSummary();
+    m_prepared->refresh();
     setNeedsSave(false);
 }
 

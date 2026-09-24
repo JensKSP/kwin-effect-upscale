@@ -224,8 +224,8 @@ Implemented today:
 - selected borderless-window handling when content exactly covers one output;
 - per-display application rules;
 - configurable global output threshold and per-application overrides;
-- a Native application rule that bypasses upscaling when the global Native
-  preset is selected.
+- a Native resolution that asks a game for nothing smaller, while a buffer that
+  arrives smaller anyway is still upscaled with FSR.
 
 By default, outputs at or below 2,073,600 physical pixels (Full HD) bypass
 upscaling.
@@ -304,6 +304,42 @@ A game already at its own cap has nothing to gain from reducing rendering work.
 One additional cost is not represented in either measurement: while the effect
 is active, it blocks direct scanout, so a game that could otherwise bypass
 composition no longer does so.
+
+## System requirements
+
+The effect runs inside KWin, so what it needs is a session that has one and a
+graphics stack that can do the arithmetic. The package enforces KWin binary
+compatibility at installation; the effect checks the graphics requirements
+at runtime, on the machine it is running on. When the answer is no, the
+effect is either never loaded or leaves that frame to
+KWin's ordinary rendering — it does not guess, and it does not degrade the
+image to fit. There is no GPU vendor list either. FSR 1 is arithmetic any
+conforming implementation runs, so AMD, Intel and NVIDIA are asked the same
+questions and answer for themselves.
+
+| What has to be there | Why, and what happens without it |
+| --- | --- |
+| **A Plasma Wayland session**, KWin 6.3.6 or newer | The effect is a KWin plugin loaded by the running compositor; there is nothing else to start. Games inside that session may be native Wayland or Xwayland clients. A separate X11 desktop session is not a target and is untested. |
+| **The KWin the package was built against** | A KWin effect is a compositor plugin and follows KWin's effect ABI. Each package depends on the exact KWin it was built with and refuses to install against another, so a KWin upgrade needs the matching build. |
+| **KWin's OpenGL compositing**, which is the default | The scaling happens in shaders. Under the software renderer the effect reports itself unsupported and KWin never loads it. |
+| **OpenGL 3.1, or OpenGL ES 3.0** | That is what supplies GLSL 1.40 and GLSL ES 3.00, the languages the shaders are written in. Checked before the effect loads; below it, the effect is not offered at all. |
+| **High-precision floats in fragment shaders**, on OpenGL ES | GLSL ES makes `highp` optional in a fragment shader, and medium precision can neither address a 4K pixel grid nor sample HDR without losing detail. Where the implementation does not offer it, the effect stays unloaded rather than filtering badly. |
+| **Rendering into a 10-bit-per-channel texture**, and into a 32-bit float one for a linear destination | The filter needs somewhere to put the captured frame, and a linear destination carries values outside zero to one that only floating point holds. The texture is allocated and its framebuffer checked for completeness; a failure returns the window to ordinary rendering. |
+| **A largest texture size covering the buffer and the output** | `GL_MAX_TEXTURE_SIZE` is read from the driver, not assumed from the screen. Anything larger is refused rather than silently cropped. |
+| **Colour handling the shaders decode** | The output's transfer function has to be sRGB, gamma 2.2, PQ or linear, with finite, ordered luminances. Any other one refuses that window by name, and the window can be tried again after an output or colour change. |
+
+Nothing else is needed beside the package: no Vulkan, no particular driver, no
+gamescope, no launcher wrapper and no daemon.
+
+While the effect is scaling a window it holds one texture the size of the
+game's buffer, and with sharpening on a second the size of the output — about
+33 MB per texture at 3840 x 2160, or four times that per texture where the
+destination is linear.
+Switching sharpening off releases the larger one.
+
+The developer handbook lists
+[every limit the effect asks about](doc/upscaling.md#fitting-a-request-to-what-the-machine-can-actually-do),
+how it asks, and what it does with a refusal.
 
 ## Trying it
 
@@ -451,7 +487,10 @@ snapshot version without Git.
 
 ## Building from source
 
-### Requirements
+### Build requirements
+
+These are what it takes to compile the effect;
+[System requirements](#system-requirements) is what it takes to run it.
 
 The effect is built against the KWin installed on the machine and loaded into
 it, so the development files must belong to the KWin version that will actually
@@ -542,6 +581,44 @@ session that starts `kwin_wayland` has `QT_PLUGIN_PATH` pointing at:
 <prefix>/lib/<multiarch>/qt6/plugins
 ```
 
+### Reload during development
+
+Close the game, install the new build, then run:
+
+```bash
+python3 -B tools/reload-upscale.py
+```
+
+To add **Reload Upscale** to KDE's application menu and desktop:
+
+```bash
+python3 -B tools/reload-upscale.py --install-launcher
+```
+
+Keep this checkout at the same path. KDE may ask you to trust the desktop
+launcher on its first use. Python 3, `qdbus6` (or `qdbus-qt6`), `qtpaths6`,
+`sudo`, and, for the icon, `kdialog` and `pkexec` are required. The installer
+also uses `xdg-user-dir`. For a custom installation, append
+`--plugin /path/to/kwin/effects/plugins/upscale.so` to either command.
+
+The tool reloads the installed binary and displays its running build identity;
+it does not build or install a new version. Administrative authentication may
+be requested to copy and remove a temporary plugin file. KWin and applications
+keep running. The last successful result is in `build/reload-upscale/latest.log`.
+
+This is a development shortcut: Qt can keep an unloaded library in memory, so
+the tool loads a copy under a fresh temporary effect name. The normal settings
+page may therefore report Upscale as unloaded, and its Apply button addresses
+the normal name. After saving settings, use **Reload Upscale** again; do not
+enable another instance alongside the temporary one. Temporary discovery files
+are removed after loading, so the next login uses the normal installed plugin.
+Old libraries can remain in memory until logout. A fresh session is still the
+final check for normal installation and settings-page behavior.
+
+Remove `org.kde.upscale.reload.desktop` from your desktop and
+`~/.local/share/applications/` to uninstall the launcher (use your
+`XDG_DATA_HOME/applications/` directory if customized).
+
 ### Uninstall a source build
 
 ```bash
@@ -599,7 +676,8 @@ an internal render scale.
 Left 4 Dead 2 is the native Source engine title this effect's X11 path was
 developed against, launched normally from Steam through pressure-vessel. Its
 window identifies itself as `hl2_linux`, which is the engine binary rather than
-the game, so the profile the package ships covers every native Source title.
+the game, so the profile the package ships recognizes it by the folder its
+program is in, `Left 4 Dead 2/hl2_linux`.
 Source takes its fullscreen size from the window manager and never asks
 Xwayland for a mode, which is the case the effect has to present and map
 pointer input for itself.

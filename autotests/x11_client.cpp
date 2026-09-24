@@ -5,6 +5,8 @@
 */
 
 #include "x11_client.h"
+#include <QElapsedTimer>
+#include <QThread>
 
 #include <QCoreApplication>
 #include <QSocketNotifier>
@@ -13,6 +15,7 @@
 #include <cstdlib>
 #include <memory>
 #include <xcb/randr.h>
+#include <xcb/shape.h>
 
 template<typename T>
 using Reply = std::unique_ptr<T, decltype(&std::free)>;
@@ -60,9 +63,11 @@ bool X11Client::show(const QByteArray &identity, const QRect &geometry, bool ful
     // window the window manager can already see but whose hints are not set
     // yet, and the placement it deserves decided from what was there then.
     const xcb_atom_t motif = atom(QByteArrayLiteral("_MOTIF_WM_HINTS"));
-    const xcb_atom_t owner = m_reportsProcess ? atom(QByteArrayLiteral("_NET_WM_PID")) : xcb_atom_t(XCB_NONE);
+    const xcb_atom_t owner = m_reportedProcess ? atom(QByteArrayLiteral("_NET_WM_PID")) : xcb_atom_t(XCB_NONE);
+    m_protocols = atom(QByteArrayLiteral("WM_PROTOCOLS"));
+    m_deleteWindow = atom(QByteArrayLiteral("WM_DELETE_WINDOW"));
     m_window = xcb_generate_id(m_connection);
-    const uint32_t values[] = {0xff0000, XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_POINTER_MOTION};
+    const uint32_t values[] = {0xff0000, XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_FOCUS_CHANGE};
     xcb_create_window(m_connection, XCB_COPY_FROM_PARENT, m_window, m_screen->root,
                       geometry.x(), geometry.y(), geometry.width(), geometry.height(), 0,
                       XCB_WINDOW_CLASS_INPUT_OUTPUT, m_screen->root_visual,
@@ -70,8 +75,9 @@ bool X11Client::show(const QByteArray &identity, const QRect &geometry, bool ful
     const QByteArray windowClass = identity + '\0' + identity + '\0';
     xcb_change_property(m_connection, XCB_PROP_MODE_REPLACE, m_window, XCB_ATOM_WM_CLASS,
                         XCB_ATOM_STRING, 8, windowClass.size(), windowClass.constData());
+    xcb_change_property(m_connection, XCB_PROP_MODE_REPLACE, m_window, m_protocols, XCB_ATOM_ATOM, 32, 1, &m_deleteWindow);
     if (owner != XCB_NONE) {
-        const auto process = uint32_t(QCoreApplication::applicationPid());
+        const auto process = uint32_t(m_reportedProcess);
         xcb_change_property(m_connection, XCB_PROP_MODE_REPLACE, m_window, owner, XCB_ATOM_CARDINAL, 32, 1, &process);
     }
     // An explicit position makes the two-output case independent of placement
@@ -160,14 +166,62 @@ void X11Client::resize(const QSize &size)
     xcb_flush(m_connection);
 }
 
-void X11Client::reportProcess()
+void X11Client::reportProcess(qint64 pid)
 {
-    m_reportsProcess = true;
+    m_reportedProcess = pid ? pid : QCoreApplication::applicationPid();
 }
 
 QPoint X11Client::lastMotion() const
 {
     return m_lastMotion;
+}
+
+QPoint X11Client::lastPress() const
+{
+    return m_lastPress;
+}
+
+int X11Client::presses() const
+{
+    return m_presses;
+}
+
+bool X11Client::takePointer()
+{
+    // A cursor of one transparent pixel: Xwayland reads the window's cursor and
+    // treats the window as one that hides it.
+    const xcb_pixmap_t pixmap = xcb_generate_id(m_connection);
+    xcb_create_pixmap(m_connection, 1, pixmap, m_window, 1, 1);
+    m_blankCursor = xcb_generate_id(m_connection);
+    xcb_create_cursor(m_connection, m_blankCursor, pixmap, pixmap, 0, 0, 0, 0, 0, 0, 0, 0);
+    xcb_free_pixmap(m_connection, pixmap);
+    xcb_change_window_attributes(m_connection, m_window, XCB_CW_CURSOR, &m_blankCursor);
+    const xcb_grab_pointer_cookie_t cookie =
+        xcb_grab_pointer(m_connection, 1, m_window,
+                         XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE,
+                         XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, m_window, m_blankCursor, XCB_CURRENT_TIME);
+    xcb_generic_error_t *error = nullptr;
+    xcb_grab_pointer_reply_t *reply = xcb_grab_pointer_reply(m_connection, cookie, &error);
+    const bool taken = reply && reply->status == XCB_GRAB_STATUS_SUCCESS;
+    std::free(reply);
+    std::free(error);
+    xcb_flush(m_connection);
+    return taken;
+}
+
+bool X11Client::isFocused() const
+{
+    return m_focused;
+}
+
+int X11Client::focusLosses() const
+{
+    return m_focusLosses;
+}
+
+int X11Client::closeRequests() const
+{
+    return m_closeRequests;
 }
 
 int X11Client::configureNotifies() const
@@ -245,11 +299,24 @@ bool X11Client::mode(const QSize &size)
     return false;
 }
 
+void X11Client::inputShape(const QRect &rectangle)
+{
+    const xcb_rectangle_t shape{int16_t(rectangle.x()), int16_t(rectangle.y()), uint16_t(rectangle.width()), uint16_t(rectangle.height())};
+    xcb_shape_rectangles(m_connection, XCB_SHAPE_SO_SET, XCB_SHAPE_SK_INPUT, XCB_CLIP_ORDERING_UNSORTED,
+                         m_window, 0, 0, 1, &shape);
+    paint(m_size);
+}
+
 void X11Client::paint(const QSize &size)
 {
     const xcb_rectangle_t rectangle{0, 0, uint16_t(size.width()), uint16_t(size.height())};
     xcb_poly_fill_rectangle(m_connection, m_window, m_context, 1, &rectangle);
     xcb_flush(m_connection);
+}
+
+QList<QSize> X11Client::configuredSizes() const
+{
+    return m_configuredSizes;
 }
 
 void X11Client::dispatch()
@@ -260,6 +327,7 @@ void X11Client::dispatch()
             const auto configure = reinterpret_cast<xcb_configure_notify_event_t *>(event);
             const QSize size(configure->width, configure->height);
             ++m_configureNotifies;
+            m_configuredSizes.append(size);
             if (size != m_size) {
                 m_size = size;
                 // Commit the resized buffer first, before anything that can
@@ -280,9 +348,23 @@ void X11Client::dispatch()
             }
         } else if (type == XCB_EXPOSE) {
             paint(m_size);
+        } else if (type == XCB_CLIENT_MESSAGE) {
+            const auto message = reinterpret_cast<xcb_client_message_event_t *>(event);
+            if (message->type == m_protocols && message->data.data32[0] == m_deleteWindow) {
+                ++m_closeRequests;
+            }
         } else if (type == XCB_MOTION_NOTIFY) {
             const auto motion = reinterpret_cast<xcb_motion_notify_event_t *>(event);
             m_lastMotion = QPoint(motion->event_x, motion->event_y);
+        } else if (type == XCB_FOCUS_IN) {
+            m_focused = true;
+        } else if (type == XCB_FOCUS_OUT) {
+            m_focused = false;
+            ++m_focusLosses;
+        } else if (type == XCB_BUTTON_PRESS) {
+            const auto press = reinterpret_cast<xcb_button_press_event_t *>(event);
+            m_lastPress = QPoint(press->event_x, press->event_y);
+            ++m_presses;
         }
         std::free(event);
     }
@@ -306,4 +388,23 @@ void X11Client::dispatch()
             }
         }
     }
+}
+
+// Model a toolkit waiting for visibility, then reading its initial geometry
+// synchronously before entering the application's event loop.
+bool X11Client::waitForMapping()
+{
+    QElapsedTimer elapsed;
+    elapsed.start();
+    while (elapsed.elapsed() < 10000) {
+        while (xcb_generic_event_t *event = xcb_poll_for_event(m_connection)) {
+            const bool mapped = (event->response_type & ~0x80) == XCB_MAP_NOTIFY;
+            std::free(event);
+            if (mapped) {
+                return true;
+            }
+        }
+        QThread::msleep(1);
+    }
+    return false;
 }

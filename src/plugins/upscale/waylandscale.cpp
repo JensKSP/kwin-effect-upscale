@@ -13,8 +13,12 @@
 #include "scene/windowitem.h"
 #include "window.h"
 
+#include <QLoggingCategory>
+
 #include <algorithm>
 #include <cmath>
+
+Q_DECLARE_LOGGING_CATEGORY(KWIN_UPSCALE)
 
 namespace KWin
 {
@@ -42,6 +46,8 @@ void UpscaleWaylandScale::apply(Window *window, const Request &request)
     // output or that output's scale changes, so a value set once is silently
     // undone. Re-asserting on the signal is what keeps the request standing;
     // without it this works until the moment anything touches the window.
+    qCInfo(KWIN_UPSCALE) << "Wayland scale request: window" << window->internalId() << "pid" << window->pid()
+                         << "previous" << window->nextTargetScale() << "target" << request.original * request.ratio;
     window->setNextTargetScale(request.original * request.ratio);
 }
 
@@ -114,6 +120,12 @@ void UpscaleWaylandScale::request(EffectWindow *effectWindow, double ratio)
         return;
     }
 
+    checkAnswer(effectWindow, *entry);
+}
+
+void UpscaleWaylandScale::checkAnswer(EffectWindow *effectWindow, Request &request)
+{
+    Window *window = effectWindow->window();
     SurfaceItem *surface = effectWindow->windowItem() ? effectWindow->windowItem()->surfaceItem() : nullptr;
     const QSize buffer = surface ? surface->bufferSize() : QSize();
     const QSize output = window->output() ? window->output()->pixelSize() : QSize();
@@ -128,16 +140,19 @@ void UpscaleWaylandScale::request(EffectWindow *effectWindow, double ratio)
         return;
     }
     if (buffer.width() < output.width() && buffer.height() < output.height()) {
-        entry->answered = true;
+        qCInfo(KWIN_UPSCALE) << "Wayland scale answered: window" << window->internalId() << "buffer" << buffer << "output" << output;
+        request.answered = true;
         return;
     }
-    if (++entry->frames >= patienceInFrames) {
+    if (++request.frames >= patienceInFrames) {
         // The client read the hint and did nothing with it, which is what Qt
-        // and SDL 2 do: neither honours a fractional scale. Give the scale
-        // back so nothing carries a request the client is not acting on, and
-        // let the status say no method reached it.
-        entry->ignored = true;
-        window->setNextTargetScale(entry->original);
+        // does, and SDL 2 in exclusive fullscreen. Give the scale back so
+        // nothing carries a request the client is not acting on, and let the
+        // status say no method reached it.
+        request.ignored = true;
+        qCInfo(KWIN_UPSCALE) << "Wayland scale ignored: window" << window->internalId() << "buffer" << buffer
+                             << "restoring scale" << request.original;
+        window->setNextTargetScale(request.original);
     }
 }
 
@@ -181,6 +196,7 @@ void UpscaleWaylandScale::release(Window *window)
     const double original = entry->original;
     disconnect(window, nullptr, this, nullptr);
     m_requests.remove(window);
+    qCInfo(KWIN_UPSCALE) << "Wayland scale restored: window" << window->internalId() << "scale" << original;
     window->setNextTargetScale(original);
 }
 

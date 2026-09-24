@@ -8,6 +8,7 @@
 
 #if KWIN_BUILD_X11
 #include "compatibility.h"
+#include "windowidentity.h"
 #include "x11geometry.h"
 
 #include "x11input.h"
@@ -18,6 +19,10 @@
 #include "x11window.h"
 
 #include <KLocalizedString>
+#include <QLoggingCategory>
+#include <QTimer>
+
+Q_DECLARE_LOGGING_CATEGORY(KWIN_UPSCALE)
 #endif
 
 namespace KWin
@@ -27,15 +32,11 @@ namespace KWin
 
 QString UpscaleX11Resolution::unmetCondition(const Request &request)
 {
-    // Four separate conditions decide whether a request was honoured, and the
-    // person reading the answer has to act on the one that actually failed.
-    // Reporting them as one sentence about the application was measurably
-    // wrong: on 2026-09-19 Left 4 Dead 2 supplied exactly the requested
-    // 2560 x 1440 buffer and was still told it had not, because what was
-    // missing was the emulated mode its toolkit never asks for. That mode is
-    // no longer required - the effect presents such a window itself - but a
-    // buffer of the wrong size and a frame that left the output still lead
-    // somewhere different from each other, so they still arrive apart.
+    // A smaller drawable alone cannot prove that a client handled its resize.
+    // ETR can discard that event during startup and keep a native viewport;
+    // its profile requires the mode SFML selects when the game accepts it.
+    // Other clients, including L4D2, never select a mode, so they may use the
+    // effect's own presentation. Report the particular condition that failed.
     X11Window *window = request.window;
     if (!window->output()) {
         return i18n("The window is not on an output.");
@@ -48,6 +49,10 @@ QString UpscaleX11Resolution::unmetCondition(const Request &request)
     if (supplied != request.size) {
         return i18n("The application supplied a %1 x %2 buffer where %3 x %4 was requested.",
                     supplied.width(), supplied.height(), request.size.width(), request.size.height());
+    }
+    const UpscaleApplication *application = upscaleApplicationForWindow(window);
+    if (application && application->x11RequiresEmulatedMode && !upscaleX11ModeMatches(window, request.position, request.size)) {
+        return i18n("The application has not confirmed the requested resolution through its X11 mode.");
     }
     // KWin's frame is what the buffer is presented across, by Xwayland or by
     // this effect, so it has to have stayed on the output either way.
@@ -86,12 +91,21 @@ void UpscaleX11Resolution::validate(const QString &key, int generation, int revi
         request.answered = true;
         const QString unmet = unmetCondition(request);
         if (!unmet.isEmpty()) {
+            qCInfo(KWIN_UPSCALE) << "X11 validation unmet:" << key << "window" << request.window->window() << unmet;
             if (retry(key, generation)) {
                 return;
+            }
+            // A client that went on drawing another size may still be one a
+            // helper can prepare for its next start.
+            SurfaceItem *surface = request.window->effectWindow()->windowItem()->surfaceItem();
+            if (m_unfollowed && surface && surface->bufferSize() != request.size) {
+                m_unfollowed(request.window->effectWindow(), request.size);
             }
             refuse(key, unmet);
             return;
         }
+        qCInfo(KWIN_UPSCALE) << "X11 request accepted:" << key << "window" << request.window->window()
+                             << "buffer" << request.size << "presented by" << (request.presentedByEffect ? "effect" : "Xwayland");
         observed = true;
     }
     if (observed) {
@@ -99,6 +113,46 @@ void UpscaleX11Resolution::validate(const QString &key, int generation, int revi
         // The surface reached its requested size somewhere in the last three
         // seconds; a pointer that has not moved since still has to follow it.
         m_input->refresh();
+    }
+}
+
+bool UpscaleX11Resolution::retry(const QString &key, int generation)
+{
+    if (m_retries.value(key) != 0) {
+        return false;
+    }
+    // Clients can discard resize events during a loading/state transition.
+    // One retry returns to normal geometry first: duplicate ConfigureNotify
+    // events may be ignored if the toolkit cached the requested size already.
+    // Never loop on a client which cannot establish full-output presentation.
+    qCInfo(KWIN_UPSCALE) << "X11 retry after restoring normal geometry:" << key;
+    m_retries.insert(key, 1);
+    const auto windows = m_requests.keys();
+    for (X11Window *window : windows) {
+        if (m_requests.value(window).key != key) {
+            continue;
+        }
+        const QPointer<X11Window> guarded = window;
+        restore(window);
+        QTimer::singleShot(250, this, [this, guarded, generation]() {
+            if (guarded && generation == m_generation) {
+                schedule(guarded);
+            }
+        });
+    }
+    return true;
+}
+
+void UpscaleX11Resolution::refuse(const QString &key, const QString &reason)
+{
+    m_failures.insert(key, reason);
+    m_requested.remove(key);
+    qCWarning(KWIN_UPSCALE) << "X11 resolution control:" << key << reason;
+    const auto windows = m_requests.keys();
+    for (X11Window *window : windows) {
+        if (m_requests.value(window).key == key) {
+            restore(window);
+        }
     }
 }
 

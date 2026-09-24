@@ -158,8 +158,25 @@ check_cxx_source_compiles(
     int main() { return 0; }"
     UPSCALE_KWIN_PAINT_RETURNS_BOOL
 )
+# Later KWin hands an effect that intercepts the pointer KWin's own pointer
+# events rather than Qt mouse events.
+unset(UPSCALE_KWIN_POINTER_EVENTS CACHE)
+check_cxx_source_compiles(
+    "#include \"effect/effect.h\"
+    struct Probe : KWin::Effect
+    {
+        void pointerButton(KWin::PointerButtonEvent *) override {}
+    };
+    int main() { return 0; }"
+    UPSCALE_KWIN_POINTER_EVENTS
+)
 unset(CMAKE_REQUIRED_LIBRARIES)
 unset(CMAKE_REQUIRED_QUIET)
+if(UPSCALE_KWIN_POINTER_EVENTS)
+    add_definitions(-DUPSCALE_POINTER_EVENT_API=1)
+else()
+    add_definitions(-DUPSCALE_POINTER_EVENT_API=0)
+endif()
 if(UPSCALE_KWIN_PAINT_RETURNS_BOOL)
     add_definitions(-DUPSCALE_RENDER_DEVICE_API=1)
 else()
@@ -196,6 +213,7 @@ include(KWinBuiltinEffectShim)
 include(UpscaleInstrumentation)
 
 add_subdirectory(src/plugins/upscale)
+add_subdirectory(src/winescreen)
 if(BUILD_TESTING)
     add_subdirectory(autotests)
 endif()

@@ -47,15 +47,30 @@ static void writeResolution(KConfigGroup &group, std::optional<int> resolution)
     }
 }
 
+// Every one of the global profile's six answers, stated. The default is Auto,
+// which asks a window for a smaller buffer and waits for its answer; a case
+// about something else states what it asks, so that Auto's waiting does not
+// become part of what it measures.
+static void writeGlobalMethods(KConfigGroup &group, const QString &fullScreen)
+{
+    for (const char *key : {"MethodWaylandBorderless", "MethodWaylandWindowed", "MethodX11FullScreen",
+                            "MethodX11Borderless", "MethodX11Windowed"}) {
+        group.writeEntry(key, QStringLiteral("Off"));
+    }
+    group.writeEntry("MethodWaylandFullScreen", fullScreen);
+}
+
 // The test's client is not in the catalogue, so it is the global profile
 // that answers for it. That profile is off by default, which is the whole
 // point of the default; a test that wants the client scaled switches it on,
-// as a person would.
+// as a person would. Switched on here, it enlarges what the client commits
+// and asks it for nothing.
 void UpscaleIntegrationTest::configure(bool unlisted, bool sharpening, std::optional<Stored> resolution)
 {
     const KSharedConfig::Ptr config = KSharedConfig::openConfig(QStringLiteral("kwinrc"));
     KConfigGroup group(config, QStringLiteral("Effect-upscale"));
     group.writeEntry("UnlistedApplications", unlisted);
+    writeGlobalMethods(group, QStringLiteral("Off"));
     group.writeEntry("Sharpening", sharpening);
     group.writeEntry("Strength", 50);
     writeResolution(group, resolution ? std::optional<int>(int(*resolution)) : std::nullopt);
@@ -102,17 +117,21 @@ void UpscaleIntegrationTest::reconfigure()
 // global profile acting on them, and the global profile having a method for
 // them. The advertised mode in the fullscreen slot is what the previous
 // release's single switch asked for, so that is what "unlisted" means here.
-// Not asking is the method Off, which is what an absent key means for the
-// global profile.
+// Not asking is the method Off, stated, because an absent key is Auto. Asking
+// without unlisted applications leaves the global methods at their default,
+// Auto, which is what a listed game's unmeasured slots follow.
 void UpscaleIntegrationTest::configureResolution(bool asking, bool unlisted, std::optional<Stored> resolution)
 {
     const KSharedConfig::Ptr config = KSharedConfig::openConfig(QStringLiteral("kwinrc"));
     KConfigGroup group(config, QStringLiteral("Effect-upscale"));
     group.writeEntry("UnlistedApplications", unlisted);
-    if (unlisted && asking) {
-        group.writeEntry("MethodWaylandFullScreen", QStringLiteral("AdvertisedMode"));
+    if (!asking || unlisted) {
+        writeGlobalMethods(group, asking ? QStringLiteral("AdvertisedMode") : QStringLiteral("Off"));
     } else {
-        group.deleteEntry("MethodWaylandFullScreen");
+        for (const char *key : {"MethodWaylandFullScreen", "MethodWaylandBorderless", "MethodWaylandWindowed",
+                                "MethodX11FullScreen", "MethodX11Borderless", "MethodX11Windowed"}) {
+            group.deleteEntry(key);
+        }
     }
     writeResolution(group, resolution ? std::optional<int>(int(*resolution)) : std::nullopt);
     group.sync();
@@ -345,8 +364,12 @@ void UpscaleIntegrationTest::outputPixelPolicy()
         QVERIFY(above.initialize());
         QCOMPARE(above.advertisedMode(), QSize(64, 64));
     }
+    // Native asks for nothing smaller, and still enlarges with FSR a buffer
+    // that arrives smaller anyway, as a game that stored a resolution from an
+    // earlier run would supply it.
     writeCatalogue(rule + QStringLiteral("Resolution=Native\nMinimumPixels=0\n"));
-    QTRY_VERIFY2(status().contains(QStringLiteral("rule selects Native")), qPrintable(status()));
+    QTRY_VERIFY2(status().contains(QStringLiteral("Native (no request)")), qPrintable(status()));
+    QTRY_VERIFY2(status().contains(QStringLiteral("FSR 1, sharpening")), qPrintable(status()));
     {
         WaylandClient native;
         QVERIFY(native.initialize());
@@ -395,11 +418,16 @@ void UpscaleIntegrationTest::autoAsksTheWindowForAFractionalScale()
 {
     const QDBusReply<bool> loaded = m_effects.call(QStringLiteral("loadEffect"), QStringLiteral("upscale_test_driver"));
     QVERIFY(loaded.isValid() && loaded.value());
-    // The entry states its program and no method, so every slot is Auto. It
-    // states its own limit too: the screen is 128 pixels square, and a case
-    // before this one leaves the global limit at exactly that.
+    // The entry states its program and no method, so every slot follows the
+    // global profile's, which is Auto by default. It states its own limit
+    // too: the screen is 128 pixels square, and a case before this one leaves
+    // the global limit at exactly that.
     writeCatalogue(integrationEntry(QStringLiteral("MinimumPixels=0\n")));
     configureResolution(true, false, Stored::Quality);
+    // With the display off, which is how most people run the effect. Auto
+    // asks where the candidate is resolved, and a window drawing at full size
+    // was resolved only for the display, so with it off nothing was asked.
+    configureDisplay(false, false);
     const auto pump = [this](WaylandClient &client, QSocketNotifier &notifier) {
         connect(&notifier, &QSocketNotifier::activated, this, [&client]() {
             client.dispatch();
@@ -408,7 +436,10 @@ void UpscaleIntegrationTest::autoAsksTheWindowForAFractionalScale()
     {
         WaylandClient honouring;
         QVERIFY(honouring.initialize());
-        QCOMPARE(honouring.advertisedMode(), QSize(128, 128));
+        // Auto tells a program its entry identifies the smaller mode when it
+        // connects; this client, like a borderless game, sizes its buffer
+        // from the configure instead and ignores it.
+        QCOMPARE(honouring.advertisedMode(), QSize(85, 85));
         QSocketNotifier notifier(honouring.descriptor(), QSocketNotifier::Read);
         pump(honouring, notifier);
         QVERIFY(honouring.show(QSize(128, 128)));

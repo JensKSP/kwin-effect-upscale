@@ -26,6 +26,7 @@ using namespace KWin;
 // a shipped defect, not a test problem.
 int runLegacySettingsTest(int argc, char *argv[]);
 int runMatchingTest(int argc, char *argv[]);
+int runApplicationExportTest(int argc, char *argv[]);
 
 static QString userDirectory()
 {
@@ -120,7 +121,7 @@ void ApplicationTest::readsTheShippedDefaults()
         // An advertisement is made before the window exists, so it has
         // nothing but the program's path to recognize the application by,
         // and an entry that also names a window could not answer then.
-        const bool advertises = std::ranges::any_of(application.methods, [](KWin::UpscaleMethod method) {
+        const bool advertises = std::ranges::any_of(application.methods, [](const std::optional<KWin::UpscaleMethod> &method) {
             return method == KWin::UpscaleMethod::AdvertisedMode || method == KWin::UpscaleMethod::AdvertisedScale
                 || method == KWin::UpscaleMethod::AdvertisedModeAndScale;
         });
@@ -142,10 +143,15 @@ void ApplicationTest::matchesObservedIdentities()
     QVERIFY(kart);
     QCOMPARE(kart->name, QStringLiteral("SuperTuxKart"));
     QCOMPARE(kart->methods[std::size_t(KWin::UpscalePresentation::WaylandFullScreen)],
-             KWin::UpscaleMethod::AdvertisedMode);
-    // The other five are unmeasured, which reads as Auto and not as Off: the
-    // game has only ever been run one of the six ways.
-    QCOMPARE(kart->methods[std::size_t(KWin::UpscalePresentation::X11FullScreen)], KWin::UpscaleMethod::Auto);
+             std::optional(KWin::UpscaleMethod::AdvertisedMode));
+    // The other five are unmeasured and state nothing, so they follow the
+    // global profile's answer, which is Auto unless a person chose another,
+    // and not Off: the game has only ever been run one of the six ways.
+    QVERIFY(!kart->methods[std::size_t(KWin::UpscalePresentation::X11FullScreen)]);
+    QCOMPARE(KWin::upscaleMethodFor(kart, KWin::UpscalePresentation::X11FullScreen), KWin::UpscaleMethod::Auto);
+    // What a reset returns a slot to: the package's measurement.
+    QCOMPARE(kart->measured[std::size_t(KWin::UpscalePresentation::WaylandFullScreen)],
+             std::optional(KWin::UpscaleMethod::AdvertisedMode));
     // It states no resolution of its own. A shipped resolution would be taste,
     // and it would stop the user's global setting ever reaching this game.
     QVERIFY(!kart->overrides[std::size_t(KWin::UpscaleSetting::Resolution)]);
@@ -162,9 +168,10 @@ void ApplicationTest::matchesObservedIdentities()
     QVERIFY(racer);
     QCOMPARE(racer->name, QStringLiteral("Extreme Tux Racer"));
     QCOMPARE(racer, forWindow(QStringLiteral("/usr/games/etr"), QStringLiteral("Extreme Tux Racer 0.9.0"), QStringLiteral("etr")));
-    QCOMPARE(racer->methods[std::size_t(KWin::UpscalePresentation::X11FullScreen)], KWin::UpscaleMethod::X11Resize);
+    QCOMPARE(racer->methods[std::size_t(KWin::UpscalePresentation::X11FullScreen)], std::optional(KWin::UpscaleMethod::X11Resize));
     QVERIFY(!racer->overrides[std::size_t(KWin::UpscaleSetting::Resolution)]);
     QVERIFY(racer->x11PrimaryOutputOnly);
+    QVERIFY(racer->x11RequiresEmulatedMode);
 }
 
 // The two benchmarks are driven through the screen scale rather than the
@@ -175,22 +182,19 @@ void ApplicationTest::matchesTheBenchmarks()
                                              QStringLiteral("glmark2-wayland"));
     QVERIFY(gl);
     QCOMPARE(gl->methods[std::size_t(KWin::UpscalePresentation::WaylandFullScreen)],
-             KWin::UpscaleMethod::AdvertisedScale);
+             std::optional(KWin::UpscaleMethod::AdvertisedScale));
     QCOMPARE(atBind(QStringLiteral("/usr/bin/glmark2-wayland")), gl);
 
     const UpscaleApplication *vk = forWindow(QStringLiteral("/usr/bin/vkmark"), QStringLiteral("com.github.vkmark.vkmark"),
                                              QStringLiteral("vkmark"));
     QVERIFY(vk);
     QCOMPARE(vk->methods[std::size_t(KWin::UpscalePresentation::WaylandFullScreen)],
-             KWin::UpscaleMethod::AdvertisedModeAndScale);
+             std::optional(KWin::UpscaleMethod::AdvertisedModeAndScale));
 
-    // A benchmark exists to measure a machine, so neither may reduce anything
-    // until the user asks: an unrequested reduction would make it report a
-    // number for something nobody chose.
-    // Stated rather than left to inherit, because it has to hold even when the
-    // user has chosen a reduction globally.
-    QCOMPARE(KWin::upscaleResolveSettings(gl).resolution(), ResolutionPreset::Native);
-    QCOMPARE(KWin::upscaleResolveSettings(vk).resolution(), ResolutionPreset::Native);
+    // They state no resolution, as no shipped entry does: every entry follows
+    // the global values until the user states one of its own.
+    QVERIFY(!gl->overrides[std::size_t(KWin::UpscaleSetting::Resolution)]);
+    QVERIFY(!vk->overrides[std::size_t(KWin::UpscaleSetting::Resolution)]);
 }
 
 void ApplicationTest::ignoresIdentitiesItDoesNotKnow()
@@ -233,7 +237,7 @@ void ApplicationTest::layersUserChangesOverTheDefaults()
     QCOMPARE(KWin::upscaleResolveSettings(kart).resolution(), ResolutionPreset::Performance);
     // The field the user did not touch still comes from the shipped file.
     QCOMPARE(kart->methods[std::size_t(KWin::UpscalePresentation::WaylandFullScreen)],
-             KWin::UpscaleMethod::AdvertisedMode);
+             std::optional(KWin::UpscaleMethod::AdvertisedMode));
     QVERIFY(kart->shipped);
 
     // A disabled entry stops matching without being deleted.
@@ -271,7 +275,7 @@ void ApplicationTest::restoringDiscardsOnlyTheUserChanges()
     // The user's own resolution is gone, so this follows the global one again.
     QVERIFY(!kart->overrides[std::size_t(KWin::UpscaleSetting::Resolution)]);
     QCOMPARE(kart->methods[std::size_t(KWin::UpscalePresentation::WaylandFullScreen)],
-             KWin::UpscaleMethod::AdvertisedMode);
+             std::optional(KWin::UpscaleMethod::AdvertisedMode));
     QVERIFY(!forInstance(QStringLiteral("mygame")));
 
     // Restoring must leave the defaults reachable rather than suppressed: a
@@ -310,7 +314,7 @@ void ApplicationTest::spellsEveryMethodAndPreset()
         writeUserConfig(QStringLiteral("[Application-roundtrip]\nInstance=roundtrip\nMethodWaylandFullScreen=%1\n").arg(key));
         const UpscaleApplication *stored = forInstance(QStringLiteral("roundtrip"));
         QVERIFY(stored);
-        QCOMPARE(stored->methods[std::size_t(UpscalePresentation::WaylandFullScreen)], method);
+        QCOMPARE(stored->methods[std::size_t(UpscalePresentation::WaylandFullScreen)], std::optional(method));
     }
     QCOMPARE(upscaleMethodKey(UpscaleMethod::Off), QStringLiteral("Off"));
 
@@ -320,7 +324,7 @@ void ApplicationTest::spellsEveryMethodAndPreset()
     writeUserConfig(QStringLiteral("[Application-roundtrip]\nInstance=roundtrip\nMethodX11FullScreen=AdvertisedMode\n"));
     QCOMPARE(forInstance(QStringLiteral("roundtrip"))
                  ->methods[std::size_t(UpscalePresentation::X11FullScreen)],
-             UpscaleMethod::Off);
+             std::optional(UpscaleMethod::Off));
 
     for (const ResolutionPreset preset : {ResolutionPreset::Native, ResolutionPreset::UltraQuality,
                                           ResolutionPreset::Quality, ResolutionPreset::Balanced,
@@ -340,7 +344,7 @@ void ApplicationTest::spellsEveryMethodAndPreset()
                                    "MethodWaylandFullScreen=SomethingLater\nResolution=Enormous\n"));
     const UpscaleApplication *later = forInstance(QStringLiteral("roundtrip"));
     QVERIFY(later);
-    QCOMPARE(later->methods[std::size_t(KWin::UpscalePresentation::WaylandFullScreen)], KWin::UpscaleMethod::Off);
+    QCOMPARE(later->methods[std::size_t(KWin::UpscalePresentation::WaylandFullScreen)], std::optional(KWin::UpscaleMethod::Off));
     // An unreadable resolution falls back to what would have applied anyway
     // rather than inventing one, and the key is still present, so the profile
     // is still stating something rather than silently inheriting.
@@ -422,7 +426,7 @@ void ApplicationTest::storesOnlyTheFieldsTheUserChanged()
     QVERIFY(mine);
     QCOMPARE(mine->name, QStringLiteral("My Game"));
     QCOMPARE(mine->methods[std::size_t(KWin::UpscalePresentation::WaylandFullScreen)],
-             KWin::UpscaleMethod::AdvertisedScale);
+             std::optional(KWin::UpscaleMethod::AdvertisedScale));
     QCOMPARE(KWin::upscaleResolveSettings(mine).resolution(), ResolutionPreset::Balanced);
     QCOMPARE(mine->note, QStringLiteral("Measured by me."));
     QVERIFY(!mine->shipped);
@@ -470,6 +474,13 @@ void ApplicationTest::asksUnlistedApplicationsOnlyWhenTurnedOn()
     const UpscaleBindAnswer unmeasured = upscaleApplicationAtBind(QStringLiteral("/usr/bin/something-nobody-measured"));
     QVERIFY(unmeasured.decided);
     QVERIFY(!unmeasured.application);
+    // Where nothing is stated, the global profile's six answers are Auto, as
+    // a profile's are. What leaves such a program alone is the global
+    // profile's own switch, which is off until someone turns it on.
+    QVERIFY(std::ranges::all_of(upscaleGlobalMethods(), [](KWin::UpscaleMethod method) {
+        return method == KWin::UpscaleMethod::Auto;
+    }));
+    QVERIFY(!upscaleResolveSettings(nullptr).acts());
 
     // A profile that is switched off takes no part in matching, by both
     // identities, so a later profile can claim the window and the global
@@ -487,15 +498,15 @@ void ApplicationTest::asksUnlistedApplicationsOnlyWhenTurnedOn()
     writeUserConfig(QStringLiteral("[Application-old]\nInstance=old\nMethod=X11Resize\n"));
     const UpscaleApplication *old = forInstance(QStringLiteral("old"));
     QVERIFY(old);
-    QCOMPARE(old->methods[std::size_t(KWin::UpscalePresentation::X11FullScreen)], KWin::UpscaleMethod::X11Resize);
-    QCOMPARE(old->methods[std::size_t(KWin::UpscalePresentation::WaylandFullScreen)], KWin::UpscaleMethod::Auto);
+    QCOMPARE(old->methods[std::size_t(KWin::UpscalePresentation::X11FullScreen)], std::optional(KWin::UpscaleMethod::X11Resize));
+    QVERIFY(!old->methods[std::size_t(KWin::UpscalePresentation::WaylandFullScreen)]);
 
     // Except None, which recorded a decision about the program rather than
     // about one way of running it, so it fills every slot.
     writeUserConfig(QStringLiteral("[Application-none]\nInstance=none\nMethod=None\n"));
     const UpscaleApplication *none = forInstance(QStringLiteral("none"));
     QVERIFY(none);
-    QVERIFY(std::ranges::all_of(none->methods, [](KWin::UpscaleMethod method) {
+    QVERIFY(std::ranges::all_of(none->methods, [](const std::optional<KWin::UpscaleMethod> &method) {
         return method == KWin::UpscaleMethod::Off;
     }));
 }
@@ -536,7 +547,7 @@ int main(int argc, char *argv[])
     // The cases about what a previous release stored live in their own file,
     // beside the code that reads it, and run in the same environment. Both go
     // together once no installation can carry the old keys.
-    return result | runLegacySettingsTest(argc, argv) | runMatchingTest(argc, argv);
+    return result | runLegacySettingsTest(argc, argv) | runMatchingTest(argc, argv) | runApplicationExportTest(argc, argv);
 }
 
 #include "application_test.moc"

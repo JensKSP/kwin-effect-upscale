@@ -6,6 +6,8 @@
 
 #include "snapshot.h"
 
+#include "warningtext.h"
+
 #include "config-kwin.h"
 
 #include <KLocalizedString>
@@ -111,9 +113,18 @@ QString upscaleAnnouncement(const UpscaleSnapshot &snapshot)
     return i18n("Upscale: recognized %1", snapshot.recognized);
 }
 
+// The size the game draws at, marked for the warning colour where it is not
+// the one chosen - a game that keeps a resolution of its own, say. Only for the
+// on-screen display, whose overlay understands the marks.
+static QString suppliedForDisplay(const UpscaleSnapshot &snapshot, const QString &name)
+{
+    return upscaleDrawsTheChosenSize(snapshot) ? name : upscaleWarning(name);
+}
+
 QString upscaleBasicSummary(const UpscaleSnapshot &snapshot)
 {
-    return i18n("%1 → %2, %3", sizeText(snapshot.supplied), sizeText(snapshot.destination), processing(snapshot));
+    return i18n("%1 → %2, %3", suppliedForDisplay(snapshot, sizeText(snapshot.supplied)), sizeText(snapshot.destination),
+                processing(snapshot));
 }
 
 static QString presentationName(int mode)
@@ -312,7 +323,8 @@ QString upscaleHeadsUp(const UpscaleSnapshot &snapshot)
     QStringList picture;
     if (snapshot.scaling) {
         picture.append(snapshot.sharpening > 0 ? i18n("FSR 1 + RCAS") : i18n("FSR 1"));
-        picture.append(i18n("%1 → %2", resolutionName(snapshot.supplied), resolutionName(snapshot.destination)));
+        picture.append(i18n("%1 → %2", suppliedForDisplay(snapshot, resolutionName(snapshot.supplied)),
+                            resolutionName(snapshot.destination)));
         const QString scale = renderScale(snapshot);
         if (!scale.isEmpty()) {
             picture.append(scale);
@@ -323,7 +335,8 @@ QString upscaleHeadsUp(const UpscaleSnapshot &snapshot)
         picture.append(i18n("%1 native", resolutionName(snapshot.destination)));
     } else if (!snapshot.destination.isEmpty()) {
         picture.append(i18n("FSR off"));
-        picture.append(i18n("%1 → %2", resolutionName(snapshot.supplied), resolutionName(snapshot.destination)));
+        picture.append(i18n("%1 → %2", suppliedForDisplay(snapshot, resolutionName(snapshot.supplied)),
+                            resolutionName(snapshot.destination)));
     }
     const QString separator = QStringLiteral("   ");
     const QString first = figures.join(separator);
@@ -378,36 +391,57 @@ static QString x11Presentation(const UpscaleSnapshot &snapshot)
     return QString();
 }
 
-QString upscaleStatusText(const UpscaleSnapshot &snapshot)
+// What was asked of the game, and how: the first half of the "Desired" line.
+static QString wishText(const UpscaleSnapshot &snapshot)
 {
     QString wish;
     if (snapshot.requested.isValid()) {
         wish = i18n("%1 requested from %2 as its X11 window size", sizeText(snapshot.requested),
                     snapshot.recognized.isEmpty() ? application(snapshot) : snapshot.recognized);
-    } else if (snapshot.advertised.isValid()) {
-        // Advertised, not applied. The committed input below is the only
-        // evidence of what the application actually did with it.
-        wish = i18n("%1 requested from %2 as its screen mode",
-                    sizeText(snapshot.advertised),
-                    snapshot.recognized.isEmpty() ? application(snapshot) : snapshot.recognized);
     } else if (snapshot.scaleRequested > 0) {
         // Asked of the window's surface, and like an advertisement only a
-        // request: the committed input below says what the client did.
+        // request: the committed input below says what the client did. Named
+        // before an advertisement, because the surface is asked only where the
+        // advertisement did not reach the window, so this is the request the
+        // window is answering.
         wish = i18n("%1 × %2 requested from %3 as its surface scale", QString::number(snapshot.desired.width),
                     QString::number(snapshot.desired.height),
                     snapshot.recognized.isEmpty() ? application(snapshot) : snapshot.recognized);
+    } else if (snapshot.advertised.isValid()) {
+        // Advertised, not applied. The committed input below is the only
+        // evidence of what the application actually did with it.
+        //
+        // An advertisement is said when the client starts and cannot be taken
+        // back, so a wish that has moved on since is waiting for the next
+        // start, and saying anything else would present a setting as a result.
+        const QString name = snapshot.recognized.isEmpty() ? application(snapshot) : snapshot.recognized;
+        const QString told = sizeText(snapshot.advertised);
+        if (snapshot.preset == ResolutionPreset::Native) {
+            wish = i18n("Native from the next start; %1 was told %2 as its screen mode", name, told);
+        } else if (snapshot.advertised != QSize(snapshot.desired.width, snapshot.desired.height)) {
+            wish = i18n("%1 × %2 from the next start; %3 was told %4 as its screen mode",
+                        QString::number(snapshot.desired.width), QString::number(snapshot.desired.height), name, told);
+        } else {
+            wish = i18n("%1 requested from %2 as its screen mode", told, name);
+        }
     } else if (snapshot.preset == ResolutionPreset::Native) {
         wish = i18n("Native (no request)");
+    } else if (upscaleIsAdvertisement(snapshot.method) && snapshot.advertisableAtStart) {
+        // Nothing was said when this client started, and an advertisement can
+        // be said only then.
+        wish = i18n("%1 × %2 from the next start of %3", QString::number(snapshot.desired.width),
+                    QString::number(snapshot.desired.height),
+                    snapshot.recognized.isEmpty() ? application(snapshot) : snapshot.recognized);
     } else {
         wish = i18n("Select %1 × %2 in the game",
                     QString::number(snapshot.desired.width), QString::number(snapshot.desired.height));
     }
-    if (!snapshot.requestFailure.isEmpty()) {
-        wish += i18n("; request failed: %1", snapshot.requestFailure);
-    }
-    if (const QString presentedBy = x11Presentation(snapshot); !presentedBy.isEmpty()) {
-        wish += i18n("; %1", presentedBy);
-    }
+    return wish;
+}
+
+// What the effect is doing with the window.
+static QString stateText(const UpscaleSnapshot &snapshot)
+{
     QString state;
     if (snapshot.selected) {
         if (snapshot.scaling) {
@@ -422,6 +456,19 @@ QString upscaleStatusText(const UpscaleSnapshot &snapshot)
     } else {
         state = i18n("Inactive: %1", refusalText(snapshot));
     }
+    return state;
+}
+
+QString upscaleStatusText(const UpscaleSnapshot &snapshot)
+{
+    QString wish = wishText(snapshot);
+    if (!snapshot.requestFailure.isEmpty()) {
+        wish += i18n("; request failed: %1", snapshot.requestFailure);
+    }
+    if (const QString presentedBy = x11Presentation(snapshot); !presentedBy.isEmpty()) {
+        wish += i18n("; %1", presentedBy);
+    }
+    const QString state = stateText(snapshot);
     // The rate decides this, not the mode. A screen that is replaced clears
     // its frame statistics without clearing the last mode it presented in, so
     // a mode can outlive the measurement it belonged to and this would

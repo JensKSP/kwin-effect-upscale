@@ -140,10 +140,25 @@ UpscaleModeOverride::Advertisement UpscaleModeOverride::advertisementFor(OutputI
     return {QSize(reachable.width, reachable.height), scale};
 }
 
-void UpscaleModeOverride::announce(OutputInterface *output, ClientConnection *client, wl_resource *resource)
+// Whether a program is told a smaller screen at bind, and how: the profile
+// that answers for it, its settings and the method. Nothing when it is not.
+struct UpscaleBindDecision
 {
-    if (!client || !resource) {
-        return;
+    const UpscaleApplication *application = nullptr;
+    UpscaleSettings settings;
+    UpscaleMethod method = UpscaleMethod::Off;
+};
+
+static std::optional<UpscaleBindDecision> decideAtBind(ClientConnection *client)
+{
+    // KWin's own helper clients are never told anything. Xwayland above all:
+    // it is one connection for every X11 program, so a smaller screen told to
+    // it would be a smaller screen for all of them, and X11 games are asked
+    // through their windows instead. The input method and the screen locker
+    // are KWin's too, and neither is a game.
+    if (client == waylandServer()->xWaylandConnection() || client == waylandServer()->inputMethodConnection()
+        || client == waylandServer()->screenLockerClientConnection()) {
+        return std::nullopt;
     }
     // The profile the program's path selects, or none. With none, the global
     // profile answers - which is what switching on unlisted applications and
@@ -153,51 +168,92 @@ void UpscaleModeOverride::announce(OutputInterface *output, ClientConnection *cl
     // window, and an advertisement cannot be taken back.
     const UpscaleBindAnswer answer = upscaleApplicationAtBind(client->executablePath());
     if (!answer.decided) {
-        return;
+        return std::nullopt;
     }
-    const UpscaleApplication *application = answer.application;
-    const UpscaleSettings settings = upscaleResolveSettings(application);
-    if (!settings.acts()) {
-        return;
+    UpscaleBindDecision decision{
+        .application = answer.application,
+        .settings = upscaleResolveSettings(answer.application),
+        .method = UpscaleMethod::Off,
+    };
+    if (!decision.settings.acts()) {
+        return std::nullopt;
     }
     // What is said before the window exists comes from the fullscreen slot;
     // upscaleAdvertisedPresentation() carries why that one and not a coin
-    // toss between the two Wayland answers. Auto says nothing here at all: an
-    // advertisement made before the window exists cannot be taken back, so
-    // Auto waits and uses the lever that can be undone.
-    const auto slot = std::size_t(upscaleAdvertisedPresentation());
-    const UpscaleMethod method = application ? application->methods[slot] : upscaleGlobalMethods()[slot];
-    if (method == UpscaleMethod::Auto || method == UpscaleMethod::Off
-        || method == UpscaleMethod::X11Resize) {
-        return;
+    // toss between the two Wayland answers.
+    //
+    // Auto tells the program a smaller screen mode here, whatever the program
+    // is and whether an entry or the global profile answers for it: Auto means
+    // the same wherever it comes from. A game in SDL's exclusive fullscreen
+    // takes its buffer from the mode it is told now and from nothing said
+    // later, so an Auto that waited for the window would leave it at full size
+    // for the whole run. A program that sizes its buffer from the configure
+    // instead ignores the mode, and is asked for a fractional scale once its
+    // window exists (autorequest.cpp). Laid down by Jens on 2026-09-21. Only a
+    // program the effect acts on hears it: one an entry claims, or any once
+    // All applications is checked, which settings.acts() said above.
+    decision.method = upscaleMethodFor(decision.application, upscaleAdvertisedPresentation());
+    if (decision.method == UpscaleMethod::Auto) {
+        decision.method = UpscaleMethod::AdvertisedMode;
     }
-    const Advertisement advertisement = advertisementFor(output, settings, method);
-    if (advertisement.size.isEmpty()) {
-        return;
+    if (decision.method == UpscaleMethod::Off || decision.method == UpscaleMethod::X11Resize) {
+        return std::nullopt;
     }
-    UpscaleOutput *handle = output->handle();
+    return decision;
+}
+
+// Sends the advertisement, or nothing when the client's output version
+// cannot carry all of it.
+static bool sendAdvertisement(UpscaleOutput *handle, wl_resource *resource, const QSize &size, int scale, UpscaleMethod method)
+{
     const int version = wl_resource_get_version(resource);
     // A request that names a scale needs the event that carries one. Telling
     // such a client the smaller mode alone would leave its size and its scale
     // disagreeing, which is the state each of these methods exists to avoid,
-    // and recording it below would report a request that was never made.
-    if (advertisement.scale > 0 && version < WL_OUTPUT_SCALE_SINCE_VERSION) {
-        return;
+    // and recording it would report a request that was never made.
+    if (scale > 0 && version < WL_OUTPUT_SCALE_SINCE_VERSION) {
+        return false;
     }
     if (method != UpscaleMethod::AdvertisedScale) {
         // The refresh rate stays the output's own. Only the size is in
         // question here, and a program that takes its frame pacing from this
         // should get the rate the screen actually runs at.
-        wl_output_send_mode(resource, WL_OUTPUT_MODE_CURRENT | WL_OUTPUT_MODE_PREFERRED,
-                            advertisement.size.width(), advertisement.size.height(),
+        wl_output_send_mode(resource, WL_OUTPUT_MODE_CURRENT | WL_OUTPUT_MODE_PREFERRED, size.width(), size.height(),
                             int(handle->refreshRate()));
     }
-    if (advertisement.scale > 0) {
-        wl_output_send_scale(resource, advertisement.scale);
+    if (scale > 0) {
+        wl_output_send_scale(resource, scale);
     }
     if (version >= WL_OUTPUT_DONE_SINCE_VERSION) {
         wl_output_send_done(resource);
     }
+    return true;
+}
+
+void UpscaleModeOverride::announce(OutputInterface *output, ClientConnection *client, wl_resource *resource)
+{
+    if (!client || !resource) {
+        return;
+    }
+    const std::optional<UpscaleBindDecision> decision = decideAtBind(client);
+    if (!decision) {
+        return;
+    }
+    const Advertisement advertisement = advertisementFor(output, decision->settings, decision->method);
+    if (advertisement.size.isEmpty()
+        || !sendAdvertisement(output->handle(), resource, advertisement.size, advertisement.scale, decision->method)) {
+        return;
+    }
+    remember(output, client, advertisement.size);
+    qCInfo(KWIN_UPSCALE) << "Wayland output advertised: pid" << client->processId()
+                         << "program" << client->executablePath().section(QLatin1Char('/'), -1)
+                         << "output" << output->handle()->name() << "native" << output->handle()->pixelSize()
+                         << "advertised" << advertisement.size << "scale" << advertisement.scale
+                         << "method" << upscaleMethodKey(decision->method);
+}
+
+void UpscaleModeOverride::remember(OutputInterface *output, ClientConnection *client, const QSize &size)
+{
     // Recorded by the program's file name, whichever profile spoke, so that
     // restoring and reporting do not have to know which one it was.
     const QString program = client->executablePath().section(QLatin1Char('/'), -1);
@@ -208,9 +264,7 @@ void UpscaleModeOverride::announce(OutputInterface *output, ClientConnection *cl
         });
     }
     // A later instance of the same executable may have seen a different policy.
-    m_advertised[client][handle->name()] = advertisement.size;
-    qCDebug(KWIN_UPSCALE, "advertised %dx%d scale %d to %s", advertisement.size.width(),
-            advertisement.size.height(), advertisement.scale, qPrintable(application ? application->name : program));
+    m_advertised[client][output->handle()->name()] = size;
 }
 
 void UpscaleModeOverride::restore(Record record)
@@ -227,6 +281,9 @@ void UpscaleModeOverride::restore(Record record)
         }
         const QSize pixels = handle->pixelSize();
         const auto resources = announcement.output->clientResources(announcement.client->client());
+        qCInfo(KWIN_UPSCALE) << "Wayland output restored: pid" << announcement.client->processId()
+                             << "program" << announcement.program << "output" << handle->name() << "mode" << pixels
+                             << "scale" << int(std::ceil(handle->scale())) << "resources" << resources.size();
         for (wl_resource *resource : resources) {
             wl_output_send_mode(resource, WL_OUTPUT_MODE_CURRENT | WL_OUTPUT_MODE_PREFERRED,
                                 pixels.width(), pixels.height(), int(handle->refreshRate()));

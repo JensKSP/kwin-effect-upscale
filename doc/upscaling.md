@@ -117,7 +117,9 @@ a game the way they always have, and it works.
    from a shell, however they already do it. The effect acts only as a KWin
    plugin, from inside the session the game happens to start in. It does not
    wrap, relaunch, interpose itself in, or require anything of the command
-   that starts the game.
+   that starts the game. A restart the user asks for in the effect's in-game
+   settings is not a start; see
+   [restarting a game with pending settings](#restarting-a-game-with-pending-settings).
 3. **Installing the package is the whole of the setup.** The user installs the
    package and is finished. The effect is enabled by default, and the shipped
    defaults are chosen so that this is safe: the global profile is off, so a
@@ -149,9 +151,19 @@ a game the way they always have, and it works.
 that were measured to work: the Sommelier protocol proxy and the Gamescope
 Wayland backend both supplied smaller original buffers to an unmodified KWin,
 and both require the game to be started through them. The launcher adapters,
-the private virtual desktop and the per-profile launch helper go with them.
-Those results stay recorded as mechanisms that exist; they are not routes this
-effect may take.
+the private virtual desktop started with the game and the per-profile launch
+helper go with them. Those results stay recorded as mechanisms that exist; they
+are not routes this effect may take.
+
+**One exception, laid down by Jens on 2026-09-22.** A game that cannot be made
+to render smaller while it runs may be prepared for its next start by a helper
+that ships in the same package, when the user agrees to it in a question the
+effect puts on the screen. Nothing is changed without that agreement, the user
+is told that the change outlives the package until it is reset, and resetting
+it is one click on the settings page. The game is still started the way it
+always is; the helper changes configuration the game reads, never how it is
+started. For Wine and
+Proton games this is [a smaller screen in their prefix](#games-that-ignore-resizing-a-smaller-screen-in-their-prefix).
 
 **Sommelier is still worth reading, as a source of technique rather than a
 route.** It solves, in a proxy, several of the problems this effect has from
@@ -227,6 +239,14 @@ one is open. Read against Xwayland 24.1.6, the version Trixie ships:
   is the game-settings route working on Xwayland. On KWin 6.3.6 that chain
   breaks at step 3, which is why the resize mechanism above matters: it reaches
   the same viewport without needing the property at all.
+
+Profiles can require a client-selected emulated mode as confirmation that a
+resize reached the game's renderer (`X11RequiresEmulatedMode`). Extreme Tux
+Racer needs this because a resize discarded during startup leaves its drawing
+coordinates at the old resolution despite a smaller window. Missing confirmation
+triggers one restore-and-retry, then restoration if it still fails. These
+profiles do not use the effect's presentation fallback; clients such as Left 4
+Dead 2, which never select an emulated mode, can still use that fallback.
 
 So Xwayland is not closed to this effect, but nothing about it is free. The
 resize mechanism depends on the application handling resize, the game-settings
@@ -316,6 +336,116 @@ runtime as well. Record the application API, translation layer and version,
 Proton or Wine version, and actual window-system backend. Xwayland is required;
 test native Wayland drivers where the selected runtime supports them, without
 assuming that choosing Vulkan also chooses Wayland.
+
+### Games that ignore resizing: a smaller screen in their prefix
+
+A Wine or Proton game in exclusive fullscreen through Xwayland renders at the
+monitor size Wine reports, and no window manager can change that size for one
+program: Xwayland's RandR is shared by every X11 program, and resizing the
+window does not reach the game's swapchain.
+
+What does reach it is where Wine gets that size from. Wine keeps its own
+description of the display inside the prefix, in `system.reg`, and reads it
+before it asks the display server; it asks the server only when that
+description is missing or incomplete, and writes what it finds into keys that
+live no longer than its server, reached through a key that is only a link
+(`dlls/win32u/sysparams.c`, `update_display_cache_from_registry`,
+`lock_display_devices` and `write_source_to_registry`). A description of our own
+where that link would go is read instead, at every start and after every refresh
+Wine makes.
+
+Implemented 2026-09-23 as an optional helper, verified in a prefix of its own
+and not yet with a game:
+
+- The effect recognizes Wine and Proton by the process's standard Wine loader
+  or preloader name, using KWin's process identity API. It skips the early
+  mapping transaction and live resize experiments for these X11 windows,
+  including those already fullscreen. It asks the optional helper
+  (`org.kde.KWin.Upscale.Helper1`, defined in the plugin folder) about preparation
+  directly. Without a helper, recognized Wine windows are left alone. Runtime
+  detection does not depend on a game's name, Steam ID or preparation record;
+  custom loaders renamed away from Wine's standard names are not recognized.
+  Other X11 applications retain resize negotiation and may ask the helper after
+  an unsuccessful request. The plugin knows no Wine-prefix layout or write logic.
+  The early `offerSetup` query reports no rendering failure, so it cannot mark
+  an existing preparation unsupported. Older helpers without this query leave
+  the current run alone; update the effect and its packaged helper together.
+- The helper proves which prefix the running game uses: from the game's own
+  environment, reached through the game's view of the file system, and
+  confirmed by the lock its Wine server holds, which is named after the prefix
+  directory. It works with every Wine and Proton flavour that runs through
+  winex11, and it is built on Linux, where Steam and Proton run.
+- The helper's question appears in the middle of the screen. After **Set up**
+  the effect offers **Restart game and apply**, with the warning that unsaved
+  progress may be lost; **Not now** asks again next time and **Never for this
+  game** does not.
+- After the game and its Wine server have exited, the helper adds two keys to
+  the prefix's `system.reg` and nothing else: one screen per output of the
+  session, the game's own at the chosen size and every other at its own, with
+  the modes each offers, and the value that names them. Describing only the
+  game's screen would let a program see one screen where the session has two,
+  which is a change wider than the size it is there for. Which graphics card and
+  monitors they belong to the prefix has described itself, since the first time
+  it ran; a screen without a monitor of its own would have no size at all, so
+  there are never more screens than monitors the prefix knows. A prefix whose
+  programs run in a virtual desktop of the user's is not prepared. Reset can
+  still remove an earlier preparation, without changing that virtual desktop.
+- The description is what a Wine build reads before it asks the display server,
+  and it was tested against Wine 11. A build the helper has not seen is written
+  for all the same, because refusing would take the feature from every build
+  released after this one, and the log names it, so that a report about such a
+  build says which it was. A build that reads the description differently leaves
+  the game at full size rather than wrong.
+- From the next start every program in that prefix sees a monitor of the chosen
+  size and one size in its mode list: that size, in the colour depths Wine offers
+  and at the rate the output runs at. Wine refuses a mode that is not in the
+  list, so a game can neither ask for a larger size nor pick a smaller one out of
+  a menu. The mode change itself stays inside the prefix, so the X screen never
+  changes and no other program notices.
+- **Why one size and not a list.** A game offered several sizes chooses one of
+  them by its own rules: Wreckfest, measured on 2026-09-23, threw away the 4K in
+  its settings and came up asking for a resolution, with the smallest of the
+  offered ones preselected. The size a program renders at is the effect's to
+  decide, so the prefix offers exactly that size. The game's own resolution list
+  then holds one entry, and **Reset** on the settings page gives it back.
+- The game's own window is then a window of the chosen size, which the effect
+  holds at that size and upscales like any other smaller buffer. A saved
+  preparation record or acceptance of setup for a later launch cannot trigger
+  a resize of the current run. Presentation waits until the window actually
+  supplies the helper's prepared buffer size. Helper replies superseded by a
+  settings change are rechecked before any presentation or setup offer.
+- **Measured on 2026-09-23** in a prefix of its own, on a 3840×2160 X screen,
+  with Proton Experimental's Wine: a Windows program reported a 2560×1440 screen
+  and current mode, its fullscreen window was a 2560×1440 X11 window, a mode
+  change to 1920×1080 succeeded without touching the X server, and the
+  description was still read after the program had changed the mode and after
+  the prefix's server had been restarted.
+- The question holds the keyboard and the pointer until it is answered: arrow
+  keys, Tab, Return and Escape, or hovering and a click.
+- Each time a prepared game's window appears, the effect tells the helper the
+  size it wants now. A changed resolution is written after that run; a game
+  the effect no longer acts on, or whose fullscreen method is Off, has the
+  description taken away after that run instead of being presented.
+- **It does not hold every game.** A game that renders at a size of its own
+  whatever the screen offers is beyond it: Wine refuses a mode that is not in
+  the list, and what a game does then is the game's own business. For those the
+  display says that the game keeps a resolution of its own, and the size it
+  draws at is shown in red.
+- **A preparation that did not help is taken back.** Where a game is asked for
+  the size its prefix was already prepared for and still draws at the output's
+  size, the helper takes the description away after that run and does not offer
+  it for that game again; a reset on the settings page asks anew. The same holds
+  for a game that will not start with the screen it was described, which draws
+  nothing to judge: the run the helper started itself is watched, and a game
+  whose Wine server comes and goes without the effect ever asking about a window
+  of it has the description taken back too.
+  A record alone does not establish failure: if the prefix has lost the screen
+  description, the helper restores it after the run and does not mark the game
+  unsupported. A repair already waiting for the game to exit is allowed to
+  complete before its effect is judged.
+- **Prepared Games** on the settings page lists what the helper set up, with a
+  Reset for each. Uninstalling the package cannot undo a preparation, because
+  nothing runs as the user afterwards; the question says so.
 
 Keep the physical output at its native mode. In-game, compositor, runtime and
 driver upscalers other than this effect must be disabled for the baseline
@@ -776,8 +906,19 @@ Implemented: the effect builds one snapshot of its current state in a single
 pass, and the settings status text and the on-screen display are both formatted
 from it, so they cannot describe different moments. Values the effect cannot
 observe, such as the destination colour description outside a paint pass, are
-reported as unknown. About, the copy action and the transition logging below
-remain unimplemented.
+reported as unknown. About and the copy action remain unimplemented.
+
+The `kwin_effect_upscale` category logs effective per-game settings and observed
+buffer, surface, presentation, frame and output changes at information level.
+It also records X11 resize negotiation and presentation, Wayland advertisements
+and scale requests, their outcomes and restoration. The companion category
+`kwin.upscale.winescreen` records preparation jobs, reset, writes and restart.
+Repeated identical observations are suppressed. Detailed native configuration,
+pointer mapping and helper calls use debug level; enable them for a diagnostic
+session with `QT_LOGGING_RULES="kwin_effect_upscale.debug=true;kwin.upscale.winescreen.debug=true"`
+in the environment of KWin and the companion. Enabling the OSD does not enable
+this tracing. Logs describe compositor-visible buffers, not an application's
+internal rendering viewport.
 
 Always emit the initialization identity at information level in both Debug
 and release builds with the default logging configuration. Use the effect's
@@ -805,8 +946,8 @@ Settings. The page implements the controls below. A recognized application is
 asked for a resolution by its recorded methods: at output binding for Wayland,
 or after its window appears for X11. Applications that are not in the list are
 left alone by default. Checking **All applications** has them upscaled and
-asked by the global profile's own six methods, each Off until someone chooses
-one. The page shows no runtime status: what the effect is doing is reported by
+asked by the global profile's own six methods, each Auto until someone chooses
+another. The page shows no runtime status: what the effect is doing is reported by
 the on-screen displays and the log, which give supplied buffer dimensions, not
 internal game rendering resolution. What was requested is reported apart from
 what the application committed, and neither a saved preference nor a made
@@ -815,7 +956,13 @@ request is ever presented as a successfully applied client resolution.
 The page has two boxes, the way KWin's own effect pages group theirs: the
 application list and About. The global settings are not a section of their
 own but the list's first entry, so nothing on the page is shown twice and a
-game's settings read like the global ones with a Global choice added. Each
+game's settings read like the global ones: each control shows the value the
+game uses. A value the game states for itself follows Qt Designer's rule for a
+changed property: its name is bold and the reset button at the end of its row
+is enabled, which makes it follow again; a value it inherits is shown in italic,
+so that the two are told apart at a glance. The methods follow the same rule,
+inheriting the package's measurement where there is one and the global method
+otherwise. Decided by Jens on 2026-09-21. Each
 entry's sections are tabs, which share one label column, labels against their
 fields and check boxes in the field column, and the page fits a settings page
 of 800 pixels. Its wording follows KDE's Human
@@ -826,7 +973,7 @@ wording was reviewed with Jens string by string on 2026-09-21.
 
 | Section | Controls |
 | --- | --- |
-| Applications | The list, in matching order, with **All applications** pinned first: the global settings, shown as a profile with no identity, in the same tabs as a game's. Its check box in the list is the one every row has, with the same meaning: whether the entry acts for the windows it claims, which for the global profile are those no other entry matches. It is off by default and never stops the listed games, and its tooltip says so. Its **Resolution Request** tab holds the six methods, which apply only to applications not in the list, because a game's unset method means Automatic. There is no separate switch for asking at all: a profile that should be asked nothing says Off in each of its six methods, which is also what the global profile's unset methods mean; **Resolution** holds the render resolution, the resolution scale as a slider with a number field, one line per connected screen with the size a game would render at there, and the resolution limit; **Sharpening** and **On-Screen Display** the rest, with no two displays sharing a corner. A game's tabs hold its identity, its six measured methods and a **Global (…)** choice for every preference, naming the value **All applications** currently shows, applied or not. They behave as the global ones do: the limit is the same list of resolutions, the same preview shows the size the game would render at from the values it would use, and stating a scale chooses Custom. Nothing on either panel is greyed out by a switch being off: every global value is a default a game takes when it switches on what the global profile leaves off, and the methods for applications not in the list can be set before their check box is. **Add**, **Add from Window…**, **Remove** and two arrows edit the list; **Export…** and **Import…** move it as a file in `kwinupscalerc`'s format, an import being an edit that Apply stores; **Restore Defaults** returns the games to the list the package ships. System Settings' own **Defaults** restores **All applications** and leaves the games alone. |
+| Applications | The list, in matching order, with **All applications** pinned first: the global settings, shown as a profile with no identity, in the same tabs as a game's. Its check box in the list is the one every row has, with the same meaning: whether the entry acts for the windows it claims, which for the global profile are those no other entry matches. It is off by default and never stops the listed games, and its tooltip says so. Its **Resolution Request** tab holds the six global methods: what an application not in the list is asked while **All applications** is checked, and what a game in the list follows for a presentation it states nothing for and the package measured nothing for. There is no separate switch for asking at all: a profile that should be asked nothing says Off in each of its six methods, while the global profile's unset methods mean Auto; **Resolution** holds the render resolution, the resolution scale as a slider with a number field, one line per connected screen with the size a game would render at there, and the resolution limit; **Sharpening** and **On-Screen Display** the rest, with no two displays sharing a corner. A game's tabs hold its identity, its six measured methods and a **Global (…)** choice for every preference, naming the value **All applications** currently shows, applied or not. They behave as the global ones do: the limit is the same list of resolutions, the same preview shows the size the game would render at from the values it would use, and stating a scale chooses Custom. Nothing on either panel is greyed out by a switch being off: every global value is a default a game takes when it switches on what the global profile leaves off, and the methods for applications not in the list can be set before their check box is. **Add**, **Add from Window…**, **Remove** and two arrows edit the list; **Export…** and **Import…** move it as a file in `kwinupscalerc`'s format, an import being an edit that Apply stores; **Restore Defaults** returns the games to the list the package ships. System Settings' own **Defaults** restores **All applications** and leaves the games alone. |
 
 The page does not report what the running effect is doing: Jens decided on
 2026-09-21 that status and a refresh button do not belong in settings. That
@@ -1152,8 +1299,9 @@ each change by the active control method's verified capabilities:
 Mixed changes apply their live portion immediately and keep only the remaining
 portion pending. Reverting a pending value to the effective value clears that
 pending change. Saving or applying settings must never restart a game on its
-own. Explain when a new normal launch is needed; managed relaunch is outside
-the [agreed scope](#restarting-a-game-with-pending-settings).
+own. When a change needs a new start, offer **Restart game and apply** beside
+**Apply on next launch**, as described under
+[restarting a game with pending settings](#restarting-a-game-with-pending-settings).
 The controls must remain available when a matched game is not being upscaled.
 
 Provide a temporary visual comparison between ordinary KWin scaling, FSR and
@@ -1164,6 +1312,14 @@ comparison separate from performance measurement because showing two paths
 adds work.
 
 ### The heads-up display
+
+**A size the game did not take is shown in red.** Decided by Jens on
+2026-09-21: where the game draws at a size other than the one chosen for it,
+the size it draws at appears in the display in Breeze's negative-text red
+instead of white, and nothing else is added. It happens when a game keeps a
+resolution of its own, such as one it stored in its settings on an earlier run.
+Within a hundred and twentieth of the screen counts as taken, because the
+fractional scale travels in 120ths.
 
 Add an optional persistent heads-up display to the same OSD, independently
 switchable from the brief game-detection announcement and the interactive
@@ -1338,8 +1494,11 @@ The example dimensions are calculated targets, not guaranteed game modes.
 Quality is the global default. A recognized application follows it, because
 the [catalogue](#the-recognized-applications-shipped-with-this-effect) states
 no resolution for a game, so that installing the effect is enough for a known
-game on an eligible output. Selecting Native bypasses both resolution requests
-and processing, even if the application supplies a smaller buffer. A profile's
+game on an eligible output. Selecting Native asks for no smaller resolution,
+but a buffer that arrives smaller anyway - a game that stored a resolution from
+an earlier run - is still enlarged with FSR rather than left to KWin's plain
+stretch (decided by Jens on 2026-09-21; Native used to bypass processing as
+well). A profile's
 own resolution, Native included, is that game's answer whatever the global
 one is. At actual native resolution the initial
 effect bypasses both EASU and RCAS; the proposed sharpen-only mode would be
@@ -1440,7 +1599,7 @@ observations; none alone establishes reduced internal rendering cost.
 | Gap | Open-source example and evidence | Current consequence |
 | --- | --- | --- |
 | X11 renderer ignores resizing or does not request mode emulation | glmark2 2023.01, X11: a targeted research run reduced its drawable to 1080p but retained a 4K rendering viewport and lost full-output coverage. Its event loop does not handle resize events. | `X11Resize` cannot make this client cooperate; bounded negotiation restores geometry and refuses an unsupported request. |
-| Fullscreen-desktop Wayland client ignores advertised mode | SuperTuxKart 1.4, Vulkan: advertising 1080p still produced a 4K buffer. Its Vulkan driver obtains swapchain dimensions from `SDL_Vulkan_GetDrawableSize`. Its OpenGL path responded in separate tests. | Mode advertising is renderer-dependent; Vulkan support cannot be inferred from the OpenGL result. |
+| Fullscreen-desktop Wayland client ignores advertised mode | SuperTuxKart 1.4, Vulkan, in its default borderless fullscreen: advertising 1080p still produced a 4K buffer, because its swapchain follows `SDL_Vulkan_GetDrawableSize`, which SDL 2 derives from the window size and its fractional scale rather than from a mode. | An advertisement that did not reach a window falls back to the surface's fractional scale, which this client follows: 2560 × 1440 at Quality on a 3840 × 2160 output, measured 2026-09-21. |
 | Integer scale cannot express the target | glmark2 2023.01 Wayland and vkmark 2025.01 read scale differently from mode-only clients. The implemented scale methods cannot reduce a scale-1 desktop through a smaller positive integer scale. | No reduction at scale 1; other desktop scales allow only discrete reachable sizes. Report the reachable request separately from the configured wish. |
 | Toolkit selects the wrong output | Extreme Tux Racer 0.8.4 with SFML 2.6.2 moved from the secondary display to the primary when recreating its fullscreen window. SFML explicitly selects the primary RandR output. | The shipped profile refuses resolution control on secondary outputs before resizing. Other clients can scale there; secondary displays are not generally excluded. |
 | Requested X11 mode is absent | SFML validates fullscreen modes against its available-mode list; the regression fixture rejects a 2259 × 1271 request on the tested 4K output. | Arbitrary percentages are not guaranteed for X11. The controller refuses missing modes instead of changing the shared output or silently claiming the requested size. |
@@ -1465,16 +1624,18 @@ that a smaller drawable fixes an uncooperative renderer.
 
 Implemented as six slots per profile, one per presentation: Wayland and X11,
 each fullscreen, borderless and windowed. Each slot is **Automatic**, one of
-the methods its protocol can carry, or **Off**. A method is a measurement of a
-program, so a slot has no **Global** choice. An absent slot reads as Automatic
-on a game profile and as Off on the global profile, which answers for unlisted
-applications only while it is switched on and never reaches a windowed window.
+the methods its protocol can carry, or **Off**. A game's slot that states no
+method inherits the package's measurement, and without one the global
+profile's method, shown in italics with a reset button like every other
+inherited value. The global profile's slots default to Automatic; it answers
+for unlisted applications only while it is switched on and never reaches a
+windowed window.
 Game detection selects the profile; it does not by itself establish that
 resolution control succeeded.
 
 | Method | Intended behaviour |
 | --- | --- |
-| Auto | **Implemented**, and stateless: nothing it learns is stored. On X11 it is the buffer request, put back where the window stops covering its output. On Wayland it says nothing at bind; once the window exists it asks that one surface for a fractional scale, asserts it again when KWin reapplies the output's scale, and gives it back when the window stops covering its output or no smaller buffer arrives within 30 frames. It asks the window its output would scale once the buffer allowed it, which a window drawing at full size is not yet; it keeps the effect active while it asks, so that nothing else has to; a window that ignored it is not asked again until the window, the ratio or the settings change; and a window that stops qualifying gets its own scale back at once. Wayland Auto is implemented but not yet measured; the [resolution-control bench](agents/slice-resolution-control.md#a-reversible-wayland-lever-for-auto-2026-09-20) decides when it enters the supported scope. In-session negotiation only: the [four requirements](#four-requirements-that-bound-every-route) leave no launch-time method to fall back to. |
+| Auto | **Implemented**, and stateless: nothing it learns is stored. On X11 it is the buffer request, put back where the window stops covering its output. On Wayland it tells the program the smaller screen mode at bind, because a game in SDL's exclusive fullscreen takes its buffer from that and from nothing said later; it means the same whether an entry or the global profile answers, and KWin's own clients - Xwayland, which serves every X11 program, the input method and the screen locker - are never told anything (laid down by Jens on 2026-09-21); once the window exists it asks a surface still drawing at full size for a fractional scale, asserts it again when KWin reapplies the output's scale, and gives it back when the window stops covering its output or no smaller buffer arrives within 30 frames. It asks the window its output would scale once the buffer allowed it, which a window drawing at full size is not yet; it keeps the effect active while it asks, so that nothing else has to; a window that ignored it is not asked again until the window, the ratio or the settings change; and a window that stops qualifying gets its own scale back at once. Wayland Auto is implemented but not yet measured; the [resolution-control bench](agents/slice-resolution-control.md#a-reversible-wayland-lever-for-auto-2026-09-20) decides when it enters the supported scope. In-session negotiation only: the [four requirements](#four-requirements-that-bound-every-route) leave no launch-time method to fall back to. |
 | Advertised screen mode | **Implemented for verified native Wayland client/runtime combinations.** Tell one recognized native Wayland client that its screen has a smaller current mode when it binds the output. This does not control Xwayland games. It needs no launch helper or restart and changes nothing outside that connection. |
 | Wayland negotiation | Generic surface-scale negotiation remains experimental; the implemented advertised scale and mode-and-scale methods are separate profile choices. |
 | X11 buffer request | **Implemented.** Request a smaller drawable and require client-owned fullscreen emulation to retain output coverage. The window keeps the place and size the system gave it; only the size the client renders at changes. |
@@ -1576,9 +1737,8 @@ game after that.
 size of each output, exactly as the desired resolution is calculated
 everywhere else. Arbitrary calculated sizes are honoured, so a preset is not
 restricted to standard modes. A profile that states a resolution uses it,
-and any other follows the global resolution; the shipped games state none, and
-the benchmarks state Native. The output pixel threshold is checked before
-either request.
+and any other follows the global resolution; no shipped entry states one. The
+output pixel threshold is checked before either request.
 Advertising
 the size the output already has is not a request and is not sent.
 
@@ -1595,10 +1755,12 @@ unlisted either.
 
 **What it is not.** It is not enforcement. A program that ignores mode
 information, or that asks the compositor for its fullscreen size instead of
-selecting a mode, keeps its own resolution; SuperTuxKart's Vulkan renderer is
-a measured example of the latter. The advertised size, the desired size and
-the committed buffer are therefore three separate values, and status reports
-them separately. This Wayland output method cannot address one Xwayland game:
+selecting a mode, is not moved by it; SuperTuxKart's Vulkan renderer in
+borderless fullscreen is a measured example of the latter. Such a window, still
+drawing at full size, is then asked for a fractional scale on its surface, the
+lever Auto uses, and a window the advertisement did reach is never asked. The
+advertised size, the desired size and the committed buffer are therefore three
+separate values, and status reports them separately. This Wayland output method cannot address one Xwayland game:
 Xwayland binds the output while KWin starts, before any effect is loaded, and
 serves every X11 application from one connection.
 
@@ -1716,21 +1878,24 @@ that a later mismatch can be traced rather than guessed at.
 | --- | --- | --- | --- | --- | --- |
 | SuperTuxKart | 1.4 | program `.*/supertuxkart` | class and instance `supertuxkart` | Wayland fullscreen: advertised screen mode | follows the global |
 | Extreme Tux Racer | 0.8.4 | instance `etr` | program `etr` | X11 fullscreen: X11 buffer request, primary output only | follows the global |
-| Native Source games (`hl2_linux`) | Steam build 23990068 | class and instance `hl2_linux` | program `hl2_linux`, in each game's folder | X11 fullscreen: X11 buffer request | follows the global |
-| glmark2 | 2023.01 | program `.*/glmark2-wayland` | class `com.github.glmark2.glmark2`, instance `glmark2-wayland` | Wayland fullscreen: advertised screen scale | Native |
-| vkmark | 2025.01 | program `.*/vkmark` | class `com.github.vkmark.vkmark`, instance `vkmark` | Wayland fullscreen: advertised screen mode and scale | Native |
+| Left 4 Dead 2 | Steam build 23990068 | program `.*/Left 4 Dead 2/hl2_linux`, class and instance `hl2_linux` | — | X11 fullscreen: X11 buffer request | follows the global |
+| glmark2 | 2023.01 | program `.*/glmark2-wayland` | class `com.github.glmark2.glmark2`, instance `glmark2-wayland` | Wayland fullscreen: advertised screen scale | follows the global |
+| vkmark | 2025.01 | program `.*/vkmark` | class `com.github.vkmark.vkmark`, instance `vkmark` | Wayland fullscreen: advertised screen mode and scale | follows the global |
 
 The Wayland entries state their program alone, as a regular expression for the
 file name in any folder, because their method is said before the window
-exists. The X11 entries state their window alone: an X11 window's program comes
-from the PID the client reports, which has not been observed for these games,
-and Steam's runtime may report one that means another process. A person's own
-entry for one Source game can state that game's path as well, which is what
-tells the Source games apart.
+exists. Extreme Tux Racer states its window alone: an X11 window's program
+comes from the PID the client reports, which has not been observed for it.
+Left 4 Dead 2 states its program's folder as well as its window, because its
+program and window are the Source engine's and every native Source game shares
+them; only the folder names the game, in whichever Steam library it is
+installed. Whether its PID resolves to that path under Steam's pressure-vessel
+runtime is still to be observed on a running game; where it does not, the
+entry does not match.
 
 Each entry states the one method slot it was measured under. Its other slots
-are absent and read as Auto, so a presentation nobody measured is attempted
-rather than refused. Auto keeps its request only while what it observes at
+are absent and follow the global methods, which are Auto unless the user chose
+otherwise, so a presentation nobody measured is attempted rather than refused. Auto keeps its request only while what it observes at
 runtime holds - a smaller buffer that still covers the screen - and gives it
 back otherwise. That observation is a safeguard, not a measurement: a
 presentation is supported for a game once it has been measured, as the one in
@@ -1753,15 +1918,14 @@ client limitation, not an Xwayland server per display.
 
 The catalogue states facts, not taste. A resolution in a shipped entry would
 pin that game, because a key present in a profile overrides the global value,
-and the user's own global setting would never reach it. The games therefore
-state none and follow whatever the user chose globally.
+and the user's own global setting would never reach it. No entry therefore
+states one, and every entry follows whatever the user chose globally.
 
-The two benchmarks are the exception and state `Native`. A benchmark exists to
-measure a machine, and quietly reducing what it renders would make it report a
-number for something nobody asked for; that is a fact about the program. To
-measure this effect with one - the same binary, the same scene, once at the
-screen's resolution and once reduced - a person overrides that resolution in
-their own entry for it.
+That includes the two benchmarks, decided by Jens on 2026-09-21; they had
+stated Native before. To measure a machine at the screen's resolution, choose
+Native in the benchmark's own entry; to measure this effect with one - the same
+binary, the same scene, once at the screen's resolution and once reduced -
+compare that run with a reduced one.
 
 Their methods differ from SuperTuxKart's because their sources read different
 things. glmark2's Wayland backend takes the size the compositor configures,
@@ -1818,11 +1982,21 @@ input and lifecycle, and cannot label a request as successful without observatio
 
 ### Restarting a game with pending settings
 
-The effect does not close or relaunch games. Resolution changes that only affect
-initial Wayland display enumeration apply when the user next starts the game
-normally. Live X11 requests use the existing window and validate its response.
+The effect never closes or restarts a game on its own. Resolution changes that
+only affect initial Wayland display enumeration apply when the game next
+starts. Live X11 requests use the existing window and validate its response.
 Changing a setting must never be represented as proof that an application
 changed its buffer.
+
+Later extension, laid down by Jens on 2026-09-21, not implemented: when the
+[in-game settings](#in-game-controls-and-applying-settings) change something
+the running game can only take at its next start, they offer to restart the
+game for the user, beside applying the change at the next launch. The restart
+happens only when the user chooses it, after being told that closing the game
+may lose unsaved progress, and it starts the game again the way it was started.
+It is not a way of starting games: a game the user never asks to restart is
+never touched, so the [second requirement](#four-requirements-that-bound-every-route)
+still holds.
 
 ### Optional later extensions
 
@@ -1991,16 +2165,59 @@ scaler then paints the buffer across the frame, and an input event filter
 installed ahead of KWin's forwarding gives the seat a transformation that
 scales pointer coordinates by the requested size over the frame's size in X
 pixels, in addition to KWin's own translation — the same factor Xwayland's
-emulation applies, on absolute positions and relative deltas alike. Where
-KWin's hit test finds nothing under the pointer, because the surface's input
-region is still the client's own size, the filter focuses the surface on the
-seat itself and withdraws that focus when the pointer leaves the frame or KWin
-finds a window of its own on top. KWin's delivery and cursor are untouched;
-the filter delivers and consumes nothing. Whether Xwayland or the effect
+emulation applies, on absolute positions and relative deltas alike. Over the
+part of the frame the client's own window does not cover, KWin's hit test goes
+through that window's input region and finds whatever lies under the game
+instead — the desktop, a panel, or nothing at all — so the filter focuses the
+presented surface on the seat itself there, and withdraws that focus when the
+pointer leaves the frame or KWin finds a window stacked above the presented one,
+a dialog or this effect's own display. Where the pointer is the filter's rather
+than KWin's, the click and the wheel are delivered by the filter as well, ahead
+of KWin's own click handling, which would otherwise raise and activate the
+window under the game; a press there activates the presented window instead.
+Motion stays KWin's to forward, to the surface on the seat. The window under a
+presented one still sees the pointer enter it, because KWin focuses it before any
+filter runs, and never sees a button; the keyboard stays with the presented
+window, which KWin's own protection of a fullscreen window keeps even under a
+focus policy that follows the pointer. Whether Xwayland or the effect
 presents a window is decided once, when the requested buffer first arrives,
 from the emulation property, so the two paths never scale twice. Status names
 which of the two is presenting. Touch, tablet, pointer confinement regions and
 the locked-pointer position hint are not mapped.
+
+**Input coverage with an emulated mode.** Xwayland can enlarge the viewport
+while leaving an explicit rectangular input shape at the smaller drawable's
+size. The pointer filter also repairs focus and click ownership for this case,
+but keeps a unit coordinate transform: Xwayland already scales motion. This is
+gated on the committed buffer matching the request, fullscreen surface coverage,
+and an input region equal to the complete unscaled drawable rectangle. Empty,
+inset and nonrectangular shapes are preserved. A later shape change withdraws
+the intervention and restores the surface KWin actually focuses. Windows
+stacked above the game keep their input. Immediately after entering a surface,
+the filter delivers the real pointer position when KWin would suppress an
+identical-position motion; this handles Xwayland versions whose enter path does
+not apply viewport scaling. Engaged pointer locks keep their relative input.
+
+**Mouse look.** A game that hides the cursor and grabs the pointer has Xwayland
+ask the compositor to lock it, and Xwayland asks only for the window that holds
+the seat's pointer focus, which is the presented one because the filter focuses
+it. KWin takes such a lock only while its own focus is on that window as well,
+and that follows the cursor's place in the client's own rectangle, not in the
+picture. So where a presented window has asked for a lock that KWin has not
+taken, and that window is the active one, the effect puts the cursor inside the
+client's own rectangle once: KWin then takes the lock, and a locked pointer is
+neither shown nor moved afterwards, so nothing of it reaches the user. Once a
+lock or a confinement is in force the cursor cannot leave that rectangle, so it
+stays in force. A confinement's region is the client's own, unscaled, and is
+still not mapped: it holds the cursor in the part of the output the client's
+window covers rather than in the picture.
+
+Measured on 2026-09-23, before this: a Proton game presented across a 4K output
+took the pointer only inside its own 2560 x 1440 window, and a click in the rest
+of the screen raised the desktop behind it. The regression test
+`keepsThePointerOverWhatItPresents` puts a window under a presented one and
+checks that the pointer arrives in the game's own coordinates and that the click
+is the game's.
 
 KWin 6.3.6 normally configures a fullscreen X window to the full output size,
 which can make a resizing application recreate its window repeatedly. An
@@ -2039,9 +2256,24 @@ window operations:
    unloads. The demonstrated fullscreen restoration causes the client to
    recreate its normal-resolution window.
 
-Initial negotiation waits for the application's first buffer: a resize during
-window construction can be consumed before the renderer starts. A replacement
-window already carrying the requested emulated mode can be intercepted earlier.
+An incoming fullscreen request starts negotiation immediately, using the
+fullscreen policy even while KWin still considers the window windowed. For an
+eligible application's first X11 window, the effect holds its initial mapping
+for up to 100 ms so an immediately following fullscreen request can arrive.
+It then maps and configures the window in one scoped X server transaction,
+preserving queued EWMH requests such as monitor selection. Client round trips
+cannot finish between visibility and the target configure. This lets toolkits
+that wait for visibility consume the target resize before their first application
+event loop. The effect uses normal launching and changes no game configuration.
+
+The server grab covers only synchronous mapping and configuration, never the
+100 ms wait; other X11 clients can briefly wait during that transaction. A
+window that never requests fullscreen is mapped normally when the wait expires.
+Unloading or reconfiguring releases pending mappings, and destroyed windows are
+forgotten. Borderless clients and windows discovered after entering fullscreen
+still wait for a buffer before negotiation. A fullscreen request arriving after
+the mapping deadline uses the ordinary resize path. Neither path can guarantee
+that every application handles a resize or rebuilds layout it already cached.
 Negotiation allows at most six window replacements per process/profile/output
 attempt and checks the supplied buffer, logical destination and output-specific
 emulation after three seconds. Clients can discard a resize during a loading
@@ -2562,9 +2794,15 @@ In every cell:
 - **The buffer is smaller.** On an unchanged 3840 × 2160 output the buffer KWin
   receives is 2560 × 1440 at Quality and 1920 × 1080 at Performance: the
   committed buffer, not the size that was asked for.
-- **A resolution changed during play is followed.** With the method on Auto,
-  choosing another resolution while the game runs changes the buffer it
-  commits, Native included, without restarting the game.
+- **Changes made inside the game are covered.** A change the player makes in the
+  game while it runs, such as switching fullscreen off and on again or choosing
+  another kind of fullscreen, leaves the game in one of the cells above, and
+  that cell has to pass as if the game had started that way.
+- **Effect settings changed during play follow
+  [applying settings](#in-game-controls-and-applying-settings).** What can
+  apply during play applies at once. A resolution the running game cannot take
+  is saved for its next normal start and reported as pending, never as done,
+  and after that start the cell passes.
 - **It is enlarged correctly.** The effect reports that it scaled that window's
   buffer, and the output shows the game's frame over the whole output, upright,
   neither cropped nor offset, and not the small buffer in a corner. This is

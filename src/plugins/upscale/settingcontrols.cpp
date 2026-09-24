@@ -6,20 +6,26 @@
 
 #include "settingcontrols.h"
 
+#include "resolution.h"
 #include "resolutionchoice.h"
+#include "sliderfield.h"
 
 #include <KLocalizedString>
 
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDoubleSpinBox>
 #include <QFormLayout>
-#include <QLocale>
+#include <QHBoxLayout>
+#include <QIcon>
+#include <QLabel>
 #include <QScopedValueRollback>
+#include <QSlider>
 #include <QSpinBox>
+#include <QToolButton>
 
 #include <algorithm>
 #include <array>
-#include <type_traits>
 
 namespace KWin
 {
@@ -71,7 +77,7 @@ static QString upscaleSettingSuffix(UpscaleSetting setting, int value)
     case UpscaleSetting::MinimumPixels:
         return i18ncp("Suffix", " pixel", " pixels", value);
     case UpscaleSetting::OsdTimeout:
-        return i18ncp("Suffix", " second", " seconds", value);
+        return i18nc("Suffix: the unit symbol for seconds", " s");
     default:
         return QString();
     }
@@ -140,60 +146,46 @@ QString upscaleSettingChoiceLabel(UpscaleSetting setting, int value)
     return QString();
 }
 
-namespace
+// A switch is a check box that says what it switches, as on the global page,
+// in the same words, so that one translation serves both.
+static QString upscaleSwitchText(UpscaleSetting setting)
 {
-
-// A number that may follow the global value. Its lowest step stands for
-// "Global", and stepping off it starts from the value it was following rather
-// than from the bottom of the range: a person raising the scale of a game
-// that follows 67% expects to go on from 67%, not to be dropped to 50%.
-template<typename Box, typename Value>
-class GlobalBox : public Box
-{
-public:
-    using Box::Box;
-
-    void setInherited(Value inherited)
-    {
-        m_inherited = inherited;
+    switch (setting) {
+    case UpscaleSetting::Sharpening:
+        return i18n("Sharpen the image");
+    case UpscaleSetting::Osd:
+        return i18n("On-screen display");
+    case UpscaleSetting::OsdDetection:
+        return i18n("Show info at startup");
+    case UpscaleSetting::OsdSummary:
+        return i18n("Include details");
+    case UpscaleSetting::OsdStatistics:
+        return i18n("Show frame rate");
+    case UpscaleSetting::OsdDeveloper:
+        return i18n("Show developer information");
+    default:
+        return QString();
     }
-
-    void stepBy(int steps) override
-    {
-        if (this->value() == this->minimum() && steps > 0) {
-            // The first step states the followed value itself, so that what
-            // the field shows only stops being "Global".
-            this->setValue(std::clamp<Value>(m_inherited + steps - 1, this->minimum() + s_smallest, this->maximum()));
-            return;
-        }
-        Box::stepBy(steps);
-    }
-
-private:
-    static constexpr Value s_smallest = std::is_integral_v<Value> ? Value(1) : Value(0.01);
-    Value m_inherited = 0;
-};
-
-using GlobalSpinBox = GlobalBox<QSpinBox, int>;
-// The scale, held in basis points and shown as the percentage it is, to the
-// hundredth that names 66.67 %; see resolutionRatio().
-using GlobalShareBox = GlobalBox<QDoubleSpinBox, double>;
-
-} // namespace
+}
 
 struct UpscaleSettingControls::Control
 {
     UpscaleSetting setting;
-    // Exactly one of these is used, decided by the row. A switch and a choice
-    // are both lists with "use global" first; a number reserves the step below
-    // its range for the same answer, which is what a spin box can give a name
-    // to. The scale is such a number with two decimals. The resolution limit
-    // is a number nobody thinks of as one, so it is offered as the global page
-    // offers it, as resolutions, with "use global" first like every list here.
+    // Exactly one kind is used, the kind the global page uses for the same
+    // preference, so that a game's page reads as that page does.
+    QCheckBox *check = nullptr;
     QComboBox *box = nullptr;
-    GlobalSpinBox *spin = nullptr;
-    GlobalShareBox *share = nullptr;
     QComboBox *resolution = nullptr;
+    QSpinBox *spin = nullptr;
+    QSlider *slider = nullptr;
+    UpscaleSliderField *pair = nullptr;
+    // What names the preference: the form's label, or a switch's own text.
+    QWidget *name = nullptr;
+    QToolButton *reset = nullptr;
+    // Whether the game states this value. Never inferred from the value
+    // itself: a game may state the value the global profile happens to have,
+    // and keep it when the global one changes.
+    bool stated = false;
 };
 
 UpscaleSettingControls::UpscaleSettingControls(QObject *parent)
@@ -203,203 +195,201 @@ UpscaleSettingControls::UpscaleSettingControls(QObject *parent)
 
 UpscaleSettingControls::~UpscaleSettingControls() = default;
 
-// Editable, as on the global page, for a resolution the list does not offer.
-static QComboBox *resolutionControl(QWidget *parent, UpscaleSettingControls *owner)
+// The value a control shows, which is always the one the entry would use.
+static int shownValue(const UpscaleSettingControls::Control &control)
 {
-    auto *box = new QComboBox(parent);
-    box->setEditable(true);
-    box->setInsertPolicy(QComboBox::NoInsert);
-    box->setToolTip(i18n("Screens at or below this resolution are left alone."));
-    QObject::connect(box, &QComboBox::currentTextChanged, owner, &UpscaleSettingControls::changed);
-    return box;
+    if (control.check) {
+        return control.check->isChecked() ? 1 : 0;
+    }
+    if (control.box) {
+        return upscaleSettingInfo(control.setting).minimum + control.box->currentIndex();
+    }
+    if (control.resolution) {
+        return upscaleResolutionPixels(control.resolution, -1);
+    }
+    return control.spin ? control.spin->value() : control.slider->value();
 }
 
-// One step below the range means "follow the global value", and the box gives
-// that step a name. The range itself is the table's, so a control can never
-// offer a value storage would clamp away.
-static GlobalShareBox *shareControl(QWidget *parent, UpscaleSettingControls *owner)
+static void showValue(const UpscaleSettingControls::Control &control, int value)
 {
-    const UpscaleSettingInfo &info = upscaleSettingInfo(UpscaleSetting::Percentage);
-    auto *share = new GlobalShareBox(parent);
-    share->setDecimals(2);
-    share->setRange((info.minimum - 1) / 100.0, info.maximum / 100.0);
-    share->setSingleStep(1);
-    share->setSuffix(upscaleSettingSuffix(UpscaleSetting::Percentage, 0));
-    QObject::connect(share, &QDoubleSpinBox::valueChanged, owner, &UpscaleSettingControls::changed);
-    return share;
+    if (control.check) {
+        control.check->setChecked(value != 0);
+    } else if (control.box) {
+        control.box->setCurrentIndex(value - upscaleSettingInfo(control.setting).minimum);
+    } else if (control.resolution) {
+        // Filled again each time, because the screens it offers first are the
+        // ones connected now.
+        upscaleFillResolutions(control.resolution);
+        upscaleSelectResolution(control.resolution, value);
+    } else if (control.spin) {
+        control.spin->setValue(value);
+    } else {
+        control.slider->setValue(value);
+        control.pair->showSliderValue();
+    }
 }
 
-static GlobalSpinBox *numberControl(UpscaleSetting setting, QWidget *parent, UpscaleSettingControls *owner)
+QWidget *UpscaleSettingControls::field(Control &control, QWidget *parent)
 {
-    const UpscaleSettingInfo &info = upscaleSettingInfo(setting);
-    auto *spin = new GlobalSpinBox(parent);
-    spin->setRange(info.minimum - 1, info.maximum);
-    // The plural of a unit depends on the number, so it follows it.
-    const auto unit = [spin, setting]() {
-        spin->setSuffix(upscaleSettingSuffix(setting, spin->value()));
+    const UpscaleSettingInfo &info = upscaleSettingInfo(control.setting);
+    const UpscaleSetting setting = control.setting;
+    const auto edited = [this, setting]() {
+        userEdited(setting);
     };
-    unit();
-    QObject::connect(spin, &QSpinBox::valueChanged, spin, unit);
-    QObject::connect(spin, &QSpinBox::valueChanged, owner, &UpscaleSettingControls::changed);
-    return spin;
+    if (setting == UpscaleSetting::MinimumPixels) {
+        // Editable, as on the global page, for a resolution the list does not offer.
+        control.resolution = new QComboBox(parent);
+        control.resolution->setEditable(true);
+        control.resolution->setInsertPolicy(QComboBox::NoInsert);
+        control.resolution->setToolTip(i18n("Screens at or below this resolution are left alone."));
+        connect(control.resolution, &QComboBox::currentTextChanged, this, edited);
+        return control.resolution;
+    }
+    if (setting == UpscaleSetting::Percentage || setting == UpscaleSetting::Strength) {
+        // A slider with its exact value beside it, as on the global page. The
+        // scale is held in basis points and shown as the percentage it is.
+        control.slider = new QSlider(Qt::Horizontal, parent);
+        control.slider->setRange(info.minimum, info.maximum);
+        const bool scale = setting == UpscaleSetting::Percentage;
+        control.slider->setSingleStep(scale ? 100 : 1);
+        control.slider->setPageStep(scale ? 1000 : 10);
+        control.pair = new UpscaleSliderField(control.slider, parent, scale ? 100 : 1);
+        control.pair->field()->setObjectName(QLatin1String(info.key) + QLatin1String("Value"));
+        control.pair->field()->setSuffix(upscaleSettingSuffix(setting, 0));
+        if (scale) {
+            control.pair->setSnapPoints(upscaleSnapScales(upscaleLargestScreen().pixels), control.slider->singleStep());
+        } else {
+            control.pair->field()->setSpecialValueText(i18nc("sharpening strength", "Off"));
+        }
+        control.slider->setObjectName(QLatin1String(info.key));
+        connect(control.slider, &QSlider::valueChanged, this, edited);
+        return control.pair->widget();
+    }
+    if (info.type == UpscaleSettingType::Number) {
+        control.spin = new QSpinBox(parent);
+        control.spin->setRange(info.minimum, info.maximum);
+        control.spin->setSuffix(upscaleSettingSuffix(setting, 0));
+        connect(control.spin, &QSpinBox::valueChanged, this, edited);
+        return control.spin;
+    }
+    if (info.type == UpscaleSettingType::Switch) {
+        control.check = new QCheckBox(upscaleSwitchText(setting), parent);
+        connect(control.check, &QCheckBox::toggled, this, edited);
+        return control.check;
+    }
+    control.box = new QComboBox(parent);
+    for (int value = info.minimum; value <= info.maximum; ++value) {
+        control.box->addItem(upscaleSettingChoiceLabel(setting, value));
+    }
+    connect(control.box, &QComboBox::currentIndexChanged, this, edited);
+    return control.box;
 }
 
 void UpscaleSettingControls::build(QFormLayout *form, QWidget *parent, const std::vector<UpscaleSetting> &settings)
 {
     for (const UpscaleSetting setting : settings) {
         const UpscaleSettingInfo &info = upscaleSettingInfo(setting);
-        Control control{setting};
-        QWidget *widget = nullptr;
-        if (setting == UpscaleSetting::MinimumPixels) {
-            widget = control.resolution = resolutionControl(parent, this);
-        } else if (setting == UpscaleSetting::Percentage) {
-            widget = control.share = shareControl(parent, this);
-        } else if (info.type == UpscaleSettingType::Number) {
-            widget = control.spin = numberControl(setting, parent, this);
+        m_controls.push_back(Control{setting});
+        Control &control = m_controls.back();
+        QWidget *value = field(control, parent);
+        if (!control.slider) {
+            // Named by the key it stores, so that a test or an accessibility
+            // tool finds the control without knowing the form's layout.
+            value->setObjectName(QLatin1String(info.key));
+        }
+        // Back to following the global value. At the right end of every row
+        // and enabled only where the game states a value, as Qt Designer's
+        // reset button is; see mark().
+        control.reset = new QToolButton(parent);
+        control.reset->setObjectName(QLatin1String(info.key) + QLatin1String("Reset"));
+        control.reset->setIcon(QIcon::fromTheme(QStringLiteral("edit-undo")));
+        control.reset->setAutoRaise(true);
+        control.reset->setToolTip(i18n("Use the value of All applications"));
+        control.reset->setAccessibleName(control.reset->toolTip());
+        control.reset->setEnabled(false);
+        connect(control.reset, &QToolButton::clicked, this, [this, setting]() {
+            follow(setting);
+        });
+        auto *row = new QWidget(parent);
+        auto *layout = new QHBoxLayout(row);
+        layout->setContentsMargins(0, 0, 0, 0);
+        // The button at the right end of the row, so that every row's lines up
+        // in one column, as in Qt Designer.
+        layout->addWidget(value, control.slider ? 1 : 0);
+        if (!control.slider) {
+            layout->addStretch(1);
+        }
+        layout->addWidget(control.reset);
+        if (control.check) {
+            form->addRow(QString(), row);
+            control.name = control.check;
         } else {
-            widget = control.box = new QComboBox(parent);
-            connect(control.box, &QComboBox::currentIndexChanged, this, &UpscaleSettingControls::changed);
-        }
-        form->addRow(upscaleSettingLabel(setting), widget);
-        // Named by the key it stores, so that a test or an accessibility tool
-        // finds the control for a preference without knowing the form's layout.
-        widget->setObjectName(QLatin1String(info.key));
-        m_controls.push_back(control);
-        if (setting == UpscaleSetting::Percentage) {
-            coupleScaleToPreset();
+            auto *label = new QLabel(upscaleSettingLabel(setting), parent);
+            label->setObjectName(QLatin1String(info.key) + QLatin1String("Name"));
+            label->setBuddy(value);
+            form->addRow(label, row);
+            control.name = label;
         }
     }
 }
 
-// The first choice of every inheritable control. KDE's own pattern for
-// following something else is "Default (Breeze)", but Default already names
-// the page's Restore Defaults, which means something different.
-static QString globalChoice(const QString &inherited)
+// What a control shows while it follows the global value. The scale is the
+// exception: under any preset but Custom it is that preset's share, as the
+// global page shows it, since the global scale applies to Custom alone.
+int UpscaleSettingControls::followed(UpscaleSetting setting) const
 {
-    return i18nc("A profile's setting that follows the global value, named in brackets", "Global (%1)", inherited);
-}
-
-// The limit, as a list of resolutions with the followed one first. Filled
-// again each time, because the screens it offers first are the ones
-// connected now.
-static void showResolution(QComboBox *box, const std::optional<int> &stated, int inherited)
-{
-    upscaleFillResolutions(box);
-    box->insertItem(0, globalChoice(upscaleResolutionName(inherited)), -1);
-    box->setCurrentIndex(-1);
-    if (stated) {
-        upscaleSelectResolution(box, *stated);
-    } else {
-        box->setCurrentIndex(0);
+    if (setting == UpscaleSetting::Percentage) {
+        const Control *preset = find(UpscaleSetting::Resolution);
+        const auto shown = ResolutionPreset(preset ? shownValue(*preset) : m_global.value(UpscaleSetting::Resolution));
+        return qRound(resolutionRatio(shown, m_global.value(setting)) * 10000);
     }
+    return m_global.value(setting);
 }
 
-// Naming the inherited value in the special text is the whole point: "Global"
-// on its own tells a person nothing about what they would get.
-// A percentage to the hundredth it needs and no further: 66.67 %, 75 %.
-static QString percentText(int basisPoints)
+void UpscaleSettingControls::mark(const Control &control)
 {
-    const QLocale locale;
-    QString text = locale.toString(basisPoints / 100.0, 'f', 2);
-    const QString point = locale.decimalPoint();
-    if (text.contains(point)) {
-        while (text.endsWith(QLatin1Char('0'))) {
-            text.chop(1);
-        }
-        if (text.endsWith(point)) {
-            text.chop(point.size());
-        }
+    QWidget *value = control.check ? static_cast<QWidget *>(control.check) : control.box;
+    if (!value) {
+        value = control.resolution ? static_cast<QWidget *>(control.resolution) : control.spin;
     }
-    return text;
-}
-
-static void showShare(GlobalShareBox *share, const std::optional<int> &stated, int inherited)
-{
-    share->setSpecialValueText(globalChoice(percentText(inherited) + upscaleSettingSuffix(UpscaleSetting::Percentage, 0)));
-    share->setInherited(inherited / 100.0);
-    share->setValue(stated ? *stated / 100.0 : share->minimum());
-}
-
-static void showNumber(GlobalSpinBox *spin, UpscaleSetting setting, const std::optional<int> &stated, int inherited)
-{
-    spin->setSpecialValueText(globalChoice(QString::number(inherited) + upscaleSettingSuffix(setting, inherited)));
-    spin->setInherited(inherited);
-    spin->setValue(stated ? *stated : upscaleSettingInfo(setting).minimum - 1);
-}
-
-// A switch is Global, On, Off, in that order; a choice is Global and then its
-// values in the order stored.
-static void showList(QComboBox *box, UpscaleSetting setting, const std::optional<int> &stated, int inherited)
-{
-    const UpscaleSettingInfo &info = upscaleSettingInfo(setting);
-    box->clear();
-    if (info.type == UpscaleSettingType::Switch) {
-        box->addItems({globalChoice(inherited ? i18n("On") : i18n("Off")), i18n("On"), i18n("Off")});
-        int index = 0;
-        if (stated) {
-            index = *stated ? 1 : 2;
-        }
-        box->setCurrentIndex(index);
-        return;
+    if (!value) {
+        value = control.pair->field();
     }
-    box->addItem(globalChoice(upscaleSettingChoiceLabel(setting, inherited)));
-    for (int value = info.minimum; value <= info.maximum; ++value) {
-        box->addItem(upscaleSettingChoiceLabel(setting, value));
-    }
-    box->setCurrentIndex(stated ? *stated - info.minimum + 1 : 0);
+    upscaleMarkInherited(control.name, value, control.reset, control.stated);
 }
 
 void UpscaleSettingControls::show(const UpscaleSettingOverrides &overrides, const UpscaleSettings &global)
 {
     const QScopedValueRollback showing(m_showing, true);
     m_global = global;
-    for (const Control &control : m_controls) {
+    for (Control &control : m_controls) {
         const std::optional<int> &stated = overrides[std::size_t(control.setting)];
-        const int inherited = global.value(control.setting);
-        if (control.resolution) {
-            showResolution(control.resolution, stated, inherited);
-        } else if (control.share) {
-            showShare(control.share, stated, inherited);
-        } else if (control.spin) {
-            showNumber(control.spin, control.setting, stated, inherited);
-        } else {
-            showList(control.box, control.setting, stated, inherited);
-        }
+        control.stated = stated.has_value();
+        showValue(control, stated.value_or(global.value(control.setting)));
     }
-}
-
-std::optional<int> UpscaleSettingControls::stated(const Control &control, std::optional<int> fallback)
-{
-    const UpscaleSettingInfo &info = upscaleSettingInfo(control.setting);
-    if (control.resolution) {
-        // "Global" carries -1, and text that is no resolution at all keeps
-        // what was stated before it was typed.
-        const int pixels = upscaleResolutionPixels(control.resolution, fallback.value_or(-1));
-        return pixels < 0 ? std::nullopt : std::optional<int>(pixels);
+    // After the preset, which the followed scale depends on.
+    if (Control *scale = controlFor(UpscaleSetting::Percentage); scale && !scale->stated) {
+        showValue(*scale, followed(UpscaleSetting::Percentage));
     }
-    if (control.share) {
-        const int value = qRound(control.share->value() * 100);
-        return value < info.minimum ? std::nullopt : std::optional<int>(value);
+    for (const Control &control : m_controls) {
+        mark(control);
     }
-    if (control.spin) {
-        const int value = control.spin->value();
-        return value < info.minimum ? std::nullopt : std::optional<int>(value);
-    }
-    const int index = control.box->currentIndex();
-    if (index <= 0) {
-        return std::nullopt;
-    }
-    if (info.type == UpscaleSettingType::Switch) {
-        return index == 1 ? 1 : 0;
-    }
-    return info.minimum + index - 1;
 }
 
 void UpscaleSettingControls::store(UpscaleSettingOverrides &overrides) const
 {
     for (const Control &control : m_controls) {
         std::optional<int> &value = overrides[std::size_t(control.setting)];
-        value = stated(control, value);
+        if (!control.stated) {
+            value.reset();
+            continue;
+        }
+        // Text in the limit that is no resolution at all keeps what was stated
+        // before it was typed.
+        const int shown = shownValue(control);
+        if (!control.resolution || shown >= 0) {
+            value = shown;
+        }
     }
 }
 
@@ -409,42 +399,62 @@ const UpscaleSettingControls::Control *UpscaleSettingControls::find(UpscaleSetti
     return control != m_controls.end() ? &*control : nullptr;
 }
 
-int UpscaleSettingControls::effective(UpscaleSetting setting) const
+UpscaleSettingControls::Control *UpscaleSettingControls::controlFor(UpscaleSetting setting)
 {
-    const Control *control = find(setting);
-    const std::optional<int> value = control ? stated(*control, std::nullopt) : std::nullopt;
-    return value.value_or(m_global.value(setting));
+    const auto control = std::ranges::find(m_controls, setting, &Control::setting);
+    return control != m_controls.end() ? &*control : nullptr;
 }
 
-// On the global page, moving the scale chooses Custom, because the scale is
-// what Custom is and means nothing to any other preset; choosing a preset
-// moves the scale to its ratio. A game's entry does the same with a Global
-// choice added: stating a scale states Custom, unless Custom is what the entry
-// already follows, and choosing any other preset puts the scale back to
-// following the global value, since a scale it states would no longer apply.
-void UpscaleSettingControls::coupleScaleToPreset()
+// A person changed a control: the game now states that value. The scale and
+// the preset move together as on the global page: stating a scale chooses
+// Custom, and any other preset leaves the scale nothing to state, so it goes
+// back to following.
+void UpscaleSettingControls::userEdited(UpscaleSetting setting)
 {
-    const Control *preset = find(UpscaleSetting::Resolution);
-    const Control *scale = find(UpscaleSetting::Percentage);
-    if (!preset || !preset->box || !scale || !scale->share) {
+    if (m_showing) {
         return;
     }
-    QComboBox *box = preset->box;
-    QDoubleSpinBox *spin = scale->share;
-    const int custom = int(ResolutionPreset::Custom) - upscaleSettingInfo(UpscaleSetting::Resolution).minimum + 1;
-    connect(spin, &QDoubleSpinBox::valueChanged, this, [this, box, spin, custom]() {
-        if (m_showing || spin->value() == spin->minimum()) {
-            return;
+    Control *control = controlFor(setting);
+    control->stated = true;
+    mark(*control);
+    Control *preset = controlFor(UpscaleSetting::Resolution);
+    Control *scale = controlFor(UpscaleSetting::Percentage);
+    if (preset && scale) {
+        const QScopedValueRollback showing(m_showing, true);
+        const bool custom = shownValue(*preset) == int(ResolutionPreset::Custom);
+        if (setting == UpscaleSetting::Percentage && !custom) {
+            preset->stated = true;
+            showValue(*preset, int(ResolutionPreset::Custom));
+            mark(*preset);
+        } else if (setting == UpscaleSetting::Resolution && !custom) {
+            scale->stated = false;
+            showValue(*scale, followed(UpscaleSetting::Percentage));
+            mark(*scale);
         }
-        if (effective(UpscaleSetting::Resolution) != int(ResolutionPreset::Custom)) {
-            box->setCurrentIndex(custom);
+    }
+    Q_EMIT changed();
+}
+
+// The reset button: the game stops stating this value and shows the global one.
+void UpscaleSettingControls::follow(UpscaleSetting setting)
+{
+    Control *control = controlFor(setting);
+    {
+        const QScopedValueRollback showing(m_showing, true);
+        control->stated = false;
+        showValue(*control, followed(setting));
+        mark(*control);
+        // A preset that now follows a global one other than Custom leaves the
+        // scale nothing to state, as choosing that preset would.
+        Control *scale = controlFor(UpscaleSetting::Percentage);
+        if (setting == UpscaleSetting::Resolution && scale
+            && shownValue(*control) != int(ResolutionPreset::Custom)) {
+            scale->stated = false;
+            showValue(*scale, followed(UpscaleSetting::Percentage));
+            mark(*scale);
         }
-    });
-    connect(box, &QComboBox::currentIndexChanged, this, [this, spin]() {
-        if (!m_showing && effective(UpscaleSetting::Resolution) != int(ResolutionPreset::Custom)) {
-            spin->setValue(spin->minimum());
-        }
-    });
+    }
+    Q_EMIT changed();
 }
 
 } // namespace KWin

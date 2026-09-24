@@ -4,7 +4,7 @@
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
-#include "display.h"
+#include "display_test.h"
 #include "placement.h"
 #include "upscaleconfig.h"
 
@@ -26,24 +26,6 @@
 #include <array>
 
 using namespace KWin;
-
-class UpscaleDisplayTest : public QObject
-{
-    Q_OBJECT
-
-private Q_SLOTS:
-    void initTestCase();
-    void cleanupTestCase();
-    void visibilityAndSampling();
-    void blocksKeepTheirOwnCorners();
-    void displayShowsTheState();
-
-private:
-    QImage paint(UpscaleDisplay &display);
-    QImage paintOn(UpscaleDisplay &display, const QSize &size, const UpscaleRectF &screen);
-    std::unique_ptr<EglDisplay> m_display;
-    std::shared_ptr<EglContext> m_context;
-};
 
 void UpscaleDisplayTest::initTestCase()
 {
@@ -489,5 +471,3 @@ int main(int argc, char **argv)
     UpscaleDisplayTest test;
     return QTest::qExec(&test, argc, argv);
 }
-
-#include "display_test.moc"

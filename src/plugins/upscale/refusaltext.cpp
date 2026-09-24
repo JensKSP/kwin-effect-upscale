@@ -29,8 +29,6 @@ static QString describeEffectRefusal(UpscaleRefusal refusal)
         // names both halves of the rule, so that the person reading it knows
         // there are two ways to change the answer.
         return i18n("the application is not in the list, and unlisted applications are switched off.");
-    case UpscaleRefusal::NativeRule:
-        return i18n("the resolution rule selects Native.");
     case UpscaleRefusal::BelowMinimumPixels:
         return i18n("the output pixel count is at or below the configured minimum.");
     case UpscaleRefusal::ResourceFailure:
@@ -99,7 +97,6 @@ QString describeRefusal(UpscaleRefusal refusal)
         return QString();
     case UpscaleRefusal::Disabled:
     case UpscaleRefusal::Unlisted:
-    case UpscaleRefusal::NativeRule:
     case UpscaleRefusal::BelowMinimumPixels:
     case UpscaleRefusal::ResourceFailure:
     case UpscaleRefusal::ScreenLocked:

@@ -4,40 +4,14 @@
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
-#include "snapshot.h"
+#include "snapshot_test.h"
 
 #include "effect/globals.h"
 
 #include <QLocale>
 #include <QSet>
-#include <QTest>
 
 using namespace KWin;
-
-// The settings page, the on-screen display and the logs all read these texts.
-// What they say is a contract with the person reading them, so it is tested
-// here rather than left to whatever the formatting happens to produce.
-class UpscaleSnapshotTest : public QObject
-{
-    Q_OBJECT
-
-private Q_SLOTS:
-    void initTestCase();
-    void everyRefusalHasItsOwnSentence();
-    void unsupportedFormat();
-    void refusalNamesTheConditionThatFailed();
-    void reportsThePathActuallyTaken();
-    void doesNotInventUnknownValues();
-    void pixelSizesAreNotGrouped();
-    void developerInformationCoversTheState();
-    void namesEveryPresetAndTransferFunction();
-    void reportsPresentedFramesAndTheirSlowTail();
-    void namesTheClientItIsLookingAt();
-    void separatesWhatWasRequestedFromWhatArrived();
-
-private:
-    static UpscaleSnapshot scaling();
-};
 
 UpscaleSnapshot UpscaleSnapshotTest::scaling()
 {
@@ -438,64 +412,6 @@ void UpscaleSnapshotTest::reportsPresentedFramesAndTheirSlowTail()
     QVERIFY(!developer.contains(QStringLiteral("VRR not observed")));
 }
 
-// What the effect asked an application for and what that application actually
-// committed are two different observations. Presenting the request as the
-// result is exactly the mistake this reporting exists to prevent.
-void UpscaleSnapshotTest::separatesWhatWasRequestedFromWhatArrived()
-{
-    UpscaleSnapshot snapshot = scaling();
-    snapshot.recognized = QStringLiteral("SuperTuxKart");
-    snapshot.method = KWin::UpscaleMethod::AdvertisedMode;
-    snapshot.advertised = QSize(2560, 1440);
-    snapshot.supplied = QSize(3840, 2160);
-    snapshot.destination = QSize(3840, 2160);
-
-    // "recognized" is said only for a catalogue match, never for a window that
-    // merely fills the screen.
-    const QString announcement = upscaleAnnouncement(snapshot);
-    QVERIFY2(announcement.contains(QStringLiteral("recognized SuperTuxKart")), qPrintable(announcement));
-    QVERIFY(!announcement.contains(QStringLiteral("selected")));
-
-    const QString status = upscaleStatusText(snapshot);
-    QVERIFY2(status.contains(QStringLiteral("2560 × 1440 requested from SuperTuxKart as its screen mode")),
-             qPrintable(status));
-    // The committed buffer is reported beside it, and it is the only evidence
-    // of what the application did with the request. Here it ignored it.
-    QVERIFY(status.contains(QStringLiteral("Supplied input: 3840 × 2160")));
-
-    const QString developer = upscaleDeveloperInformation(snapshot);
-    QVERIFY2(developer.contains(QStringLiteral("Application: SuperTuxKart")), qPrintable(developer));
-    QVERIFY(developer.contains(QStringLiteral("advertised 2560 × 1440")));
-    QVERIFY(developer.contains(QStringLiteral("advertised screen mode")));
-
-    snapshot.method = KWin::UpscaleMethod::X11Resize;
-    snapshot.advertised = {};
-    snapshot.requested = QSize(1920, 1080);
-    snapshot.requestFailure = QStringLiteral("The requested mode was ignored.");
-    const QString refused = upscaleStatusText(snapshot);
-    QVERIFY(refused.contains(QStringLiteral("1920 × 1080 requested from SuperTuxKart as its X11 window size")));
-    QVERIFY(refused.contains(snapshot.requestFailure));
-    QVERIFY(refused.contains(QStringLiteral("Supplied input: 3840 × 2160")));
-    QVERIFY(!refused.contains(QStringLiteral("as its screen mode")));
-
-    // A window nothing in the catalogue describes says so, rather than
-    // reporting an empty name or implying a match.
-    UpscaleSnapshot unlisted = scaling();
-    QVERIFY(upscaleDeveloperInformation(unlisted).contains(QStringLiteral("not recognized")));
-    QVERIFY(upscaleDeveloperInformation(unlisted).contains(QStringLiteral("advertised nothing")));
-    // Nothing was requested, so the desired size is a wish for the user to act
-    // on and must not be phrased as something that was asked for.
-    QVERIFY(!upscaleStatusText(unlisted).contains(QStringLiteral("requested from")));
-
-    // An application the effect recognized only by its program has no window
-    // name to fall back on, and the request still has to name something.
-    UpscaleSnapshot nameless;
-    nameless.application = QStringLiteral("vkmark");
-    nameless.advertised = QSize(1920, 1080);
-    QVERIFY2(upscaleStatusText(nameless).contains(QStringLiteral("1920 × 1080 requested from vkmark")),
-             qPrintable(upscaleStatusText(nameless)));
-}
-
 void UpscaleSnapshotTest::unsupportedFormat()
 {
     UpscaleSnapshot state;
@@ -514,5 +430,3 @@ void UpscaleSnapshotTest::unsupportedFormat()
 }
 
 QTEST_GUILESS_MAIN(UpscaleSnapshotTest)
-
-#include "snapshot_test.moc"

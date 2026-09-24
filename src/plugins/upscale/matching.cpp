@@ -63,7 +63,7 @@ QString upscaleIdentityProblem(const UpscaleApplication &application)
 QString upscaleAdvertisementProblem(const UpscaleApplication &application)
 {
     const UpscaleGates gates = upscaleGatesOf(application);
-    if (!upscaleIsAdvertisement(application.methods[std::size_t(upscaleAdvertisedPresentation())])
+    if (!upscaleIsAdvertisement(upscaleMethodFor(&application, upscaleAdvertisedPresentation()))
         || (gates.statesExecutable() && !gates.statesWindow())) {
         return QString();
     }

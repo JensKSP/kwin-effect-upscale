@@ -5,9 +5,11 @@ set(upscale_SOURCES
     application.cpp
     autorequest.cpp
     display.cpp
+    diagnostics.cpp
     eligibility.cpp
     refusaltext.cpp
     framestatistics.cpp
+    helper.cpp
     main.cpp
     matching.cpp
     modeoverride.cpp
@@ -18,15 +20,20 @@ set(upscale_SOURCES
     observation.cpp
     overlay.cpp
     placement.cpp
+    preparation.cpp
+    question.cpp
     scaler.cpp
     snapshot.cpp
     snapshot_metrics.cpp
     upscale.cpp
+    upscale_display.cpp
     windowidentity.cpp
     x11geometry.cpp
     x11input.cpp
     x11resolution.cpp
     x11resolution_events.cpp
+    x11resolution_startup.cpp
+    x11resolution_prepared.cpp
     x11resolution_present.cpp
     x11resolution_validate.cpp
     upscale.qrc
@@ -58,6 +65,7 @@ if (KWIN_BUILD_KCMS)
     set(kwin_upscale_config_SRCS
         upscale_config.cpp
         displaycontrols.cpp
+        preparedlist.cpp
         applicationcontrols.cpp
         resolutionchoice.cpp
         resolutionpreview.cpp
@@ -69,6 +77,7 @@ if (KWIN_BUILD_KCMS)
         pattern.cpp
         settings.cpp
         settingcontrols.cpp
+        inheritedmark.cpp
         methodcontrols.cpp
         applicationeditor.cpp
         applicationeditor_details.cpp
