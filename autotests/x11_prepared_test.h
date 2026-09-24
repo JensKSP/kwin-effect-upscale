@@ -66,11 +66,15 @@ public:
     QStringList answers;
     QStringList restarts;
     std::function<void()> onPresent;
+    std::function<void()> onOffer;
 
 public Q_SLOTS:
     Q_SCRIPTABLE QString offerSetup(uint pid, const QString &windowClass, const QString &title, const QList<TestScreen> &screens, QString &question)
     {
         ++setupOffers;
+        if (const auto beforeReply = std::exchange(onOffer, {})) {
+            beforeReply();
+        }
         return offer(pid, windowClass, title, screens, question);
     }
     Q_SCRIPTABLE QString offer(uint pid, const QString &windowClass, const QString &title, const QList<TestScreen> &screens, QString &question)

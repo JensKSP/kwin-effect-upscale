@@ -24,11 +24,13 @@ void UpscaleX11PreparedTest::defersWineUntilPrepared_data()
     QTest::addColumn<bool>("available");
     QTest::addColumn<bool>("prepared");
     QTest::addColumn<bool>("disableBeforeReply");
-    QTest::newRow("wine-fullscreen") << QStringLiteral("wine") << true << true << false << false;
-    QTest::newRow("wine64-later-fullscreen") << QStringLiteral("wine64") << false << true << false << false;
-    QTest::newRow("preloader-no-helper") << QStringLiteral("wine-preloader") << true << false << false << false;
-    QTest::newRow("proton-prepared-record-native-buffer") << QStringLiteral("wine64-preloader") << true << true << true << false;
-    QTest::newRow("disabled-before-helper-reply") << QStringLiteral("wine64") << true << true << false << true;
+    QTest::addColumn<bool>("disableBeforeOffer");
+    QTest::newRow("wine-fullscreen") << QStringLiteral("wine") << true << true << false << false << false;
+    QTest::newRow("wine64-later-fullscreen") << QStringLiteral("wine64") << false << true << false << false << false;
+    QTest::newRow("preloader-no-helper") << QStringLiteral("wine-preloader") << true << false << false << false << false;
+    QTest::newRow("proton-prepared-record-native-buffer") << QStringLiteral("wine64-preloader") << true << true << true << false << false;
+    QTest::newRow("disabled-before-helper-reply") << QStringLiteral("wine64") << true << true << false << true << false;
+    QTest::newRow("disabled-before-setup-offer") << QStringLiteral("wine64") << true << true << false << false << true;
 }
 
 void UpscaleX11PreparedTest::defersWineUntilPrepared()
@@ -38,6 +40,8 @@ void UpscaleX11PreparedTest::defersWineUntilPrepared()
     QFETCH(bool, available);
     QFETCH(bool, prepared);
     QFETCH(bool, disableBeforeReply);
+    QFETCH(bool, disableBeforeOffer);
+    const bool disabled = disableBeforeReply || disableBeforeOffer;
     // Give KWin a real process with a Wine loader basename, independently of
     // the game's class. No Wine installation or prefix mutation is involved.
     QTemporaryDir directory;
@@ -52,13 +56,18 @@ void UpscaleX11PreparedTest::defersWineUntilPrepared()
         process.waitForFinished();
     });
     TestHelper helper;
-    if (disableBeforeReply) {
-        helper.onPresent = [this]() {
+    if (disabled) {
+        const auto disable = [this]() {
             KConfigGroup entry(KSharedConfig::openConfig(QStringLiteral("kwinupscalerc")), QStringLiteral("Application-test"));
             entry.writeEntry("Enabled", false);
             entry.sync();
             m_effects.call(QStringLiteral("reconfigureEffect"), QStringLiteral("upscale_test_driver"));
         };
+        if (disableBeforeOffer) {
+            helper.onOffer = disable;
+        } else {
+            helper.onPresent = disable;
+        }
     }
     if (prepared) {
         helper.size = QSize(1920, 1080);
@@ -80,12 +89,13 @@ void UpscaleX11PreparedTest::defersWineUntilPrepared()
         }
         QTRY_VERIFY(game.isFullscreen());
         if (available) {
-            QTRY_COMPARE(helper.asked.size(), disableBeforeReply ? 2 : 1);
+            QTRY_COMPARE(helper.asked.size(), disabled ? 2 : 1);
             QCOMPARE(helper.asked.first(), uint(process.processId()));
             QCOMPARE(helper.wanted.first(), QSize(2560, 1440));
-            if (disableBeforeReply) {
+            if (disabled) {
                 QVERIFY(helper.wanted.last().isEmpty());
-                QVERIFY(helper.offers.isEmpty());
+                QCOMPARE(helper.offers.size(), disableBeforeOffer ? 1 : 0);
+                QVERIFY(!status().contains(QStringLiteral("Set this game up?")));
             } else if (!prepared) {
                 QTRY_COMPARE(helper.offers.size(), 1);
                 QCOMPARE(helper.setupOffers, 1);

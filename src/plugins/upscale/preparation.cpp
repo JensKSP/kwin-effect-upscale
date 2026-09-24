@@ -36,6 +36,18 @@ static const QString laterAnswer = QStringLiteral("later");
 static const QString neverAnswer = QStringLiteral("never");
 static const QString restartAnswer = QStringLiteral("restart");
 
+#if KWIN_BUILD_X11
+static QSize preparationSize(const Window *window)
+{
+    // Off in the fullscreen slot, where such a game presents itself, asks the
+    // program for nothing, and so wants nothing prepared either.
+    if (upscaleMethodFor(upscaleApplicationForWindow(window), UpscalePresentation::X11FullScreen) == UpscaleMethod::Off) {
+        return {};
+    }
+    return upscaleWantedSize(window);
+}
+#endif
+
 UpscalePreparation::UpscalePreparation(Effect *owner, UpscaleX11Resolution *x11)
     : m_owner(owner)
     , m_x11(x11)
@@ -65,10 +77,24 @@ void UpscalePreparation::offerSetup(EffectWindow *window, const QSize &size, boo
     }
     m_asked.append(window);
     const QPointer<EffectWindow> guarded = window;
-    m_helper.offer(window, size, [this, guarded](const QString &offer, const QString &question) {
-        if (guarded && !offer.isEmpty()) {
-            askToSetUp(guarded, offer, question);
+    m_helper.offer(window, size, [this, guarded, size, afterFailure](const QString &offer, const QString &question) {
+        if (!guarded || offer.isEmpty()) {
+            return;
         }
+#if KWIN_BUILD_X11
+        if (!afterFailure && preparationSize(guarded->window()) != size) {
+            // The setup offer is another asynchronous reply. A settings change
+            // during this call must not leave a stale question to accept.
+            m_helper.answer(offer, laterAnswer, [](const QString &) { });
+            m_asked.removeAll(guarded);
+            ask(guarded);
+            return;
+        }
+#else
+        Q_UNUSED(size)
+        Q_UNUSED(afterFailure)
+#endif
+        askToSetUp(guarded, offer, question);
     }, afterFailure);
 }
 
@@ -153,16 +179,6 @@ void UpscalePreparation::windowAdded(EffectWindow *window)
 }
 
 #if KWIN_BUILD_X11
-static QSize preparationSize(const Window *window)
-{
-    // Off in the fullscreen slot, where such a game presents itself, asks the
-    // program for nothing, and so wants nothing prepared either.
-    if (upscaleMethodFor(upscaleApplicationForWindow(window), UpscalePresentation::X11FullScreen) == UpscaleMethod::Off) {
-        return {};
-    }
-    return upscaleWantedSize(window);
-}
-
 void UpscalePreparation::ask(EffectWindow *window)
 {
     const Window *internal = window->window();

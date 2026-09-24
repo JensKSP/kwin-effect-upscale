@@ -57,6 +57,15 @@ QString question(const QString &title, const QSize &size)
                  sizeText(size));
 }
 
+QString setupQuestion(const QString &title, const QSize &size)
+{
+    return i18nc("@info preparation offered before attempting a resize; %1 is the game's window title, %2 a resolution",
+                 "Set up %1 to render at %2 from its next start?\n"
+                 "The setting stays with the game until you undo it in the upscaler's settings.",
+                 title,
+                 sizeText(size));
+}
+
 QString restartQuestion(const QString &title)
 {
     return i18nc("@info the offer shown in the middle of the screen; %1 is the game's window title",
@@ -182,7 +191,7 @@ WineScreenHelper::Offered WineScreenHelper::offer(uint pid, const QString &windo
     qCInfo(KWIN_UPSCALE_WINESCREEN) << "Offering" << sizeText(size) << "to" << title << "prefix" << record.id << "server" << pending->server;
     const QString offer = QUuid::createUuid().toString(QUuid::WithoutBraces);
     m_offers.insert(offer, *pending);
-    return {.offer = offer, .question = question(title, size)};
+    return {.offer = offer, .question = afterFailure ? question(title, size) : setupQuestion(title, size)};
 }
 
 QString WineScreenHelper::answer(const QString &offer, const QString &answer)

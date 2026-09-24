@@ -685,3 +685,28 @@ and installed effect/helper hashes match their native build outputs. The effect
 reload reports build time 2026-09-24T09:43:20Z without a desktop restart. The
 clean Wreckfest preparation/restart test, hosted checks and current-head review
 remain outstanding. L4D2 coordinate tracing follows this saved checkpoint.
+
+Current-head review of cd0b993 finds that the early setup question incorrectly
+claims an observed resize failure. A separate neutral setup question now asks
+about the next start; the post-failure wording remains specific to that path.
+A further local regression disables the profile during the offerSetup reply:
+it fails before the correction because the old offer survives and no updated
+helper query follows. The callback now discards that offer, answers Later, and
+refreshes the helper with the current preference. Validation results follow below.
+
+The review also requests moving the resolution-control slice directly under
+doc/. That conflicts with the current root AGENTS.md, doc/AGENTS.md and
+doc/agents/AGENTS.md, which require temporary slice records under doc/agents/.
+The record stays in the required location; a reply citing these rules is
+prepared and awaits authorization to post.
+
+The delayed-offer regression passes with the correction. The first broader
+callback check also rejected the existing post-failure dialog fixture; limiting
+this new check to early offers restores all three existing dialog cases. Final
+validation passes both lint stages, GCC and Clang builds in Trixie and Neon
+unstable, all 26 enabled Clang suites, the focused GCC preparation suite and
+changed-production static analysis. The helper suite also passes after the
+wording correction. No metadata changed from the earlier validated checkpoint.
+The effect and helper are installed together; hashes match their native outputs,
+and the reloaded effect reports build time 2026-09-24T10:06:29Z. The session is
+still locked, so neither Wreckfest acceptance nor the L4D2 live trace has run.

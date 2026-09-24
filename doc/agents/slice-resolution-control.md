@@ -3004,3 +3004,29 @@ and the successful ETR rerun after STK's generic input correction. This does
 not close the broader resolution-control slice or PR acceptance. Wreckfest's
 request to avoid resizing before preparation belongs to the
 [Wine preparation slice](slice-proton-smaller-screen.md#leave-unprepared-wine-runs-alone-2026-09-24).
+
+### L4D2 menu-coordinate trace after the Wine checkpoint, 2026-09-24
+
+The Wine guard is committed and pushed as cd0b993, with the matching effect
+and helper installed. The next supported result is an explanation backed by
+coordinate samples before changing generic input handling. Full acceptance
+requires correct L4D2 menu clicks and mouse look on wzpc, plus repeat ETR/STK
+acceptance for any shared-input correction. No game configuration edits or
+permanent launcher changes are part of this investigation.
+
+The installed native i386 game uses SDL_PollEvent in launcher.so and
+SDL_GetMouseState in vguimatsurface.so. Reading the menu library's relocation
+table and disassembly shows a conversion from SDL window coordinates to the
+render viewport. A temporary GDB sampler under build/l4d2-input-trace validates
+the two SDL relocation offsets before sampling mouse position, SDL window size,
+viewport and converted position, then detaches. This has not run against a live
+game yet: the session is locked, L4D2 has exited, and unlock has been requested.
+
+The preceding compositor journal confirms 2560 × 1440 supplied to an effect-
+presented 3840 × 2160 output, with pointer scale 2/3. SDL 2.32.4 source updates
+its cached dimensions on ConfigureNotify and returns those dimensions from
+SDL_GetWindowSize; the library actually loaded by this game must still be
+identified. The menu conversion is a candidate explanation, not a demonstrated
+double transform. Compare the live surface/emulated-mode state and coordinates
+before choosing between a missing resize acknowledgement and an input mapping
+correction.
