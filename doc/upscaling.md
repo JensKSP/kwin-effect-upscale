@@ -2173,6 +2173,19 @@ from the emulation property, so the two paths never scale twice. Status names
 which of the two is presenting. Touch, tablet, pointer confinement regions and
 the locked-pointer position hint are not mapped.
 
+**Input coverage with an emulated mode.** Xwayland can enlarge the viewport
+while leaving an explicit rectangular input shape at the smaller drawable's
+size. The pointer filter also repairs focus and click ownership for this case,
+but keeps a unit coordinate transform: Xwayland already scales motion. This is
+gated on the committed buffer matching the request, fullscreen surface coverage,
+and an input region equal to the complete unscaled drawable rectangle. Empty,
+inset and nonrectangular shapes are preserved. A later shape change withdraws
+the intervention and restores the surface KWin actually focuses. Windows
+stacked above the game keep their input. Immediately after entering a surface,
+the filter delivers the real pointer position when KWin would suppress an
+identical-position motion; this handles Xwayland versions whose enter path does
+not apply viewport scaling. Engaged pointer locks keep their relative input.
+
 **Mouse look.** A game that hides the cursor and grabs the pointer has Xwayland
 ask the compositor to lock it, and Xwayland asks only for the window that holds
 the seat's pointer focus, which is the presented one because the filter focuses

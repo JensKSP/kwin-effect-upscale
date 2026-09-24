@@ -2926,3 +2926,68 @@ the affected Wayland integration and two display suites pass again (3/3).
 These maintenance corrections do not change the accepted X11 startup path.
 
 Both Neon compilers also rebuild the final maintenance corrections successfully.
+
+The accepted checkpoint is f59f04a, pushed to PR #21. The next investigation
+adds a generic emulated-mode client above another X11 window and checks motion
+and click delivery outside the smaller drawable on both outputs. A correction
+must retain Xwayland's coordinate mapping, respect intentional input shapes
+and windows above the game, and release its intervention with the request.
+The initial test is run against the unchanged checkpoint input implementation.
+
+The new generic client reproduces the missing lower-right motion on both
+virtual outputs before the correction. It selects an emulated mode and sets
+an explicit rectangular X11 input shape. Source inspection finds that Xwayland
+24.1.6 forwards the shape without its viewport scale, although it scales
+absolute and relative motion. Its initial pointer-enter path also lacks that
+scale; a real subsequent motion is needed before judging coordinates.
+
+The candidate extends existing focus/click handling only when the committed
+surface fills the frame, its buffer matches the request, and its input region
+is precisely the full smaller drawable rectangle. Xwayland keeps a unit
+compositor transform, so its own coordinate scaling is not duplicated. A
+motion suppressed by KWin immediately after pointer entry is forwarded with
+the real surface position; engaged pointer locks are excluded. Withdrawing
+coverage restores the surface KWin actually focuses, rather than leaving the
+seat unfocused over that underlying window. Tests pass on both outputs for
+correct motion, click ownership, and withdrawal after an intentional inset
+input shape. Existing startup/lock regressions and native STK/ETR acceptance
+are pending for this correction. The accepted startup checkpoint remains
+f59f04a on the PR.
+
+The input correction passes focused static analysis, both Trixie effect builds,
+and both Neon effect builds with warnings as errors. The X11 regression sessions
+pass 25 startup/input cases and 10 prepared-window cases, including mouse lock
+and focus behavior (72.12 s total). The first static-analysis attempt overlapped
+a comment edit and read a partial header; an unchanged-source rerun passes.
+This is focused validation for a hardware trial, not the full finishing matrix
+for the uncommitted input correction. No ETR or STK process is running; the
+wzpc desktop currently reports locked. Native build/install is next.
+
+The native trial is installed and loaded as build 2026-09-24T08:49:09Z under
+upscale_reload_1c778ac64e9f408380f18dc79075c5c3. Its installed hash matches the
+native build; the accepted ETR binary is preserved as
+build/etr-startup-trace/before-input-upscale.so. No game settings changed. Jens
+has been asked to return to the unlocked desktop for the STK edge-click trial.
+Later review cleanup of export and pointer logging is not in this runtime yet.
+
+Jens tested this native candidate at the unlocked desktop. STK's bottom-right
+Quit button now works, confirming click delivery in the formerly excluded area.
+The subsequent ETR run also passes: menus and pointer are correct immediately,
+and the race view is complete. These are X11 hardware checks of the generic
+input-region gate; STK Wayland and the remaining game matrix still need their
+final-candidate checks.
+
+Both full Trixie compiler runs pass all 26 CTest suites after the export and
+logging corrections. Both pre-commit stages and targeted static analysis pass.
+CI on f59f04a reports a static eligibility query still called through the display
+instance; the call now names UpscaleDisplay directly. Final rebuilds include
+that correction and declare the Shape extension used by the X11 test client
+as a test-only build dependency.
+
+The refreshed maintained images build the final source with GCC and Clang on
+both Trixie and Neon. Both pre-commit stages pass after removing a duplicate
+test-driver source entry and completing the dependency's distribution mappings.
+Seven affected Trixie suites pass again, including both X11 sessions, application
+storage and display checks. Static analysis of the corrected display caller and
+plugin metadata validation pass. This is the checkpoint Jens requests before
+testing L4D2 and Wreckfest; those hardware results are still pending.

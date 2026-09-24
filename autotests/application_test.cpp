@@ -26,6 +26,7 @@ using namespace KWin;
 // a shipped defect, not a test problem.
 int runLegacySettingsTest(int argc, char *argv[]);
 int runMatchingTest(int argc, char *argv[]);
+int runApplicationExportTest(int argc, char *argv[]);
 
 static QString userDirectory()
 {
@@ -546,7 +547,7 @@ int main(int argc, char *argv[])
     // The cases about what a previous release stored live in their own file,
     // beside the code that reads it, and run in the same environment. Both go
     // together once no installation can carry the old keys.
-    return result | runLegacySettingsTest(argc, argv) | runMatchingTest(argc, argv);
+    return result | runLegacySettingsTest(argc, argv) | runMatchingTest(argc, argv) | runApplicationExportTest(argc, argv);
 }
 
 #include "application_test.moc"

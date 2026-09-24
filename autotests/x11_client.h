@@ -23,6 +23,7 @@ public:
     QRect geometry() const;
     bool isFullscreen() const;
     bool mode(const QSize &size);
+    void inputShape(const QRect &rectangle);
     void fullscreen(bool enabled);
     void resize(const QSize &size);
     /** Where the last pointer motion landed, in the window's own coordinates. */

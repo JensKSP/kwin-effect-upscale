@@ -25,6 +25,8 @@ private Q_SLOTS:
     void lifecycle_data();
     void lifecycle();
     void presentsWithoutEmulation();
+    void keepsEmulatedPointerCoverage_data();
+    void keepsEmulatedPointerCoverage();
     void expiresDepartedClientRefusal();
     void refusesUnavailableMode();
     void respectsPrimaryOutputRestriction();

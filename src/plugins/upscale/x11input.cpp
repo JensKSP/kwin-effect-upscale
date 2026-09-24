@@ -12,6 +12,7 @@
 #include "effect/effecthandler.h"
 #include "input_event.h"
 #include "pointer_input.h"
+#include "wayland/pointer.h"
 #include "wayland/pointerconstraints_v1.h"
 #include "wayland/seat.h"
 #include "wayland/surface.h"
@@ -46,7 +47,7 @@ UpscaleX11Input::~UpscaleX11Input()
 
 // Undoes what this filter did to the seat. Where KWin's own hit test focuses
 // the window, KWin's transformation goes back; where only this filter had
-// focused it, the focus is withdrawn.
+// focused it, restore the surface KWin currently finds, or withdraw focus.
 void UpscaleX11Input::withdraw(SeatInterface *seat)
 {
     if (m_surface) {
@@ -56,6 +57,8 @@ void UpscaleX11Input::withdraw(SeatInterface *seat)
         Window *window = input()->pointer()->focus();
         if (window && window->surface() == m_surface) {
             seat->setFocusedPointerSurfaceTransformation(window->inputTransformation());
+        } else if (window && window->surface()) {
+            seat->notifyPointerEnter(window->surface(), input()->pointer()->pos(), window->inputTransformation());
         } else {
             seat->notifyPointerLeave();
         }
@@ -97,6 +100,21 @@ static void engageLock(const UpscalePresentedPointer &presented, const QPointF &
     input()->pointer()->warp(presented.client.center());
 }
 
+static void confirmEmulatedPosition(SeatInterface *seat, const UpscalePresentedPointer &presented,
+                                    const QPointF &position, const QMatrix4x4 &transformation)
+{
+    if (presented.scale == QPointF(1, 1) && seat->pointer() && seat->pointerPos() == position) {
+        // Xwayland 24.1.6 scales motion but not its initial enter. KWin
+        // suppresses motion at the position just entered, even when KWin
+        // itself set that focus. Deliver the real position before a click
+        // can follow; Xwayland maps it exactly once. Respect pointer lock.
+        LockedPointerV1Interface *lock = presented.surface->lockedPointer();
+        if (!lock || !lock->isLocked()) {
+            seat->pointer()->sendMotion(transformation.map(position));
+        }
+    }
+}
+
 QPointF UpscaleX11Input::apply(const QPointF &position)
 {
     SeatInterface *seat = waylandServer() ? waylandServer()->seat() : nullptr;
@@ -129,17 +147,33 @@ QPointF UpscaleX11Input::apply(const QPointF &position)
         // stale from an earlier size of the surface.
         seat->setFocusedPointerSurfaceTransformation(transformation);
     }
-    qCDebug(KWIN_UPSCALE) << "Pointer mapping: window" << presented.window->internalId() << "position" << position
-                          << "origin" << presented.origin << "scale" << presented.scale << "client area" << presented.client;
+    confirmEmulatedPosition(seat, presented, position, transformation);
+    recordMapping(presented, position, transformation);
     m_surface = presented.surface;
     // Whose pointer this is now, when it is not the window KWin found: the
     // events for it are this filter's to deliver, or the filters between here
     // and KWin's forwarding would act on the window underneath.
-    m_claimed = input()->pointer()->focus() == presented.window ? nullptr : presented.window;
+    Window *claimed = input()->pointer()->focus() == presented.window ? nullptr : presented.window;
+    if (claimed && m_claimed != claimed) {
+        qCInfo(KWIN_UPSCALE) << "Pointer coverage claimed: window" << claimed->internalId()
+                             << "position" << position << "client area" << presented.client << "scale" << presented.scale;
+    }
+    m_claimed = claimed;
     if (m_claimed) {
         engageLock(presented, position);
     }
     return presented.scale;
+}
+
+void UpscaleX11Input::recordMapping(const UpscalePresentedPointer &presented, const QPointF &position, const QMatrix4x4 &transformation)
+{
+    if (m_surface == presented.surface && m_transformation == transformation && m_client == presented.client) {
+        return;
+    }
+    qCDebug(KWIN_UPSCALE) << "Pointer mapping: window" << presented.window->internalId() << "position" << position
+                          << "origin" << presented.origin << "scale" << presented.scale << "client area" << presented.client;
+    m_transformation = transformation;
+    m_client = presented.client;
 }
 
 void UpscaleX11Input::refresh()

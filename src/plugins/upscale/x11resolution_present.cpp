@@ -20,11 +20,13 @@
 #include "main.h"
 #include "scene/surfaceitem.h"
 #include "scene/windowitem.h"
+#include "wayland/surface.h"
 #include "x11window.h"
 
 #include <QLoggingCategory>
 
 #include <cmath>
+#include <type_traits>
 
 Q_DECLARE_LOGGING_CATEGORY(KWIN_UPSCALE)
 #endif
@@ -50,6 +52,42 @@ static bool fillsFrame(X11Window *window, SurfaceItem *surface)
     const QSizeF destination = surface->destinationSize();
     return !frame.isEmpty() && std::abs((destination.width() / frame.width()) - 1) < 1e-6
         && std::abs((destination.height() / frame.height()) - 1) < 1e-6;
+}
+
+template<typename Region>
+static bool isBufferRectangle(const Region &input, const QRectF &buffer)
+{
+    if constexpr (std::is_same_v<Region, QRegion>) {
+        return input == QRegion(buffer.toAlignedRect());
+    } else {
+        return input == Region(buffer);
+    }
+}
+
+// Xwayland's viewport scales coordinates, but an explicit X11 input shape
+// can remain at the drawable's size. Repair coverage only for that complete
+// rectangle: empty, inset or nonrectangular shapes may be intentional. This
+// reads committed state only; pointer events must not make X11 round trips.
+static bool emulatedInputCoverage(const UpscaleX11Resolution::Request &request, UpscalePresentedPointer *presented)
+{
+    X11Window *window = request.window;
+    SurfaceItem *item = surfaceItem(window);
+    SurfaceInterface *surface = window->surface();
+    const QSizeF frame = window->frameGeometry().size();
+    if (request.presentedByEffect || !item || !surface || item->bufferSize() != request.size
+        || surface->size() != frame || !fillsFrame(window, item)) {
+        return false;
+    }
+    const QRectF buffer(QPointF(), QSizeF(request.size) / kwinApp()->xwaylandScale());
+    if (buffer.width() >= frame.width() || buffer.height() >= frame.height()
+        || !isBufferRectangle(surface->input(), buffer)) {
+        return false;
+    }
+    presented->origin = window->bufferGeometry().topLeft();
+    presented->client = buffer.translated(presented->origin);
+    // Xwayland already maps absolute and relative motion into the drawable.
+    // Only focus and click ownership need help; leave their scale at one.
+    return true;
 }
 
 // How much larger than the client's window the frame is, in the pixels both
@@ -150,7 +188,7 @@ UpscalePresentedPointer UpscaleX11Resolution::presentedUnder(const QPointF &posi
         }
         UpscalePresentedPointer presented;
         presented.scale = presentationScale(request.value(), &presented.origin, &presented.client);
-        if (presented.scale != QPointF(1, 1)) {
+        if (presented.scale != QPointF(1, 1) || emulatedInputCoverage(request.value(), &presented)) {
             presented.window = window;
             presented.surface = window->surface();
             return presented;

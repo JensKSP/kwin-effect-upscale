@@ -63,6 +63,7 @@ target_link_libraries(
     PRIVATE Qt6::Test Qt6::Gui Qt6::DBus KF6::ConfigCore PkgConfig::WAYLAND_CLIENT
 )
 if(KWin_VERSION VERSION_LESS 6.7)
+    find_package(XCB REQUIRED COMPONENTS SHAPE)
     set(driver_sources
         effect_driver.cpp
         ../src/plugins/upscale/application.cpp
@@ -72,7 +73,6 @@ if(KWin_VERSION VERSION_LESS 6.7)
         ../src/plugins/upscale/legacysettings.cpp
         ../src/plugins/upscale/display.cpp
         ../src/plugins/upscale/diagnostics.cpp
-        ../src/plugins/upscale/framestatistics.cpp
         ../src/plugins/upscale/framestatistics.cpp
         ../src/plugins/upscale/display.h
         ../src/plugins/upscale/eligibility.cpp
@@ -142,12 +142,12 @@ if(KWin_VERSION VERSION_LESS 6.7)
         if(session STREQUAL "integration")
             target_sources(
                 upscale_x11_${session}_test
-                PRIVATE x11_integration_test.h x11_startup_test.cpp
+                PRIVATE x11_integration_test.h x11_startup_test.cpp x11_input_test.cpp
             )
         endif()
         target_link_libraries(
             upscale_x11_${session}_test
-            PRIVATE Qt6::Test Qt6::DBus KF6::ConfigCore XCB::XCB XCB::RANDR
+            PRIVATE Qt6::Test Qt6::DBus KF6::ConfigCore XCB::XCB XCB::RANDR XCB::SHAPE
         )
         add_test(
             NAME upscale-x11-${session}
@@ -236,6 +236,7 @@ kconfig_add_kcfg_files(application_test_sources ../src/plugins/upscale/upscaleco
 add_executable(
     upscale_application_test
     application_test.cpp
+    application_export_test.cpp
     legacysettings_test.cpp
     matching_test.cpp
     ../src/plugins/upscale/application.cpp

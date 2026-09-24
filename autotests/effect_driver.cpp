@@ -173,6 +173,7 @@ class UpscaleTestDriver : public Effect
     // game: "engaged", "asked" while the client has one KWin has not taken, or
     // "none".
     Q_PROPERTY(QString pointerLock READ pointerLock)
+    Q_PROPERTY(QString inputRegion READ inputRegion)
 
 public:
     UpscaleTestDriver()
@@ -299,6 +300,13 @@ public:
     QString question() const
     {
         return m_effect->question();
+    }
+
+    QString inputRegion() const
+    {
+        EffectWindow *window = effects->activeWindow();
+        SurfaceInterface *surface = window ? window->window()->surface() : nullptr;
+        return surface ? QDebug::toString(surface->input()) : QStringLiteral("none");
     }
 
     QString pointerLock() const

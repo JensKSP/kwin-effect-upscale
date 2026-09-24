@@ -15,6 +15,7 @@
 #include <cstdlib>
 #include <memory>
 #include <xcb/randr.h>
+#include <xcb/shape.h>
 
 template<typename T>
 using Reply = std::unique_ptr<T, decltype(&std::free)>;
@@ -296,6 +297,14 @@ bool X11Client::mode(const QSize &size)
         }
     }
     return false;
+}
+
+void X11Client::inputShape(const QRect &rectangle)
+{
+    const xcb_rectangle_t shape{int16_t(rectangle.x()), int16_t(rectangle.y()), uint16_t(rectangle.width()), uint16_t(rectangle.height())};
+    xcb_shape_rectangles(m_connection, XCB_SHAPE_SO_SET, XCB_SHAPE_SK_INPUT, XCB_CLIP_ORDERING_UNSORTED,
+                         m_window, 0, 0, 1, &shape);
+    paint(m_size);
 }
 
 void X11Client::paint(const QSize &size)

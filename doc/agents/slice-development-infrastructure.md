@@ -1194,3 +1194,13 @@ complexity checks. Both GCC and Clang compile the effect target on Trixie and
 Neon with this adaptation, and focused Clang static analysis passes. The native
 05:58:31Z human-test candidate is retained unchanged while acceptance is awaited;
 these compatibility edits are in the source tree, not that loaded binary.
+
+PR #21 review requests limiting the pointer debug record to mapping changes.
+The filter now records a changed surface, coordinate transform or client
+rectangle, retaining the triggering position without repeating the full record
+for every mouse event. Coverage claims and withdrawal retain their separate
+transition records. Both full Trixie compiler/test runs, both pre-commit stages
+and targeted static analysis pass with this correction. CI on the earlier
+checkpoint found the display's static eligibility query accessed through an
+instance; its caller now uses the class name. Targeted static analysis, both
+compilers on Trixie and Neon, and the affected display suites pass.

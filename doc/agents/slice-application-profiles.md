@@ -1686,3 +1686,18 @@ Planned checks, not observed results:
 - [ ] Add the application form with the GitHub workflow slice.
 - [ ] Extend the catalogue tests to the acceptance rule.
 - [ ] Walk the route once end to end and record what it produced here.
+
+### Standalone exports retain measured methods, 2026-09-24
+
+Review of PR #21 finds that standalone export retains the package-measurement
+array while writing into a file with no defaults. The sparse writer then omits
+stated methods equal to those measurements. A round-trip regression will export
+all shipped entries and compare their method slots after reimport. Export must
+clear only the measurement baseline in its copy so the standalone file preserves
+stated methods; normal layered saves must keep their existing behavior. This is
+inside the existing profile-storage supported scope; broader editor/hardware
+acceptance remains unchanged. Verification is pending.
+
+The shipped-catalogue round-trip fails on SuperTuxKart before the correction
+and passes after clearing the export copy's measurement baseline. The focused
+application suite passes in Trixie. Ordinary layered saves are unchanged.

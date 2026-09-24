@@ -56,7 +56,7 @@ void UpscaleEffect::paintDisplay(const RenderTarget &target, const RenderViewpor
     UpscaleRefusal refusal = UpscaleRefusal::None;
     const bool selected = candidate(&refusal, screen) == window;
     m_diagnostics.observe(window, settings, selected, selected ? m_passRefusals.value(window, UpscaleRefusal::None) : refusal);
-    if (!m_display.enabled(settings)) {
+    if (!UpscaleDisplay::enabled(settings)) {
         m_display.hide();
         return;
     }

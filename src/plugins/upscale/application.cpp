@@ -397,6 +397,7 @@ bool upscaleWriteApplicationFile(const std::vector<UpscaleApplication> &applicat
         // it, or a different one. A shipped entry's description travels too.
         UpscaleApplication complete = application;
         complete.shipped = false;
+        complete.measured = {};
         KConfigGroup group(&file, applicationGroupPrefix + application.id);
         writeApplication(group, complete, UpscaleApplication{});
     }
