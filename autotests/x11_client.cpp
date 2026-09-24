@@ -5,6 +5,8 @@
 */
 
 #include "x11_client.h"
+#include <QElapsedTimer>
+#include <QThread>
 
 #include <QCoreApplication>
 #include <QSocketNotifier>
@@ -303,6 +305,11 @@ void X11Client::paint(const QSize &size)
     xcb_flush(m_connection);
 }
 
+QList<QSize> X11Client::configuredSizes() const
+{
+    return m_configuredSizes;
+}
+
 void X11Client::dispatch()
 {
     while (xcb_generic_event_t *event = xcb_poll_for_event(m_connection)) {
@@ -311,6 +318,7 @@ void X11Client::dispatch()
             const auto configure = reinterpret_cast<xcb_configure_notify_event_t *>(event);
             const QSize size(configure->width, configure->height);
             ++m_configureNotifies;
+            m_configuredSizes.append(size);
             if (size != m_size) {
                 m_size = size;
                 // Commit the resized buffer first, before anything that can
@@ -371,4 +379,23 @@ void X11Client::dispatch()
             }
         }
     }
+}
+
+// Model a toolkit waiting for visibility, then reading its initial geometry
+// synchronously before entering the application's event loop.
+bool X11Client::waitForMapping()
+{
+    QElapsedTimer elapsed;
+    elapsed.start();
+    while (elapsed.elapsed() < 10000) {
+        while (xcb_generic_event_t *event = xcb_poll_for_event(m_connection)) {
+            const bool mapped = (event->response_type & ~0x80) == XCB_MAP_NOTIFY;
+            std::free(event);
+            if (mapped) {
+                return true;
+            }
+        }
+        QThread::msleep(1);
+    }
+    return false;
 }

@@ -170,6 +170,7 @@ void ApplicationTest::matchesObservedIdentities()
     QCOMPARE(racer->methods[std::size_t(KWin::UpscalePresentation::X11FullScreen)], std::optional(KWin::UpscaleMethod::X11Resize));
     QVERIFY(!racer->overrides[std::size_t(KWin::UpscaleSetting::Resolution)]);
     QVERIFY(racer->x11PrimaryOutputOnly);
+    QVERIFY(racer->x11RequiresEmulatedMode);
 }
 
 // The two benchmarks are driven through the screen scale rather than the

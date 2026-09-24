@@ -139,7 +139,13 @@ void WineScreenHelperTest::resetsItsDesktop()
     }
     finished.clear();
     auto server = startServer();
+    const std::unique_ptr<QProcess> running = startGame();
     QVERIFY(m_helper->reset(id));
+    // A still-open window keeps reporting its preference. Explicit Reset
+    // must not turn back into automatic preparation because of that report.
+    QCOMPARE(m_helper->present(running->processId(), s_class, s_screens), s_size);
+    running->kill();
+    running->waitForFinished();
     QTest::qWait(100);
     QCOMPARE(finished.size(), 0);
     QCOMPARE(screen(), s_size);
@@ -173,13 +179,17 @@ void WineScreenHelperTest::remembersNever()
 void WineScreenHelperTest::writesALostDesktopAgain_data()
 {
     QTest::addColumn<bool>("presentFirst");
-    QTest::newRow("after-presentation") << true;
-    QTest::newRow("offer-only") << false;
+    QTest::addColumn<QSize>("nextSize");
+    QTest::newRow("after-presentation") << true << s_size;
+    QTest::newRow("offer-only") << false << s_size;
+    QTest::newRow("off-after-repair-queued") << false << QSize();
+    QTest::newRow("new-size-after-repair-queued") << false << QSize(1920, 1080);
 }
 
 void WineScreenHelperTest::writesALostDesktopAgain()
 {
     QFETCH(bool, presentFirst);
+    QFETCH(QSize, nextSize);
     QSignalSpy finished(&*m_helper, &WineScreenHelper::jobFinished);
     {
         auto server = startServer();
@@ -200,13 +210,16 @@ void WineScreenHelperTest::writesALostDesktopAgain()
         }
         QCOMPARE(m_helper->offer(desktop->processId(), s_class, QStringLiteral("Wreckfest"), s_screens).offer, QString());
         QVERIFY(!m_records->find(id)->never);
-        QCOMPARE(m_helper->present(desktop->processId(), s_class, s_screens), QSize());
+        const QList<WineScreen> wanted = nextSize.isEmpty() ? QList<WineScreen>{}
+                                                            : QList<WineScreen>{{.rect = QRect(QPoint(), nextSize), .rate = 60}};
+        QCOMPARE(m_helper->present(desktop->processId(), s_class, wanted), QSize());
         desktop->kill();
         desktop->waitForFinished();
     }
     QTRY_COMPARE(finished.size(), 2);
     QCOMPARE(finished.last().at(1).value<WineWriteResult>(), WineWriteResult::Written);
-    QCOMPARE(screen(), s_size);
+    QCOMPARE(screen(), nextSize.isEmpty() ? std::nullopt : std::optional<QSize>(nextSize));
+    QCOMPARE(m_helper->prepared().isEmpty(), nextSize.isEmpty());
 }
 
 void WineScreenHelperTest::followsANewSize()

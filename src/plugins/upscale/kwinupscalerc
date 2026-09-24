@@ -88,8 +88,9 @@ MeasuredVersion=0.8.4
 Instance=etr
 MethodX11FullScreen=X11Resize
 X11PrimaryOutputOnly=true
+X11RequiresEmulatedMode=true
 Order=20
-Note=Follows X11 resize requests on the primary display. Its SFML mode selection always uses that display, so requests on other displays are refused. Requested sizes must match an available mode.
+Note=Follows X11 resize requests on the primary display. Its SFML mode selection always uses that display, so requests on other displays are refused. Requested sizes must match an available mode. Its selected mode confirms that the game handled the resize; a smaller window alone can leave its rendering at the old resolution.
 
 [Application-left4dead2]
 Name=Left 4 Dead 2

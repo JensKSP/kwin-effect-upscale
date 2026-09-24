@@ -145,6 +145,19 @@ public:
 private:
     using QObject::event;
 #if KWIN_BUILD_X11
+    struct PendingMap
+    {
+        xcb_generic_event_t event;
+        QList<xcb_generic_event_t> messages;
+        int token;
+    };
+    QHash<xcb_window_t, PendingMap> m_pendingMaps;
+    int m_nextMap = 0;
+    bool m_replayingEvents = false;
+    bool startupEvent(xcb_generic_event_t *generic);
+    bool holdMap(xcb_generic_event_t *generic);
+    void mapPending(xcb_window_t identifier, bool fullscreen = false);
+    void flushMaps();
     struct Attempt
     {
         QPointer<X11Window> window;
@@ -166,8 +179,8 @@ private:
     void apply(X11Window *window);
     void ask(X11Window *window, const Request &request);
     void present(X11Window *window);
-    Request requestFor(X11Window *window) const;
-    static QString keyFor(const Window *window);
+    Request requestFor(X11Window *window, bool enteringFullscreen = false) const;
+    static QString keyFor(const Window *window, bool enteringFullscreen = false);
     bool begin(const Request &request);
     void validate(const QString &key, int generation, int revision);
     static QString unmetCondition(const Request &request);

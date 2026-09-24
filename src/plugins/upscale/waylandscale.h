@@ -111,6 +111,7 @@ private:
     static void apply(Window *window, const Request &request);
     void release(Window *window);
     void observe(Window *window);
+    void checkAnswer(EffectWindow *effectWindow, Request &request);
 
     // Keyed by the window itself. Window::closed removes the entry, so no key
     // here ever outlives what it points at.

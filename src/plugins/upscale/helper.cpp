@@ -16,6 +16,9 @@
 #include <QDBusMessage>
 #include <QDBusMetaType>
 #include <QDBusPendingCallWatcher>
+#include <QLoggingCategory>
+
+Q_DECLARE_LOGGING_CATEGORY(KWIN_UPSCALE)
 
 namespace KWin
 {
@@ -67,10 +70,15 @@ static QVariantList identify(EffectWindow *window)
 
 void UpscaleHelper::call(const QString &method, const QVariantList &arguments, const std::function<void(const QDBusMessage &)> &reply)
 {
+    qCDebug(KWIN_UPSCALE) << "Helper call:" << method << arguments;
     QDBusMessage message = QDBusMessage::createMethodCall(helperService, helperPath, helperInterface, method);
     message.setArguments(arguments);
-    auto watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(message), this);
-    connect(watcher, &QDBusPendingCallWatcher::finished, this, [reply](QDBusPendingCallWatcher *finished) {
+    auto watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(message));
+    // The helper owns an unfinished call; completion schedules earlier cleanup.
+    watcher->setParent(this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this, [method, reply](QDBusPendingCallWatcher *finished) {
+        qCDebug(KWIN_UPSCALE) << "Helper reply:" << method << "error" << finished->isError()
+                              << finished->reply().errorMessage() << finished->reply().arguments();
         finished->deleteLater();
         // No helper installed, or one that failed: nobody answered.
         if (!finished->isError() && reply) {

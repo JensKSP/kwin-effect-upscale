@@ -5,6 +5,7 @@ set(upscale_SOURCES
     application.cpp
     autorequest.cpp
     display.cpp
+    diagnostics.cpp
     eligibility.cpp
     refusaltext.cpp
     framestatistics.cpp
@@ -31,6 +32,7 @@ set(upscale_SOURCES
     x11input.cpp
     x11resolution.cpp
     x11resolution_events.cpp
+    x11resolution_startup.cpp
     x11resolution_prepared.cpp
     x11resolution_present.cpp
     x11resolution_validate.cpp

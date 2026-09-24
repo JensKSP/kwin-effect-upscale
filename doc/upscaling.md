@@ -240,6 +240,14 @@ one is open. Read against Xwayland 24.1.6, the version Trixie ships:
   breaks at step 3, which is why the resize mechanism above matters: it reaches
   the same viewport without needing the property at all.
 
+Profiles can require a client-selected emulated mode as confirmation that a
+resize reached the game's renderer (`X11RequiresEmulatedMode`). Extreme Tux
+Racer needs this because a resize discarded during startup leaves its drawing
+coordinates at the old resolution despite a smaller window. Missing confirmation
+triggers one restore-and-retry, then restoration if it still fails. These
+profiles do not use the effect's presentation fallback; clients such as Left 4
+Dead 2, which never select an emulated mode, can still use that fallback.
+
 So Xwayland is not closed to this effect, but nothing about it is free. The
 resize mechanism depends on the application handling resize, the game-settings
 route depends on the compositor version, and neither reduces what an
@@ -886,8 +894,19 @@ Implemented: the effect builds one snapshot of its current state in a single
 pass, and the settings status text and the on-screen display are both formatted
 from it, so they cannot describe different moments. Values the effect cannot
 observe, such as the destination colour description outside a paint pass, are
-reported as unknown. About, the copy action and the transition logging below
-remain unimplemented.
+reported as unknown. About and the copy action remain unimplemented.
+
+The `kwin_effect_upscale` category logs effective per-game settings and observed
+buffer, surface, presentation, frame and output changes at information level.
+It also records X11 resize negotiation and presentation, Wayland advertisements
+and scale requests, their outcomes and restoration. The companion category
+`kwin.upscale.winescreen` records preparation jobs, reset, writes and restart.
+Repeated identical observations are suppressed. Detailed native configuration,
+pointer mapping and helper calls use debug level; enable them for a diagnostic
+session with `QT_LOGGING_RULES="kwin_effect_upscale.debug=true;kwin.upscale.winescreen.debug=true"`
+in the environment of KWin and the companion. Enabling the OSD does not enable
+this tracing. Logs describe compositor-visible buffers, not an application's
+internal rendering viewport.
 
 Always emit the initialization identity at information level in both Debug
 and release builds with the default logging configuration. Use the effect's
@@ -2212,9 +2231,24 @@ window operations:
    unloads. The demonstrated fullscreen restoration causes the client to
    recreate its normal-resolution window.
 
-Initial negotiation waits for the application's first buffer: a resize during
-window construction can be consumed before the renderer starts. A replacement
-window already carrying the requested emulated mode can be intercepted earlier.
+An incoming fullscreen request starts negotiation immediately, using the
+fullscreen policy even while KWin still considers the window windowed. For an
+eligible application's first X11 window, the effect holds its initial mapping
+for up to 100 ms so an immediately following fullscreen request can arrive.
+It then maps and configures the window in one scoped X server transaction,
+preserving queued EWMH requests such as monitor selection. Client round trips
+cannot finish between visibility and the target configure. This lets toolkits
+that wait for visibility consume the target resize before their first application
+event loop. The effect uses normal launching and changes no game configuration.
+
+The server grab covers only synchronous mapping and configuration, never the
+100 ms wait; other X11 clients can briefly wait during that transaction. A
+window that never requests fullscreen is mapped normally when the wait expires.
+Unloading or reconfiguring releases pending mappings, and destroyed windows are
+forgotten. Borderless clients and windows discovered after entering fullscreen
+still wait for a buffer before negotiation. A fullscreen request arriving after
+the mapping deadline uses the ordinary resize path. Neither path can guarantee
+that every application handles a resize or rebuilds layout it already cached.
 Negotiation allows at most six window replacements per process/profile/output
 attempt and checks the supplied buffer, logical destination and output-specific
 emulation after three seconds. Clients can discard a resize during a loading

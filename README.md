@@ -581,6 +581,44 @@ session that starts `kwin_wayland` has `QT_PLUGIN_PATH` pointing at:
 <prefix>/lib/<multiarch>/qt6/plugins
 ```
 
+### Reload during development
+
+Close the game, install the new build, then run:
+
+```bash
+python3 -B tools/reload-upscale.py
+```
+
+To add **Reload Upscale** to KDE's application menu and desktop:
+
+```bash
+python3 -B tools/reload-upscale.py --install-launcher
+```
+
+Keep this checkout at the same path. KDE may ask you to trust the desktop
+launcher on its first use. Python 3, `qdbus6` (or `qdbus-qt6`), `qtpaths6`,
+`sudo`, and, for the icon, `kdialog` and `pkexec` are required. The installer
+also uses `xdg-user-dir`. For a custom installation, append
+`--plugin /path/to/kwin/effects/plugins/upscale.so` to either command.
+
+The tool reloads the installed binary and displays its running build identity;
+it does not build or install a new version. Administrative authentication may
+be requested to copy and remove a temporary plugin file. KWin and applications
+keep running. The last successful result is in `build/reload-upscale/latest.log`.
+
+This is a development shortcut: Qt can keep an unloaded library in memory, so
+the tool loads a copy under a fresh temporary effect name. The normal settings
+page may therefore report Upscale as unloaded, and its Apply button addresses
+the normal name. After saving settings, use **Reload Upscale** again; do not
+enable another instance alongside the temporary one. Temporary discovery files
+are removed after loading, so the next login uses the normal installed plugin.
+Old libraries can remain in memory until logout. A fresh session is still the
+final check for normal installation and settings-page behavior.
+
+Remove `org.kde.upscale.reload.desktop` from your desktop and
+`~/.local/share/applications/` to uninstall the launcher (use your
+`XDG_DATA_HOME/applications/` directory if customized).
+
 ### Uninstall a source build
 
 ```bash

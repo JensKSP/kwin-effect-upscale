@@ -8,6 +8,7 @@
 
 #include "application.h"
 #include "compatibility.h"
+#include "diagnostics.h"
 #include "display.h"
 #include "eligibility.h"
 #include "settings.h"
@@ -145,6 +146,7 @@ private:
     // never keeps the next frame from being scaled.
     QHash<EffectWindow *, UpscaleRefusal> m_passRefusals;
     UpscaleDisplay m_display;
+    UpscaleDiagnostics m_diagnostics;
     // The build this effect came from. Empty where the generated record is not
     // part of the build, as in a copy of this folder inside KWin.
     QString m_build;

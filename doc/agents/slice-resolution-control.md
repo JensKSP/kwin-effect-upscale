@@ -7,6 +7,12 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 ## Current status and scope decision
 
+Jens reaffirmed on 2026-09-24 that the solution must work with normal launching
+entirely through the effect, without game-specific preparation or configuration
+edits. The active investigation traces ETR/SFML/Xwayland startup to establish
+whether earlier negotiation or a protocol readiness signal can satisfy this.
+Launch wrappers and private displays are not an acceptable implementation.
+
 The selected route is cooperative control entirely from the plugin. The owner’s
 2026-09-19 requirements exclude launch helpers, relaunching and changes to shared
 output information, even where earlier prototypes worked. Those dated experiments
@@ -2523,3 +2529,400 @@ The same fix carried onto the settings redesign is verified separately.
 **Not verifiable here: the hosted runner itself.** The next nightly or package
 run on `resolute` is what confirms it; a failure there now prints the geometry
 trace and the effect's status instead of a misleading bound.
+
+### wzpc regression investigation, 2026-09-23
+
+With candidate `94a6804`, Jens reports ETR's pointer confined to the upper
+left, a racing image missing its right and bottom, then native 3840 × 2160.
+The journal records repeated window replacement exhausting the request
+limit at 21:54:50. That explains the final refusal, but does not establish
+the cause of the clipping or confinement. ETR was initially tested with the
+explicit smaller-X11-buffer method; Auto takes the same X11 resize path.
+SuperTuxKart works in X11 mode according to Jens; this is not a Wayland
+acceptance result. The previously documented real ETR run used its default
+game configuration, and the nested tests do not establish physical-pointer
+acceptance. Compare the working history and reproduce the transitions
+before changing negotiation or input mapping. No geometry fix is yet
+validated.
+
+Jens subsequently tested SuperTuxKart launched with `IRR_DEVICE_TYPE=wayland`
+on the wzpc session. The effect reported `windowsystem=wayland`, a 2560 × 1440
+supplied buffer, 3840 × 2160 destination and active FSR. Jens confirmed the
+test was fine. Both X11 and native Wayland STK runs now have his acceptance
+for this candidate; ETR remains open.
+
+An exploratory transition probe asked an already effect-presented X11 client
+to establish its emulated mode later. Both the existing code and an attempted
+handover change retained effect presentation. The probe did not establish
+that Xwayland had committed a viewport, so this is not evidence of double
+scaling. The attempted change and exploratory assertion were withdrawn from
+the diagnostic build. Double input mapping remains a hypothesis to check
+against actual emulation and surface-size transitions.
+
+The first isolated ETR runs on the PR candidate and pre-PR `94d93e0` used
+incorrectly escaped configuration text. Their smaller-buffer observations do
+not establish behaviour with the intended settings and are not a valid
+regression comparison. The attempted GLX swap hook did not capture the game's
+viewport either. A virtual-backend `--scale 3` run enlarged its output pixels
+without reproducing wzpc's logical desktop scale; do not call it a 300% test.
+
+With corrected disposable configuration, actual ETR 0.8.4 reproduces the
+replacement loop on the current candidate in Trixie's isolated KWin. Logging
+X11 events read by SFML shows every smaller replacement receiving a native
+3840 × 2160 configure, until six replacements exhaust the limit. The existing
+fullscreen filter resolves eligibility from the window's state before KWin
+processes the fullscreen request. A small replacement is still windowed then,
+so it misses the filter which prevents precisely that native configure.
+
+A new integration regression records all ConfigureNotify sizes rather than
+checking only the final geometry. Before the fix it fails with 1920 × 1080,
+1920 × 1080, 3840 × 2160, 1920 × 1080. Resolving the incoming fullscreen
+request against fullscreen settings makes that focused regression pass
+(3 QtTest cases including setup/cleanup). The full Trixie GCC X11 suite then
+passes all 16 QtTest cases. Actual ETR now settles after one replacement at
+2560 × 1440, presented by Xwayland; its direct glViewport call also reports
+2560 × 1440. The smaller replacement receives no intervening native configure.
+This does not yet establish the cause of the hardware cropping or restricted
+pointer. No new coordinate transform has been added. Jens clarified that the
+pointer defect may have existed undetected; there is no earlier positive ETR
+pointer result establishing it as a regression.
+
+The fix is included in the native Release build timestamped
+2026-09-23T20:43:57Z, built with warnings as errors and installed through CMake.
+The installed effect is byte-identical to the build output. At installation,
+`org.kde.KWin` had no bus owner, so it awaits the next login. Hardware pointer
+and race-image checks are requested. This is a developer try-build; finishing
+checks, commit and push remain outstanding. PR #21 is still open and draft at
+`94a6804`, with all hosted checks successful and CodeRabbit approval pending
+(changes requested); the queued-maintenance review fix remains local.
+
+A subsequent wzpc run confirmed the fullscreen-loop fix did not repair the
+restricted pointer or race cropping. A temporary ETR-only preload records its
+X11 ConfigureNotify and sampled MotionNotify events, glViewport/glOrtho calls,
+and the viewport at glClear. The window receives 2560 × 1440, mouse events
+reach 2559,1439, but ETR passes 3840 × 2160 to glOrtho and glViewport when the
+race starts. This directly establishes stale internal rendering size despite
+the smaller drawable. The trace does not alter event or rendering arguments.
+
+Source inspection shows ETR 0.8.4 discards events while a state change is
+pending, including the resize which would recreate its SFML window and update
+Winsys.resolution. SFML suppresses subsequent same-size ConfigureNotify events.
+A later reconfigure attempt happened after Jens had closed the traced game,
+so it is not a recovery result. SFML grabs the fullscreen cursor; Xwayland uses
+a pointer lock when that cursor is hidden. No compositor confinement adjustment
+is justified by these observations.
+
+Require ETR's expected emulated mode as confirmation of a handled resize,
+using a measured profile property rather than requiring it from clients such
+as L4D2 which never select a mode. Such profiles must not enter the effect's
+presentation fallback. Missing confirmation uses the existing bounded
+restore-and-retry path; rejection restores normal geometry if it still fails.
+Strengthen the dropped-resize regression to check the mode was actually
+established, and retain the no-emulation presentation/input regression.
+
+The mode-confirmation fix is implemented as `X11RequiresEmulatedMode`, true
+only for ETR's shipped profile. The strengthened dropped-resize test failed
+before the implementation and now passes: logging confirms the missing mode,
+one restore/retry, and acceptance with Xwayland presentation. The focused
+no-emulation and fullscreen-entry cases pass as well (5 QtTest cases including
+setup/cleanup); the application/profile test passes. File-size checks and
+`git diff --check` pass. Native Release with warnings as errors built and was
+installed, timestamp 2026-09-23T20:52:21Z. The installed effect and system
+catalogue match their source/build counterparts byte-for-byte.
+
+Plasma had stopped before the attempted unload (no `org.kde.KWin` bus owner),
+so the candidate is installed but cannot yet be confirmed loaded. Launching
+ETR with the trace again awaits the next login. The first trace is preserved
+under build/pr21-etr-wzpc-render-trace.log; use a new file for the next run.
+Physical pointer/race-image acceptance, full finishing checks, commit and push
+are still outstanding. No extra pointer transform or confinement change was
+made. The temporary preload is not installed and affects only explicitly
+launched diagnostic ETR processes.
+
+After an accidental reboot Jens logged in and started ETR normally. The live
+build identity confirms 20:52:21Z. The journal at 22:55:40 records missing-mode
+validation and one restore/retry; at 22:55:41 ETR replaces its window with a
+confirmed 2560 × 1440 emulated mode. The committed surface now covers the
+1280 × 720 logical frame on the 4K output, and FSR is active with Xwayland
+presentation. Physical pointer and race-image confirmation has been requested;
+these successful negotiation observations alone do not close that acceptance.
+
+Jens confirmed pointer and race recovery after advancing past the first menu,
+but reported that first menu enlarged/cropped after switching and its pointer
+still limited. Captured the broken registration screen: the background fits,
+while cached player/character controls extend off the right/bottom. ETR builds
+those controls in CRegist::Enter; its resize handler recreates the window but
+does not rebuild them. Enter advances to a newly laid-out menu. This is only
+partial hardware acceptance, not a clean startup result.
+
+On Jens's suggestion, investigate requesting the target size on the initial
+fullscreen request, before the first rendered buffer and before menu layout.
+Limit the experiment to clients whose profiles require emulated-mode
+confirmation; generic clients retain the existing first-buffer negotiation.
+The change is experimental until isolated and hardware tests establish that
+the early resize is handled and does not race startup mode changes.
+
+The first-fullscreen prototype passed six focused QtTest cases, including a
+new case receiving no native intermediate configure. Actual ETR nevertheless
+missed the first resize and required the same three-second recovery. A second
+isolated run traced SFML WindowBase::pollEvent and confirmed delivery of the
+2560 × 1440 resize before the retry; ETR did not establish that mode until the
+retry. Its pending-state guard discards those events. The early-request change
+and its exploratory test/header split were removed; the installed build was
+not changed. The tested fullscreen replacement and mode-confirmation fixes
+remain in the working tree.
+
+Saved screenshots of the broken registration menu and the recovered main
+menu after Jens pressed Enter. Both report 2560 × 1440 input and 4K output,
+with Xwayland presentation. Cached controls, not only the image as a whole,
+are misplaced; the current menu needs relayout in ETR. A repaint alone cannot
+rebuild controls created by CRegist::Enter. An ETR-side fix would process resize
+events even during pending state changes and notify the current screen to
+rebuild layout while retaining selections. That is outside this plugin's
+current implementation; full clean-start ETR acceptance remains open.
+
+Jens requested comparison with the previously working implementation before
+considering any ETR change. No ETR source was changed. On 2026-09-24 remote
+master was verified as `94d93e0`; its archived sources under build match every
+tracked file from that commit. A native Release build with warnings as errors
+completed. Its effect binary was installed temporarily after saving the
+previous installed candidate under build/pr21-master-live-backup. KWin's
+runtime identity still reports the candidate dated 2026-09-23T20:52:21Z after
+unload/reload, so master is on disk but is not yet verified running. A fresh
+login is requested before the hardware comparison; restore the saved candidate
+afterwards. No personal game or upscaler settings were changed for this swap.
+
+The isolated Trixie comparison uses the same ETR fullscreen 1024 × 768 startup
+configuration, a 2560 × 1440 request, and delayed Enter input. Master repeatedly
+replaces windows, exhausts the replacement limit and returns to 3840 × 2160.
+Archived `96e036c` (PR #14) and `db0009a` (immediately before PR #20) both finish
+with a 2560 × 1440 buffer presented across 3840 × 2160. The latter uses the
+effect's presentation fallback, which does not establish that ETR handled its
+resize. The older configuration schema uses Method and Preset=3 for this
+target, whereas master uses MethodX11FullScreen and Resolution=2. An initial
+PR #14 probe incorrectly used Preset=2 and requested an unavailable
+2954 × 1662 mode; that run is excluded from the comparison.
+
+These are private virtual QPainter sessions, not wzpc's physical 300% desktop.
+The captured traces establish configure and SFML resize events, but contain
+no GL viewport records in these runs, so they do not establish correct game
+layout or pointer behavior. Source comparison locates the fullscreen-entry
+classification change in PR #20 (`94d93e0`): keyFor rejects the still-windowed
+replacement before KWin processes its fullscreen request. The existing local
+fullscreen-entry fix addresses this path. This identifies a regression path
+already present on master, not the complete cause of the remaining first-menu
+cropping. Physical master comparison and clean-start acceptance remain open.
+
+The development reload shortcut subsequently loaded the verified master
+binary without ending the session; runtime build time is 04:35:20Z. An initial
+ETR launch occurred with the display off, a locked session and only a 1080p
+mode, and exited without a testable window. Exclude it. After Jens restored the
+display, KScreen reports 3840 × 2160 at 120 Hz and 300% scale, unlocked. Relaunched
+ETR with the same configuration and temporary trace. Master reports a
+2560 × 1440 buffer, effect presentation and FSR; the game trace records
+glOrtho/glViewport at 3840 × 2160. The screenshot catches a cropped race.
+This reproduces the rendering-size mismatch on master itself, whereas the
+isolated run exhausted replacement attempts. Preserve both outcomes rather
+than treating startup ordering as deterministic.
+
+Build the archived PR #14 revision natively for the next comparison, before
+the effect-presentation fallback and settings rewrite. It builds in Release
+with warnings as errors against wzpc's KWin. Its older catalogue schema needs
+Method/Preset defaults, with the same 2560 × 1440 target. Preserve current
+catalogue/preferences and wait for ETR to close before switching; physical
+PR #14 acceptance is not yet observed.
+
+Jens confirmed master has correct-looking menus from startup but restricted
+pointer movement and race cropping, and noted these may have been missed in
+earlier acceptance. He requested syscall/X11 tracing and a solution entirely
+inside the effect, with normal launching and no game-specific preparation.
+
+Downloaded the matching Xwayland 24.1.6 sources, SFML 2.6.2 display-query code,
+and Debian's exact ETR 0.8.4-1 packaging (no Debian source patches). The running
+KWin reports 6.3.6; use this measured version for this comparison rather than
+the 6.6 observations from earlier sessions. A scoped native startup run using
+strace and an unpacked xtrace records ETR's initial RandR GetScreenInfo reply
+as 3840 × 2160 before its main CreateWindow, SFML's SetCrtcConfig and confined
+GrabPointer, then native/smaller ConfigureNotify and replacement windows.
+The session had locked during setup; this run establishes protocol order, not
+visual acceptance or uninstrumented timing. The trace group was stopped after
+capture and its private authorization file removed.
+
+Xwayland's xwl_randr_crtc_set selects GetCurrentClient(), and emulated modes
+live in each connection's client-private storage. Changing the effect's own
+RandR mode cannot preconfigure another connection. SFML advertises `WM_DELETE_WINDOW`
+and `_NET_WM_PING`, but no `_NET_WM_SYNC_REQUEST` acknowledgement. A ping is answered
+inside SFML's event processing, not after ETR consumes the resize. Inspect the
+game's first event-loop boundary with matching debug symbols next; do not
+replace protocol synchronization with an assumed startup delay.
+
+Matching Debian debug symbols permit inspection of the installed, unchanged
+game. Under the debugger, master repeatedly handles native/target resizes in
+its first PollEvent and reaches registration at native size after exhausting
+replacement attempts. A generic prototype starts negotiation on every eligible
+first fullscreen request, not only replacements or profiles with an already
+selected emulated mode. Its native build (05:25:53Z) reports 2560 × 1440 accepted
+in the first PollEvent and registration built at that size. Three normal-speed
+wzpc startups, inspected only after five seconds by attaching to the existing
+process, also report rendering 2560 × 1440 and cached registration framewidth
+525 matching the current scale. These runs have no startup debugger or preload.
+The session is locked; visual pointer/race acceptance is requested, not passed.
+
+The prototype passes all 16 original X11 integration cases in Trixie. Added a
+data row exercising the first fullscreen request from a different initial mode:
+before the change it receives a transient 3840 × 2160 configure and fails; all
+other 16 cases pass. After the generic change all 17 cases pass. Move the test
+fixture declaration into its header to keep the implementation under the file
+size limit. The generic earlier-request change is now in the working tree;
+finishing checks and hardware acceptance remain outstanding.
+
+An isolated software-rendered comparison catches a remaining race: of three
+normal-speed starts inspected afterwards, one has rendering 2560 × 1440 but
+registration framewidth 280, where 525 is expected; the other two agree. That
+run required the three-second restore/retry. Thus the prototype improves wzpc
+startup but does not yet establish reliable first-menu layout. A temporary
+read-only SFML pollEvent trace uses offsets from the exact Debian executable's
+debug symbols to record pending state and rendering size without breakpoints.
+It is diagnostic only, never part of the plugin or a proposed launch setup.
+
+The read-only event trace catches the remaining failure directly: the first
+PollEvent returns without a resize, then the splash requests the registration
+state. The next PollEvent delivers both 1024 × 768 and 2560 × 1440 with the
+pending-state flag set, so ETR discards them and builds registration at the old
+scale (framewidth 280). The retry changes rendering to 2560 × 1440 but leaves
+that cached layout unchanged. The other two starts receive the target before
+the pending state and build framewidth 525 correctly.
+
+An isolated prototype under build holds an eligible initial MapRequest for at
+most 100 ms, accepting an immediately following fullscreen request before
+letting the client complete its visibility wait. Mapping and the target
+configure occur inside KWin's scoped X server grab; there is no asynchronous
+wait while grabbed. This changes protocol ordering without a launcher, game
+configuration or ETR patch. Three initial prototype starts and three starts
+with profile matching and queued EWMH message replay all report rendering
+2560 × 1440 and registration framewidth 525, without retries. These runs still
+use read-only tracing; uninstrumented and hardware checks remain outstanding.
+The guarded mapping transaction measured 11–93 ms in the software session;
+its effect on other X11 clients and failure/cleanup behavior need review before
+installation. The prototype is not in the main source tree or installed.
+
+The first prototype regression run was invalidated by rebuilding/replacing its
+executable while the process-identity case was running: 15 cases passed, the
+executable-path match failed. Repeat serially. Moving the new test fixture into
+a newly added header also needs CMake's source discovery refreshed; an initial
+incremental link failed for missing MOC output, corrected by explicitly listing
+the header in the prototype. A startup-specific test now checks geometry via a
+client round trip immediately after MapNotify, before its application event
+loop, on each of two outputs. Results are pending.
+
+The scoped mapping candidate subsequently passed all 19 X11 cases, including
+immediate post-mapping geometry on both outputs. Twelve normal ETR launches
+across three fresh private compositors, with no startup debugger or preload,
+all report rendering 2560 × 1440 and registration framewidth 525. Inspection
+attaches only after five seconds. No restore/retry occurred in those runs.
+
+The candidate is now in the working tree as x11resolution_startup.cpp, with
+eligibility resolved from the same application matching/settings policy. Queued
+EWMH requests are replayed in order; ordinary mapping, timeout, reconfiguration
+and unload do not grab the X server. Only eligible early fullscreen transactions
+do. Pending mappings contribute to the unsettled status. Added tests cover a
+window that never requests fullscreen, effect unload, disabling the effect and
+an unrelated window. All 23 X11 cases pass in Trixie (63.15 s); selected-file
+pre-commit checks pass after formatting. The native Release build with warnings
+as errors completed, and the candidate was installed and reloaded without
+restarting KWin. Hardware acceptance and the full finishing matrix remain open.
+The previous installed early-fullscreen build is backed up under
+build/etr-startup-trace/before-map-upscale.so; earlier master/candidate backups
+remain intact. No game configuration or personal upscaler settings were edited.
+
+Follow-up compatibility checks exposed the newer workspace header's use of
+std::expected, unavailable with the Neon image's Clang/libstdc++ pairing. Replay
+now uses Application::dispatchEvent, with a scoped flag preventing this filter
+from holding its own replay a second time. Store complete generic XCB events,
+including their sequence field, for the dispatcher and other filters. The effect
+target builds with GCC and Clang on both maintained images. All 23 focused X11
+cases pass again (63.45 s including session startup; QtTest reports 58.209 s),
+and focused Clang static analysis of startup control and diagnostics passes.
+This is not the complete finishing suite or a new hardware acceptance result.
+
+A private ETR run using the current dispatcher source records an actual OpenGL
+viewport of 2560 × 1440 at buffer swap, alongside the same internal rendering
+size, throughout registration, game-type selection, race selection, intro and
+racing. Registration framewidth is 525. The diagnostic uses the exact Debian
+binary's debug-symbol offsets and observes calls without modifying the game.
+A follow-up absolute-pointer trial reaches the race with the same viewport but
+only delivers its first mouse event: ETR's hidden cursor engages a pointer lock,
+so absolute test input cannot establish reach at the four corners. That input
+result is inconclusive. A separate diagnostic test driver under build is being
+used to send relative mouse motion through KWin's input device interface.
+
+The native candidate loaded for Jens remains build 2026-09-24T05:58:31Z under
+upscale_reload_f534d2a864564b32833b971d72385cf6. Its installed hash matches the
+native build. The desktop still reports a locked session, no running ETR, and
+the usual 3840 × 2160 output at 120 Hz and 300% scale. Human menu, pointer and
+race acceptance remain requested and unverified; no test is credited to Jens
+until he performs it. No additional native reload was performed during this
+follow-up review.
+
+The relative-motion diagnostic reaches the near-right and near-bottom bounds
+under the game's pointer lock. A compositor delta of 960 × 540 produces an ETR
+motion from (15,15) to (655,375), exactly the 2/3 ratio for 2560 × 1440 presented
+across 3840 × 2160. Further motion reaches (2555,1435), then (15,1435), then returns
+to (15,15). The run continues into racing with a 2560 × 1440 viewport. This
+supports correct input scaling and viewport size in the private session; it
+still does not establish visual acceptance on wzpc's real 300% desktop.
+
+A further isolated run starts ETR with its default automatic resolution
+(res_type=0; the previous comparisons used 1024 × 768). It likewise builds
+registration at 2560 × 1440 with framewidth 525, reaches the same pointer bounds
+with the 2/3 motion ratio, and enters racing with a 2560 × 1440 viewport. These
+are disposable test settings; no personal game settings changed. The current
+reviewed source is being built natively for the pending human test so acceptance
+can cover the dispatcher and logging compatibility changes as well.
+
+Before Jens began testing, the desktop was rechecked as locked with ETR closed.
+The reviewed native candidate was installed and reloaded, and its installed
+file hash matches the native build. Runtime identity: build: upscale 0.2.0+git20260923.94a6804fe2-dirty (branch resolution/auto-and-wine-desktop), built 2026-09-24T06:24:38Z, Qt 6.8.2
+Loaded instance: upscale_reload_02417880d35d47c9b4aead902efd7cab.
+The previous 05:58:31Z candidate is preserved as
+build/etr-startup-trace/before-compat-upscale.so. No game or personal upscaler
+configuration changed. This is the candidate now ready for human acceptance.
+
+Jens tested the installed 06:24:38Z candidate after logging in and reports ETR
+works perfectly. The observed run used Auto as its effective method, Quality
+resolution, a 2560 × 1440 buffer and 3840 × 2160 destination. This records his
+menu, pointer and race acceptance for that candidate; it does not establish
+every combination of settings on Auto.
+
+He subsequently reports SuperTuxKart clicks at the bottom and right reaching
+underlying windows instead of the game. The X11 STK log records a 2560 × 1440
+buffer, 1280 × 720 logical presentation and an input region of only 854 × 480.
+The request was accepted as presented by Xwayland. The existing input filter
+claims only effect-presented windows, making that exclusion a candidate cause;
+it is not yet a reproduced or repaired defect. Preserve the accepted ETR
+startup behavior and examine the purpose of earlier reversed changes before
+altering this path. Jens requests committing and pushing this candidate before
+further input changes. STK acceptance and the overall PR remain open.
+
+The follow-up requested by Jens should detect a concrete need for extra
+handling and gate it on that evidence, keeping Auto generic wherever possible.
+Input targeting and coordinate scaling must be judged separately: Xwayland may
+already scale motion correctly while the compositor hit region remains small.
+The earlier click-delivery and lock support is still present; its current
+eligibility excludes Xwayland-presented windows. This is an investigation
+constraint, not a claim that the STK correction has been implemented.
+
+Before the requested checkpoint, full Trixie GCC and Clang builds with warnings
+as errors each passed all 26 CTest suites. Full Neon GCC and Clang builds also
+passed. Both pre-commit stages passed after correcting the reload launcher's
+embedded SPDX line for the license scanner. Full production-source static
+analysis found three issues: display eligibility can be static, added Wayland
+logging pushed request() past the statement limit, and Qt ownership of the
+pending helper call was not recognized. The display query is now static,
+answer checking is a separate function, and the watcher sets its QObject parent
+explicitly. Targeted static-analysis reruns clear all three findings. Plugin
+metadata validation passes. Both Trixie compilers rebuild the corrections, and
+the affected Wayland integration and two display suites pass again (3/3).
+These maintenance corrections do not change the accepted X11 startup path.
+
+Both Neon compilers also rebuild the final maintenance corrections successfully.

@@ -12,6 +12,7 @@
 #include "preparation.h"
 #include "snapshot.h"
 #include "upscale.h"
+#include "windowidentity.h"
 
 #include "effect/effecthandler.h"
 #include "effect/effectwindow.h"
@@ -39,7 +40,7 @@ void UpscaleEffect::paintDisplay(const RenderTarget &target, const RenderViewpor
 {
     // A lock screen must not carry a report about what was running behind it,
     // and a display with nothing to show releases what it was holding.
-    if (!m_display.enabled() || effects->isScreenLocked()) {
+    if (effects->isScreenLocked()) {
         m_display.hide();
         return;
     }
@@ -51,10 +52,18 @@ void UpscaleEffect::paintDisplay(const RenderTarget &target, const RenderViewpor
     if (window->screen() != screen) {
         return;
     }
+    const UpscaleSettings settings = upscaleResolveSettings(upscaleApplicationForWindow(window->window()));
+    UpscaleRefusal refusal = UpscaleRefusal::None;
+    const bool selected = candidate(&refusal, screen) == window;
+    m_diagnostics.observe(window, settings, selected, selected ? m_passRefusals.value(window, UpscaleRefusal::None) : refusal);
+    if (!m_display.enabled(settings)) {
+        m_display.hide();
+        return;
+    }
     m_display.measure(screen);
     m_display.countRepaint();
     if (m_display.wantsSnapshot(window)) {
-        m_display.update(snapshot(window, &target), window);
+        m_display.update(snapshot(window, &target), window, settings);
     }
     m_display.paint(target, viewport, screen->geometryF());
 }

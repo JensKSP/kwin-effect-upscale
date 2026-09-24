@@ -12,6 +12,7 @@
 #include "x11resolution.h"
 
 #if KWIN_BUILD_X11
+#include "windowidentity.h"
 #include "x11geometry.h"
 #include "x11input.h"
 
@@ -21,7 +22,11 @@
 #include "scene/windowitem.h"
 #include "x11window.h"
 
+#include <QLoggingCategory>
+
 #include <cmath>
+
+Q_DECLARE_LOGGING_CATEGORY(KWIN_UPSCALE)
 #endif
 
 namespace KWin
@@ -113,10 +118,20 @@ void UpscaleX11Resolution::present(X11Window *window)
         return;
     }
     if (!request->presentedByEffect) {
+        // A measured client may need its mode as acknowledgement of the
+        // resize. Presenting its smaller drawable ourselves can hide a stale
+        // viewport inside the game; let validation retry the missing answer.
+        const UpscaleApplication *application = upscaleApplicationForWindow(window);
+        if (application && application->x11RequiresEmulatedMode) {
+            return;
+        }
         if (fillsFrame(window, surface) || upscaleX11ModeMatches(window, request->position, request->size)) {
             return;
         }
         request->presentedByEffect = true;
+        qCInfo(KWIN_UPSCALE) << "X11 presentation taken by effect:" << request->key << "window" << window->window()
+                             << "buffer" << surface->bufferSize() << "previous presentation" << surface->destinationSize()
+                             << "frame" << window->frameGeometry() << "pointer scale" << presentationScale(*request, nullptr, nullptr);
     }
     if (!fillsFrame(window, surface)) {
         surface->setDestinationSize(window->frameGeometry().size());

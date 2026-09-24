@@ -609,3 +609,28 @@ the proton script of Proton Experimental 11.0-20260917b, DXVK 3.1.1,
 Xwayland 24.1.6, KWin 6.3.6, steam-runtime-tools v0.20260805.0 and
 plasma-workspace 6.3.6. The experiment ran against the same Proton
 Experimental's Wine, on Xvfb, in a prefix under `build/`.
+
+### Queued repair follows current settings, 2026-09-23
+
+Review of `94a6804` found that a lost-screen repair queued by `offer()`
+survives a later empty `present()` request. The game can therefore be
+prepared after the user selects Off. Update automatic after-run jobs from
+the latest presentation request, including clearing or changing the size.
+Keep explicit Reset and accepted preparation jobs distinct from automatic
+maintenance, and preserve an unsupported game's queued removal. Planned
+regressions cover lost preparation followed by Off or another size and an
+explicit Reset while the game remains open. Validation is pending.
+
+On wzpc, the user-authorized clean-start reset removed Wreckfest's preparation
+through the helper and temporarily removed personal upscaler overrides.
+Backups are retained in `build/wzpc-clean-start-94a6804/`. The original global
+`OsdStatistics=true` override must be restored after this test, preserving any
+new choices Jens makes. The earlier Wreckfest run had active upscaling and
+accurate edge input but used existing preparation; clean-start acceptance
+is still outstanding.
+
+The queued-maintenance fix passed the complete helper regression in Trixie,
+including lost preparation followed by Off or another size, and explicit
+Reset while the running game keeps presenting its preference. It is included
+in the native diagnostic installation; hosted checks and hardware acceptance
+of this new revision remain outstanding.

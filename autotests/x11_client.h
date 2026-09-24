@@ -19,6 +19,7 @@ public:
     explicit X11Client(bool cooperative = true, int ignoredResizes = 0);
     ~X11Client() override;
     bool show(const QByteArray &identity, const QRect &geometry, bool fullscreen = true);
+    bool waitForMapping();
     QRect geometry() const;
     bool isFullscreen() const;
     bool mode(const QSize &size);
@@ -48,6 +49,8 @@ public:
      * its own resize rather than for a delay it hopes covers it.
      */
     int configureNotifies() const;
+    /** Sizes reported by ConfigureNotify, in arrival order. */
+    QList<QSize> configuredSizes() const;
     /**
      * How many times the window manager asked the window to close, with
      * WM_DELETE_WINDOW, which the window says it understands. A window that
@@ -79,6 +82,7 @@ private:
     bool m_focused = false;
     int m_focusLosses = 0;
     int m_configureNotifies = 0;
+    QList<QSize> m_configuredSizes;
     int m_closeRequests = 0;
     xcb_atom_t m_protocols = XCB_NONE;
     xcb_atom_t m_deleteWindow = XCB_NONE;

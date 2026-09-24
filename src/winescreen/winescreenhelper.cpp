@@ -261,15 +261,15 @@ QSize WineScreenHelper::present(uint pid, const QString &windowClass, const QLis
         // The effect no longer wants this program smaller: undone after this
         // run, and this run is left as it is. A description the prefix has lost
         // already leaves nothing to undo but the record of it.
-        if (held) {
+        if (held || hasJob(record->id)) {
             afterRun(*record, pid, *server, directory, {});
-        } else if (!hasJob(record->id)) {
+        } else {
             record->written.reset();
             record->never ? m_records->store(*record) : m_records->remove(record->id);
         }
         return {};
     }
-    if (!held || wantedSize != written || wineScreensText(wanted) != record->described) {
+    if (!record->never && (!held || wantedSize != written || wineScreensText(wanted) != record->described || hasJob(record->id))) {
         // Described again after this run: at the size the effect wants now, or
         // for the screens the session has now.
         record->wanted = wantedSize;

@@ -92,6 +92,8 @@ struct UpscaleApplication
     bool shipped = false;
     /** Refuse secondary outputs for clients whose own mode API selects primary. */
     bool x11PrimaryOutputOnly = false;
+    /** Require a client-selected mode as evidence that it handled the resize. */
+    bool x11RequiresEmulatedMode = false;
 };
 
 /** The applications this session recognizes, in matching order. */

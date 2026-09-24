@@ -17,6 +17,10 @@
 #include "scene/surfaceitem.h"
 #include "scene/windowitem.h"
 #include "x11window.h"
+
+#include <QLoggingCategory>
+
+Q_DECLARE_LOGGING_CATEGORY(KWIN_UPSCALE)
 #endif
 
 namespace KWin
@@ -29,6 +33,7 @@ void UpscaleX11Resolution::presentPrepared(EffectWindow *effectWindow, const QSi
     if (!window || window->isDeleted() || size.isEmpty()) {
         return;
     }
+    qCInfo(KWIN_UPSCALE) << "Prepared window: pinning" << window->window() << "pid" << window->pid() << "to" << size;
     m_prepared.insert(window, size);
     watch(effectWindow);
     pinPrepared(window);

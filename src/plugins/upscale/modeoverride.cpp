@@ -245,9 +245,11 @@ void UpscaleModeOverride::announce(OutputInterface *output, ClientConnection *cl
         return;
     }
     remember(output, client, advertisement.size);
-    qCDebug(KWIN_UPSCALE, "advertised %dx%d scale %d to %s", advertisement.size.width(), advertisement.size.height(),
-            advertisement.scale,
-            qPrintable(decision->application ? decision->application->name : client->executablePath().section(QLatin1Char('/'), -1)));
+    qCInfo(KWIN_UPSCALE) << "Wayland output advertised: pid" << client->processId()
+                         << "program" << client->executablePath().section(QLatin1Char('/'), -1)
+                         << "output" << output->handle()->name() << "native" << output->handle()->pixelSize()
+                         << "advertised" << advertisement.size << "scale" << advertisement.scale
+                         << "method" << upscaleMethodKey(decision->method);
 }
 
 void UpscaleModeOverride::remember(OutputInterface *output, ClientConnection *client, const QSize &size)
@@ -279,6 +281,9 @@ void UpscaleModeOverride::restore(Record record)
         }
         const QSize pixels = handle->pixelSize();
         const auto resources = announcement.output->clientResources(announcement.client->client());
+        qCInfo(KWIN_UPSCALE) << "Wayland output restored: pid" << announcement.client->processId()
+                             << "program" << announcement.program << "output" << handle->name() << "mode" << pixels
+                             << "scale" << int(std::ceil(handle->scale())) << "resources" << resources.size();
         for (wl_resource *resource : resources) {
             wl_output_send_mode(resource, WL_OUTPUT_MODE_CURRENT | WL_OUTPUT_MODE_PREFERRED,
                                 pixels.width(), pixels.height(), int(handle->refreshRate()));

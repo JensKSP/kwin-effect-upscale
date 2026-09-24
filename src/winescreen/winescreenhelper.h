@@ -118,6 +118,9 @@ private:
         // writes the registry out as it exits, so the write waits a moment
         // longer than the process it watched.
         std::optional<QDeadlineTimer> settled;
+        // Maintenance follows later settings; explicit Reset and accepted
+        // offers retain their own intent until they complete.
+        bool followsSettings = false;
     };
 
     std::optional<Pending> locate(uint pid, const QString &windowClass, const QString &title);

@@ -46,7 +46,7 @@
 
 #include <array>
 
-Q_LOGGING_CATEGORY(KWIN_UPSCALE, "kwin_effect_upscale", QtWarningMsg)
+Q_LOGGING_CATEGORY(KWIN_UPSCALE, "kwin_effect_upscale", QtInfoMsg)
 
 namespace KWin
 {
@@ -178,7 +178,7 @@ void UpscaleEffect::watchWindow(EffectWindow *window)
             // conservative and follows client commits, never a repaint timer.
             window->addRepaintFull();
         }
-        if (m_display.enabled() && !effects->isScreenLocked()) {
+        if (!effects->isScreenLocked()) {
             m_display.countClientUpdate(window);
         }
     });
@@ -191,6 +191,7 @@ void UpscaleEffect::reconfigure(ReconfigureFlags flags)
     UpscaleConfig::self()->read();
     // Configuration is disk work, so it happens here and never in a frame.
     upscaleReloadApplications();
+    qCInfo(KWIN_UPSCALE) << "Configuration reloaded; re-evaluating active requests";
     // Nothing global is cached here any more. Both controllers resolve what
     // to ask of a program from the profile that claims it, so all they need
     // is to be told the configuration moved underneath them.
@@ -267,7 +268,7 @@ bool UpscaleEffect::isActive() const
     // needed, and drops out again as soon as it has nothing to show.
     EffectWindow *window = effects->activeWindow();
     return !effects->isScreenLocked() && window && upscalePresentation(window)
-        && !window->isDeleted() && m_display.activeFor(window);
+        && !window->isDeleted() && m_display.activeFor(window, upscaleResolveSettings(upscaleApplicationForWindow(window->window())));
 }
 
 bool UpscaleEffect::x11RequestsSettled() const

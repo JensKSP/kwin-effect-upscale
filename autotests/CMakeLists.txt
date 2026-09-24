@@ -71,6 +71,7 @@ if(KWin_VERSION VERSION_LESS 6.7)
         ../src/plugins/upscale/settings.cpp
         ../src/plugins/upscale/legacysettings.cpp
         ../src/plugins/upscale/display.cpp
+        ../src/plugins/upscale/diagnostics.cpp
         ../src/plugins/upscale/framestatistics.cpp
         ../src/plugins/upscale/framestatistics.cpp
         ../src/plugins/upscale/display.h
@@ -94,6 +95,7 @@ if(KWin_VERSION VERSION_LESS 6.7)
         ../src/plugins/upscale/x11input.cpp
         ../src/plugins/upscale/x11resolution.cpp
         ../src/plugins/upscale/x11resolution_events.cpp
+        ../src/plugins/upscale/x11resolution_startup.cpp
         ../src/plugins/upscale/x11resolution_prepared.cpp
         ../src/plugins/upscale/x11resolution_present.cpp
         ../src/plugins/upscale/x11resolution_validate.cpp
@@ -137,6 +139,12 @@ if(KWin_VERSION VERSION_LESS 6.7)
     # The X11 sessions: the request path, and a window a helper prepared.
     foreach(session IN ITEMS integration prepared)
         add_executable(upscale_x11_${session}_test x11_${session}_test.cpp x11_client.cpp)
+        if(session STREQUAL "integration")
+            target_sources(
+                upscale_x11_${session}_test
+                PRIVATE x11_integration_test.h x11_startup_test.cpp
+            )
+        endif()
         target_link_libraries(
             upscale_x11_${session}_test
             PRIVATE Qt6::Test Qt6::DBus KF6::ConfigCore XCB::XCB XCB::RANDR
@@ -330,6 +338,8 @@ set_tests_properties(upscale-placement PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=o
 
 set(display_test_sources
     display_test.cpp
+    display_test.h
+    display_settings_test.cpp
     ../src/plugins/upscale/application.cpp
     ../src/plugins/upscale/matching.cpp
     ../src/plugins/upscale/pattern.cpp

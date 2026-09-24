@@ -18,6 +18,10 @@
 #include "wayland_server.h"
 #include "window.h"
 
+#include <QLoggingCategory>
+
+Q_DECLARE_LOGGING_CATEGORY(KWIN_UPSCALE)
+
 namespace KWin
 {
 
@@ -45,6 +49,9 @@ UpscaleX11Input::~UpscaleX11Input()
 // focused it, the focus is withdrawn.
 void UpscaleX11Input::withdraw(SeatInterface *seat)
 {
+    if (m_surface) {
+        qCDebug(KWIN_UPSCALE) << "Pointer mapping withdrawn: surface" << m_surface;
+    }
     if (m_surface && seat->focusedPointerSurface() == m_surface) {
         Window *window = input()->pointer()->focus();
         if (window && window->surface() == m_surface) {
@@ -85,6 +92,8 @@ static void engageLock(const UpscalePresentedPointer &presented, const QPointF &
     if (!effects || effects->activeWindow() != presented.window->effectWindow()) {
         return;
     }
+    qCInfo(KWIN_UPSCALE) << "Pointer moved to engage requested lock: window" << presented.window->internalId()
+                         << "from" << position << "to" << presented.client.center();
     input()->pointer()->warp(presented.client.center());
 }
 
@@ -120,6 +129,8 @@ QPointF UpscaleX11Input::apply(const QPointF &position)
         // stale from an earlier size of the surface.
         seat->setFocusedPointerSurfaceTransformation(transformation);
     }
+    qCDebug(KWIN_UPSCALE) << "Pointer mapping: window" << presented.window->internalId() << "position" << position
+                          << "origin" << presented.origin << "scale" << presented.scale << "client area" << presented.client;
     m_surface = presented.surface;
     // Whose pointer this is now, when it is not the window KWin found: the
     // events for it are this filter's to deliver, or the filters between here

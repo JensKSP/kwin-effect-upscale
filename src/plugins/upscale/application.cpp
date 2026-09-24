@@ -202,6 +202,7 @@ static std::vector<UpscaleApplication> readApplications(const KSharedConfig::Ptr
         application.order = group.readEntry("Order", 0);
         application.enabled = group.readEntry("Enabled", true);
         application.x11PrimaryOutputOnly = group.readEntry("X11PrimaryOutputOnly", false);
+        application.x11RequiresEmulatedMode = group.readEntry("X11RequiresEmulatedMode", false);
         // An entry the effect's own defaults still describe. A user's addition
         // has no default behind it, which is how restoring tells the two apart.
         application.shipped = group.hasDefault("Name") || group.hasDefault("Method")
@@ -366,6 +367,9 @@ static void writeApplication(KConfigGroup &group, const UpscaleApplication &appl
     }
     if (application.x11PrimaryOutputOnly != original.x11PrimaryOutputOnly) {
         group.writeEntry("X11PrimaryOutputOnly", application.x11PrimaryOutputOnly);
+    }
+    if (application.x11RequiresEmulatedMode != original.x11RequiresEmulatedMode) {
+        group.writeEntry("X11RequiresEmulatedMode", application.x11RequiresEmulatedMode);
     }
     if (application.order != original.order) {
         group.writeEntry("Order", application.order);

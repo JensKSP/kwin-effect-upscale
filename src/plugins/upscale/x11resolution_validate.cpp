@@ -8,6 +8,7 @@
 
 #if KWIN_BUILD_X11
 #include "compatibility.h"
+#include "windowidentity.h"
 #include "x11geometry.h"
 
 #include "x11input.h"
@@ -31,15 +32,11 @@ namespace KWin
 
 QString UpscaleX11Resolution::unmetCondition(const Request &request)
 {
-    // Four separate conditions decide whether a request was honoured, and the
-    // person reading the answer has to act on the one that actually failed.
-    // Reporting them as one sentence about the application was measurably
-    // wrong: on 2026-09-19 Left 4 Dead 2 supplied exactly the requested
-    // 2560 x 1440 buffer and was still told it had not, because what was
-    // missing was the emulated mode its toolkit never asks for. That mode is
-    // no longer required - the effect presents such a window itself - but a
-    // buffer of the wrong size and a frame that left the output still lead
-    // somewhere different from each other, so they still arrive apart.
+    // A smaller drawable alone cannot prove that a client handled its resize.
+    // ETR can discard that event during startup and keep a native viewport;
+    // its profile requires the mode SFML selects when the game accepts it.
+    // Other clients, including L4D2, never select a mode, so they may use the
+    // effect's own presentation. Report the particular condition that failed.
     X11Window *window = request.window;
     if (!window->output()) {
         return i18n("The window is not on an output.");
@@ -52,6 +49,10 @@ QString UpscaleX11Resolution::unmetCondition(const Request &request)
     if (supplied != request.size) {
         return i18n("The application supplied a %1 x %2 buffer where %3 x %4 was requested.",
                     supplied.width(), supplied.height(), request.size.width(), request.size.height());
+    }
+    const UpscaleApplication *application = upscaleApplicationForWindow(window);
+    if (application && application->x11RequiresEmulatedMode && !upscaleX11ModeMatches(window, request.position, request.size)) {
+        return i18n("The application has not confirmed the requested resolution through its X11 mode.");
     }
     // KWin's frame is what the buffer is presented across, by Xwayland or by
     // this effect, so it has to have stayed on the output either way.
@@ -90,6 +91,7 @@ void UpscaleX11Resolution::validate(const QString &key, int generation, int revi
         request.answered = true;
         const QString unmet = unmetCondition(request);
         if (!unmet.isEmpty()) {
+            qCInfo(KWIN_UPSCALE) << "X11 validation unmet:" << key << "window" << request.window->window() << unmet;
             if (retry(key, generation)) {
                 return;
             }
@@ -102,6 +104,8 @@ void UpscaleX11Resolution::validate(const QString &key, int generation, int revi
             refuse(key, unmet);
             return;
         }
+        qCInfo(KWIN_UPSCALE) << "X11 request accepted:" << key << "window" << request.window->window()
+                             << "buffer" << request.size << "presented by" << (request.presentedByEffect ? "effect" : "Xwayland");
         observed = true;
     }
     if (observed) {
@@ -121,6 +125,7 @@ bool UpscaleX11Resolution::retry(const QString &key, int generation)
     // One retry returns to normal geometry first: duplicate ConfigureNotify
     // events may be ignored if the toolkit cached the requested size already.
     // Never loop on a client which cannot establish full-output presentation.
+    qCInfo(KWIN_UPSCALE) << "X11 retry after restoring normal geometry:" << key;
     m_retries.insert(key, 1);
     const auto windows = m_requests.keys();
     for (X11Window *window : windows) {

@@ -44,9 +44,26 @@ std::optional<pid_t> hostServer(const WineScreenRecord &record)
 void WineScreenHelper::afterRun(const WineScreenRecord &record, uint pid, pid_t server, const std::shared_ptr<WineDirectory> &directory,
                                 const QList<WineScreen> &screens)
 {
-    if (hasJob(record.id)) {
+    for (Job &job : m_jobs) {
+        if (job.id != record.id) {
+            continue;
+        }
+        if (job.followsSettings) {
+            if (job.clear != screens.isEmpty() || wineScreensText(job.screens) != wineScreensText(screens)) {
+                qCInfo(KWIN_UPSCALE_WINESCREEN) << "Queued job revised: prefix" << record.id
+                                                << "clear" << screens.isEmpty() << "screens" << wineScreensText(screens);
+            }
+            job.game = static_cast<pid_t>(pid);
+            job.server = server;
+            job.directory = directory;
+            job.clear = screens.isEmpty();
+            job.screens = screens;
+            job.settled.reset();
+        }
         return;
     }
+    qCInfo(KWIN_UPSCALE_WINESCREEN) << "After-run job queued: prefix" << record.id << "game" << pid << "server" << server
+                                    << "clear" << screens.isEmpty() << "screens" << wineScreensText(screens);
     startJob({
         .id = record.id,
         .offer = {},
@@ -60,6 +77,7 @@ void WineScreenHelper::afterRun(const WineScreenRecord &record, uint pid, pid_t 
         .directory = directory,
         .giveUp = std::nullopt,
         .settled = std::nullopt,
+        .followsSettings = true,
     });
 }
 
@@ -85,6 +103,7 @@ bool WineScreenHelper::reset(const QString &id)
     if (!record) {
         return false;
     }
+    qCInfo(KWIN_UPSCALE_WINESCREEN) << "Explicit reset: prefix" << id;
     m_jobs.removeIf([&id](const Job &job) {
         return job.id == id;
     });
@@ -181,6 +200,7 @@ bool WineScreenHelper::stillRunning(Job &job)
 {
     if (job.game > 0 && wineProcessExists(job.game)) {
         if (job.relaunch && !job.terminated && job.closeDeadline.hasExpired()) {
+            qCInfo(KWIN_UPSCALE_WINESCREEN) << "Requested restart: terminating game" << job.game << "prefix" << job.id;
             ::kill(job.game, SIGTERM);
             job.terminated = true;
         }
@@ -220,7 +240,10 @@ bool WineScreenHelper::advance(Job &job)
         return true;
     }
     record->target.directory = job.directory;
+    qCDebug(KWIN_UPSCALE_WINESCREEN) << "Registry write attempt: prefix" << job.id << "clear" << job.clear
+                                     << "screens" << wineScreensText(job.screens);
     const WineWriteResult result = writeScreen(job, *record);
+    qCDebug(KWIN_UPSCALE_WINESCREEN) << "Registry write result: prefix" << job.id << static_cast<int>(result);
     if (result == WineWriteResult::WrittenMeanwhile) {
         record->written = job.clear ? std::nullopt : std::optional<QSize>(job.screens.value(0).rect.size());
         record->described = job.clear ? QString() : wineScreensText(job.screens);
@@ -258,6 +281,7 @@ void WineScreenHelper::settle(const Job &job, WineScreenRecord &record, WineWrit
         if (job.relaunch && !m_launcher(record)) {
             qCWarning(KWIN_UPSCALE_WINESCREEN) << "Could not start" << record.title << "again";
         } else if (job.relaunch) {
+            qCInfo(KWIN_UPSCALE_WINESCREEN) << "Requested launch through Steam: prefix" << job.id << "app" << record.steamAppId;
             m_probation.append({.id = job.id, .started = false, .expiry = QDeadlineTimer(watchLimit)});
             m_timer.start();
         }

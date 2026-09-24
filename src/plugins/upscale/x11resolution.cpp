@@ -39,7 +39,7 @@ namespace KWin
 
 UpscaleX11Resolution::UpscaleX11Resolution()
 #if KWIN_BUILD_X11
-    : X11EventFilter(QList<int>{XCB_CLIENT_MESSAGE, XCB_CONFIGURE_REQUEST, XCB_PROPERTY_NOTIFY})
+    : X11EventFilter(QList<int>{XCB_MAP_REQUEST, XCB_DESTROY_NOTIFY, XCB_CLIENT_MESSAGE, XCB_CONFIGURE_REQUEST, XCB_PROPERTY_NOTIFY})
 #endif
 {
 #if KWIN_BUILD_X11
@@ -48,6 +48,7 @@ UpscaleX11Resolution::UpscaleX11Resolution()
     connect(&m_expiration, &QTimer::timeout, this, &UpscaleX11Resolution::expireState);
     connect(effects, &EffectsHandler::windowAdded, this, &UpscaleX11Resolution::watch);
     connect(kwinApp(), &Application::x11ConnectionAboutToBeDestroyed, this, [this]() {
+        m_pendingMaps.clear();
         ++m_generation;
         m_requests.clear();
         m_requested.clear();
@@ -89,6 +90,7 @@ UpscaleX11Resolution::~UpscaleX11Resolution()
 {
 #if KWIN_BUILD_X11
     m_enabled = false;
+    flushMaps();
     restoreAll();
 #endif
 }
@@ -98,6 +100,7 @@ void UpscaleX11Resolution::reconfigure()
 #if KWIN_BUILD_X11
     ++m_generation;
     m_enabled = false;
+    flushMaps();
     // Released rather than restored outright: a request the client has not
     // answered yet is given back only once it has, so that its answer cannot
     // arrive after the window was handed back; see release().
@@ -129,7 +132,7 @@ void UpscaleX11Resolution::reconfigure()
 bool UpscaleX11Resolution::settled() const
 {
 #if KWIN_BUILD_X11
-    return !m_restoring && m_scheduled.isEmpty() && m_releases.isEmpty() && m_withdrawals.isEmpty()
+    return !m_restoring && m_pendingMaps.isEmpty() && m_scheduled.isEmpty() && m_releases.isEmpty() && m_withdrawals.isEmpty()
         && m_waitingForBuffer.isEmpty();
 #else
     return true;
@@ -185,9 +188,9 @@ static UpscalePresentation x11PresentationOf(const Window *window)
 //
 // A window no entry claims is the global profile's, which asks it as well once
 // All applications is checked; @p application is null then.
-static bool upscaleX11ResizeWanted(const UpscaleApplication *application, const Window *window)
+static bool upscaleX11ResizeWanted(const UpscaleApplication *application, const Window *window, bool enteringFullscreen)
 {
-    const UpscalePresentation presentation = x11PresentationOf(window);
+    const UpscalePresentation presentation = enteringFullscreen ? UpscalePresentation::X11FullScreen : x11PresentationOf(window);
     if (upscaleIsWindowed(presentation)) {
         return false;
     }
@@ -218,7 +221,7 @@ QSize upscaleWantedSize(const Window *window)
     return QSize(size.width, size.height);
 }
 
-QString UpscaleX11Resolution::keyFor(const Window *window)
+QString UpscaleX11Resolution::keyFor(const Window *window, bool enteringFullscreen)
 {
     if (!window || !window->output()) {
         return {};
@@ -231,7 +234,7 @@ QString UpscaleX11Resolution::keyFor(const Window *window)
     // A window the global profile answers for is keyed by an empty entry
     // name, which no entry has: a name that reduces to nothing is stored as
     // "application".
-    if (!upscaleX11ResizeWanted(application, window)) {
+    if (!upscaleX11ResizeWanted(application, window, enteringFullscreen)) {
         return QString();
     }
     return (application ? application->id : QString()) + QLatin1Char('/') + window->output()->name() + QLatin1Char('/')
@@ -287,14 +290,14 @@ void UpscaleX11Resolution::schedule(X11Window *window)
     });
 }
 
-UpscaleX11Resolution::Request UpscaleX11Resolution::requestFor(X11Window *window) const
+UpscaleX11Resolution::Request UpscaleX11Resolution::requestFor(X11Window *window, bool enteringFullscreen) const
 {
     if (!m_enabled || m_restoring || !kwinApp()->x11Connection() || window->isDeleted()
         || window->isUnmanaged() || !window->isNormalWindow() || !window->output()
         || window->output()->transform() != OutputTransform::Normal) {
         return {};
     }
-    const QString key = keyFor(window);
+    const QString key = keyFor(window, enteringFullscreen);
     if (key.isEmpty() || m_failures.contains(key)) {
         return {};
     }
@@ -358,6 +361,10 @@ bool UpscaleX11Resolution::begin(const Request &request)
     live.answered = upscaleX11ModeMatches(request.window, request.position, request.size);
     live.verdict.setRemainingTime(s_validationWindow);
     m_requests.insert(request.window, live);
+    qCInfo(KWIN_UPSCALE) << "X11 request:" << request.key << "window" << request.window->window()
+                         << "frame" << request.window->frameGeometry() << "target" << request.size
+                         << "position" << request.position << "replacement attempt" << attempt.count
+                         << "mode already matched" << live.answered;
     m_requested.insert(request.key, request.size);
     const int generation = m_generation;
     const int revision = ++m_nextValidation;
@@ -483,6 +490,8 @@ void UpscaleX11Resolution::restore(X11Window *window)
     if (!request.window) {
         return;
     }
+    qCInfo(KWIN_UPSCALE) << "X11 restore:" << request.key << "window" << window->window()
+                         << "requested" << request.size << "normal" << upscaleX11NormalSize(window);
     // Status describes current control, not a request that has been released.
     if (std::ranges::none_of(m_requests, [&request](const Request &other) {
         return other.key == request.key;
