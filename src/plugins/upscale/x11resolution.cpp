@@ -9,6 +9,7 @@
 #if KWIN_BUILD_X11
 #include "compatibility.h"
 #include "eligibility.h"
+#include "runtime.h"
 #include "upscaleconfig.h"
 #include "windowidentity.h"
 #include "x11geometry.h"
@@ -294,7 +295,8 @@ UpscaleX11Resolution::Request UpscaleX11Resolution::requestFor(X11Window *window
 {
     if (!m_enabled || m_restoring || !kwinApp()->x11Connection() || window->isDeleted()
         || window->isUnmanaged() || !window->isNormalWindow() || !window->output()
-        || window->output()->transform() != OutputTransform::Normal) {
+        || window->output()->transform() != OutputTransform::Normal
+        || upscaleWineRuntime(upscaleExecutableOf(window))) {
         return {};
     }
     const QString key = keyFor(window, enteringFullscreen);

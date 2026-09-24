@@ -94,6 +94,12 @@ void WineScreenHelperTest::presentsOnlyWhatItPrepared()
     const std::unique_ptr<QProcess> desktop = startGame();
     QCOMPARE(m_helper->present(desktop->processId(), s_class, s_screens), s_size);
     QCOMPARE(m_helper->present(desktop->processId(), QStringLiteral("steam_app_550"), s_screens), QSize());
+    // Asking about setup before observing the renderer is not evidence that
+    // the preparation failed. Keep it and do not queue its removal.
+    QVERIFY(m_helper->offer(desktop->processId(), s_class, QStringLiteral("Wreckfest"), s_screens, false).offer.isEmpty());
+    QVERIFY(!m_helper->busy());
+    QVERIFY(!m_helper->prepared().first().never);
+    QCOMPARE(m_helper->prepared().first().written, std::optional<QSize>(s_size));
     QCOMPARE(m_helper->offer(desktop->processId(), s_class, QStringLiteral("Wreckfest"), s_screens).offer, QString());
     QCOMPARE(m_helper->prepared().size(), 1);
 }

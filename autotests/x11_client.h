@@ -64,7 +64,7 @@ public:
      * Off unless asked: KWin groups a process's windows by it, and the cases
      * that do not ask are about windows whose program is not known.
      */
-    void reportProcess();
+    void reportProcess(qint64 pid = 0);
 
 private:
     xcb_atom_t atom(const QByteArray &name) const;
@@ -90,5 +90,5 @@ private:
     bool m_cooperative;
     int m_ignoredResizes = 0;
     bool m_fullscreenOnMap = false;
-    bool m_reportsProcess = false;
+    qint64 m_reportedProcess = 0;
 };

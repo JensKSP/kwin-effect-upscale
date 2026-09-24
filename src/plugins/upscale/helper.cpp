@@ -93,10 +93,10 @@ UpscaleHelper::UpscaleHelper()
     qDBusRegisterMetaType<QList<UpscaleProgramScreen>>();
 }
 
-void UpscaleHelper::offer(EffectWindow *window, const QSize &size, const Offered &reply)
+void UpscaleHelper::offer(EffectWindow *window, const QSize &size, const Offered &reply, bool afterFailure)
 {
     const QVariantList arguments = identify(window) + screensFor(window, size);
-    call(QStringLiteral("offer"), arguments, [reply](const QDBusMessage &message) {
+    call(afterFailure ? QStringLiteral("offer") : QStringLiteral("offerSetup"), arguments, [reply](const QDBusMessage &message) {
         const QVariantList values = message.arguments();
         if (values.size() == 2) {
             reply(values.at(0).toString(), values.at(1).toString());

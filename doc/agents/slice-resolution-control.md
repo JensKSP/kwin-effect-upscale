@@ -2991,3 +2991,16 @@ Seven affected Trixie suites pass again, including both X11 sessions, applicatio
 storage and display checks. Static analysis of the corrected display caller and
 plugin metadata validation pass. This is the checkpoint Jens requests before
 testing L4D2 and Wreckfest; those hardware results are still pending.
+
+Jens subsequently reports L4D2 works flawlessly. Its native Linux X11 run uses
+X11Resize and Quality, supplies 2560 × 1440 and is accepted with effect
+presentation. The physical output remains 3840 × 2160 at 120 Hz and 300% scale.
+Jens then reports L4D2's pointer clicks the wrong menu items. Its rendering
+result stands, but input acceptance is withdrawn pending a coordinate trace.
+He asks to finish the Wine guard first and investigate L4D2 afterwards.
+The ETR objective is demonstrated by the earlier source/tracing comparison,
+twelve normal isolated starts, the wzpc startup/menu/pointer/race acceptance,
+and the successful ETR rerun after STK's generic input correction. This does
+not close the broader resolution-control slice or PR acceptance. Wreckfest's
+request to avoid resizing before preparation belongs to the
+[Wine preparation slice](slice-proton-smaller-screen.md#leave-unprepared-wine-runs-alone-2026-09-24).

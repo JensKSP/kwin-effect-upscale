@@ -74,6 +74,14 @@ QString WineScreenService::offer(uint pid, const QString &windowClass, const QSt
     return offered.offer;
 }
 
+QString WineScreenService::offerSetup(uint pid, const QString &windowClass, const QString &title, const QList<ProgramScreen> &screens,
+                                      QString &question)
+{
+    const WineScreenHelper::Offered offered = m_helper->offer(pid, windowClass, title, screensOf(screens), false);
+    question = offered.question;
+    return offered.offer;
+}
+
 QString WineScreenService::answer(const QString &offer, const QString &answer)
 {
     return m_helper->answer(offer, answer);

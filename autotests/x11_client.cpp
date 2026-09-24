@@ -63,7 +63,7 @@ bool X11Client::show(const QByteArray &identity, const QRect &geometry, bool ful
     // window the window manager can already see but whose hints are not set
     // yet, and the placement it deserves decided from what was there then.
     const xcb_atom_t motif = atom(QByteArrayLiteral("_MOTIF_WM_HINTS"));
-    const xcb_atom_t owner = m_reportsProcess ? atom(QByteArrayLiteral("_NET_WM_PID")) : xcb_atom_t(XCB_NONE);
+    const xcb_atom_t owner = m_reportedProcess ? atom(QByteArrayLiteral("_NET_WM_PID")) : xcb_atom_t(XCB_NONE);
     m_protocols = atom(QByteArrayLiteral("WM_PROTOCOLS"));
     m_deleteWindow = atom(QByteArrayLiteral("WM_DELETE_WINDOW"));
     m_window = xcb_generate_id(m_connection);
@@ -77,7 +77,7 @@ bool X11Client::show(const QByteArray &identity, const QRect &geometry, bool ful
                         XCB_ATOM_STRING, 8, windowClass.size(), windowClass.constData());
     xcb_change_property(m_connection, XCB_PROP_MODE_REPLACE, m_window, m_protocols, XCB_ATOM_ATOM, 32, 1, &m_deleteWindow);
     if (owner != XCB_NONE) {
-        const auto process = uint32_t(QCoreApplication::applicationPid());
+        const auto process = uint32_t(m_reportedProcess);
         xcb_change_property(m_connection, XCB_PROP_MODE_REPLACE, m_window, owner, XCB_ATOM_CARDINAL, 32, 1, &process);
     }
     // An explicit position makes the two-output case independent of placement
@@ -166,9 +166,9 @@ void X11Client::resize(const QSize &size)
     xcb_flush(m_connection);
 }
 
-void X11Client::reportProcess()
+void X11Client::reportProcess(qint64 pid)
 {
-    m_reportsProcess = true;
+    m_reportedProcess = pid ? pid : QCoreApplication::applicationPid();
 }
 
 QPoint X11Client::lastMotion() const

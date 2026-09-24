@@ -33,7 +33,7 @@ void UpscaleX11Resolution::presentPrepared(EffectWindow *effectWindow, const QSi
     if (!window || window->isDeleted() || size.isEmpty()) {
         return;
     }
-    qCInfo(KWIN_UPSCALE) << "Prepared window: pinning" << window->window() << "pid" << window->pid() << "to" << size;
+    qCInfo(KWIN_UPSCALE) << "Prepared window: awaiting buffer" << window->window() << "pid" << window->pid() << "size" << size;
     m_prepared.insert(window, size);
     watch(effectWindow);
     pinPrepared(window);
@@ -66,6 +66,7 @@ void UpscaleX11Resolution::pinPrepared(X11Window *window)
     const qreal scale = kwinApp()->xwaylandScale();
     const QPoint position(qRound(window->output()->geometryF().x() * scale), qRound(window->output()->geometryF().y() * scale));
     const QString key = keyFor(window);
+    qCInfo(KWIN_UPSCALE) << "Prepared buffer observed: presenting" << window->window() << "pid" << window->pid() << "size" << size;
     // Answered already, and presented by this effect from the start: there is
     // no emulated mode to wait for and nothing to validate against one.
     m_requests.insert(window, {window, key, position, size, false, true, true, {}});

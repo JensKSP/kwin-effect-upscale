@@ -31,7 +31,9 @@ class UpscaleX11Resolution;
  * it has the X11 control present the window across its output.
  *
  * Nothing here knows what a helper does or how. Without one, nothing is asked
- * and nothing changes.
+ * and nothing changes. Recognized Wine runtimes skip resize experiments and
+ * ask about preparation directly; a helper answer still needs an actual
+ * smaller buffer before presentation changes.
  */
 class UpscalePreparation : public QObject
 {
@@ -47,6 +49,7 @@ public:
     UpscaleQuestion &question();
 
 private:
+    void offerSetup(EffectWindow *window, const QSize &size, bool afterFailure);
     void ask(EffectWindow *window);
     void askToSetUp(const QPointer<EffectWindow> &window, const QString &offer, const QString &question);
     void askToRestart(const QPointer<EffectWindow> &window, const QString &offer, const QString &question);

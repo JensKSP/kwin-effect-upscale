@@ -34,7 +34,7 @@ void UpscaleX11IntegrationTest::keepsEmulatedPointerCoverage()
     QTRY_VERIFY2(status().contains(QStringLiteral("presented by Xwayland's emulated mode")), qPrintable(status()));
 
     target.inputShape(QRect(0, 0, 1920, 1080));
-    QTRY_VERIFY(status().contains(QStringLiteral("inputRegion: QRegion(0,0 1920x1080)")));
+    QTRY_VERIFY(status().contains(QStringLiteral("inputBounds: 0,0,1920,1080")));
     // Xwayland already scales coordinates. Extending input coverage must not
     // scale them again, and clicks in the extended area must never reach below.
     // Enter and motion are separate Wayland events. Xwayland 24.1.6 does not
@@ -59,7 +59,7 @@ void UpscaleX11IntegrationTest::keepsEmulatedPointerCoverage()
     // A smaller intentional input shape is not the complete drawable. Stop
     // claiming clicks as soon as it replaces the shape which needed repair.
     target.inputShape(QRect(0, 0, 960, 540));
-    QTRY_VERIFY(status().contains(QStringLiteral("inputRegion: QRegion(0,0 960x540)")));
+    QTRY_VERIFY(status().contains(QStringLiteral("inputBounds: 0,0,960,540")));
     click();
     QTRY_COMPARE(below.presses(), 1);
     QCOMPARE(target.presses(), 1);

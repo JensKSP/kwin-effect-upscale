@@ -137,7 +137,7 @@ std::optional<WineScreenHelper::Pending> WineScreenHelper::locate(uint pid, cons
     return Pending{.record = record, .game = static_cast<pid_t>(pid), .server = *server, .screens = {}, .expiry = QDeadlineTimer(offerLifetime)};
 }
 
-WineScreenHelper::Offered WineScreenHelper::offer(uint pid, const QString &windowClass, const QString &title, const QList<WineScreen> &screens)
+WineScreenHelper::Offered WineScreenHelper::offer(uint pid, const QString &windowClass, const QString &title, const QList<WineScreen> &screens, bool afterFailure)
 {
     const QSize size = screens.value(0).rect.size();
     std::optional<Pending> pending = size.isEmpty() ? std::nullopt : locate(pid, windowClass, title);
@@ -160,6 +160,9 @@ WineScreenHelper::Offered WineScreenHelper::offer(uint pid, const QString &windo
             // Consent survives a lost description; restore it after this run
             // rather than treating the stale record as a failed experiment.
             afterRun(record, pid, pending->server, record.target.directory, screens);
+            return {};
+        }
+        if (!afterFailure) {
             return {};
         }
         // The prefix already describes a screen of exactly this size and the

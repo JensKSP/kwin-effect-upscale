@@ -357,11 +357,19 @@ Wine makes.
 Implemented 2026-09-23 as an optional helper, verified in a prefix of its own
 and not yet with a game:
 
-- When the effect's X11 request is refused because the game went on drawing
-  another size, the effect asks the helper
-  (`org.kde.KWin.Upscale.Helper1`, defined in the plugin folder) whether it can
-  prepare the program. The plugin knows nothing about Wine; without a helper it
-  behaves as before.
+- The effect recognizes Wine and Proton by the process's standard Wine loader
+  or preloader name, using KWin's process identity API. It skips the early
+  mapping transaction and live resize experiments for these X11 windows,
+  including those already fullscreen. It asks the optional helper
+  (`org.kde.KWin.Upscale.Helper1`, defined in the plugin folder) about preparation
+  directly. Without a helper, recognized Wine windows are left alone. Runtime
+  detection does not depend on a game's name, Steam ID or preparation record;
+  custom loaders renamed away from Wine's standard names are not recognized.
+  Other X11 applications retain resize negotiation and may ask the helper after
+  an unsuccessful request. The plugin knows no Wine-prefix layout or write logic.
+  The early `offerSetup` query reports no rendering failure, so it cannot mark
+  an existing preparation unsupported. Older helpers without this query leave
+  the current run alone; update the effect and its packaged helper together.
 - The helper proves which prefix the running game uses: from the game's own
   environment, reached through the game's view of the file system, and
   confirmed by the lock its Wine server holds, which is named after the prefix
@@ -401,7 +409,11 @@ and not yet with a game:
   decide, so the prefix offers exactly that size. The game's own resolution list
   then holds one entry, and **Reset** on the settings page gives it back.
 - The game's own window is then a window of the chosen size, which the effect
-  holds at that size and upscales like any other smaller buffer.
+  holds at that size and upscales like any other smaller buffer. A saved
+  preparation record or acceptance of setup for a later launch cannot trigger
+  a resize of the current run. Presentation waits until the window actually
+  supplies the helper's prepared buffer size. Helper replies superseded by a
+  settings change are rechecked before any presentation or setup offer.
 - **Measured on 2026-09-23** in a prefix of its own, on a 3840×2160 X screen,
   with Proton Experimental's Wine: a Windows program reported a 2560×1440 screen
   and current mode, its fullscreen window was a 2560×1440 X11 window, a mode

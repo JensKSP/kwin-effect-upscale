@@ -79,6 +79,9 @@ static bool emulatedInputCoverage(const UpscaleX11Resolution::Request &request, 
         return false;
     }
     const QRectF buffer(QPointF(), QSizeF(request.size) / kwinApp()->xwaylandScale());
+    // Requests pass upscaleWantedSize()/canUpscale(), which require both
+    // dimensions to be smaller and preserve aspect ratio. One-axis or native
+    // sizes are outside that contract and must not acquire input intervention.
     if (buffer.width() >= frame.width() || buffer.height() >= frame.height()
         || !isBufferRectangle(surface->input(), buffer)) {
         return false;

@@ -17,6 +17,21 @@
   -->
   <interface name="org.kde.KWin.Upscale.Helper1">
     <!--
+        Offer preparation before attempting a live resize. Unlike offer below,
+        this reports no observed rendering failure. An existing preparation
+        must not be judged unsuccessful or removed because of this query.
+        A missing method in an older helper leaves the current run untouched.
+    -->
+    <method name="offerSetup">
+      <arg name="pid" type="u" direction="in"/>
+      <arg name="windowClass" type="s" direction="in"/>
+      <arg name="title" type="s" direction="in"/>
+      <arg name="screens" type="a(iiiii)" direction="in"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.In3" value="QList&lt;ProgramScreen&gt;"/>
+      <arg name="offer" type="s" direction="out"/>
+      <arg name="question" type="s" direction="out"/>
+    </method>
+    <!--
         The program with this process draws at the output's size although the
         effect wants it smaller. The screens are the ones the program should see:
         every output of the session, as place, size and rate in hertz, in the

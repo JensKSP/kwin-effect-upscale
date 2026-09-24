@@ -8,6 +8,7 @@
 
 #if KWIN_BUILD_X11
 #include "matching.h"
+#include "runtime.h"
 
 #include "effect/effecthandler.h"
 #include "effect/effectwindow.h"
@@ -46,6 +47,11 @@ bool UpscaleX11Resolution::holdMap(xcb_generic_event_t *generic)
     const NETWinInfo info(kwinApp()->x11Connection(), event.window, kwinApp()->x11RootWindow(),
                           NET::WMPid | NET::WMState | NET::WMWindowType, NET::WM2WindowClass);
     const QString executable = info.pid() > 0 ? executablePathFromPid(info.pid()) : QString();
+    // Wine obtains its screen from its prefix at startup. Resizing its running
+    // window fights that screen and flickers; preparation owns this path.
+    if (upscaleWineRuntime(executable)) {
+        return false;
+    }
     const UpscaleApplication *application = upscaleApplicationFor({executable,
                                                                    QString::fromLatin1(info.windowClassClass()), QString::fromLatin1(info.windowClassName())});
     const UpscaleSettings settings = upscaleResolveSettings(application);

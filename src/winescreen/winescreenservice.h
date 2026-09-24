@@ -57,6 +57,8 @@ public:
     explicit WineScreenService(WineScreenHelper *helper, QObject *parent = nullptr);
 
 public Q_SLOTS:
+    Q_SCRIPTABLE QString offerSetup(uint pid, const QString &windowClass, const QString &title, const QList<ProgramScreen> &screens,
+                                    QString &question);
     Q_SCRIPTABLE QString offer(uint pid, const QString &windowClass, const QString &title, const QList<ProgramScreen> &screens,
                                QString &question);
     Q_SCRIPTABLE QString answer(const QString &offer, const QString &answer);

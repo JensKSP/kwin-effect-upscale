@@ -43,7 +43,9 @@ public:
 
     explicit WineScreenHelper(WineScreenRecords *records, QObject *parent = nullptr);
 
-    Offered offer(uint pid, const QString &windowClass, const QString &title, const QList<WineScreen> &screens);
+    // An early setup query has not observed a failed preparation and must
+    // never mark a prepared game unsupported or remove its description.
+    Offered offer(uint pid, const QString &windowClass, const QString &title, const QList<WineScreen> &screens, bool afterFailure = true);
     QString answer(const QString &offer, const QString &answer);
     bool restart(const QString &offer);
     /*

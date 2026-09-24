@@ -6,6 +6,7 @@
 
 #include "preparation.h"
 #include "application.h"
+#include "runtime.h"
 #include "settings.h"
 #include "windowidentity.h"
 #include "x11resolution.h"
@@ -15,7 +16,10 @@
 #include "window.h"
 
 #include <KLocalizedString>
+#include <QLoggingCategory>
 #include <QTimer>
+
+Q_DECLARE_LOGGING_CATEGORY(KWIN_UPSCALE)
 
 namespace KWin
 {
@@ -50,6 +54,11 @@ UpscaleQuestion &UpscalePreparation::question()
 
 void UpscalePreparation::unfollowed(EffectWindow *window, const QSize &size)
 {
+    offerSetup(window, size, true);
+}
+
+void UpscalePreparation::offerSetup(EffectWindow *window, const QSize &size, bool afterFailure)
+{
     m_asked.removeAll(nullptr);
     if (m_asked.contains(window)) {
         return;
@@ -60,7 +69,7 @@ void UpscalePreparation::unfollowed(EffectWindow *window, const QSize &size)
         if (guarded && !offer.isEmpty()) {
             askToSetUp(guarded, offer, question);
         }
-    });
+    }, afterFailure);
 }
 
 void UpscalePreparation::askToSetUp(const QPointer<EffectWindow> &window, const QString &offer, const QString &question)
@@ -121,7 +130,8 @@ void UpscalePreparation::windowAdded(EffectWindow *window)
     // Every ordinary X11 window is asked about, not only those of programs the
     // effect acts on: a program the effect has stopped acting on may still be
     // prepared, and the helper undoes that only when it is told so.
-    if (!window->isX11Client() || !window->isNormalWindow() || window->isFullScreen()) {
+    if (!window->isX11Client() || !window->isNormalWindow()
+        || (window->isFullScreen() && !upscaleWineRuntime(upscaleExecutableOf(window->window())))) {
         return;
     }
     const QPointer<EffectWindow> guarded = window;
@@ -143,19 +153,42 @@ void UpscalePreparation::windowAdded(EffectWindow *window)
 }
 
 #if KWIN_BUILD_X11
+static QSize preparationSize(const Window *window)
+{
+    // Off in the fullscreen slot, where such a game presents itself, asks the
+    // program for nothing, and so wants nothing prepared either.
+    if (upscaleMethodFor(upscaleApplicationForWindow(window), UpscalePresentation::X11FullScreen) == UpscaleMethod::Off) {
+        return {};
+    }
+    return upscaleWantedSize(window);
+}
+
 void UpscalePreparation::ask(EffectWindow *window)
 {
     const Window *internal = window->window();
-    QSize wanted = upscaleWantedSize(internal);
-    // Off in the fullscreen slot, where such a game presents itself, asks the
-    // program for nothing, and so wants nothing prepared either.
-    if (upscaleMethodFor(upscaleApplicationForWindow(internal), UpscalePresentation::X11FullScreen) == UpscaleMethod::Off) {
-        wanted = QSize();
-    }
+    const QSize wanted = preparationSize(internal);
     const QPointer<EffectWindow> guarded = window;
-    m_helper.present(window, wanted, [this, guarded](const QSize &size) {
-        if (guarded && !size.isEmpty()) {
+    const bool preparationOnly = upscaleWineRuntime(upscaleExecutableOf(internal));
+    if (preparationOnly && !wanted.isEmpty()) {
+        qCInfo(KWIN_UPSCALE) << "Wine runtime: leaving running geometry unchanged while checking preparation; pid" << window->pid()
+                             << "wanted" << wanted;
+    }
+    m_helper.present(window, wanted, [this, guarded, wanted, preparationOnly](const QSize &size) {
+        if (!guarded) {
+            return;
+        }
+        if (preparationSize(guarded->window()) != wanted) {
+            // Settings can change while the helper is answering. Supersede
+            // that answer, including any queued preparation, before acting.
+            ask(guarded);
+            return;
+        }
+        if (!wanted.isEmpty() && !size.isEmpty()) {
             m_x11->presentPrepared(guarded, size);
+        } else if (preparationOnly && !wanted.isEmpty()) {
+            // No resize experiment precedes this offer. Acceptance prepares a
+            // later launch; only a proven smaller buffer can be presented now.
+            offerSetup(guarded, wanted, false);
         }
     });
 }

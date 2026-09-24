@@ -634,3 +634,54 @@ including lost preparation followed by Off or another size, and explicit
 Reset while the running game keeps presenting its preference. It is included
 in the native diagnostic installation; hosted checks and hardware acceptance
 of this new revision remain outstanding.
+
+### Leave unprepared Wine runs alone, 2026-09-24
+
+Jens observes Wreckfest flickering and jumping while Auto tries resizing before
+offering preparation. He requests recognizing Wine/Proton first, leaving the
+running game untouched until it restarts prepared, and then taking PR #21
+through checks and review. The saved ETR/STK checkpoint is bb5aef6.
+
+Detect Wine's standard loaders and preloaders through KWin's portable process
+identity API, before the mapping barrier or any resize request. This is runtime
+classification, independent of the game profile and prefix-write authorization.
+Ask the existing helper about such windows even when they start fullscreen.
+An unprepared answer may offer setup directly; a prepared answer must still
+wait for the actual smaller buffer before changing presentation. A saved record
+or an accepted setup question must never permit resizing the current native-size
+run. Missing helper replies leave recognized Wine windows alone. Native X11
+startup, particularly ETR's early mapping transaction, must remain unchanged.
+
+Supported acceptance: container regressions for fullscreen and later-fullscreen
+Wine identities, no resize while setup/restart is pending or a helper is absent,
+and presentation only after a prepared buffer arrives; existing native startup
+and helper regressions, both maintained containers/compilers, lint and static
+analysis. Full acceptance adds Wreckfest's clean preparation/restart run on wzpc.
+No per-game config edits, launcher requirements or Wine-prefix writes without
+the existing consent flow are introduced. Renamed/custom loader executables are
+outside this initial recognition rule; prefix validation remains the helper's.
+
+The first four runtime-gate rows and the native startup/input suite pass in
+Trixie. An added stale-reply row correctly sends an empty wanted-screen list
+after disabling; its first assertion incorrectly compared zero size with Qt's
+invalid default size and was corrected to test emptiness. During review of the
+new call path, an empty present() answer was found insufficient to establish a
+rendering failure. A separate offerSetup D-Bus query now distinguishes early
+setup from validation failure, preventing the helper from marking an existing
+preparation unsupported before it has been observed. A helper regression keeps
+the written record and verifies no removal job is queued by this query.
+
+The completed guard builds with GCC and Clang, warnings as errors, in Trixie
+and Neon unstable. Both lint stages, metadata validation and static analysis
+of the changed production units pass. The final Clang rendering hook passes
+all 26 enabled suites; the final GCC prepared-window, helper and resolution
+suites pass, following an earlier complete GCC pass. The final prepared-window
+suite includes all five runtime-gate rows. An earlier hook reported source
+changes made while it ran; rerunning against frozen sources passes.
+
+The native effect, settings module and matching helper are installed on wzpc.
+The helper was inactive before replacement; the new service exports offerSetup,
+and installed effect/helper hashes match their native build outputs. The effect
+reload reports build time 2026-09-24T09:43:20Z without a desktop restart. The
+clean Wreckfest preparation/restart test, hosted checks and current-head review
+remain outstanding. L4D2 coordinate tracing follows this saved checkpoint.

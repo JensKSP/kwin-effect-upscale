@@ -1696,7 +1696,8 @@ all shipped entries and compare their method slots after reimport. Export must
 clear only the measurement baseline in its copy so the standalone file preserves
 stated methods; normal layered saves must keep their existing behavior. This is
 inside the existing profile-storage supported scope; broader editor/hardware
-acceptance remains unchanged. Verification is pending.
+acceptance remains unchanged. The regression result is recorded below; broader
+profile-editor acceptance is outside this export correction.
 
 The shipped-catalogue round-trip fails on SuperTuxKart before the correction
 and passes after clearing the export copy's measurement baseline. The focused
