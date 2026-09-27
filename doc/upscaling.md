@@ -401,10 +401,11 @@ Proton game acceptance has been established through it.
   names a connection made by one of the prefix's programs after that program,
   and one made by Wine's own components after the program the prefix last
   connected with or, before any has, the one it finds running in the prefix,
-  for which it waits up to ten seconds. Each connection is matched on its own,
-  but Wine asks once per prefix, so every program sharing the prefix sees the
-  size of the answer Wine read, and two games in one prefix cannot be relied on
-  to get different sizes.
+  for which it waits up to ten seconds. Each process is matched on its own,
+  once: a connection it opens while another of its connections is still open
+  receives the same answer. But Wine asks once per prefix, so every program
+  sharing the prefix sees the size of the answer Wine read, and two games in
+  one prefix cannot be relied on to get different sizes.
 - **A game is recognized by the program Wine runs.** Wine names that program,
   as an absolute path, in the command line of the process that runs it, and
   names its own components below `C:\windows\system32` and
