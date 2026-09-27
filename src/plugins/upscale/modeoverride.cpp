@@ -34,11 +34,12 @@ UpscaleModeOverride::UpscaleModeOverride()
     }
     watchOutputs();
     // An output added later has its own resources, and a game started after
-    // that binds them like any other. Effects hear about outputs before a
-    // client can reach them, so this is early enough.
-    connect(effects, &EffectsHandler::screenAdded, this, [this]() {
-        watchOutputs();
-    });
+    // that binds them like any other. The effects handler hears of the output
+    // from the same signal WaylandServer creates those resources on, and
+    // before it does, so the rescan is queued behind that signal. It still
+    // runs before KWin reads any client's bind: the new global is announced
+    // only when KWin next flushes its clients.
+    connect(effects, &EffectsHandler::screenAdded, this, &UpscaleModeOverride::watchOutputs, Qt::QueuedConnection);
 }
 
 UpscaleModeOverride::~UpscaleModeOverride()
