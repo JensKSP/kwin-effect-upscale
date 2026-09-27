@@ -32,6 +32,11 @@ WORKDIR /tmp
 # image, because a run compares two arms and a comparison across two different
 # systems says nothing about either.
 #
+# waffle-utils carries wflinfo, which piglit asks for the OpenGL version a
+# platform offers. Without it every graphics case answers that version 0.0 is
+# available and skips: measured 2026-09-27, 29 of 30 sanity cases skipped and
+# the suite reported a clean run having tested nothing.
+#
 # Xwayland and no other X server. The transport this release adds sits in front
 # of Xwayland and rewrites what it tells its clients, so Xwayland is the server
 # under test; a suite run against Xvfb or an Xorg would measure a server nobody
@@ -42,6 +47,7 @@ RUN test -n "$DEPENDENCY_EPOCH" && apt-get update && apt-get install --no-instal
         ca-certificates \
         git \
         piglit \
+        waffle-utils \
         meson \
         ninja-build \
         python3 \
@@ -120,6 +126,17 @@ RUN CFLAGS="$XTS_CFLAGS" ./autogen.sh --prefix=/opt/xts-upscaled/inst >/dev/null
     && make -j"$(nproc)" >/dev/null
 WORKDIR /tmp
 
+# XTS's own execution configuration is written per run, not here. Its cases
+# read parameters from it that a case cannot invent - a font path that is
+# valid, one that is not, the extensions and depths a server offers - and the
+# generator asks a running server for them: without a display it stops at
+# "xset q failed, giving up", measured 2026-09-27. Without the file, a case
+# needing a parameter ends UNRESOLVED, which counts as a failure while saying
+# nothing about the server: XSetFontPath-4 needs XT_FONTPATH_BAD. So the run
+# writes it against the server under test, and these directories belong to the
+# run user for it to be written into.
+RUN chown 1000:1000 /opt/xts/xts5 /opt/xts-upscaled/xts5
+
 # Fail while building the image if a suite is missing, rather than during a
 # release check that was supposed to be measuring something else.
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -147,6 +164,63 @@ RUN piglit --help >/dev/null \
 # ships none, so the only route to a real verdict there is KWin's own test
 # suite - which is not packaged and has to be built.
 RUN sed -i "s/^Types: deb$/Types: deb deb-src/" /etc/apt/sources.list.d/debian.sources
+
+# The compositor is the session a conformance run needs: the effect is one of
+# its own and comes up with it rather than on request. It needs a screen, and
+# giving it here gives it once rather than in every caller.
+#
+# The copy keeps the name. The compositor resolves its own path to find the
+# platform plugin built into it, so the file has to be called kwin_wayland
+# however it is started: argv[0] is not enough, measured 2026-09-27. Copying
+# also leaves behind the file capabilities a container refuses to exec, which
+# is the same reason this project's own session tests run a copy.
+#
+# The exec is one line, assembled from short ones. A line continuation written
+# through printf reaches the shell as a literal backslash rather than as a
+# continuation, so the compositor was started with a backslash for an argument
+# and without any of the wrapper's own - measured 2026-09-27, which is how a
+# session came up on the DRM backend that is not there. A single line cannot
+# be broken that way again, and the count below is what says it stayed one.
+#
+# The single quotes are the point: what is written here is a script for later,
+# and the screen it asks for is whatever the session that runs it was given.
+# hadolint ignore=SC2016
+RUN install -d /usr/libexec/upscale-conformance \
+    && cp /usr/bin/kwin_wayland /usr/libexec/upscale-conformance/kwin_wayland \
+    && { printf '%s\n' \
+            '#!/bin/sh' \
+            '# Gives the session its screen; see containers/conformance/Containerfile.'; \
+        printf '%s ' \
+            'exec /usr/libexec/upscale-conformance/kwin_wayland' \
+            '--virtual --output-count "${UPSCALE_SCREEN_OUTPUTS:-1}"' \
+            '--width "${UPSCALE_SCREEN_WIDTH:-3840}"' \
+            '--height "${UPSCALE_SCREEN_HEIGHT:-2160}"' \
+            '--no-lockscreen --no-global-shortcuts --no-kactivities "$@"'; \
+        printf '\n'; } > /usr/bin/kwin_wayland \
+    && chmod 0755 /usr/bin/kwin_wayland \
+    && sh -n /usr/bin/kwin_wayland \
+    && test "$(grep -c . /usr/bin/kwin_wayland)" -eq 3
+
+# The X server accepts clients of the other byte order. The protocol cases open
+# connections in both, and an X server has refused them by default since 2023:
+# that is a security policy rather than protocol, and the suite cannot reach
+# the cases behind it - measured 2026-09-27, 91 cases ended at the server's
+# refusal of their byte order before testing anything. KWin passes Xwayland a
+# fixed argument list, so the option is given at the path every launcher
+# reaches: KWin's own for the session, a nested server's, and the stock server
+# a proxy hands over to. Every arm therefore runs the same server policy.
+# hadolint ignore=SC2016
+RUN cp /usr/bin/Xwayland /usr/libexec/upscale-conformance/Xwayland \
+    && { printf '%s\n' \
+            '#!/bin/sh' \
+            '# Accepts byte-swapped clients; see containers/conformance/Containerfile.'; \
+        printf '%s ' \
+            'exec /usr/libexec/upscale-conformance/Xwayland' \
+            '+byteswappedclients "$@"'; \
+        printf '\n'; } > /usr/bin/Xwayland \
+    && chmod 0755 /usr/bin/Xwayland \
+    && sh -n /usr/bin/Xwayland \
+    && test "$(grep -c . /usr/bin/Xwayland)" -eq 3
 
 RUN useradd --create-home --uid 1000 --shell /bin/bash conformance
 

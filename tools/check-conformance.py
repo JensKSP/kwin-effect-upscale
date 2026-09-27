@@ -11,11 +11,28 @@ system, and a release is not asked to do better than the system it runs on.
 What it may not do is turn a case that passed without it into one that fails
 with it.
 
-Each suite is run twice against the same everything else. The baseline arm is
-the system alone. The upscaled arm puts this release's transport in front of
-the same Xwayland and has the effect act on the suite's own clients, which are
-selected by the path they were started from - which is why the image carries
-the suite twice, at two paths, built from one pinned commit.
+Each suite is run twice against the same everything else. Both arms carry this
+release, loaded and running, with its transport in front of the same Xwayland:
+one setting separates them. The first acts on nothing, because no profile names
+the suite's programs, and so answers whether the effect troubles anything
+merely by being there. The second acts on every unlisted program and so answers
+what scaling itself costs. It names the suite's own programs in a profile,
+because that is what the effect answers a connection with: acting on unlisted
+programs reaches a window, and a client asks what the display measures long
+before it has one.
+
+Run it inside the conformance image, as an ordinary user, with a render device:
+
+    podman run --rm --user 1000 --userns=keep-id --group-add keep-groups \
+        --device /dev/dri/renderD128 -v "$PWD:/src" -w /src \
+        -e XDG_RUNTIME_DIR=/src/build/tmp/cruntime -e HOME=/src/build/tmp/chome \
+        upscale-conformance:trixie \
+        python3 -B tools/check-conformance.py --suite xts --build build/gcc
+
+The device is not optional. KWin's virtual backend offers OpenGL compositing
+only where it finds one, the effect answers that it is unsupported under any
+other and is then never loaded, and a pair whose effect never came up has
+compared a system against itself.
 """
 
 from __future__ import annotations
@@ -34,6 +51,7 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TypedDict
 
 # The resolution preset both arms carry, by the number the configuration
 # stores. It is the same in each: what separates them is whether the effect
@@ -45,16 +63,64 @@ PERFORMANCE = 4
 # is built, because that is the thing a person runs.
 EFFECTS = Path("/usr/lib/x86_64-linux-gnu/qt6/plugins/kwin/effects/plugins")
 
-# Where the image puts the two builds of the suite. The upscaled arm names its
-# own tree so the effect can tell that arm's clients from the other's.
+# Where the image puts the suite. Both arms run the one tree, so that the two
+# halves of a pair are the very same programs at the very same paths: which arm
+# acts on them is decided by the profile in that arm's configuration, not by
+# where they were installed. The image's second copy is what the other route
+# would have needed and is only checked for here, as the mark of an image that
+# carries the suite at all.
 BASELINE_TREE = Path("/opt/xts")
 UPSCALED_TREE = Path("/opt/xts-upscaled")
 
+
+class Counts(TypedDict):
+    """How many cases each arm completed, and how many can be set side by side."""
+
+    baseline: int
+    upscaled: int
+    compared: int
+
+
+class Verdict(TypedDict):
+    """What a pair showed: the counts, and the cases that differ between arms."""
+
+    completed: Counts
+    missing: list[str]
+    added: list[str]
+    regressed: list[str]
+    repaired: list[str]
+
+
+class ArmResult(TypedDict):
+    """What one arm produced: where it ran, what it measured, and whether it was itself."""
+
+    arm: str
+    root: str
+    cases: dict[str, str]
+    engaged: bool
+
+
+@dataclass(frozen=True)
+class Suite:
+    """What piglit is asked to run, and where the programs it starts live."""
+
+    arguments: tuple[str, ...]
+    # A regular expression matching the executables the suite starts. The arm
+    # that scales names them in a profile of its own, because that is what the
+    # effect answers a connection with: an advertisement is connection-wide and
+    # is given only to a program a profile names. Acting on unlisted programs
+    # is a window's affair and arrives long after a client has asked what the
+    # display measures. The effect anchors the expression at both ends, so it
+    # has to match a whole path: written as a prefix it matched 22 of 2335
+    # connections (measured 2026-09-27).
+    programs: str
+
+
 # What piglit is asked to run for each suite this gate covers.
 SUITES = {
-    "xts": ["-x", "^rendercheck", "xts"],
-    "render": ["-t", "^rendercheck", "xts"],
-    "glx": ["-p", "glx", "-t", "^glx", "all"],
+    "xts": Suite(("-x", "^rendercheck", "xts"), r"/opt/xts(-upscaled)?/.*"),
+    "render": Suite(("-t", "^rendercheck", "xts"), r"/usr/bin/rendercheck"),
+    "glx": Suite(("-p", "glx", "-t", "^glx", "all"), r"/usr/lib/[^/]+/piglit/bin/.*"),
 }
 
 
@@ -83,7 +149,7 @@ ARMS = (
 )
 
 
-def write_session(root: Path, arm: Arm) -> dict[str, str]:
+def write_session(root: Path, arm: Arm, run: Run, runtime: Path) -> dict[str, str]:
     """Lay out one arm's private configuration and say how to reach it."""
     config = root / "config"
     config.mkdir(parents=True)
@@ -107,6 +173,23 @@ def write_session(root: Path, arm: Arm) -> dict[str, str]:
         "MethodX11FullScreen=Auto\nMethodX11Borderless=Auto\n"
         "MinimumPixels=0\nSharpening=false\nOsd=false\n"
     )
+    (config / "kdeglobals").write_text("[General]\n")
+    # The arm that scales names the suite's programs and nothing else does.
+    # Unlisted applications is what reaches a window; a profile is what reaches
+    # a connection, which is where a client asks what the display measures.
+    # The arm that only runs has no profile at all, so nothing it starts is
+    # named, which is exactly the question it asks.
+    if arm.upscaled:
+        (config / "kwinupscalerc").write_text(
+            "[Application-conformance]\n"
+            "Name=Conformance suite\n"
+            "Enabled=true\n"
+            f"Executable={SUITES[run.suite].programs}\n"
+            "ExecutableMatch=RegularExpression\n"
+            f"X11ConnectionExecutable={SUITES[run.suite].programs}\n"
+            "MethodX11FullScreen=Auto\n"
+            "MethodX11Borderless=Auto\n"
+        )
     (config / "piglit.conf").write_text(f"[xts]\npath={arm.tree}\n")
     # A session here is started by hand, not by the init system, and asking for
     # a systemd boot in a container fails part-way and leaves the compositor
@@ -115,21 +198,38 @@ def write_session(root: Path, arm: Arm) -> dict[str, str]:
     (config / "startkderc").write_text("[General]\nsystemdBoot=false\n")
     (config / "ksplashrc").write_text("[KSplash]\nEngine=none\n")
     return {
+        # Its own, per arm: two compositors cannot share a runtime directory,
+        # and the second finds the first's socket locked. Short as well,
+        # because a Unix socket path may not exceed 108 bytes and a path under
+        # the build directory spends most of that before a name is added.
+        "XDG_RUNTIME_DIR": str(runtime),
         "XDG_CONFIG_HOME": str(config),
         "XDG_DATA_HOME": str(root / "data"),
         "XDG_CACHE_HOME": str(root / "cache"),
         "PIGLIT_CONFIG": str(config / "piglit.conf"),
-        "LIBGL_ALWAYS_SOFTWARE": "1",
+        # Which compositing the session uses is left to the compositor, and it
+        # has to arrive at OpenGL: the effect answers that it is unsupported
+        # under any other and is then never loaded at all. KWin's virtual
+        # backend offers OpenGL only where it finds a render device, so a run
+        # has to be given one - measured 2026-09-27, without it the session
+        # falls back to QPainter, the effect never comes up, and the pair
+        # compares a system against itself. Both arms use the same device, so
+        # the comparison is still between the two arms and nothing else.
+        "UPSCALE_SCREEN_WIDTH": str(run.size[0]),
+        "UPSCALE_SCREEN_HEIGHT": str(run.size[1]),
+        "QT_LOGGING_TO_CONSOLE": "1",
+        "QT_FORCE_STDERR_LOGGING": "1",
         "LC_ALL": "C.UTF-8",
         # The transport reads at startup whether this session routes through
-        # it. Without this it execs the stock server and the arm quietly
-        # becomes a second baseline, which is the one way a pair can pass
-        # while measuring nothing at all.
-        "UPSCALE_X11_SESSION_ROUTED": "1" if arm.upscaled else "0",
+        # it, and both arms say yes: the release sits in front of the same
+        # server in each, and one setting separates them. An arm that said no
+        # would exec the stock server and quietly become a second baseline,
+        # which is the one way a pair can pass while measuring nothing at all.
+        "UPSCALE_X11_SESSION_ROUTED": "1",
     }
 
 
-def inner_script(root: Path, suite: str, minutes: int, *, upscaled: bool) -> Path:
+def inner_script(root: Path, suite: str, minutes: int) -> Path:
     """Write the command the compositor runs: the suite, inside its own session."""
     results = root / "piglit"
     arguments = [
@@ -142,35 +242,55 @@ def inner_script(root: Path, suite: str, minutes: int, *, upscaled: bool) -> Pat
         "15",
         "-l",
         "quiet",
-        *SUITES[suite],
+        *SUITES[suite].arguments,
         str(results),
     ]
     # The effect is switched on in the configuration rather than loaded on
     # demand. It is built as one of the compositor's own effects, and those are
     # enabled when the compositor starts rather than asked for over the bus:
-    # loadEffect answers false for one however well it is installed. What is
-    # checked instead is that it actually came up, which the transport says by
-    # answering a connection.
-    load = (
-        'echo "effects: $(qdbus6 org.kde.KWin /Effects '
-        'org.kde.kwin.Effects.loadedEffects 2>/dev/null | tr "\\n" " ")" >&2\n'
-        if upscaled
-        else ""
-    )
+    # loadEffect answers false for one however well it is installed. So what
+    # the wait is for is the compositor listing it as loaded, in both arms -
+    # an arm whose effect never came up measures nothing, whichever side of
+    # the pair it is, and the list it prints is what says which happened.
     script = root / "inside.sh"
     script.write_text(
         "#!/bin/sh\n"
         "# The suite runs inside the session because the display it tests is\n"
-        "# the session's own, and in the upscaled arm the transport in front of\n"
-        "# it is reached through DISPLAY like any other client reaches it.\n"
-        "sleep 8\n" + load + f"timeout {minutes * 60} {shlex.join(arguments)}\n"
+        "# the session's own, and the transport in front of it is reached\n"
+        "# through DISPLAY like any other client reaches it.\n"
+        "loaded=\n"
+        "i=0\n"
+        "while [ $i -lt 60 ]; do\n"
+        "    loaded=$(qdbus6 org.kde.KWin /Effects"
+        ' org.kde.kwin.Effects.loadedEffects 2>/dev/null | tr "\\n" " ")\n'
+        '    case " $loaded " in *" upscale "*) break ;; esac\n'
+        "    i=$((i + 1))\n"
+        "    sleep 1\n"
+        "done\n"
+        'echo "effects: $loaded" >&2\n'
+        # Xwayland starts with the first X11 client, and the effect can answer
+        # what a client asks about the display only once KWin has a connection
+        # to that server itself. A suite whose own first case starts Xwayland
+        # races a session still assembling itself, and loses: measured
+        # 2026-09-27, every connection of such a run was answered unchanged
+        # while the same program was answered with an advertisement moments
+        # later. So the server is brought up here, by a client of no
+        # consequence, and the suite starts against a session that is up.
+        "i=0\n"
+        "until xdpyinfo >/dev/null 2>&1; do\n"
+        "    i=$((i + 1))\n"
+        "    [ $i -gt 30 ] && break\n"
+        "    sleep 1\n"
+        "done\n"
+        "sleep 2\n"
+        f"timeout {minutes * 60} {shlex.join(arguments)}\n"
         "echo $? > " + shlex.quote(str(root / "exit-code")) + "\n"
     )
     script.chmod(0o700)
     return script
 
 
-def run_arm(arm: Arm, root: Path, run: Run) -> dict[str, object]:
+def run_arm(arm: Arm, root: Path, run: Run) -> ArmResult:
     """Run one arm to completion and return the cases it produced.
 
     The suite runs inside the session, because the display it tests is the
@@ -179,8 +299,16 @@ def run_arm(arm: Arm, root: Path, run: Run) -> dict[str, object]:
     """
     cell = root / arm.name
     cell.mkdir(parents=True)
-    environment = write_session(cell, arm)
-    inner = inner_script(cell, run.suite, run.minutes, upscaled=arm.upscaled)
+    # Short, and its own for each arm: a Unix socket path may not exceed 108
+    # bytes, and two compositors cannot share a runtime directory - the second
+    # finds the first's socket locked and falls back to a device that is not
+    # there.
+    runtime = Path(
+        tempfile.mkdtemp(prefix="up-", dir=os.environ.get("XDG_RUNTIME_DIR", tempfile.gettempdir()))
+    )
+    runtime.chmod(0o700)
+    environment = write_session(cell, arm, run, runtime)
+    inner = inner_script(cell, run.suite, run.minutes)
     binaries = cell / "bin"
     binaries.mkdir()
     # Installed for both arms: the release is present in each and only its
@@ -188,46 +316,28 @@ def run_arm(arm: Arm, root: Path, run: Run) -> dict[str, object]:
     shutil.copyfile(
         run.build / "bin" / "kwin" / "effects" / "plugins" / "upscale.so", EFFECTS / "upscale.so"
     )
-    packaged = shutil.which("kwin_wayland")
-    if not packaged:
+    if not shutil.which("kwin_wayland"):
         return {"arm": arm.name, "root": str(cell), "cases": {}, "engaged": False}
-    # The session starts its own compositor, so the screen it is to run on is
-    # given through a compositor of this name found first on the path. The
-    # packaged binary carries file capabilities a container will not exec, so
-    # what the wrapper runs is a copy of it.
-    private = binaries / "kwin_wayland.real"
-    shutil.copyfile(packaged, private)
-    private.chmod(0o700)
-    wrapper = binaries / "kwin_wayland"
-    wrapper.write_text(
-        "#!/bin/sh\n"
-        # Says so when it runs: which layer starts the compositor decides where
-        # this run's screen has to be given, and a log that answers that costs
-        # nothing beside a failure that does not.
-        'echo "conformance shim: kwin_wayland ran" >&2\n'
-        f"exec {shlex.quote(str(private))} --virtual --output-count 1 "
-        f"--width {run.size[0]} --height {run.size[1]} "
-        '--no-lockscreen --no-global-shortcuts --no-kactivities "$@"\n'
-    )
-    wrapper.chmod(0o700)
-    if arm.upscaled:
-        # KWin finds Xwayland through the path as well. The transport
-        # supervises the stock server rather than replacing it, so both arms
-        # run the very same Xwayland.
-        (binaries / "Xwayland").symlink_to(run.build / "bin" / "Xwayland")
+    # KWin finds Xwayland on the path, and both arms put this release's
+    # transport there. It supervises the stock server rather than replacing
+    # it, so the two arms measure the very same Xwayland and differ only in
+    # what the effect is allowed to act on.
+    (binaries / "Xwayland").symlink_to(run.build / "bin" / "Xwayland")
     session = {**os.environ, **environment}
     session["PATH"] = f"{binaries}:{os.environ.get('PATH', '/usr/bin:/bin')}"
     with (cell / "session.log").open("w") as log:
-        # Through the wrapper a session would use, directly rather than
-        # through a whole session: a session starts the compositor by absolute
-        # path, so the screen this run gives it could never be handed over -
-        # measured 2026-09-27, neither shim was reached. The wrapper does look
-        # its compositor up on the path, which is how the screen arrives.
+        # The compositor is the session: it loads the effects its
+        # configuration enables and starts the suite itself, which is how the
+        # suite's programs arrive with this session's DISPLAY. A whole Plasma
+        # session was tried first and never reached the suite - measured
+        # 2026-09-27, its autostart waits on a shell this container has no
+        # screen for. The screen the compositor is given comes from the image;
+        # see containers/conformance/Containerfile.
         started = subprocess.Popen(
             [
                 "dbus-run-session",
                 "--",
-                "kwin_wayland_wrapper",
+                "kwin_wayland",
                 "--xwayland",
                 "--exit-with-session",
                 str(inner),
@@ -274,16 +384,30 @@ def engaged(arm: Arm, log: str) -> bool:
     that only runs must advertise nothing, because no profile names the suite's
     programs; the one that scales must advertise, because it names them all.
     An arm that scaled nothing would agree with the other case for case and
-    report no regression, having compared a system against itself.
+    report no regression, having compared a system against itself. Both must
+    also have loaded the effect, which a session without OpenGL compositing
+    never does.
     """
     routed = "Upscale X11 backend started" in log
     bypassed = "executing stock Xwayland directly" in log
-    advertised = 'reason= "connection display advertisement"' in log
-    return routed and not bypassed and advertised == arm.upscaled
+    loaded = any(
+        line.startswith("effects: ") and " upscale " in f"{line[len('effects: ') :]} "
+        for line in log.splitlines()
+    )
+    # The transport prints its answer the way Qt prints a variant, so what is
+    # looked for is the reason itself rather than a line laid out around it.
+    advertised = "connection display advertisement" in log
+    return routed and not bypassed and loaded and advertised == arm.upscaled
 
 
 def read_cases(results: Path) -> dict[str, str]:
-    """Read the outcome piglit recorded for every case it completed."""
+    """Read the outcome piglit recorded for every case it completed.
+
+    A run whose budget ran out has no assembled result file, only the one file
+    piglit writes per case as it goes. Those are read as well, so that an arm
+    which was cut short still says what it measured: the comparison is over the
+    cases both arms completed, and one that stopped early simply offers fewer.
+    """
     packed = results / "results.json.bz2"
     plain = results / "results.json"
     if packed.exists():
@@ -293,10 +417,24 @@ def read_cases(results: Path) -> dict[str, str]:
         return {
             name: item["result"] for name, item in json.loads(plain.read_text())["tests"].items()
         }
-    return {}
+    cases: dict[str, str] = {}
+    for path in sorted((results / "tests").glob("*.json")):
+        try:
+            recorded = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            # The case piglit was writing when it was stopped. One unreadable
+            # file is one case missing from both sides of a comparison, which
+            # is not worth abandoning the rest of the run for.
+            continue
+        # One case per file, named at the top level rather than under a key
+        # of its own: the assembled file is what gathers them under "tests".
+        for name, item in recorded.items():
+            if isinstance(item, dict) and "result" in item:
+                cases[name] = item["result"]
+    return cases
 
 
-def compare(baseline: dict[str, str], upscaled: dict[str, str]) -> dict[str, object]:
+def compare(baseline: dict[str, str], upscaled: dict[str, str]) -> Verdict:
     """Say what this release did to the system underneath it, case by case.
 
     Only a case that the system completed can say anything about the release.
@@ -325,7 +463,7 @@ def compare(baseline: dict[str, str], upscaled: dict[str, str]) -> dict[str, obj
     }
 
 
-def report(suite: str, verdict: dict[str, object]) -> int:
+def report(suite: str, verdict: Verdict) -> int:
     """Say what the pair showed, and fail only on what this release caused."""
     counts = verdict["completed"]
     print(
@@ -359,6 +497,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--build", default="build/gcc", help="the build whose effect and transport are measured"
     )
+    # The screen this release is written for. The effect advertises a reduced
+    # display only where Xwayland already offers that size; at 3840 x 2160 its
+    # list carries the 1920 x 1080 the setting asks for (measured 2026-09-27,
+    # 5745 connections advertised it).
     parser.add_argument("--width", type=int, default=3840)
     parser.add_argument("--height", type=int, default=2160)
     parser.add_argument("--minutes", type=int, default=90, help="how long one arm gets")

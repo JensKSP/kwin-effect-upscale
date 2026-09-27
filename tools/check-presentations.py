@@ -154,10 +154,14 @@ def write_configuration(root: Path, size: tuple[int, int], scale: int) -> None:
     """Switch the effect on below the screen's size, at the screen's scale."""
     config = root / "config"
     config.mkdir()
+    # Resolution is stored as a number, Performance being 4, while the method
+    # keys beside it are names; written as a name, it is not read at all and
+    # the default, Quality, applies instead. UnlistedApplications is what the
+    # settings page calls All applications.
     (config / "kwinrc").write_text(
         "[Plugins]\nupscaleEnabled=true\n"
-        "[Effect-upscale]\nEnabled=true\nResolution=Performance\n"
-        "MinimumPixels=0\nSharpening=false\nOsd=false\nAllApplications=true\n"
+        "[Effect-upscale]\nEnabled=true\nResolution=4\n"
+        "MinimumPixels=0\nSharpening=false\nOsd=false\nUnlistedApplications=true\n"
     )
     if scale != 1:
         outputs = [
