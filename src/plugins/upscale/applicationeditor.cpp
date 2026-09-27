@@ -321,7 +321,10 @@ int UpscaleApplicationEditor::importFrom(const QString &path)
     }
     // In matching order again, the pairs of entry and original kept together.
     std::vector<std::size_t> order(m_applications.size());
-    std::ranges::iota(order, std::size_t(0));
+    // std::iota, not std::ranges::iota: libc++ 19, which FreeBSD 15 builds
+    // with, does not have the C++23 one.
+    // NOLINTNEXTLINE(modernize-use-ranges)
+    std::iota(order.begin(), order.end(), std::size_t(0));
     std::ranges::stable_sort(order, [this](std::size_t first, std::size_t second) {
         return std::tie(m_applications[first].order, m_applications[first].id)
             < std::tie(m_applications[second].order, m_applications[second].id);
