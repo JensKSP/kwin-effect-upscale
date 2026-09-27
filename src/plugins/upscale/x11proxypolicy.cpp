@@ -22,30 +22,30 @@ namespace
 // here would then hear that it ended; the oldest is forgotten first, long
 // after the window that asked about it was presented.
 constexpr int servedLimit = 128;
-QHash<uint, QSize> s_served;
-QList<uint> s_servedOrder;
+QHash<uint, QSize> served;
+QList<uint> servedOrder;
 } // namespace
 
 void upscaleRecordServed(uint pid, const QSize &screen)
 {
-    if (!pid || screen.isEmpty() || s_served.contains(pid)) {
+    if (!pid || screen.isEmpty() || served.contains(pid)) {
         return;
     }
-    s_served.insert(pid, screen);
-    s_servedOrder.append(pid);
-    if (s_servedOrder.size() > servedLimit) {
-        s_served.remove(s_servedOrder.takeFirst());
+    served.insert(pid, screen);
+    servedOrder.append(pid);
+    if (servedOrder.size() > servedLimit) {
+        served.remove(servedOrder.takeFirst());
     }
 }
 
 bool upscaleServed(pid_t pid)
 {
-    return pid > 0 && s_served.contains(static_cast<uint>(pid));
+    return pid > 0 && served.contains(static_cast<uint>(pid));
 }
 
 QSize upscaleServedScreen(pid_t pid)
 {
-    return pid > 0 ? s_served.value(static_cast<uint>(pid)) : QSize();
+    return pid > 0 ? served.value(static_cast<uint>(pid)) : QSize();
 }
 
 static const UpscaleApplication *connectionApplication(const QStringList &candidates, QVariantMap &answer)

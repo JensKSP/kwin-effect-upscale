@@ -158,7 +158,11 @@ void Session::decideClient(const std::shared_ptr<PendingClient> &client)
                 << "names=" << client->candidates;
         relayClient(std::exchange(client->descriptor, -1), client->pid, size, timing);
     });
-}
+    // The watcher belongs to this session, its parent, and deletes itself once
+    // the reply is in. The static analyzer, entering here from a retry, does
+    // not model a QObject parent and reports the watcher as leaked at this
+    // brace.
+} // NOLINT(clang-analyzer-cplusplus.NewDeleteLeaks)
 void Session::relayClient(int client, quint32 pid, const QSize &size, const QByteArray &timing)
 {
     --m_pendingConnections;

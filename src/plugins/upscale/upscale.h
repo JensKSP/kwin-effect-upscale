@@ -99,7 +99,7 @@ private:
     // presenting full screen that this effect was meant to act on and
     // refused, or, when the person asked for it, any window presenting full
     // screen. Null for everything else, which is most of the desktop.
-    EffectWindow *explained() const;
+    static EffectWindow *explained();
     // The render target is the frame being painted, and null when the caller
     // is outside a paint pass and colour is therefore not observable.
     UpscaleSnapshot snapshot(EffectWindow *window, const RenderTarget *target) const;

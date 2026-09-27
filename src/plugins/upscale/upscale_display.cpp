@@ -34,7 +34,7 @@ EffectWindow *UpscaleEffect::displayed() const
     return explained();
 }
 
-EffectWindow *UpscaleEffect::explained() const
+EffectWindow *UpscaleEffect::explained()
 {
     // A refused window is exactly the case that needs explaining, but only
     // when this effect was meant to act on it: its application's profile is
