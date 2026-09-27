@@ -30,6 +30,19 @@ namespace KWin
 // scale it is not using and the status would keep claiming a pending request.
 static constexpr int patienceInFrames = 30;
 
+// Whether what KWin has already asked of the window still presents it over its
+// whole output. The committed state lags that by a configure: a window KWin is
+// restoring, or giving its decoration back, still covers its output until the
+// client answers, and a scale asked for or kept meanwhile reaches the client
+// in a configure of its own, with a decoration built for the wrong scale. A
+// window leaving fullscreen for a maximized, decorated state still covers its
+// output, but the decoration KWin has scheduled means it presents nothing
+// borderless.
+static bool requestedPresentation(const Window *window)
+{
+    return upscaleRequestCoversOutput(window) && (window->isFullScreen() || !window->nextDecoration());
+}
+
 UpscaleWaylandScale::UpscaleWaylandScale(QObject *parent)
     : QObject(parent)
 {
@@ -73,10 +86,16 @@ void UpscaleWaylandScale::observe(Window *window)
     // even painting.
     const auto recheck = [this, window]() {
         EffectWindow *effectWindow = window->effectWindow();
-        if (!effectWindow || upscaleWindowAwaitingBuffer(effectWindow->screen()) != effectWindow) {
+        if (!effectWindow || upscaleWindowAwaitingBuffer(effectWindow->screen()) != effectWindow
+            || !requestedPresentation(window)) {
             release(window);
         }
     };
+    // Asked as soon as KWin requests a new geometry or state, before the
+    // configure that carries it is sent, so that the scale goes back in that
+    // same configure rather than one after it, and a decoration built for it
+    // is built at the scale restored.
+    connect(window, &Window::frameGeometryAboutToChange, this, recheck);
     connect(window, &Window::fullScreenChanged, this, recheck);
     connect(window, &Window::frameGeometryChanged, this, recheck);
     connect(window, &Window::outputChanged, this, recheck);
@@ -89,7 +108,7 @@ void UpscaleWaylandScale::request(EffectWindow *effectWindow, double ratio)
     if (!window || !effectWindow->isWaylandClient()) {
         return;
     }
-    if (ratio >= 1.0 || ratio <= 0.0) {
+    if (ratio >= 1.0 || ratio <= 0.0 || !requestedPresentation(window)) {
         release(window);
         return;
     }
@@ -198,6 +217,14 @@ void UpscaleWaylandScale::release(Window *window)
     m_requests.remove(window);
     qCInfo(KWIN_UPSCALE) << "Wayland scale restored: window" << window->internalId() << "scale" << original;
     window->setNextTargetScale(original);
+    // A window leaving fullscreen gets its decoration back before it stops
+    // qualifying, so KWin built that decoration, and the borders its next
+    // configure subtracts, at the scale this effect asked for. Built again at
+    // the scale restored here, the client is sent the size it had before:
+    // measured 2026-09-27, KWin 6.3.6's own tests saw 498x250 for 500x250.
+    if (!window->isDeleted()) {
+        window->invalidateDecoration();
+    }
 }
 
 void UpscaleWaylandScale::releaseAll()

@@ -170,6 +170,20 @@ bool upscaleCoversOutput(const EffectWindow *window)
         && samePixel(frame.y() + frame.height(), output.y() + output.height(), scale);
 }
 
+bool upscaleRequestCoversOutput(const Window *window)
+{
+    const UpscaleOutput *output = window->moveResizeOutput();
+    if (!output) {
+        return false;
+    }
+    const double scale = output->scale();
+    const QRectF requested = window->moveResizeGeometry();
+    const QRectF screen = output->geometryF();
+    return samePixel(requested.x(), screen.x(), scale) && samePixel(requested.y(), screen.y(), scale)
+        && samePixel(requested.x() + requested.width(), screen.x() + screen.width(), scale)
+        && samePixel(requested.y() + requested.height(), screen.y() + screen.height(), scale);
+}
+
 // Which of the six cells this window presents in. Answerable here and not
 // when a client binds an output, which is the whole reason Auto waits for the
 // window before it says anything on Wayland: by now the window exists, so its

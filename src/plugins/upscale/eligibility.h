@@ -15,6 +15,7 @@ namespace KWin
 {
 
 class EffectWindow;
+class Window;
 class SurfaceItem;
 
 /**
@@ -125,6 +126,15 @@ bool upscalePresentation(EffectWindow *window);
  * window that presents nothing of the kind.
  */
 bool upscaleCoversOutput(const EffectWindow *window);
+
+/**
+ * Whether the geometry KWin has asked the window to take still covers the
+ * output it is moving to. A committed geometry lags the request by a
+ * configure: a window leaving fullscreen still covers its output until its
+ * client answers, and whatever is taken back only then is sent to it in a
+ * configure of its own, after the one that already told it its new size.
+ */
+bool upscaleRequestCoversOutput(const Window *window);
 
 /**
  * Why this window cannot be scaled, or None when only the effect's own state
