@@ -75,7 +75,8 @@ def main() -> int:
             # KWin identifies a virtual output by its connector name alone; it
             # has no EDID to hash. The mode has to match the one the backend is
             # started with, or the setup is discarded as inapplicable.
-            outputs = [
+            # Named apart from the count: the command below still needs that.
+            recorded = [
                 {
                     "connectorName": f"Virtual-{index}",
                     "scale": scale,
@@ -94,12 +95,12 @@ def main() -> int:
                     "priority": index,
                     "position": {"x": index * mode[0] // scale, "y": 0},
                 }
-                for index in range(len(outputs))
+                for index in range(outputs)
             ]
             (config / "kwinoutputconfig.json").write_text(
                 json.dumps(
                     [
-                        {"name": "outputs", "data": outputs},
+                        {"name": "outputs", "data": recorded},
                         {"name": "setups", "data": [{"lidClosed": False, "outputs": placement}]},
                     ]
                 )
