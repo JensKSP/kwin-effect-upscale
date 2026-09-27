@@ -461,7 +461,8 @@ void UpscaleDisplayTest::displayShowsTheState()
 
 int main(int argc, char **argv)
 {
-    QTemporaryDir configuration(QDir::currentPath() + QStringLiteral("/display-test-XXXXXX"));
+    // Under the temporary directory for the reason settings_fixture.h gives.
+    QTemporaryDir configuration(QDir::tempPath() + QStringLiteral("/upscale-display-test-XXXXXX"));
     if (!configuration.isValid()) {
         return 1;
     }
