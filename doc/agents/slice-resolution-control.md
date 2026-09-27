@@ -9,8 +9,9 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 Jens reaffirmed on 2026-09-24 that the solution must work with normal launching
 entirely through the effect, without game-specific preparation or configuration
-edits. The active investigation traces ETR/SFML/Xwayland startup to establish
-whether earlier negotiation or a protocol readiness signal can satisfy this.
+edits. ETR startup negotiation is now accepted. The active investigation asks
+whether consistent per-client X11 display information can make L4D2 choose
+smaller internal rendering while preserving those constraints.
 Launch wrappers and private displays are not an acceptable implementation.
 
 The selected route is cooperative control entirely from the plugin. The owner’s
@@ -2995,8 +2996,9 @@ testing L4D2 and Wreckfest; those hardware results are still pending.
 Jens subsequently reports L4D2 works flawlessly. Its native Linux X11 run uses
 X11Resize and Quality, supplies 2560 × 1440 and is accepted with effect
 presentation. The physical output remains 3840 × 2160 at 120 Hz and 300% scale.
-Jens then reports L4D2's pointer clicks the wrong menu items. Its rendering
-result stands, but input acceptance is withdrawn pending a coordinate trace.
+Jens then reports L4D2's pointer clicks the wrong menu items. Input acceptance is withdrawn pending a coordinate trace; the later GL trace
+below also withdraws the assumption that its smaller window proves smaller
+internal rendering.
 He asks to finish the Wine guard first and investigate L4D2 afterwards.
 The ETR objective is demonstrated by the earlier source/tracing comparison,
 twelve normal isolated starts, the wzpc startup/menu/pointer/race acceptance,
@@ -3030,3 +3032,908 @@ identified. The menu conversion is a candidate explanation, not a demonstrated
 double transform. Compare the live surface/emulated-mode state and coordinates
 before choosing between a missing resize acknowledgement and an input mapping
 correction.
+
+On the next unlocked run (PID 347049), Jens reports the highlighted menu item
+is above the visible pointer. The active-window screenshot shows Add-ons
+highlighted with the cursor near the screen bottom. X geometry is 2560 × 1440,
+with no _XWAYLAND_RANDR_EMU_MONITOR_RECTS property. KWin's cursor is (312, 707)
+in logical coordinates on the 300% output; SDL receives (624, 1413), matching
+the effect's 2/3 mapping after Xwayland's desktop scale. The menu polling path
+reports a 2560 × 1440 SDL window and 3840 × 2160 viewport, converting that
+position to (936, 2119). The launcher separately multiplies SDL motion/button
+coordinates by stored factors of (1, 1). Its fullscreen setup computes these
+factors from engine dimensions divided by SDL_GetDesktopDisplayMode. The game
+loads its own bin/libSDL2-2.0.so.0, not the host SDL inspected earlier.
+
+The decisive GL trace resolves the real entry points through SDL at a swap,
+after tracing libGL's unused export stubs produced no samples. Across nine
+complete sampled frames, glViewport is 3840 × 2160 and glBlitFramebuffer copies
+(0,0)-(3840,2160) to (0,1440)-(2560,0). Thus this menu run still renders at 4K
+and downscales into the smaller X11 drawable before our effect enlarges it
+again. A changed compositor buffer alone did not establish the intended
+rendering reduction. This is neither original smaller rendering nor accepted
+input, and it must not be presented as a successful L4D2 result.
+
+The successful debugger samples detached. However, the initial GL probe was
+terminated on timeout, and the game later exited with a trace/breakpoint trap
+at 16:09:21 local time. A breakpoint left by that interrupted probe is the
+likely cause; debugger timeout termination is unsafe here. No game
+configuration or production input code was changed. The next useful experiment
+must establish control of the engine's internal render size and its matching
+input coordinates, not tune
+a compositor mouse multiplier to hide the mismatch. Standard resize handling
+is insufficient in the observed run; whether an effect-only generic stimulus
+can make this engine reinitialize remains unproven. ETR/STK acceptance does
+not prove that other clients honor such resizes.
+
+### L4D2 startup resolution sources, 2026-09-24
+
+A fresh diagnostic launch uses the installed Scout-on-Soldier runtime and the
+game's normal `-game left4dead2 -steam` arguments. Its supplied `hl2.sh`
+`GAME_DEBUGGER` hook starts strace, filtered to reads of `cfg/video.txt`, plus
+a temporary i386 SDL/GL logging library compiled in the Trixie container.
+The wrapper forwards calls and return values unchanged. There are no debugger
+breakpoints, game configuration edits or persistent Steam launch-option edits.
+This is an instrumented launch, so elapsed times are not performance results.
+
+The trace and compositor journal agree on this sequence, in local time:
+
+| Time | Observation |
+| --- | --- |
+| 16:18:46.154 | The launcher creates a hidden 640 × 480 SDL window. |
+| 16:18:48.459 | strace records reading `video.txt`, including `setting.defaultres=3840` and `setting.defaultresheight=2160`; the file is read again at .484. |
+| 16:18:48.487 | `SDL_GetDesktopDisplayMode` returns 3840 × 2160 at 120 Hz; the launcher passes that mode to `SDL_SetWindowDisplayMode`. |
+| 16:18:48.500 | The launcher requests a 3840 × 2160 window and sets a matching GL viewport. |
+| 16:18:48.501 | The effect first holds the window's mapping. |
+| 16:18:48.612 | The effect issues its first 2560 × 1440 request. |
+| 16:18:49.810 | Following several fullscreen transitions, SDL still reports a 3840 × 2160 current display mode. |
+| 16:18:49.895 | SDL reports a 2560 × 1440 window; GL still blits from a 3840 × 2160 source to the smaller destination. |
+
+Thus both saved settings and SDL supply 4K, and the launcher sets a 4K viewport
+before the effect receives the first MapRequest. This does not establish which
+of the two inputs controls the engine's choice: both contain the same value,
+and the diagnostic does not intercept SDL's earlier X11 display enumeration.
+The bundled SDL identifies its revision as `hg-14525:e52d96ea04fc`.
+
+The current X11 path resizes windows; its Wayland output-mode override
+explicitly excludes the shared Xwayland connection. Moving the existing
+mapping intervention slightly earlier therefore cannot, by itself, change
+these already-consumed inputs. A generic way to make the engine renegotiate
+its internal render size remains unproven. Do not compensate for this solely
+by changing the compositor's pointer multiplier or report a smaller drawable
+as proof of reduced internal rendering.
+
+Diagnostics remain under ignored `build/l4d2-input-trace`: `startup.strace`,
+`startup-sdl.log` and `startup-compositor.log`. The live startup result
+reproduces the earlier mismatch without debugger breakpoints. No new effect
+binary or production input change was installed for this investigation.
+
+### Consistent per-client X11 display investigation, 2026-09-24
+
+Jens requests establishing an effect-only mechanism rather than accepting the
+current L4D2 limitation. Preserve normal launching, other applications' display
+information, and game configuration. Investigate existing Xwayland/KWin
+interfaces and targeted display-change events. Separately test whether
+substituting smaller SDL display-query answers at startup is sufficient for
+this engine; any such temporary instrumentation is diagnostic only, not an
+implementation that satisfies normal launching.
+
+The supported investigation gate is a reproducible explanation of the control
+boundary and an experimentally checked candidate. Full acceptance remains a
+normal L4D2 launch with reduced internal rendering and correct pointer input,
+plus ETR/STK regression acceptance and unrelated-client isolation. Do not ship
+an injected library, private launcher or patched server as satisfying the
+existing effect-only requirement.
+
+The first controlled startup experiment (PID 359791, 17:17 local time) succeeds
+in selecting smaller rendering. A temporary i386 preload substitutes
+2560 × 1440 for SDL desktop/current modes and display bounds, and caps larger
+mode-enumeration entries. It does not change window-size requests or GL calls.
+The game starts with the original 3840 × 2160 saved resolution. The engine
+queries display bounds before its first mode setup, then asks for a
+2560 × 1440 window and creates a matching GL viewport. The final blit is
+2560 × 1440 to 2560 × 1440, without the previous 4K intermediate copy.
+The journal records client-owned Xwayland presentation and an accepted buffer
+at that size. An independent `xrandr --current` still reports 3840 × 2160.
+This proves that the display information can influence this engine, not that
+the effect can supply the information through the existing X11 interface.
+Pointer acceptance has been requested from Jens and is pending.
+
+The game itself rewrites only the two saved resolution values to 2560 × 1440
+during this startup. The original file is backed up under build, and those
+values must be restored after this diagnostic exits. Do not describe the
+configuration as unchanged while that restoration is pending.
+
+Interface audit against KWin 6.3.6 and Xwayland 24.1.6: the RandR and VidMode
+mode setters both use `GetCurrentClient()`; the compositor's own X connection
+cannot select a different client's mode. The Xwayland-shell v1 protocol has
+surface association and destruction requests but no display-policy events.
+KWin's Xwayland launcher controls the server and its listening descriptors,
+not individual clients' replies. X11 connection setup already contains root
+screen dimensions before `ClientStateRunning` callbacks run. Fully consistent
+startup virtualization therefore needs a control point earlier than window
+mapping, including connection setup and subsequent display queries.
+
+The game's bundled revision string matches SDL 2.0.14. Its upstream X11 event
+handler has no RandR display-refresh handling; initial desktop/current modes
+are built from RandR enumeration in `SDL_x11modes.c`. Synthetic screen events
+are not a demonstrated means of replacing those cached values. No such event
+experiment was run and no production hook was added.
+
+A concrete next candidate is a trusted per-client display-policy interface in
+Xwayland, with policy supplied by the effect before the client's first screen
+information is sent. It must cover core geometry, RandR, Xinerama/VidMode as
+applicable, matching window/input presentation, and multiple connections from
+the same application while leaving other clients unchanged. This is a server
+extension, outside the currently authorized effect-only implementation scope.
+Jens has been asked whether to permit a companion Xwayland prototype. No
+server patch or desktop-server replacement has been made.
+
+Jens approved the companion Xwayland prototype. Work remains in ignored build
+output, with no branch creation or desktop Xwayland replacement. The first
+checkpoint uses a private controller descriptor: after authentication, hold a
+client before connection setup, report its server-resolved PID to the controller,
+and resume with a per-client size or native fallback. A bounded timeout and
+controller disconnect must resume pending clients. Test selected and unrelated
+clients concurrently in a private compositor; use the game's unmodified SDL
+for a later rendering test. This is permission to prototype the server support,
+not evidence that the existing package or stock Xwayland already supports it.
+
+Jens subsequently withdrew permission for modified Xwayland after clarifying
+that this meant a rebuilt server, not a loadable add-on. The server prototype
+was stopped before patch integration, compilation or installation. Stock KWin
+and stock Xwayland remain requirements. The current work compares existing
+launch notifications, process observation and execution gates; no new launch
+hook has been installed. Earlier approval above is historical, not current
+authorization. The SDL diagnostic's saved-resolution restoration remains
+pending while its game process is running.
+
+### Launch-notification timing experiment, 2026-09-24
+
+Jens authorized measuring existing launch hooks, including direct consumption
+inside an effect. Compare KDE application launching with Steam's own launch
+path, observing startup notifications, process appearance, X11 connection
+setup and display requests. A temporary passive effect connects to KWin's
+startup signals and KStartupInfo; a separate XRecord observer resolves client
+PIDs through XRes. A temporary Linux process sampler records names and
+executable paths, not arguments or environment. These diagnostics live under
+ignored build output and are not a production implementation. No launch gate,
+modified server or game-specific preparation is authorized by this experiment.
+
+The experiment closes against an observed timing and coverage comparison;
+normal-launch reduced rendering and pointer acceptance remain outstanding.
+The previous SDL override run exited after its locale-warning dialog was
+acknowledged. Its saved resolution was restored, with the complete resulting
+video.txt matching the original backup exactly. The passive diagnostic effect
+loaded alongside the existing upscaler; its temporary plugin discovery file
+was immediately removed. An xrandr probe verified XRecord connection and
+RandR request/reply capture before game samples began. The installed ETR
+application entry explicitly has StartupNotify=false, which must be retained
+when describing the normal KDE-launch result.
+
+The first control uncovered an API limitation: KF6 6.13 KStartupInfo returns
+without connecting its listener when the containing application is not using
+Qt's X11 platform. Constructing it inside Wayland KWin therefore does not
+observe legacy X11 startup messages. The experiment added a separate Qt/X11
+listener; production integration would need a helper or direct XCB handling.
+KWin's own EffectsHandler startup signals remain connected in the diagnostic
+effect. Do not describe KStartupInfo alone as a working in-process listener
+for this Wayland session.
+
+KDE launches through kioclient with the installed ETR desktop entry produced
+no startup notice. A temporary copy with StartupNotify=true, launched through
+kioclient's X11 platform, validated the legacy notification observer: startup
+notice at 1790272090.426, PID update at .431, X11 connection setup observed at
+.455307, and first RandR GetScreenInfo request at .499105. This is about 29 ms
+of notice before connection setup in that one control, not a launch barrier.
+The temporary entry was not installed as a user application or game setting.
+A repeat using the unchanged installed entry, with both listeners active,
+again produced no startup notice and recorded a 3840 × 2160 setup screen.
+Across five ETR samples the nominal 10 ms process sampler first observed the
+game 1.5–4.0 ms after its X11 setup reply, already too late for that reply.
+All times above are observer receipt times, not an assertion of zero tracing
+overhead. Early failed kstart service-resolution attempts are excluded.
+
+The desktop locked before the Steam Play-button sample. Jens was asked to
+unlock it; the sample is pending. The passive observers remain running for
+that continuation. No ETR or L4D2 sample is left running at this checkpoint.
+
+### Stock Xwayland shared-display advertisement experiment, 2026-09-24
+
+Jens stopped the Steam-launch-path investigation because games can be launched
+by other means, and requested the independent display-mechanism experiment.
+The launch observers have been stopped and the temporary launch effect
+unloaded. Test whether stock KWin can advertise 2560 × 1440 to stock Xwayland
+while its physical output remains 3840 × 2160, including fresh and existing
+X11 connections and the corresponding native Wayland output view. The live
+output currently runs at 4K/120 Hz and scale 3. First inspect KWin's existing
+Xwayland scale API, then use a temporary diagnostic effect with automatic
+restoration. All experimental sources and artifacts remain under build.
+
+This test intentionally examines shared Xwayland display state. It does not
+establish per-game isolation, game rendering correctness, input acceptance or
+a production implementation. Preserve physical display settings and restore
+any temporary shared advertisement before handing back the desktop.
+
+The live shared-advertisement test succeeded on stock KWin 6.3.6 and Xwayland
+24.1.6. The temporary effect called only the existing Xwayland
+ClientConnection::setScaleOverride API, changing its value from 3 to 2 and
+back. It did not call Application::setXwaylandScale, which would also write
+settings and run font/style reinitialization. The diagnostic implements a
+30-second restoration timer and restores on unload; this run explicitly
+restored after about four seconds, so timer expiry was not tested.
+
+| Observation | Baseline | During override | After restoration |
+| --- | --- | --- | --- |
+| Physical KScreen output | 3840 × 2160 at 120 Hz, scale 3 | Unchanged | Unchanged |
+| Independent native Wayland output view | 4K mode, 1280 × 720 logical | Byte-identical report | Physical state checked unchanged |
+| Fresh X11 setup and root geometry | 3840 × 2160 | 2560 × 1440 | 3840 × 2160 |
+| Fresh RandR CRTC/current screen, Xinerama, VidMode | 3840 × 2160 | 2560 × 1440 | 3840 × 2160 |
+| Largest advertised X11 mode | 3840 × 2160 | 2560 × 1440 | 3840 × 2160 |
+| Existing X11 probe handling screen events | 3840 × 2160 | 2560 × 1440 | 3840 × 2160 |
+| Fresh bundled SDL desktop/current modes and bounds | 3840 × 2160 | 2560 × 1440 | 3840 × 2160 |
+| SDL initialized before the change, pumping events | 3840 × 2160 | Still 3840 × 2160 | Still 3840 × 2160 |
+
+The SDL probe directly loads the game's unmodified i386 library, revision
+hg-14525:e52d96ea04fc. It creates no game window, injects no replacement query
+answers and changes no game files. Its 14-second existing-client run covered
+both transitions. Native Wayland advertisements and KScreen output snapshots
+were compared byte-for-byte. The diagnostic was unloaded and independent fresh
+queries verified restoration. Evidence and temporary binaries are under
+build/xwayland-advertisement-trace. The diagnostic effect and X11 probe were
+compiled in the maintained Trixie container; the i386 SDL probe used the
+existing Trixie multilib diagnostic image. This was a focused experiment,
+not a production build or human game/input acceptance.
+
+The mechanism can change stock Xwayland's display information consistently
+for fresh clients without a launcher hook. It changes that information for
+unrelated X11 clients too. Existing SDL caches, per-game isolation, surface
+presentation and pointer mapping remain separate unresolved requirements;
+changing only the connection scale is not a validated complete game-scaling
+implementation. No Steam Play-button sample is required by the latest scope.
+
+### Local X11 forwarding proxy prototype, 2026-09-24
+
+Jens authorized a bounded proxy prototype after discussing installation and
+settings integration. Keep the forwarding core independent of resolution
+policy: opaque traffic and descriptor forwarding by default, with only the
+necessary X11 framing and display messages interpreted for selected clients.
+Use a separate diagnostic socket and temporary authentication copy, never
+replace the desktop listener or distribution Xwayland. First verify unchanged
+hardware acceleration through the proxy, then give a selected SDL client a
+smaller display view while another client on the same proxy retains 4K.
+
+This checkpoint closes against transport/acceleration and per-client display
+query evidence. Full acceptance still requires game rendering/input, robust
+application identity across Wine and containers, session integration, recovery,
+packaging and regression tests. No claim of Wine/Flatpak/Snap/Docker support is
+made by a successful native diagnostic. The prototype and its test artifacts
+remain under build; no production source, installed session settings or game
+configuration is changed by this checkpoint.
+
+The bounded native prototype passed its initial transport and display-query
+checks on wzpc. It listens on a separate Linux abstract X11 socket (:91),
+forwards to the existing stock Xwayland (:1), and uses a temporary private
+copy of the current X authentication record. The normal desktop DISPLAY and
+Xwayland listener remain unchanged. Diagnostic selection uses the kernel peer
+PID and executable basename for named test binaries; this is not a production
+identity implementation for Wine, sandboxes or non-Linux systems.
+
+The forwarding module knows only Unix stream transport and SCM_RIGHTS. For
+unselected connections it forwards bytes without X11 parsing. Selected
+connections add X11 framing, including setup, byte order, BIG-REQUESTS and
+variable-length generic events, and interpret extension discovery plus the
+required display replies. Real RandR mode IDs and timing records are retained;
+mode lists are filtered to the requested limit. No requests are injected, so
+sequence numbers do not need translation. Unknown messages pass unchanged.
+This is a one-output static display-query prototype, not complete virtualization
+of mode changes, hotplug, window geometry, work-area properties or input.
+VidMode current timing currently requires prior RandR enumeration.
+
+Observed checks:
+
+- Direct and opaque-proxy glxinfo report direct rendering, acceleration and
+  the same AMD Radeon hardware renderer. The proxy forwarded all ten file
+  descriptors observed in its glxinfo connection.
+- glmark2 build/VBO and texture validations pass directly, through opaque
+  forwarding, and with the selected-client policy enabled. These validations
+  force 800 × 600 and are not evidence of fullscreen-size selection.
+- A separate one-second off-screen fullscreen glmark2 run automatically
+  chooses 3840 × 2160 directly and 2560 × 1440 through the selected policy.
+  Both use the AMD renderer. These short runs are not a performance benchmark
+  or evidence about a game's internal render targets.
+- The selected X11 probe sees 2560 × 1440 in connection setup, root geometry,
+  current RandR screen and CRTC, Xinerama and VidMode. Its largest enumerated
+  mode is 2560 × 1440. The original probe on the same proxy sees 4K.
+- A direct load of L4D2's unmodified bundled SDL reports 2560 × 1440 for
+  desktop/current modes and bounds, with 33 modes capped at that size. Its
+  connection forwards seven received descriptors successfully.
+- Concurrent four-second selected SDL and unselected X11 samples retain
+  1440p and 4K respectively while the policy-enabled GPU validation also runs.
+- Container tests exercise one MiB in each direction with deliberately small
+  send buffers, descriptor delivery/content and close-on-exec state, half-close
+  behavior, queued-descriptor cleanup, little/big-endian fragmented setup,
+  ordinary and extended requests, and variable-length generic events.
+
+Artifacts are under build/x11-proxy-prototype. The transport/policy prototype
+is Python for this feasibility checkpoint, not a production dependency or
+installed helper. Actual L4D2 and Wreckfest rendering and mouse acceptance,
+Vulkan/presentation synchronization, proxy overhead, session-start integration,
+settings, packaging and container compatibility remain untested. The result
+establishes selective startup display information with accelerated native
+OpenGL forwarding, not a finished replacement for existing resolution control.
+
+All four focused transport/framing tests passed in the Trixie container,
+including a malformed selected-client request being confined to its own
+connection. The diagnostic proxy was then stopped, its temporary authentication
+copy deleted, and an independent connection to the normal desktop verified
+3840 × 2160 across the queried X11 interfaces. No proxy or diagnostic effect
+remains installed or active in the session.
+
+### Stock Plasma session integration audit, 2026-09-24
+
+Production proxy and launcher code must be C++23. The Python transport above
+remains a diagnostic. Jens asks whether KDE mechanisms can provide portable
+session installation before proceeding with production integration.
+
+Source inspection finds a candidate, not a tested installation:
+
+- Plasma 6.3.6 startplasma-wayland runs environment scripts before starting
+  the session. Its common startup code reads plasma-workspace/env/*.sh from
+  QStandardPaths configuration locations, synchronizes the launch environment,
+  and supports both systemd and classic startup. Current Plasma master retains
+  these mechanisms, with the Wayland entry point moved into startplasma.cpp.
+- KWin 6.3.6 and inspected master locate Xwayland using
+  QStandardPaths::findExecutable. A private directory containing only our
+  Xwayland-named launcher, prepended through the Plasma environment hook, is a
+  candidate interception point. This uses executable lookup, not a dedicated
+  KDE proxy plugin API. Distribution binaries would remain untouched.
+- KWin's existing wrapper allocates public X11 listening sockets and
+  authentication, passes them to KWin, and publishes DISPLAY/XAUTHORITY through
+  KUpdateLaunchEnvironmentJob. The proposed launcher would retain these public
+  listeners for the proxy and give stock Xwayland private backend listeners.
+  Preserve the direct window-manager channel, Wayland connection, authentication
+  and readiness handshake. Applications would keep KDE's normal endpoint.
+- Newer KWin also passes an initfd, absent from the inspected 6.3.6 launcher.
+  Its initialization path must stay functional; blindly substituting every
+  socket is not a compatible design. Process exit, shutdown and restart
+  supervision also need integration tests.
+
+The environment hook is a better cross-platform candidate than requiring a
+systemd-only service override. It does not establish BSD runtime support or
+uniform distribution packaging. Resolve install paths at build/install time;
+use runtime descriptors and Qt standard locations rather than fixed display
+numbers, user IDs or Linux abstract sockets. Executable lookup must avoid
+recursing into our launcher. Ordinary desktop autostart cannot guarantee that
+the proxy is present before the first X11 client connects.
+
+Next integration gate: exercise this launcher in private stock-KWin sessions
+on the maintained Trixie and Neon environments, including disabled startup,
+authentication, accelerated clients, teardown and failure recovery. Then test
+the actual Plasma startup hook. Installing the hook is expected to take effect
+on next login; changing policy in an already proxied session is separate from
+inserting/removing the transport. Do not promise transparent recovery of
+existing X11 connections after a proxy crash.
+
+Inspected upstream files: KDE/kwin src/xwayland/xwaylandlauncher.cpp and
+src/helpers/wayland_wrapper/kwin_wrapper.cpp; KDE/plasma-workspace
+startkde/startplasma-wayland.cpp and startkde/startplasma.cpp, at v6.3.6 and
+master where present. Downloaded research copies are under
+build/x11-proxy-prototype/session-research. No session hook, service override,
+proxy binary or package change was installed during this audit.
+
+### C++ session-start experiment, 2026-09-24
+
+Jens authorized testing the startup integration. His physical display is in a
+Kodi GBM session, so this checkpoint uses only private container displays and
+software rendering, with no host display devices, session environment changes
+or installed hooks. Diagnostic sources and results live under
+build/x11-proxy-prototype/session-cpp; private session logs/configuration are
+under build/sx-*. The launcher and byte/descriptor relay are C++23. Python is
+used only to drive and inspect the experiments; the Plasma environment hook
+contains the shell assignments that Plasma sources.
+
+The C++ launcher receives KWin's public listening descriptors, replaces only
+the stock server's listenfd arguments with a private filesystem Unix socket,
+and preserves auth, displayfd, wm, WAYLAND_SOCKET and the newer initfd. It
+supervises stock Xwayland with QProcess and forwards termination. The relay
+uses nonblocking POSIX sockets, Qt event notifications, bounded byte/descriptor
+queues, SCM_RIGHTS, partial writes and half-closes. It applies no resolution
+policy and is not a production installation or complete portability review.
+
+Observed results:
+
+- Builds with GCC and Clang, warnings as errors, in Trixie and Neon. Two
+  focused transport cases pass for each build: simultaneous one-MiB streams in
+  both directions with descriptor content checks and small socket buffers,
+  half-close with a surviving reverse direction, and abrupt peer disconnect.
+  Neon initially routed Qt informational logs elsewhere; explicitly enabling
+  console logging fixed the test's log assertion, with byte/descriptor checks
+  unchanged.
+- Trixie KWin/Plasma 6.3.6 with Xwayland 24.1.6 successfully launches the
+  proxy through actual startplasma-wayland environment-hook processing and
+  classic session startup. An XDG-autostart client sees the hook marker and
+  KDE-published DISPLAY/XAUTHORITY. Both public filesystem and Linux abstract
+  listeners accept authenticated setup. Incorrect authentication is rejected,
+  and subsequent valid clients work. RandR queries, llvmpipe OpenGL context
+  creation and an X11 window work; this is not hardware acceleration evidence.
+- Direct startup and the launcher's disabled exec-to-stock path pass on
+  Trixie. Normal wrapper exit forwards termination and the backend exits.
+- Killing only the private Xwayland backend causes KWin to launch a new
+  proxy/backend pair and new clients can connect again. Existing connections
+  are not restored by this recovery.
+- Killing the proxy initially revealed an orphaned backend: Xwayland could
+  reset after losing its clients rather than exit. Adding stock Xwayland's
+  documented -terminate option prevents that reset. The repeated proxy-kill
+  experiment verifies both a new working connection and termination of the
+  old backend. No patched Xwayland or Linux parent-death API is involved.
+
+Neon KWin 6.7.5 development build (2026-09-23), Plasma workspace development
+build (2026-09-12), and Xwayland 24.1.8 reach both the launcher and autostarted
+client, including the additional initfd path. However, current KWin's virtual
+backend supports only OpenGL and requires a render device absent from this
+device-free container. KWin reports unavailable compositing and the full
+Plasma run crashes. A direct, unproxied control reproduces unavailable
+compositing. Therefore the early successful connection probes do not count as
+a passing Neon session test; their stored aggregate assessments were corrected
+after examining compositor health. Complete Neon runtime validation remains
+open until a suitable render device is available.
+
+The test harness must preserve the kwin_wayland executable basename when
+copying the distribution binary to avoid file capabilities in containers;
+the first differently named copies failed QPA initialization before reaching
+the proxy. These failed harness runs are not proxy startup evidence.
+
+Still open: the systemd-managed Plasma login path, real-session GPU forwarding
+with this C++ implementation, BSD/runtime portability, package install/remove
+and persistent settings, application identity, resolution policy and game
+acceptance. The normal Linux user's login configuration remains untouched.
+
+### Isolated C++ resolution policy and quality status, 2026-09-24
+
+Jens requested resolution and input validation before further login integration,
+and explicitly asked to continue isolated checks while Kodi owns the display.
+The diagnostic C++ proxy under ignored build output now includes a bounded,
+single-output display-query policy. It is not production source, packaged or
+installed. Application selection and persistent settings remain open.
+
+In Trixie's private 3840 by 2160 virtual session, the SDL diagnostic reads
+2560 by 1440 before window creation and retains that GL viewport while its
+drawable is also 2560 by 1440. The effect presents it across the 4K output.
+With policy disabled, the control instead caches a 4K viewport while the
+effect obtains a smaller drawable, reproducing the mismatch being investigated.
+This establishes startup-resolution behavior for this SDL probe, not L4D2
+acceptance or hardware rendering performance.
+
+Input remains unresolved: the first injected pointer movement updates KWin's
+global position but produces no SDL motion, also with policy disabled. The
+client continues rendering. Temporary test-driver logging confirmed movement
+from (1919,1079) to (240,240); Xwayland's Wayland trace shows a pointer frame
+without motion at that step. Those temporary source log statements were removed
+after capture. No production coordinate correction follows from this result.
+
+The diagnostic policy compiled in both maintained containers with GCC and
+Clang, warnings as errors. An additional Trixie Clang build with AddressSanitizer
+and UndefinedBehaviorSanitizer completed. Its two opaque transport tests passed
+with leak detection and halt-on-error enabled: simultaneous partial writes
+with descriptor passing and half-close, and destination disconnection. These
+tests do not exercise the display policy, session launcher, or full effect;
+they do not establish absence of memory or descriptor leaks in those paths.
+
+The proxy uses Qt's event loop without explicit worker threads. ThreadSanitizer,
+signal/shutdown review, repeated connection and descriptor-leak stress checks,
+dedicated C++ protocol-policy tests, and full lint/static-analysis validation
+of the new implementation remain outstanding. Diagnostic connection, policy,
+and failure logs exist; production logging coverage is not complete. The
+prototype is neither complete nor ready for installation or PR acceptance.
+
+### Retire the installed Wine helper and prepare proxy testing, 2026-09-24
+
+Jens explicitly requested removing the Wine helper from the installation and
+disabling its build and installation before further proxy testing. The default
+build now leaves src/winescreen out entirely, including its five dedicated
+tests. UPSCALE_BUILD_WINE_HELPER is an explicit, default-off development option;
+Debian packaging explicitly keeps it off. The retained effect-side optional
+interface does not find or activate a helper in this installation.
+
+The three manually installed helper files on wzpc had no dpkg owner. Their
+copies are under build/wine-helper-retired; the executable and the D-Bus and
+systemd activation files were removed. No helper service was loaded and no
+helper process remained. The user manager's definitions were reloaded. No Wine
+prefix was edited or reset by this removal. A fresh staged CMake install has
+exactly the effect, settings module and shared application defaults; the native
+candidate was installed with the same contents.
+
+The input stall above is fixed by extending the existing entered-position
+confirmation to effect-scaled presentation. KWin can reclaim pointer focus on
+a surface the effect already focused. Its seat records the entered position,
+while wl_pointer can suppress the same-surface enter and the subsequent motion
+at that position. Previously the correction applied only to unit transforms
+used with Xwayland's emulation. The mapped confirmation now also applies to
+the effect's transform, while respecting an active pointer lock. No extra
+coordinate multiplier was introduced. The X11 regression test now moves from
+the effect-owned area back into KWin's hit region and checks the first motion.
+
+The isolated SDL test now passes: cached startup mode, drawable and viewport
+are all 2560 by 1440, while presentation covers 3840 by 2160. Motion and clicks
+at physical (240,240), (1920,1080) and (3600,2010) arrive at (160,160),
+(1280,720) and (2400,1340). A separate native connection still reports 4K.
+The complete probe also passes with the proxy instrumented by AddressSanitizer
+and UndefinedBehaviorSanitizer, leak detection enabled, and successful proxy
+shutdown checked. Stock SDL/graphics code is not instrumented in that run.
+
+Additional diagnostic C++ tests cover fragmented setup in both byte orders,
+root and unrelated-window geometry, ordinary and BIG-REQUEST framing, generic
+input events, and malformed lengths. They exposed and fixed acceptance of a
+BIG-REQUEST smaller than its eight-byte header. Protocol tests and the two
+transport tests pass under address/undefined-behavior and thread sanitizers.
+This remains bounded testing, not a proof of absence of races or leaks.
+
+The tracked candidate builds with Trixie Clang and Neon GCC and Clang, with
+warnings as errors. All 22 remaining Trixie Clang test suites pass. Both lint
+stages pass, and clang-tidy reports no source diagnostics in x11input.cpp.
+Trixie GCC was rebuilt after clearing an old copied Neon's cache that referred
+to the Trixie directory; all 22 suites then passed there too.
+The normal lint hooks do not include ignored diagnostic sources.
+
+Jens authorized reading only upscaler-related entries in his two configuration
+files after automatic approval review initially refused that access. No
+preferences were changed: the current settings inherit the package's quality
+resolution, consistent with 1440p on the 4K output. Kodi and its display were
+not touched. The private-game-test versus complete normal-launch integration
+question remains unanswered; no session hook or game launch change is installed.
+
+Jens clarified the intended settings after successful compatibility testing:
+On/Off per X11/Wayland presentation, with the implementation chosen internally.
+This planned interface is now recorded in the handbook; no premature UI or
+stored-setting migration was made. The diagnostic proxy's own static analysis
+found arithmetic readability/conversion issues, oversized functions and use of
+strerror. These are being corrected separately from the already clean tracked
+input change; the ignored prototype is not covered by normal repository lint.
+
+After the static-analysis cleanup, the diagnostic proxy builds and its protocol
+and transport tests pass with GCC and Clang in both maintained containers, in
+Trixie address/undefined-behavior and thread sanitizer builds, and in the native
+live-test build. The inspected forwarding, policy, display-reply and standalone
+endpoint sources now pass clang-tidy with the repository configuration. The
+session-start launcher was not included in that static-analysis run and still
+belongs to the unfinished normal-launch integration. No production proxy or
+session hook was installed by preparing the native diagnostic binary.
+
+### Normal-launch routing implementation, 2026-09-24
+
+Jens explicitly requires completing normal launching now. The supported
+implementation gate is packaged, system-wide Plasma startup routing through
+stock Xwayland, selected native X11 applications obtaining the effect's current
+policy before setup, unrelated clients retaining their display view and PID,
+and bounded failure/shutdown behavior. Full acceptance retains the real-game,
+Wine/container identity, multi-output and physical-session checks already open.
+
+Use the existing KDE environment hook before KWin starts, without game launch
+changes or replacement of distribution binaries. The effect supplies policy
+through its existing session-bus interface. The proxy obtains peer credentials,
+preserves XRes process attribution (including KWin's WM channel), and uses
+unchanged display replies when identity or policy is unavailable. No home
+configuration or Kodi session change is needed to install the system-wide hook.
+
+Jens additionally requires ordinary user permissions at runtime and actual proxy
+removal when either the effect or its proxy setting is disabled. An always-running
+opaque relay does not satisfy this requirement. The diagnostic launcher's
+disabled branch already uses execv to replace itself with stock Xwayland, but
+production settings integration and active-session transitions are not implemented.
+Existing relayed connections depend on the proxy; stopping it disconnects those
+clients, as the earlier crash experiment demonstrated. Requested and active
+routing state must be distinct. Jens accepted a restart requirement: apply the
+routing change at the next login, show Restart required until then, and explain
+that effect reload alone is insufficient. This transition is not implemented.
+No desktop restart is authorized by this settings discussion. Add acceptance
+checks for both disable controls, direct startup with no resident proxy,
+ordinary runtime credentials, truthful reporting of a pending transition, and
+re-enabling from a session that started directly. Disabling the effect must still
+stop upscaling immediately even while transport removal awaits the next login.
+
+Production integration is now under src/x11proxy, with a CMake-installed Plasma
+environment hook and an Xwayland-named launcher in a private libexec directory.
+The hook snapshots routing at login. Disabled routing execs stock Xwayland;
+enabled routing supervises it using KWin's inherited sockets. The runtime refuses
+root or mismatched real/effective credentials. The WM channel also passes through
+identity-only forwarding, restoring XRes QueryClientIds results from original
+local peer PIDs rather than attributing every client to the proxy. The effect
+provides an asynchronous connection policy via its existing session D-Bus object.
+Explicit X11ConnectionExecutable catalogue identities select ETR, STK and L4D2
+before WM_CLASS exists; Wine and unidentified clients still pass unchanged.
+Settings expose the session switch and pending restart message; the proxy also
+notifies when saved settings disable either control. No active-session removal
+or host login restart has been performed.
+
+The first production Trixie GCC build and its then-current 24 CTest suites passed.
+Unprivileged virtual-session tests passed ordinary authenticated X11 access,
+bad-cookie rejection, filesystem/abstract listener access, software OpenGL and
+direct disabled startup. The resolution run used the ordinary session endpoint:
+SDL's first display query, drawable and viewport were all 2560x1440 on a 4K
+output; three pointer positions and clicks matched, including the lower right;
+an unrelated client retained 4K. Results are under
+build/proxy-routing-check/runtime/sx-k87y9zwq (enabled), sx-r5znlfsj (disabled),
+and sx-d_k0cv6e (resolution/input). An earlier UID-1000 harness run failed because
+that container had no passwd entry for UID 1000; rerunning as its existing nobody
+user resolved it. These are software-rendered checks, not hardware acceptance.
+
+Subsequent review added mode-availability validation and the real target timing
+to the initial policy, avoiding a dependency on RandR enumeration before VidMode
+or current-CRTC queries. Only the requested size is advertised. The mode-query
+code is shared with existing X11 resizing in x11modes.cpp. New tests cover helper
+identity preservation, oversized opaque request streaming, both startup switches,
+peer credentials, profile export, and restart-required settings. These latest
+changes are still being built and checked. Earlier Clang/Neon attempts overlapped
+source changes and failed linking intermediate states; neither is a passed final
+build. Both lint stages have run; the remaining reported findings were type
+annotations in the newly ported transport test, now corrected but awaiting rerun.
+No production proxy, hook, or new effect from this integration is installed on
+wzpc yet. Packaging, complete validation, review, commit/push and live-game
+acceptance remain open.
+
+The subsequent test candidate was built natively and installed on wzpc, including
+the effect, settings module, catalogue, private proxy and Plasma environment hook.
+Installed binaries matched the build; the proxy has neither set-ID bits nor file
+capabilities. Eight focused Clang settings/application/proxy tests passed, as did
+the three proxy suites under address/leak plus undefined-behavior sanitizers and
+under ThreadSanitizer. Actual isolated Plasma logins passed with routing enabled
+and disabled; the disabled run used stock Xwayland without a resident proxy.
+These focused checks establish a human-test candidate, not completed PR validation.
+
+After logging into KDE, Jens reported "ETR ok". The host journal confirms the
+ordinary-user backend (UID 1000) and ETR's connection policy: profile
+extremetuxracer, 2560x1440, reason "connection display advertisement", PID 519905.
+This result used the installed proxy path. L4D2, STK and Wine acceptance of this
+candidate remain open; ETR's success alone does not establish those results.
+
+Jens also accepted STK in native Wayland, then reported Steam quitting. The
+22:58:15 host journal shows the proxy closing a connection with "Truncated XRes
+client ID", immediately followed by Steam's XCB_X11_TO_PID failure. The parser
+and its original fixture incorrectly treated each XRes ClientIdValue length as
+four-byte units. Xwayland's ConstructClientIdValue sends a byte length (4 for a
+PID); only the outer reply uses four-byte units. Correcting the fixture first
+reproduced the same failure. The corrected parser passes both byte orders,
+mixed zero-length XID and PID records, unrelated PID preservation and truncated
+payload rejection. All three focused proxy suites pass, with the policy suite
+also passing address/leak and undefined-behavior sanitizers. Real XRes queries
+against stock Xwayland through the corrected proxy pass for PID-only, combined
+XID/PID and XID-only masks, with the querying process's original PID restored
+(build/proxy-routing-check/runtime/sx-joyfq8a0). Steam's live retest remains open
+and needs a fresh session to load the replacement proxy.
+
+Jens authorized systematic upstream-suite testing after the Steam failure.
+Compare isolated stock Xwayland with the proxy using XTS, rendercheck and relevant
+Piglit graphics tests, recording baseline failures and skips separately from new
+proxy failures. Exercise rewriting separately because advertised dimensions are
+intentional differences. Keep the existing real-XRes probe and add coverage for
+the modified display interfaces; local parser fixtures alone are insufficient.
+All suite preparation and execution uses containers and ignored build output,
+without disrupting the physical desktop. Upstream-suite results are pending.
+
+The first comparative suite runs used Trixie Xwayland 24.1.6, software rendering,
+Piglit 0.0~git20250409.af62c0dea-2 and rendercheck 1.6. All 120 GLX outcomes agree
+case for case between stock, unchanged proxy forwarding and actual display
+rewriting: 64 pass, 46 skip, 9 fail, 1 warning. Those baseline failures remain
+failures, not proxy passes. Rendercheck passes all 23 cases in all three modes.
+The rewritten runs log 2560x1440 connection policies. The first rootless XTS
+comparison completed 4,858 cases on both paths but contains window-manager
+notification differences; it is unsuitable as a clean protocol regression
+verdict. A second comparison places a rootful Xwayland inside private KWin,
+claims WM_S0 only to release the listener, and leaves the inner X11 windows
+unmanaged. Its full XTS results are still pending. The XTS source is pinned to
+12a887c2c72c4258962b56ced7b0aec782f1ffed, matching upstream Xwayland CI.
+
+The independent Xlib display probe exposed a first-client readiness race:
+before any other X11 client had initialized Xwayland, the effect's mode query
+returned no target and the connection received native dimensions. The effect now
+marks a missing mode retryable, and the proxy retries without forwarding setup
+bytes within the existing 500 ms decision interval. Two fresh sessions pass
+without an xdpyinfo warm-up (sx-koh496j5, sx-q17n7gm8). A deliberately unavailable
+71% target falls back to native forwarding in 0.517 seconds (sx-wsndwa4o). The
+three focused proxy suites pass with Clang and address/leak plus undefined-
+behavior sanitizers. The actual retry and deadline paths also pass in isolated
+sessions with the instrumented proxy (sx-fyiysezr, sx-28txfe_x), without sanitizer
+diagnostics. Static analysis passes after simplifying the callback. This change
+is not installed in the physical session; the full build matrix remains due.
+
+After the session restart Jens reported L4D2 mouse click-through and Wreckfest
+starting at 4K. L4D2 was selected for 2560x1440 at connection setup and supplied
+that buffer, but its committed input region remained 214x160 logical pixels,
+consistent with its initial 640x480 window at 3x output scale. Repeated
+fullscreen transitions are logged. No input fix has been applied based solely
+on that correlation. Modern SDL and L4D2's actual bundled 32-bit SDL
+(hg-14525:e52d96ea04fc) pass isolated 3x-scale probes with small startup windows,
+hidden startup ordering, repeated fullscreen transitions, preserved 2560x1440
+viewport/drawable and correct top-left, centre and bottom-right clicks. The
+bundled-SDL passes are sx-6temq0rm and sx-szoz5z0l. They do not reproduce the
+physical failure. During later inspection the physical output changed to 1080p;
+a new 4K input/shape sample is awaited, with L4D2 left running and no game settings
+changed. Wreckfest's connections log "unidentified client": early Wine/Proton
+identity is not implemented, so it retains native display information. Later
+window-class recognition does not repair that startup gap. Both acceptance
+failures remain open; the README and handbook now state those scope limits.
+
+The rootful XTS comparison is complete: all 4,858 cases ran on both paths.
+Stock has 3,183 pass, 767 fail, 894 skip, 13 timeout and one crash; proxy forwarding
+has 3,184 pass, 766 fail, the same skips, timeouts and crash. No completed case
+regressed. The sole difference is XtResolvePathname-20 (stock fail, proxy pass);
+the stock record also contains a UnicodeDecodeError while Piglit reads its
+journal. These are comparative results, not a claim that Xwayland passes all
+XTS cases. Roots are sx-17f5z4jo and sx-btkvlax4. Rootful rendercheck separately
+passed all 23 cases through stock and the proxy.
+
+A closer bundled-SDL probe now reproduces L4D2's small input region: enter
+fullscreen directly from the initial 640x480 window without first resizing the
+window itself. At settled 2560x1440 drawable/viewport, its input region remains
+214x160 and pointer coordinates are wrong (sx-mtan4ujx). The suppressed KWin
+native configure also suppressed its input-shape propagation to the frame.
+After configuring the older KWin frame/wrapper/client hierarchy, call KWin's
+public updateShape() to propagate client input through its existing machinery.
+This retains intentional client shapes and adds no title-specific rule. The
+same bundled-SDL probe now passes all three pointer/click positions with the
+correct buffer and viewport (sx-x5p2tb20). A permanent regression enters
+fullscreen from a small mapped X11 window without a ShapeNotify that could hide
+the omission. The complete X11 integration suite passes, including the existing
+intentional-shape test; clang-tidy passes for the correction. The native effect
+and proxy were built and installed atomically with matching SHA-256 checksums;
+previous binaries are in build/proxy-conformance/pre-input-install. This is a
+focused human-test candidate, not completed PR validation. Live L4D2 acceptance
+at 4K, early Wine/Proton identity, full current-revision matrix and review remain
+open.
+
+The reload utility loaded the installed effect in the existing session without
+restarting KWin: upscale_reload_c22f265b76c74ff8a8c6e32c306e777a reports build
+2026-09-24T21:52:08Z. The display still reports 1920x1080, so live acceptance is
+awaiting restoration of the normal 4K output. The running proxy remains the
+previous binary until the next login; the input-shape correction is in the
+reloaded effect and does not require that proxy restart.
+
+On the next live inspection, L4D2 PID 786258 was still running and the corrected
+reload instance remained active. KWin's own supportInformation reports zero
+screens, despite the effect retaining its last 1920x1080 destination status.
+The session is unlocked. kscreen-doctor reports no Wayland outputs and times
+out, so the physical input test cannot be judged from this state. Requested the
+TV/PC input be restored before taking the 4K sample; no game settings changed.
+
+The Wine isolation work continued while the physical display was unavailable.
+Debian Wine 10.0~repack-6 in a fresh private prefix reports 3840x2160 through
+GetSystemMetrics, EnumDisplaySettings and GetDeviceCaps with unchanged forwarding
+(sx-_9k_bc1y). Advertising 2560x1440 to all Wine connections makes all three APIs
+and a newly created client window agree on 2560x1440 (sx-naad488k). Rewriting only
+the Windows application's own connection leaves all three APIs at 4K
+(sx-cyk_eybe), despite its X11 setup being rewritten: the explorer helper has
+already initialized the shared display state. KProcessList exposes the Windows
+executable name at connection time, but Wine helpers detach with independent
+parent, process-group and session IDs, so ancestry cannot associate them with
+the initiating game (sx-o7j42c5w).
+
+An isolated diagnostic reused the existing wineProcess metadata reader and
+selected an inherited SteamAppId. A selected test ID gives 2560x1440 in all
+three Windows APIs and the client (sx-27s2yf0a); a different ID retains 3840x2160
+(sx-yeviyutw). No live prefix or game settings were edited. Production integration
+is awaiting Jens's answer to the requested narrow exception to the conventions'
+"no /proc" rule: outside the plugin, read only SteamAppId for Wine connection
+identification on Linux, with native forwarding if unavailable. No production
+metadata reader, catalogue Steam-ID selector or Wine preparation service has
+been enabled by these diagnostic experiments. The full current-tree compiler
+matrix is running independently while that decision and the physical display
+are awaited.
+
+The simultaneous Wine control also passes (sx-ircpcaz7): on the same private
+Xwayland, separate fresh prefixes report 2560x1440 for the selected inherited
+Steam ID and 3840x2160 for an unrelated ID, through all three Windows APIs and
+the client window. This remains diagnostic evidence, not installed Wine support.
+
+The current tree builds with warnings as errors under GCC and Clang in both
+Trixie and Neon. All 25 CTest suites pass with each Trixie compiler, and both
+pre-commit stages pass. Whole-tree static analysis and complete address/leak,
+undefined-behavior and thread sanitizer checks are now running. Live inspection
+still reports zero KWin screens. L4D2's client, wrapper and frame input shapes
+cover their full current 5760x3240 geometry, but Xwayland's root is 0x0; this
+disconnected-output state cannot establish correct 4K presentation or input.
+
+The configured thread-sanitizer run passes all 24 suites. The address/leak run
+initially fails compositor shutdown on 67 allocations (5118 bytes) under
+GlobalShortcutsRegistry::loadSettings(). A private stock KWin run with a trivial
+exit client, never loading the effect, reproduces the exact allocation count,
+size and startup stack (noeffect-leak-baseline.log). Added a suppression for that
+specific upstream stack, consistent with the existing compositor suppressions;
+project allocation stacks remain checked. Both affected sessions pass on rerun
+(21.48 seconds Wayland, 95.38 seconds X11); the other 22 configured address/leak
+and undefined-behavior suites passed the initial run. Whole-source clang-tidy,
+plugin metadata validation and both lint stages pass. The configured resolution
+fuzz hook passes with all 16 workers completing their 60-second runs. Physical
+input and production Wine acceptance remain open; the final live screen check
+still reports zero connected screens.
+
+A Windows OpenGL fullscreen/input probe extended the Wine display-query proof
+at 4K with output scale 3. ChangeDisplaySettings failed with RRSetScreenSize
+BadMatch (sx-tfiwkq93): Wine sets its advertised size, while Xwayland's core
+screen-size validation still checks containment of the physical 4K CRTC.
+For selected connections only, an exact, valid request to set the advertised
+root size now becomes one NoOperation, preserving sequence numbers and avoiding
+global desktop mutation. A new fragmented/endian/BIG-REQUESTS regression fails
+before the correction and passes afterwards, including unrelated-client,
+different-size and invalid-argument controls. All three focused proxy suites
+pass with Clang. This protocol correction has no Wine-specific predicate.
+
+With that correction, the Windows mode call succeeds and OpenGL starts at
+2560x1440. Fullscreen presentation is still wrong (sx-d8159h3_, sx-wrofjh_w):
+the initial 2560x1440 window becomes 3840x2160, then increases by 1280x720 on
+successive size notifications, at a constant Windows DPI of 96. A native-display
+control remains 3840x2160 (sx-4pb4nn99). The input assertion is not reached.
+A private diagnostic effect, using copies of two sources under build/, tests
+whether the legacy Wine guards prevent correct generic presentation. Production
+Wine guards and the installed physical-session effect are unchanged; metadata
+integration still awaits the requested exception.
+
+### Release conformance through the installed package, 2026-09-27
+
+The X11 pair ran against the installed package, not a build tree: a Debian 13
+guest under KVM with its own vgem render device (the desktop GPU is never
+used), the conformance image with the `.deb` installed through apt, one KWin
+session at 3840x2160 with software OpenGL, and the full X Test Suite (4,881
+cases) against the session's own Xwayland. Three arms run together: bare (no
+package), idle (the proxy relays every connection, the effect acts on
+nothing) and acting (All applications on, a profile naming the suite's
+programs in `X11ConnectionExecutable`; 5,745 connections were told
+1920x1080). The harness is under `build/release-conformance/` and is not part
+of the repository. Earlier results in the same guest: nested X11 rendering
+356/356 and GLX over the proxy 7,891/7,891 in every arm.
+
+Relaying failed four protocol cases (`pgetgeometry` 2/3, `pqueryextension`
+2/3): the relay read past the end of requests of the wrong length and closed
+the connection. It now forwards any request as received, never reads past a
+frame, follows the server's BIG-REQUESTS framing exactly (`os/io.c`,
+`Xext/bigreq.c` of Xwayland 24.1.6), stops interpreting a connection it can
+no longer frame with certainty, and bounds its buffers without dropping a
+valid frame. `upscale-x11proxy-hardening` covers both byte orders; the four
+cases pass through the proxy.
+
+The remaining differences were races with KWin, not protocol changes. XTS
+assumes no window manager; KWin places, reparents and focuses each test
+window about a millisecond after it is mapped, and a bare client finishes
+most cases first. Measured in the guest: a round trip takes 33 µs bare and
+78 µs through the relay, and a window is reparented 0.4 ms and focused 1.1
+ms later. A reproducer of `ConfigureNotify-1` and `XUngrabButton-1` shows
+KWin's reparent inside the case (a reparent releases an active grab); a bare
+client paused 1.5 ms fails the same way; with XTS's own
+`XT_DEBUG_OVERRIDE_REDIRECT` all four isolated cases pass through the relay.
+Two changes narrowed the window: the relay writes through without an event
+loop pass (78 → 71 µs), and a process is asked about once while one of its
+connections is open (a second connection took 7.5 ms, once 527 ms at the
+D-Bus deadline; now 0.87 ms against 0.66 ms bare; `upscale-x11proxy-session`).
+Measured against the 3,029 cases bare passed in three runs, the verification
+mode then failed 4 in idle and 8 in acting, all of the window-manager kind and
+varying between runs; bare itself changed 58 cases between its runs.
+
+Without the window manager in the suite (override redirect in every arm),
+idle passed 3,626 of the 3,627 cases bare passed; the one it lost also flips
+in bare. Acting lost `XtCallbackPopdown-3` and `XtPopdown-2` in every run.
+Cause: the effect holds a selected window's first mapping for up to 100 ms,
+and an Xt popup withdrawn within that time was mapped afterwards by the stale
+request, visible to the user and never unmapped for its client. A held
+mapping is now released before KWin handles its withdrawal
+(`withdrawnWhileHeld` fails before, passes after).
+
+KWin 6.3.6's own integration tests found a second defect of the same hold:
+34 X11 activation, transient and stacking cases failed in the acting arm and
+none without the hold. A mapping released from the timer left the FocusIn it
+caused in XCB's queue, where KWin's event loop would have handled it before
+returning. The release now finishes that loop; the 34 cases, and the X11
+shade, Plasma window and shortcut cases, pass.
+
+Final X11 pair with the package carrying both fixes, 2026-09-28. Without the
+window manager in the suite's own windows, acting passed all 3,625 cases bare
+passed in both such runs, and idle 3,623: `XSetInputFocus-2` and
+`XtAppNextEvent-1`. The second received KWin's ConfigureNotify for the Xt
+program's top-level between the two key events it sent itself; Xt shells are
+not the suite's own windows, so the switch does not keep KWin from them, and
+in acting the effect's hold happens to delay KWin past the case. Both failed
+in some earlier runs of other arms as well. With the window manager
+managing every window, idle passed 3,021 and acting 3,022 of the 3,025 cases
+bare passed in all four of its runs; the Xt popdown cases pass. What remains
+is the window-manager race above, which any relay widens a little because
+it adds latency to every round trip; whether the gate is judged with the
+suite's windows kept from the window manager is Jens's decision.

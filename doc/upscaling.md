@@ -2943,9 +2943,35 @@ comparison between two different systems says nothing about this one.
 What exists is narrower than this requirement. `tools/check-conformance.py`
 runs the pair for three X11 suites through piglit - `xts`, `render`
 (rendercheck) and `glx` - in the image built from `containers/conformance`,
-started by hand with a render device. No Wayland suite is run, and no workflow,
-check group or hook runs the tool, so the gate is not yet part of the release
-workflow.
+started by hand with a render device. `tools/check-wayland-conformance.py` runs
+KWin's own Wayland integration tests, unmodified, in three arms - the effect
+absent, loaded but acting on nothing, and acting on every program - inside
+`containers/wayland-tests`, and adds cases of its own that require a smaller
+buffer to be committed and drawn. Both need a virtual render device and are run
+in the project VM, never beside a desktop session on its GPU; neither is run by
+a workflow or the default check groups, so the gate is not yet part of the
+release workflow.
+
+The X Test Suite assumes no window manager, and a session without one does not
+exist for this effect: KWin manages every window a test creates, a moment after
+it is mapped. A test that has not finished by then sees KWin place, reparent or
+focus its window in the middle, and anything that makes a client slower - the
+X11 proxy's relay included - moves that moment into more tests. Such cases vary
+between two runs of the stock system as well. XTS has a switch for this,
+`XT_DEBUG_OVERRIDE_REDIRECT`, which creates its windows override-redirect so no
+window manager touches them; its own configuration says it is not for
+verification runs. Whether the X11 half of the gate is judged with it is Jens's
+decision and has not been taken.
+
+A case the Wayland pair excludes by name fails with the effect for a reason that
+is not a defect of it, and `tools/check-wayland-conformance.py` reports it as
+excluded rather than dropping it, only in the arm named:
+
+| Upstream case | Arm | Why it fails with the effect |
+| --- | --- | --- |
+| `testReinitializeCompositor` (Fade), `testAnimateToplevels` (Fade), `testAnimatePopups`, `testSwitchDesktops` (Fade Desktop), `testMinimizeUnminimize` (Magic Lamp), `testMaximizeRestore` | loaded and acting | the test asserts that exactly one effect is loaded; this one is a second |
+| `testScreenAddRemove` | acting | a program the effect acts on is told the reduced output mode when it binds the output |
+| `testOpenClose` (input method), `testMaximizeApply`, `testMaximizeApplyNow`, `testMaximizeForce`, `testMaximizeForceTemporarily`, `testMaximizeRemember`, `testFullscreen` (server-side deco), `testMaximizedToFullscreen` (server-side deco), `testMaximizeStateRestoredAfterEnablingOutput` (Full Maximization) | acting | the effect acts on the test's window, fullscreen or covering its output without decoration; asking it for another scale, or giving the scale back, sends a configure of its own, one more than the test counts, and when it goes out depends on the frame at which the window qualifies |
 
 Both halves of a pair carry this effect, loaded and running, with its X11
 proxy in front of the same Xwayland; two settings separate them. In the first

@@ -1740,3 +1740,92 @@ that covered them was started before the last change and describes an earlier
 one. One assertion changed with the behaviour: the global profile's answers are no
 longer all Auto, and the test now expects Auto for the presentations that act
 and Off for the two that cannot.
+
+## The same games repackaged: Flatpak and Snap, 2026-09-27
+
+Proposed by Jens, 2026-09-27: SuperTuxKart and Extreme Tux Racer as Flatpak and
+as Snap, beside the native packages this catalogue already states, and Steam in
+both forms. Steam's two forms belong to
+[Proton smaller screen](slice-proton-smaller-screen.md#steam-as-flatpak-and-snap-2026-09-27),
+which owns the prefix and the launcher flavours. This document owns what
+repackaging does to an identity.
+
+The point is not a new game. All three packagings run the same program under a
+different path, in a different process namespace, over a different Wayland
+socket, so they test the two gates and nothing else. That is why these two
+games and not others: their native behaviour is already measured, so a
+difference has one cause.
+
+### What the archives offer, checked 2026-09-27
+
+Read from the Flathub and Snap Store APIs and from each Flathub manifest on
+`master`. Nothing was installed and nothing was run.
+
+| Game | Flatpak | Snap |
+| --- | --- | --- |
+| SuperTuxKart | `net.supertuxkart.SuperTuxKart` 1.5, x86_64 and aarch64, `--socket=wayland --socket=fallback-x11 --device=all` | `supertuxkart` 1.5, amd64 and arm64, strict, core24 |
+| Extreme Tux Racer | `net.sourceforge.ExtremeTuxRacer` 0.8.4, x86_64 and aarch64, `--socket=x11 --share=ipc --device=all`, no Wayland socket | `extreme-tux-racer` 0.8.4 amd64 and 0.8.3 arm64, strict, core20, unproven publisher |
+| Steam | `com.valvesoftware.Steam` 1.0.0.87, x86_64 only | `steam` 1.0.0.87 amd64 and 1.0.0.85 arm64, strict, core24, Canonical, verified |
+
+Three things follow before a single test runs. The Snap of Extreme Tux Racer is
+an unofficial build on `core20` by an unproven publisher, so a difference it
+alone shows is the packaging's and not the game's. Both SuperTuxKart packages
+ship 1.5 where that entry's `MeasuredVersion` is 1.4, so this work restates
+that measurement rather than confirming it; Extreme Tux Racer's Flatpak is
+0.8.4, the version already measured. And Extreme Tux Racer's Flatpak has no
+Wayland socket at all, which makes it the one case that is always Xwayland,
+with no fallback to confuse the reading.
+
+### What the shipped catalogue predicts
+
+Predictions, each one a test, none of them a result.
+
+- **SuperTuxKart should match unchanged.** `Executable=.*/supertuxkart` is a
+  regular expression anchored to the whole value, so it holds for any path
+  ending in `/supertuxkart` - which is what the editor's own tooltip promises.
+  A Flatpak's program is `/app/bin/supertuxkart` inside its sandbox and a
+  Snap's lies under `/snap/supertuxkart/`; both are expected to end that way.
+  This is the case that tests the promise.
+- **Extreme Tux Racer should match through gate 2 alone.** Its entry states
+  `Instance=etr` and deliberately no `Executable`, so no repackaging can break
+  it through a path. What has to be observed is only that the instance stays
+  `etr`. Flathub renames the icon to `etr` and builds the same binary name, so
+  it is expected to.
+- **The Flatpak app ID can be tested on the development host now.** The open
+  item under [not decided yet](#not-decided-yet) waits on seeing the ID on a
+  real Flatpak game. Both halves of the protocol are present here: the host's
+  `flatpak` 1.16.6 binary carries `wp_security_context_manager_v1` and
+  `wp_security_context_v1`, with the string it logs when a compositor offers
+  neither, and `libkwin.so.6.3.6` implements the server side. Only SuperTuxKart
+  can carry one, because a security context rides on a native Wayland
+  connection and Extreme Tux Racer's Flatpak has no Wayland socket.
+- **A Flatpak X11 window's PID is expected not to resolve on KWin 6.3.6.**
+  Flatpak runs bubblewrap with `--unshare-pid`, verified in the binary on this
+  host, and `flatpak run` offers to share a PID namespace only with a parent
+  instance. The caveat this document already records for
+  [where the path comes from](#the-design-two-gates) therefore applies in full:
+  on 6.3.6 the PID is the client's own `_NET_WM_PID`, set from inside the
+  namespace, so it names another host process and gate 1 does not match.
+  Extreme Tux Racer's Flatpak is exactly that case, and matching by instance
+  alone is what its entry was written for. On KWin 6.6.6 and master the PID
+  comes from the X-Resource extension, taken from the connection, so the path
+  is expected to resolve there; that is to be confirmed, not assumed.
+- **A Snap is expected to keep a usable PID**, because strict confinement is
+  not known to unshare the PID namespace. Expected, and to be confirmed on a
+  running game rather than reasoned about.
+
+### What this needs before it can run
+
+Neither archive is reachable from this checkout as it stands: `flatpak` 1.16.6
+is installed on the development host with no remote configured and no
+application installed, and `snapd` is not installed at all. Adding a Flathub
+remote and installing `snapd` are changes to the host, outside this repository,
+and are Jens's to make.
+
+One practical note for the run itself: SuperTuxKart's Flatpak grants
+`fallback-x11`, so in a Wayland session it takes the Wayland socket. Forcing
+its Xwayland path needs the X11 socket granted explicitly,
+`flatpak run --socket=x11 net.supertuxkart.SuperTuxKart`.
+
+This is measurement of identities, so it belongs to this slice's full
+acceptance and closes no supported scope on its own.

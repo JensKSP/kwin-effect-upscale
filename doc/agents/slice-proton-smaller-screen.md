@@ -866,3 +866,62 @@ answer names is a screen and not an arrangement of them, and the session that
 runs two outputs skips the case for that stated reason alone.
 
 All 27 suites pass in Trixie with GCC.
+
+### Steam as Flatpak and Snap, 2026-09-27
+
+Proposed by Jens, 2026-09-27, alongside SuperTuxKart and Extreme Tux Racer in
+their two repackagings, which belong to
+[the applications we know about](slice-application-profiles.md#the-same-games-repackaged-flatpak-and-snap-2026-09-27).
+This slice owns Steam's two forms, because what they change is the prefix and
+the process the prefix is found from.
+
+Both exist, read from the Flathub and Snap Store APIs on 2026-09-27; nothing
+was installed and nothing was run. `com.valvesoftware.Steam` 1.0.0.87, x86_64
+only, with `--socket=x11`, `--socket=wayland` and `--device=all`. The `steam`
+Snap 1.0.0.87 on amd64 and 1.0.0.85 on arm64, strict confinement on `core24`,
+published by Canonical as a verified publisher and released this month, so it
+is maintained rather than abandoned. On this host `flatpak` 1.16.6 has no
+remote configured and no application installed, and `snapd` is absent.
+
+What this costs the design, in the order [locating the prefix](#locating-the-prefix)
+asks its questions:
+
+- **A moved Steam root costs nothing, by construction.** Under the Flatpak,
+  Steam's root is below `~/.var/app/com.valvesoftware.Steam/`, so
+  `STEAM_COMPAT_DATA_PATH` and `WINEPREFIX` move with it. The chain never
+  derives that path: it reads `WINEPREFIX` from the process's own environment
+  and resolves every path through `/proc/<pid>/root`. The cross-check that
+  `WINEPREFIX` equals `$STEAM_COMPAT_DATA_PATH/pfx`, and that the directory
+  name equals `SteamAppId`, is unaffected by where the root sits. This is the
+  part expected to work, and it is expected to work without a change.
+- **The PID is the hazard, and the two containers do not share it.** Flatpak
+  runs bubblewrap with `--unshare-pid`, verified in the 1.16.6 binary on this
+  host; `flatpak run` can share a PID namespace only with a parent instance.
+  Every step here starts from the PID KWin reports, and on KWin 6.3.6 an X11
+  window's PID is the client's `_NET_WM_PID`, which a Proton game inside the
+  Flatpak sets from inside that namespace. It therefore names another process
+  on the host, and the companion must refuse and say so rather than write.
+  **That refusal is the correct result, not a failure**: the acceptance criteria
+  already require a refusal for every mismatch, and this is one. What has to be
+  shown is that it refuses and names the reason - never that it succeeds. On
+  KWin 6.6.6 and master, where the PID comes from the X-Resource extension and
+  so from the connection, it is expected to resolve; that is to be confirmed.
+- **The Snap is expected to keep a valid PID**, since strict confinement is not
+  known to unshare the PID namespace, which would make it the one container
+  where the whole chain can run through. Expected, and to be observed.
+- **pressure-vessel adds no further namespace to reason about.** This document
+  already records that it shares the PID namespace, so the container's
+  namespace is the one that decides, not a second one inside it.
+- **The server lock is already resolved the right way.** The lock at
+  `<tmp>/.wine-<uid>/server-<st_dev>-<st_ino>/lock` is looked up through
+  `/proc/<pid>/root`, so the container's own `/tmp` is seen as the game sees
+  it. Whether the same-user read of `/proc/<pid>/environ` and `/proc/<pid>/root`
+  is permitted at all under each container's Yama and user-namespace setup
+  stays the open question the existing text raises, and these two packagings
+  are how it gets answered.
+
+This is [full acceptance](#gates) work, which already names Flatpak and Snap
+installs, and it closes nothing in the supported scope. It does not join the
+current candidate's baseline: Jens's hardware acceptance sequence stays
+Wreckfest, Extreme Tux Racer, SuperTuxKart and Left 4 Dead 2 natively, and
+these experiments follow it.
