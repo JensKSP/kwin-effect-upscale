@@ -46,6 +46,8 @@ struct UpscaleApplication
      * own entry may state the exact path of their copy.
      */
     QString executable;
+    /** Explicit anchored executable pattern for connection-time X11 selection. */
+    QString x11ConnectionExecutable;
     UpscaleStringMatch executableMatch = UpscaleStringMatch::Exact;
     /** Gate 2: compared with Window::resourceClass(), or empty to not constrain it. */
     QString windowClass;

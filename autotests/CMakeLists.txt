@@ -113,6 +113,8 @@ set(snapshot_test_sources
     ../src/plugins/upscale/snapshot_metrics.cpp
     ../src/plugins/upscale/eligibility.cpp
     ../src/plugins/upscale/windowidentity.cpp
+    ../src/plugins/upscale/x11proxypolicy.cpp
+    ../src/plugins/upscale/x11modes.cpp
     ../src/plugins/upscale/refusaltext.cpp
 )
 kconfig_add_kcfg_files(snapshot_test_sources ../src/plugins/upscale/upscaleconfig.kcfgc)
@@ -136,6 +138,8 @@ set(headsup_test_sources
     ../src/plugins/upscale/snapshot_metrics.cpp
     ../src/plugins/upscale/eligibility.cpp
     ../src/plugins/upscale/windowidentity.cpp
+    ../src/plugins/upscale/x11proxypolicy.cpp
+    ../src/plugins/upscale/x11modes.cpp
     ../src/plugins/upscale/refusaltext.cpp
 )
 kconfig_add_kcfg_files(headsup_test_sources ../src/plugins/upscale/upscaleconfig.kcfgc)
@@ -161,6 +165,8 @@ set(placement_test_sources
     ../src/plugins/upscale/snapshot_metrics.cpp
     ../src/plugins/upscale/eligibility.cpp
     ../src/plugins/upscale/windowidentity.cpp
+    ../src/plugins/upscale/x11proxypolicy.cpp
+    ../src/plugins/upscale/x11modes.cpp
     ../src/plugins/upscale/refusaltext.cpp
 )
 kconfig_add_kcfg_files(placement_test_sources ../src/plugins/upscale/upscaleconfig.kcfgc)
@@ -196,6 +202,8 @@ set(display_test_sources
     ../src/plugins/upscale/snapshot_metrics.cpp
     ../src/plugins/upscale/eligibility.cpp
     ../src/plugins/upscale/windowidentity.cpp
+    ../src/plugins/upscale/x11proxypolicy.cpp
+    ../src/plugins/upscale/x11modes.cpp
     ../src/plugins/upscale/refusaltext.cpp
 )
 kconfig_add_kcfg_files(display_test_sources ../src/plugins/upscale/upscaleconfig.kcfgc)
@@ -236,6 +244,7 @@ if(KWIN_BUILD_KCMS)
         ../src/plugins/upscale/methodcontrols.cpp
         ../src/plugins/upscale/placement.cpp
         ../src/plugins/upscale/upscale_config.cpp
+        ../src/plugins/upscale/proxycontrols.cpp
         ../src/plugins/upscale/preparedlist.cpp
         ../src/plugins/upscale/displaycontrols.cpp
         ../src/plugins/upscale/applicationcontrols.cpp
@@ -292,4 +301,18 @@ if(KWIN_BUILD_KCMS)
     upscale_add_build_info(upscale_config-buildinfo_test)
 endif()
 
-include(winescreen.cmake)
+if(UPSCALE_BUILD_WINE_HELPER)
+    include(winescreen.cmake)
+endif()
+
+include(x11proxy.cmake)
+
+foreach(
+    target
+    upscale_snapshot_test
+    upscale_headsup_test
+    upscale_placement_test
+    upscale_display_test
+)
+    target_link_libraries(${target} PRIVATE XCB::RANDR)
+endforeach()

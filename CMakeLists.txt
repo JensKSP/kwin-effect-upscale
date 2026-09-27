@@ -213,7 +213,14 @@ include(KWinBuiltinEffectShim)
 include(UpscaleInstrumentation)
 
 add_subdirectory(src/plugins/upscale)
-add_subdirectory(src/winescreen)
+add_subdirectory(src/x11proxy)
+# Retain the old preparation helper for explicit development builds while the
+# X11 proxy is validated. Normal builds and packages must not install or
+# activate a service that changes Wine prefixes.
+option(UPSCALE_BUILD_WINE_HELPER "Build and install the legacy Wine preparation helper" OFF)
+if(UPSCALE_BUILD_WINE_HELPER)
+    add_subdirectory(src/winescreen)
+endif()
 if(BUILD_TESTING)
     add_subdirectory(autotests)
 endif()

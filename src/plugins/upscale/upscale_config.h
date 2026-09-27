@@ -67,6 +67,8 @@ private:
     static void reconfigureEffect();
     void updateApplicationSummary();
     void addAboutControls(QFormLayout *layout);
+    void addProxyControls(QFormLayout *layout);
+    void updateProxyStatus();
     void connectControls();
     static QString installedVersion();
 
@@ -75,6 +77,8 @@ private:
     QComboBox *m_minimumPixels;
     UpscaleResolutionPreview *m_preview;
     QCheckBox *m_sharpening;
+    QCheckBox *m_x11Proxy = nullptr;
+    QLabel *m_proxyStatus = nullptr;
     QSlider *m_strength;
     UpscaleSliderField *m_scale = nullptr;
     UpscaleSliderField *m_strengthField = nullptr;

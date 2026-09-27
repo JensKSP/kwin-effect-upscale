@@ -28,7 +28,9 @@ set(upscale_SOURCES
     upscale.cpp
     upscale_display.cpp
     windowidentity.cpp
+    x11proxypolicy.cpp
     x11geometry.cpp
+    x11modes.cpp
     x11input.cpp
     x11resolution.cpp
     x11resolution_events.cpp
@@ -64,6 +66,7 @@ target_link_libraries(upscale PRIVATE
 if (KWIN_BUILD_KCMS)
     set(kwin_upscale_config_SRCS
         upscale_config.cpp
+        proxycontrols.cpp
         displaycontrols.cpp
         preparedlist.cpp
         applicationcontrols.cpp

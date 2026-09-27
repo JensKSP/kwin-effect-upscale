@@ -100,6 +100,7 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     // One label column for "All applications" and a game's tabs alike, so
     // that moving between tabs or entries moves no field.
     alignLabels(m_editor->findChildren<QFormLayout *>());
+    addProxyControls(section(i18n("X11 Session")));
     addAboutControls(section(i18n("About")));
     page->addStretch();
     connectControls();
@@ -349,6 +350,8 @@ void UpscaleEffectConfig::showSettings()
     m_percentage->setValue(qRound(UpscaleConfig::percentage() * 100));
     m_preset->setCurrentIndex(upscaleSettingInfo(UpscaleSetting::Resolution).global());
     upscaleSelectResolution(m_minimumPixels, UpscaleConfig::minimumPixels());
+    m_x11Proxy->setChecked(UpscaleConfig::x11Proxy());
+    updateProxyStatus();
     m_sharpening->setChecked(UpscaleConfig::sharpening());
     m_strength->setValue(UpscaleConfig::strength());
     m_osdDetection->setChecked(UpscaleConfig::osdDetection());
@@ -381,6 +384,7 @@ void UpscaleEffectConfig::applySettings()
     UpscaleConfig::setResolution(m_preset->currentIndex());
     UpscaleConfig::setPercentage(m_percentage->value() / 100.0);
     UpscaleConfig::setMinimumPixels(upscaleResolutionPixels(m_minimumPixels, UpscaleConfig::minimumPixels()));
+    UpscaleConfig::setX11Proxy(m_x11Proxy->isChecked());
     UpscaleConfig::setSharpening(m_sharpening->isChecked());
     UpscaleConfig::setStrength(m_strength->value());
     UpscaleConfig::setOsdDetection(m_osdDetection->isChecked());

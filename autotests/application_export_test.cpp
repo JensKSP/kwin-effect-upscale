@@ -37,6 +37,7 @@ void ApplicationExportTest::preservesShippedMethods()
     for (const UpscaleApplication &original : originals) {
         const auto entry = std::ranges::find(imported, original.id, &UpscaleApplication::id);
         QVERIFY(entry != imported.end());
+        QCOMPARE(entry->x11ConnectionExecutable, original.x11ConnectionExecutable);
         for (std::size_t slot = 0; slot < upscalePresentationCount; ++slot) {
             QVERIFY2(entry->methods[slot] == original.methods[slot], qPrintable(original.id));
         }

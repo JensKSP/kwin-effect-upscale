@@ -59,8 +59,39 @@ private Q_SLOTS:
     void snapsToKnownResolutions();
     void saveAndRestore();
     void displayDefaults();
+    void proxyRestartStatus();
     void installedBuildVersion();
 };
+
+void UpscaleConfigTest::proxyRestartStatus()
+{
+    const QByteArray previous = qgetenv("UPSCALE_X11_SESSION_ROUTED");
+    qputenv("UPSCALE_X11_SESSION_ROUTED", "1");
+    QWidget host;
+    KWin::UpscaleEffectConfig module(&host, KPluginMetaData());
+    QCheckBox *control = module.widget()->findChild<QCheckBox *>(QStringLiteral("x11Proxy"));
+    QLabel *status = module.widget()->findChild<QLabel *>(QStringLiteral("x11ProxyStatus"));
+    QVERIFY(control);
+    QVERIFY(status);
+    control->setChecked(false);
+    QVERIFY(status->text().contains(QStringLiteral("Restart required")));
+    QVERIFY(status->text().contains(QStringLiteral("until logout")));
+    module.save();
+    module.load();
+    QVERIFY(!control->isChecked());
+    QVERIFY(status->text().contains(QStringLiteral("Restart required")));
+    qputenv("UPSCALE_X11_SESSION_ROUTED", "0");
+    module.load();
+    QVERIFY(status->text().contains(QStringLiteral("without the proxy")));
+    control->setChecked(true);
+    QVERIFY(status->text().contains(QStringLiteral("Restart required")));
+    module.save();
+    if (previous.isNull()) {
+        qunsetenv("UPSCALE_X11_SESSION_ROUTED");
+    } else {
+        qputenv("UPSCALE_X11_SESSION_ROUTED", previous);
+    }
+}
 
 void UpscaleConfigTest::presetsAndKeyboard()
 {

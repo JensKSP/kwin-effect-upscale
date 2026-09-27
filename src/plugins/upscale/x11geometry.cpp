@@ -52,48 +52,6 @@ bool upscaleX11PrimaryOutput(const QPoint &position)
     return crtc && QPoint(crtc->x, crtc->y) == position;
 }
 
-static bool outputHasMode(xcb_randr_get_screen_resources_current_reply_t *resources,
-                          xcb_randr_get_output_info_reply_t *output, const QSize &size)
-{
-    const auto modes = xcb_randr_get_screen_resources_current_modes(resources);
-    const auto outputModes = xcb_randr_get_output_info_modes(output);
-    for (int candidate = 0; candidate < output->num_modes; ++candidate) {
-        for (int mode = 0; mode < resources->num_modes; ++mode) {
-            if (modes[mode].id == outputModes[candidate] && QSize(modes[mode].width, modes[mode].height) == size) {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-bool upscaleX11ModeAvailable(const QPoint &position, const QSize &size)
-{
-    xcb_connection_t *connection = kwinApp()->x11Connection();
-    const auto resources = UniqueCPtr<xcb_randr_get_screen_resources_current_reply_t>(xcb_randr_get_screen_resources_current_reply(connection,
-                                                                                                                                   xcb_randr_get_screen_resources_current(connection, kwinApp()->x11RootWindow()), nullptr));
-    if (!resources) {
-        return false;
-    }
-    const auto outputs = xcb_randr_get_screen_resources_current_outputs(resources.get());
-    for (int index = 0; index < resources->num_outputs; ++index) {
-        const auto output = UniqueCPtr<xcb_randr_get_output_info_reply_t>(xcb_randr_get_output_info_reply(connection,
-                                                                                                          xcb_randr_get_output_info(connection, outputs[index], resources->config_timestamp), nullptr));
-        if (!output || output->crtc == XCB_NONE) {
-            continue;
-        }
-        const auto crtc = UniqueCPtr<xcb_randr_get_crtc_info_reply_t>(xcb_randr_get_crtc_info_reply(connection,
-                                                                                                    xcb_randr_get_crtc_info(connection, output->crtc, resources->config_timestamp), nullptr));
-        if (!crtc || QPoint(crtc->x, crtc->y) != position) {
-            continue;
-        }
-        if (outputHasMode(resources.get(), output.get(), size)) {
-            return true;
-        }
-    }
-    return false;
-}
-
 // The property holds one x, y, width, height entry per output on which the
 // client selected a mode.
 std::optional<QSize> upscaleX11EmulatedMode(X11Window *window, const QPoint &position)
@@ -138,6 +96,12 @@ static void configureHierarchy(WindowType *window, const QPoint &position, const
         xcb_configure_window(connection, window->frameId(), mask, frame);
         xcb_configure_window(connection, window->wrapperId(), mask, child);
         xcb_configure_window(connection, window->window(), mask, child);
+        // The suppressed KWin configure would also have propagated the
+        // client's input shape to its frame. Resize alone leaves the frame's
+        // explicit shape at the startup window's size. Refresh through KWin
+        // so intentional client holes and empty input shapes are preserved.
+        window->updateShape();
+        qCDebug(KWIN_UPSCALE) << "X11 frame input shape refreshed: window" << window->window();
     } else {
         xcb_configure_window(connection, window->window(), mask, frame);
     }

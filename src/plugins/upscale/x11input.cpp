@@ -100,14 +100,16 @@ static void engageLock(const UpscalePresentedPointer &presented, const QPointF &
     input()->pointer()->warp(presented.client.center());
 }
 
-static void confirmEmulatedPosition(SeatInterface *seat, const UpscalePresentedPointer &presented,
-                                    const QPointF &position, const QMatrix4x4 &transformation)
+static void confirmEnteredPosition(SeatInterface *seat, const UpscalePresentedPointer &presented,
+                                   const QPointF &position, const QMatrix4x4 &transformation)
 {
-    if (presented.scale == QPointF(1, 1) && seat->pointer() && seat->pointerPos() == position) {
-        // Xwayland 24.1.6 scales motion but not its initial enter. KWin
-        // suppresses motion at the position just entered, even when KWin
-        // itself set that focus. Deliver the real position before a click
-        // can follow; Xwayland maps it exactly once. Respect pointer lock.
+    if (seat->pointer() && seat->pointerPos() == position) {
+        // KWin suppresses motion at the position just entered, even when its
+        // own hit test reclaimed a surface this filter already focused. That
+        // re-entry can also omit wl_pointer.enter because the surface did not
+        // change. Confirm the mapped position before a click can follow.
+        // For Xwayland emulation the transform is unity: Xwayland 24.1.6
+        // scales motion itself, but not its initial enter. Respect pointer lock.
         LockedPointerV1Interface *lock = presented.surface->lockedPointer();
         if (!lock || !lock->isLocked()) {
             seat->pointer()->sendMotion(transformation.map(position));
@@ -147,7 +149,7 @@ QPointF UpscaleX11Input::apply(const QPointF &position)
         // stale from an earlier size of the surface.
         seat->setFocusedPointerSurfaceTransformation(transformation);
     }
-    confirmEmulatedPosition(seat, presented, position, transformation);
+    confirmEnteredPosition(seat, presented, position, transformation);
     recordMapping(presented, position, transformation);
     m_surface = presented.surface;
     // Whose pointer this is now, when it is not the window KWin found: the

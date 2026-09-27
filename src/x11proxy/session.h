@@ -7,6 +7,7 @@
 #include <QObject>
 #include <QProcess>
 #include <QSet>
+#include <QSize>
 #include <QTemporaryDir>
 #include <QTimer>
 #include <memory>
@@ -28,7 +29,7 @@ private:
     void acceptClient(int listener);
     void decideClient(const std::shared_ptr<PendingClient> &client);
     bool resolveCandidates(const std::shared_ptr<PendingClient> &client);
-    void relayClient(int client, quint32 pid, const QSize &size, const QByteArray &timing = {});
+    void relayClient(int client, quint32 pid, const QSize &size, const QByteArray &timing = {}, bool answered = false);
     QTemporaryDir m_directory;
     QByteArray m_backendPath;
     Startup m_startup;
@@ -38,6 +39,15 @@ private:
     // The program each Wine prefix runs, found once by whichever of its
     // connections arrives while it is known and reused by all the others.
     QHash<QString, QString> m_prefixPrograms;
+    // What KWin answered a process, kept while any of its connections is
+    // open, with the number of those connections.
+    struct Answer
+    {
+        QSize size;
+        QByteArray timing;
+        int connections = 0;
+    };
+    QHash<quint32, Answer> m_answers;
     QList<int> m_signalSockets;
     int m_backendListener = -1;
     int m_pendingConnections = 0;

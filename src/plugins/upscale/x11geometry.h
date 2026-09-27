@@ -9,6 +9,7 @@
 #include "config-kwin.h"
 
 #if KWIN_BUILD_X11
+#include <QByteArray>
 #include <QPoint>
 #include <QSize>
 
@@ -21,6 +22,8 @@ class X11Window;
 QPoint upscaleX11Position(const X11Window *window);
 QSize upscaleX11NormalSize(const X11Window *window);
 bool upscaleX11ModeAvailable(const QPoint &position, const QSize &size);
+/** RandR mode timing encoded little-endian for connection policy, or empty. */
+QByteArray upscaleX11ModeTiming(const QPoint &position, const QSize &size);
 bool upscaleX11PrimaryOutput(const QPoint &position);
 bool upscaleX11ModeMatches(X11Window *window, const QPoint &position, const QSize &size);
 /**

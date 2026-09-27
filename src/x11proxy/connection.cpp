@@ -62,6 +62,16 @@ void Session::acceptClient(int listener)
         relayClient(client, pid, {});
         return;
     }
+    // A process is asked about once. A connection it opens while an earlier
+    // one is still open gets that one's answer: one program sees one screen,
+    // and a connection opened midway is not held for a round trip to KWin,
+    // which took 7.5 ms and at worst the full 500 ms deadline (measured
+    // 2026-09-27). The X Test Suite's grab and focus cases open one between
+    // two steps and lost their race with KWin placing the window in between.
+    if (const auto known = m_answers.constFind(pid); known != m_answers.cend()) {
+        relayClient(client, pid, known->size, known->timing, true);
+        return;
+    }
     auto pending = std::make_shared<PendingClient>();
     pending->descriptor = client;
     pending->pid = pid;
@@ -156,14 +166,14 @@ void Session::decideClient(const std::shared_ptr<PendingClient> &client)
         qInfo() << "Upscale X11 connection pid=" << client->pid << "profile=" << policy.value(QStringLiteral("profile"))
                 << "size=" << size << "reason=" << policy.value(QStringLiteral("reason"))
                 << "names=" << client->candidates;
-        relayClient(std::exchange(client->descriptor, -1), client->pid, size, timing);
+        relayClient(std::exchange(client->descriptor, -1), client->pid, size, timing, true);
     });
     // The watcher belongs to this session, its parent, and deletes itself once
     // the reply is in. The static analyzer, entering here from a retry, does
     // not model a QObject parent and reports the watcher as leaked at this
     // brace.
 } // NOLINT(clang-analyzer-cplusplus.NewDeleteLeaks)
-void Session::relayClient(int client, quint32 pid, const QSize &size, const QByteArray &timing)
+void Session::relayClient(int client, quint32 pid, const QSize &size, const QByteArray &timing, bool answered)
 {
     --m_pendingConnections;
     sockaddr_un address{};
@@ -181,8 +191,18 @@ void Session::relayClient(int client, quint32 pid, const QSize &size, const QByt
     }
     auto *relay = new Relay(client, backend, this, {.size = size, .timing = timing, .registry = &m_registry, .pid = pid});
     m_relays.insert(relay);
-    connect(relay, &QObject::destroyed, this, [this, relay]() {
+    if (answered && pid) {
+        Answer &answer = m_answers[pid];
+        answer.size = size;
+        answer.timing = timing;
+        ++answer.connections;
+    }
+    connect(relay, &QObject::destroyed, this, [this, relay, pid, answered]() {
         m_relays.remove(relay);
+        const auto answer = m_answers.find(pid);
+        if (answered && answer != m_answers.end() && --answer->connections == 0) {
+            m_answers.erase(answer);
+        }
     });
 }
 }
