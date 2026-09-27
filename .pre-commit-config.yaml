@@ -206,6 +206,16 @@ repos:
         always_run: true
         stages: [manual]
 
+      # Requires the private upstream KWin build and a virtual DRM device in
+      # containers/wayland-tests; see CONTRIBUTING.md for preparation.
+      - id: upscale-wayland-conformance
+        name: Upstream Wayland comparison and production scaling
+        entry: python3 -B tools/check-wayland-conformance.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [manual]
+
       - id: upscale-coverage
         name: Plugin C++ line coverage at least 90 percent
         entry: python3 -B tools/check-coverage.py
