@@ -161,8 +161,9 @@ static std::optional<UpscaleBindDecision> decideAtBind(ClientConnection *client)
         return std::nullopt;
     }
     // The profile the program's path selects, or none. With none, the global
-    // profile answers - which is what switching on unlisted applications and
-    // giving the global profile a method is for - through the same code. A
+    // profile answers - which is what switching on unlisted applications is
+    // for, its slots being Auto unless a person chose otherwise - through the
+    // same code. A
     // path claimed by a profile that also names a window does not decide
     // yet, and nothing is advertised: that profile may still claim the
     // window, and an advertisement cannot be taken back.

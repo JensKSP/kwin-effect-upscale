@@ -36,7 +36,7 @@ class UpscaleEffect : public Effect
     Q_OBJECT
     // Declared before status so that the support information KWin assembles
     // from these properties keeps the single-line identity ahead of the
-    // multi-line status, which is what the settings page parses.
+    // multi-line status, which is what the measurement tools parse.
     Q_PROPERTY(QString build READ build)
     Q_PROPERTY(QString status READ status)
 

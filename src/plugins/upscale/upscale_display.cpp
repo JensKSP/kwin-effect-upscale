@@ -5,8 +5,8 @@
 */
 
 // The effect's screen pass and what it reports: the displays and the question
-// drawn after the chain has painted a frame, and the status the settings page
-// and D-Bus read.
+// drawn after the chain has painted a frame, and the status KWin's support
+// information carries over D-Bus.
 
 #include "eligibility.h"
 #include "preparation.h"
@@ -173,8 +173,9 @@ QString UpscaleEffect::build() const
 
 QString UpscaleEffect::status() const
 {
-    // The settings page may ask about any active window, not only a fullscreen
-    // one, so it does not use the display's narrower choice.
+    // Support information is asked for at any moment and about whatever window
+    // is active, not only a fullscreen one, so it does not use the display's
+    // narrower choice.
     EffectWindow *window = candidate();
     if (!window) {
         window = effects->activeWindow();

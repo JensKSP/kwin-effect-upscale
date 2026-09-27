@@ -86,7 +86,8 @@ static double autoRatio(EffectWindow *window, const UpscaleApplication *claimed,
         return 1.0;
     }
     // resolutionRatio() answers Native with one, which is also the answer for
-    // asking nothing, so the opt-out needs no test of its own.
+    // asking nothing, so Native, which asks for nothing smaller, needs no test
+    // of its own.
     return resolutionRatio(settings.resolution(), settings.value(UpscaleSetting::Percentage));
 }
 

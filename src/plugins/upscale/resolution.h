@@ -153,8 +153,9 @@ inline int reachableScale(UpscaleSize outputPixels, double outputScale, Resoluti
     double bestDistance = 0;
     // A scale of one leaves no whole step below it, so such an output offers
     // this kind of client nothing at all. That is a property of the client,
-    // not a failure, and the caller says so rather than asking for a size the
-    // client would ignore.
+    // not a failure: the caller advertises nothing rather than a size the
+    // client would ignore, and a window still drawing at full size is then
+    // asked for a fractional surface scale instead.
     for (int candidate = 1; double(candidate) < outputScale; ++candidate) {
         const UpscaleSize size = scaledRequest(outputPixels, outputScale, candidate);
         if (upscaleSizing(size, outputPixels) != UpscaleSizing::Supported) {

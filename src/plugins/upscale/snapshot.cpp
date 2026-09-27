@@ -356,11 +356,12 @@ QString upscaleHeadsUp(const UpscaleSnapshot &snapshot)
 static QString desiredText(const UpscaleSnapshot &snapshot)
 {
     if (snapshot.preset == ResolutionPreset::Native) {
-        // Native is the opt-out, so there is no wish to report: whatever the
-        // game commits is what gets used, and nothing was asked of it.
+        // Native asks the game for nothing smaller, so there is no wish to
+        // report: whatever it commits is used, and enlarged if it is smaller.
         return i18n("%1 (use the supplied buffer)", presetName(snapshot.preset));
     }
-    // A wish, not an applied setting: nothing asks the game for this size yet.
+    // A wish, not what the game drew: the method that asked for it and the
+    // size that arrived are reported beside it.
     return i18n("%1, %2% of the destination (%3)", presetName(snapshot.preset),
                 qRound(resolutionRatio(snapshot.preset, snapshot.percentage) * 100),
                 sizeText(QSize(snapshot.desired.width, snapshot.desired.height)));
