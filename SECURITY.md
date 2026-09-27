@@ -15,7 +15,7 @@ package version when reporting a problem, including local modifications.
 
 The effect runs inside KWin and shares the desktop session's process and
 privileges. A successful build, test or signature does not establish that a
-candidate is safe for daily use. See the [current project state](README.md#state).
+candidate is safe for daily use. See the [current project state](README.md#current-state).
 
 ## Reporting a vulnerability
 

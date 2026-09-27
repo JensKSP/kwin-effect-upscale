@@ -68,7 +68,8 @@ not imply that already implemented diagnostics or resolution control are absent.
 
 Six documents were closed on 2026-09-20. Distribution packages was deleted on
 Jens's instruction with its implementation complete and verified in containers
-for all three distributions on both architectures. Its full-acceptance gate,
+for Fedora and openSUSE on both architectures and for Arch on amd64, the only
+architecture Arch publishes. Its full-acceptance gate,
 real-device acceptance on Fedora, openSUSE and Arch, has no acceptance host and
 was outstanding at deletion; it is recorded permanently in the
 [README](../../README.md#packages), which names only Debian Trixie as tested on

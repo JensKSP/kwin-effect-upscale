@@ -21,8 +21,11 @@ editing C++, GLSL, CMake or Python, and before adding a source file.
   take anything newer from the code.
 - C++23. Qt built without keywords (`QT_NO_KEYWORDS` and the other Qt
   definitions KWin sets).
-- Licensing: own code is `GPL-2.0-or-later`, third-party shaders keep their own
-  licence. REUSE compliant: an SPDX header in every file, licence texts in
+- Licensing: own code is `GPL-2.0-or-later`, CI and tool configuration
+  `CC0-1.0`; third-party shaders and KWin's `.clang-format` keep their own
+  licence (MIT). REUSE compliant: an SPDX header in every file that can carry
+  one, an entry in `REUSE.toml` for the rest (JSON, `debian/`, and the plugin
+  folder's `CMakeLists.txt`, which KWin writes without one), licence texts in
   `LICENSES/`.
 - Commit messages follow KWin's `CONTRIBUTING.md`; see
   [commits, branches and pull requests](pull-requests.md).

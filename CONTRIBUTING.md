@@ -6,7 +6,7 @@ SPDX-License-Identifier: GPL-2.0-or-later
 # Contributing
 
 The effect is experimental. Nested GPU tests have processed real-game buffers,
-but full physical-display acceptance remains open. Read the [current state](README.md#state) before testing it.
+but full physical-display acceptance remains open. Read the [current state](README.md#current-state) before testing it.
 Reports, documentation improvements and patches are welcome through
 [GitHub issues and pull requests](https://github.com/JensKSP/kwin-effect-upscale).
 Search existing issues first and link related reports rather than duplicating them.
@@ -153,7 +153,8 @@ Follow [KWin's contribution conventions](https://invent.kde.org/plasma/kwin/-/bl
 and KDE Frameworks style. Commit subjects normally use `component: Do a thing`.
 Keep `src/plugins/upscale/` suitable for copying into KWin; project-specific
 packaging and tooling belong outside it. Own files use GPL-2.0-or-later SPDX
-headers; preserve third-party notices and keep REUSE checks passing. The
+headers (CI configuration CC0-1.0), or an entry in `REUSE.toml` where a file
+cannot carry one; preserve third-party notices and keep REUSE checks passing. The
 [code conventions](doc/conventions.md) spell out the style, the portability
 requirements and the file size limit; [versions and releases](doc/releases.md)
 describes how a build names itself and how a release is made.

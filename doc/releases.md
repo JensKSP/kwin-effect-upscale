@@ -21,7 +21,8 @@ Laid down by Jens, 2026-09-17.
   release tag, `debian/changelog` and that number have to agree; the release
   workflow refuses the release when they do not.
 - A build away from a release tag calls itself
-  `0.1.0+git<commit date>.<short hash>`, with `-dirty` appended when the tree
+  `<version>+git<commit date>.<short hash>`, for example
+  `0.2.0+git20260927.5dae437318`, with `-dirty` appended when the tree
   had uncommitted changes. That is the Debian ordering for a snapshot taken
   after a release, and the package and the binary carry the same string.
 - Branch, commit and build date are compiled in by
@@ -58,13 +59,17 @@ Laid down by Jens, 2026-09-17.
 - `nightly` is one rolling pre-release, rebuilt from master only when master
   moved. Its tag is deleted and recreated each time; do not point anything at it
   that needs a stable URL for a fixed build.
-- Packages are built for amd64 and arm64, on Debian Trixie and on Kubuntu 26.04
-  LTS. Support the current releases: an interim Ubuntu release is supported for
-  nine months, so packaging for one that is already out of support ships
-  something nobody can update.
+- Packages are built for amd64 and arm64 on Debian Trixie, Kubuntu 26.04 LTS,
+  Fedora 43 and openSUSE Tumbleweed, and for amd64 alone on Arch and on
+  FreeBSD 15.0; `tools/ci_targets.py` is the list. Support the current
+  releases: an interim Ubuntu release is supported for nine months, so
+  packaging for one that is already out of support ships something nobody can
+  update.
   A KWin effect is built against the KWin it will be loaded into, so a package is
   only valid for the distribution it was built on.
 - **Build dependencies are listed in `debian/control` and nowhere else.** CI
-  installs them from that file with `mk-build-deps`. A second list is how a build
-  passes on Debian and fails on Ubuntu, which is exactly what happened: Debian's
-  `kwin-dev` pulls `libdrm-dev` in and Ubuntu's does not.
+  installs them from that file with `mk-build-deps` on the Debian family, and
+  `tools/distribution-packages.py` translates the same file for Fedora,
+  openSUSE, Arch and FreeBSD. A second list is how a build passes on Debian
+  and fails on Ubuntu, which is exactly what happened: Debian's `kwin-dev`
+  pulls `libdrm-dev` in and Ubuntu's does not.
