@@ -1702,3 +1702,41 @@ profile-editor acceptance is outside this export correction.
 The shipped-catalogue round-trip fails on SuperTuxKart before the correction
 and passes after clearing the export copy's measurement baseline. The focused
 application suite passes in Trixie. Ordinary layered saves are unchanged.
+
+### The windowed method slots are removed, 2026-09-25
+
+Jens asked on 2026-09-25 whether a windowed presentation had ever been
+implemented or tested, having noticed that ETR and STK can both be run
+windowed. It had not, and three places in the tree already said so: the
+handbook stated that the global profile "never reaches a windowed window",
+`upscaleMethodApplies()` recorded that obtaining a smaller buffer from one
+"means holding the window's size while the client renders below it, which no
+implemented path does", and every test set the two windowed methods to Off so
+that Auto's waiting stayed out of what it measured. Underneath all of it
+`upscalePresentation()` refuses any window that is neither fullscreen nor an
+undecorated one covering its output, before a method is read at all. The two
+slots could therefore never take effect, whatever they were set to.
+
+He decided to remove them rather than keep them as reserved space. A control
+that cannot act is worse than an absent one, because a person who sets it and
+sees nothing cannot tell an unimplemented setting from a broken one.
+
+Automatic no longer applies to a windowed presentation, which is the single
+statement the removal rests on: the coercion that was already there then
+resolves both slots to Off. `MethodWaylandWindowed` and `MethodX11Windowed`
+are gone from the configuration, nothing writes them, the settings page builds
+no row for them, and the connection policy asks about fullscreen and
+borderless alone. The handbook now says four slots and states that a window
+the person sized themselves is never scaled on either protocol. Both
+presentation values stay in the enumeration, because the effect still has to
+recognize such a window in order to refuse it.
+
+The first attempt skipped building the two combo boxes as well, which left
+nulls in five loops that index every slot and segfaulted four settings suites.
+Every slot is built and only the visible row is omitted; a windowed slot
+offers Off alone and stores Off. All 27 suites pass in Trixie with GCC. The
+other three compilers are still to be run against the settled tree: the matrix
+that covered them was started before the last change and describes an earlier
+one. One assertion changed with the behaviour: the global profile's answers are no
+longer all Auto, and the test now expects Auto for the presentations that act
+and Off for the two that cannot.

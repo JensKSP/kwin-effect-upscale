@@ -31,10 +31,11 @@
 # the executable alone, as the file name in any directory; the window identity
 # measured with them is recorded beside it.
 #
-# There is one Method entry per way the application can present itself, and
-# each is a separate measurement: MethodWaylandFullScreen,
-# MethodWaylandBorderless, MethodWaylandWindowed, MethodX11FullScreen,
-# MethodX11Borderless and MethodX11Windowed. An entry that is absent follows
+# There is one Method entry per way the application can present itself that
+# this effect acts on, and each is a separate measurement:
+# MethodWaylandFullScreen, MethodWaylandBorderless, MethodX11FullScreen and
+# MethodX11Borderless. A window the person sized themselves is refused before
+# any of them is read, so it has no entry. An entry that is absent follows
 # the user's global method, which is Auto unless they chose another - nobody has
 # run the application that way yet - and that is not the same as Off, which
 # records that the question was asked and the answer is to ask for nothing. Each name below acts on one protocol only: the advertisements reach
@@ -72,6 +73,7 @@ Name=SuperTuxKart
 MeasuredVersion=1.4
 # Its window: class supertuxkart, instance supertuxkart.
 Executable=.*/supertuxkart
+X11ConnectionExecutable=.*/supertuxkart
 ExecutableMatch=RegularExpression
 MethodWaylandFullScreen=AdvertisedMode
 Order=10
@@ -86,6 +88,7 @@ MeasuredVersion=0.8.4
 # from the PID the client reports, which has not been observed for this game,
 # and a path that does not resolve would stop the entry matching at all.
 Instance=etr
+X11ConnectionExecutable=.*/etr
 MethodX11FullScreen=X11Resize
 X11PrimaryOutputOnly=true
 X11RequiresEmulatedMode=true
@@ -106,6 +109,7 @@ MeasuredVersion=Steam build 23990068
 # Steam's pressure-vessel runtime has not been observed. Where it does not, the
 # path does not resolve and this entry does not match.
 Executable=.*/Left 4 Dead 2/hl2_linux
+X11ConnectionExecutable=.*/Left 4 Dead 2/hl2_linux
 ExecutableMatch=RegularExpression
 WindowClass=hl2_linux
 Instance=hl2_linux

@@ -88,6 +88,14 @@ QString upscaleMetrics(const UpscaleSnapshot &snapshot)
     // saying so, and the difference between those is part of what is measured.
     append(QLatin1String("scanout"), QLatin1String(snapshot.blocksScanout ? "blocked" : "direct"));
     append(QLatin1String("selected"), QString::number(snapshot.selected ? 1 : 0));
+    // Which of the cells this window presents in, by a name that does not
+    // change with the session's language. A harness reading the prose above
+    // would report nothing on a machine not running in English, and what the
+    // effect decides a window is deserves to be checkable without a person
+    // reading a sentence about it. This is presentedAs, the cell the window is
+    // in; snapshot.presentation is the screen's frame mode and answers a
+    // different question entirely.
+    append(QLatin1String("presentation"), upscalePresentationName(snapshot.presentedAs));
     switch (snapshot.windowSystem) {
     case UpscaleWindowSystem::Wayland:
         append(QLatin1String("windowsystem"), QStringLiteral("wayland"));

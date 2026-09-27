@@ -106,6 +106,7 @@ void UpscaleX11IntegrationTest::init()
     // no resolution of its own: a resolution here would pin this game and the
     // global value each case sets would never reach it.
     QVERIFY(catalogue.write("[Application-test]\nName=X11 test\nWindowClass=upscale-x11-test\n"
+                            "X11ConnectionExecutable=upscale-x11-test\n"
                             "MethodX11FullScreen=X11Resize\nMethodX11Borderless=X11Resize\n")
             > 0);
     catalogue.close();
@@ -248,6 +249,13 @@ void UpscaleX11IntegrationTest::presentsWithoutEmulation()
     QVERIFY2(status().contains(QStringLiteral("Supplied input: 1920 × 1080")), qPrintable(status()));
     QVERIFY2(status().contains(QStringLiteral("Destination: 3840 × 2160")), qPrintable(status()));
     QTRY_VERIFY2(status().contains(QStringLiteral("captured: upscale-x11-test")), qPrintable(status()));
+    // Moving from the area claimed by the effect back into KWin's own hit
+    // region must deliver that first motion too. Re-entering the same surface
+    // can suppress both enter and motion while changing the seat's position.
+    movePointer(QPoint(3000, 1800));
+    QTRY_COMPARE(target.lastMotion(), QPoint(1500, 900));
+    movePointer(QPoint(240, 240));
+    QTRY_COMPARE(target.lastMotion(), QPoint(120, 120));
     // Input follows the picture: a pointer at the middle of the output has to
     // arrive at the middle of the half-size window, not outside it. Nothing
     // is asserted before the compositor has answered, because a stale last
@@ -270,6 +278,12 @@ void UpscaleX11IntegrationTest::presentsWithoutEmulation()
     target.resize(QSize(1600, 900));
     QTest::qWait(500);
     QCOMPARE(target.geometry(), native);
+}
+
+QPoint UpscaleX11IntegrationTest::logical(const QPoint &device)
+{
+    const int scale = qMax(1, qgetenv("UPSCALE_TEST_OUTPUT_SCALE").toInt());
+    return device / scale;
 }
 
 void UpscaleX11IntegrationTest::movePointer(const QPoint &position)

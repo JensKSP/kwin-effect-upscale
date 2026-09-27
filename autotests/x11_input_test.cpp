@@ -64,3 +64,75 @@ void UpscaleX11IntegrationTest::keepsEmulatedPointerCoverage()
     QTRY_COMPARE(below.presses(), 1);
     QCOMPARE(target.presses(), 1);
 }
+
+// A fullscreen request can arrive while KWin still remembers the small
+// startup window. The effect suppresses KWin's native fullscreen configure,
+// but must still propagate the client's resized input shape to its frame.
+void UpscaleX11IntegrationTest::refreshesStartupInputShape()
+{
+    X11Client below(false);
+    QVERIFY(below.show(QByteArrayLiteral("upscale-x11-below"), QRect(0, 0, 3840, 2160), false));
+    configure(true);
+    X11Client target(false);
+    QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 640, 480), false));
+    QVERIFY(target.waitForMapping());
+    QVERIFY(target.mode(QSize(1920, 1080)));
+    target.fullscreen(true);
+    QTRY_VERIFY(target.isFullscreen());
+    QTRY_COMPARE(target.geometry(), QRect(0, 0, 1920, 1080));
+    QTRY_VERIFY2(status().contains(QStringLiteral("presented by Xwayland's emulated mode")), qPrintable(status()));
+
+    // Do not set an explicit client shape here: its ShapeNotify would make
+    // KWin refresh the frame and conceal the missed update during fullscreen.
+    movePointer(logical(QPoint(100, 100)));
+    QTRY_VERIFY(target.lastMotion() != QPoint(-1, -1));
+    movePointer(logical(QPoint(2880, 1620)));
+    QTRY_COMPARE(target.lastMotion(), QPoint(1440, 810));
+    const QPoint far = logical(QPoint(2880, 1620));
+    QSaveFile click(QString::fromLocal8Bit(qgetenv("XDG_RUNTIME_DIR")) + QStringLiteral("/upscale-test-click"));
+    QVERIFY(click.open(QIODevice::WriteOnly));
+    QVERIFY(click.write(QByteArray::number(far.x()) + ' ' + QByteArray::number(far.y())) > 0);
+    QVERIFY(click.commit());
+    QTRY_COMPARE(target.presses(), 1);
+    QCOMPARE(target.lastPress(), QPoint(1440, 810));
+    QCOMPARE(below.presses(), 0);
+}
+
+// A program that never asks for a mode is presented by the effect itself
+// rather than by Xwayland's emulation, so its surface stays the size it drew
+// and does not cover the output. Wine and Proton games are of this kind: they
+// take their screen from the prefix and ask X11 for nothing. Pointer coverage
+// then has to come from the effect across the whole presented area, including
+// the part beyond the surface.
+void UpscaleX11IntegrationTest::coversPointerWithoutEmulatedMode()
+{
+    X11Client below(false);
+    QVERIFY(below.show(QByteArrayLiteral("upscale-x11-below"), QRect(0, 0, 3840, 2160), false));
+    configure(true);
+    X11Client target(false);
+    QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 1920, 1080), false));
+    QVERIFY(target.waitForMapping());
+    // No mode request: this is what separates it from the emulated cases.
+    target.fullscreen(true);
+    QTRY_VERIFY(target.isFullscreen());
+    QTRY_VERIFY2(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()));
+    // An offscreen pass of this window draws it at its own scale, which on an
+    // output scaled beyond one differs from the screen's. That is not the pass
+    // being presented and must not be reported as the reason this one was not.
+    QVERIFY2(!status().contains(QStringLiteral("different scale than the output")), qPrintable(status()));
+
+    movePointer(logical(QPoint(100, 100)));
+    QTRY_VERIFY(target.lastMotion() != QPoint(-1, -1));
+    // The far corner lies beyond the surface but inside what the effect
+    // presents, which is the coverage an emulated mode would have given.
+    const QPoint far = logical(QPoint(3600, 2010));
+    movePointer(far);
+    QTRY_COMPARE(target.lastMotion(), QPoint(1800, 1005));
+    QSaveFile click(QString::fromLocal8Bit(qgetenv("XDG_RUNTIME_DIR")) + QStringLiteral("/upscale-test-click"));
+    QVERIFY(click.open(QIODevice::WriteOnly));
+    QVERIFY(click.write(QByteArray::number(far.x()) + ' ' + QByteArray::number(far.y())) > 0);
+    QVERIFY(click.commit());
+    QTRY_COMPARE(target.presses(), 1);
+    QCOMPARE(target.lastPress(), QPoint(1800, 1005));
+    QCOMPARE(below.presses(), 0);
+}

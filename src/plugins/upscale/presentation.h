@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include <QLatin1String>
+
 #include <array>
 #include <cstddef>
 #include <optional>
@@ -85,21 +87,44 @@ constexpr bool upscaleIsWindowed(UpscalePresentation presentation)
  * Each method acts on exactly one protocol: the advertisements act on
  * wl_output, which an Xwayland game never sees because it reaches the
  * compositor through Xwayland's own connection, and the resize acts on an X11
- * window. A windowed presentation carries neither yet: obtaining a smaller
- * buffer there means holding the window's size while the client renders below
- * it, which no implemented path does.
+ * window. A windowed presentation carries neither: obtaining a smaller buffer
+ * there would mean holding the window's size while the client renders below
+ * it, and no path does that, so nothing but Off applies to one. The effect
+ * refuses such a window before any method is consulted, in
+ * upscalePresentation(); this keeps a setting from promising otherwise.
  */
 constexpr bool upscaleMethodApplies(UpscalePresentation presentation, UpscaleMethod method)
 {
     switch (method) {
-    case UpscaleMethod::Auto:
     case UpscaleMethod::Off:
         return true;
+    case UpscaleMethod::Auto:
+        return !upscaleIsWindowed(presentation);
     case UpscaleMethod::X11Resize:
         return upscaleIsX11(presentation) && !upscaleIsWindowed(presentation);
     default:
         return !upscaleIsX11(presentation) && !upscaleIsWindowed(presentation);
     }
+}
+
+/** @p presentation by a name that is the same in every language. */
+constexpr QLatin1String upscalePresentationName(UpscalePresentation presentation)
+{
+    switch (presentation) {
+    case UpscalePresentation::WaylandFullScreen:
+        return QLatin1String("wayland-fullscreen");
+    case UpscalePresentation::WaylandBorderless:
+        return QLatin1String("wayland-borderless");
+    case UpscalePresentation::WaylandWindowed:
+        return QLatin1String("wayland-windowed");
+    case UpscalePresentation::X11FullScreen:
+        return QLatin1String("x11-fullscreen");
+    case UpscalePresentation::X11Borderless:
+        return QLatin1String("x11-borderless");
+    case UpscalePresentation::X11Windowed:
+        return QLatin1String("x11-windowed");
+    }
+    return QLatin1String("");
 }
 
 /** Whether @p method is one of the three said when a client binds its output. */

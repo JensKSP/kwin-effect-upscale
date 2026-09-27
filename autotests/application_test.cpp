@@ -474,12 +474,16 @@ void ApplicationTest::asksUnlistedApplicationsOnlyWhenTurnedOn()
     const UpscaleBindAnswer unmeasured = upscaleApplicationAtBind(QStringLiteral("/usr/bin/something-nobody-measured"));
     QVERIFY(unmeasured.decided);
     QVERIFY(!unmeasured.application);
-    // Where nothing is stated, the global profile's six answers are Auto, as
-    // a profile's are. What leaves such a program alone is the global
-    // profile's own switch, which is off until someone turns it on.
-    QVERIFY(std::ranges::all_of(upscaleGlobalMethods(), [](KWin::UpscaleMethod method) {
-        return method == KWin::UpscaleMethod::Auto;
-    }));
+    // Where nothing is stated, the global profile answers Auto for every
+    // presentation it acts on, as a profile does, and Off for a window the
+    // person sized themselves, which no method can obtain a smaller buffer
+    // from. What leaves such a program alone is the global profile's own
+    // switch, which is off until someone turns it on.
+    const UpscaleMethods global = upscaleGlobalMethods();
+    for (std::size_t slot = 0; slot < upscalePresentationCount; ++slot) {
+        const auto presentation = UpscalePresentation(slot);
+        QCOMPARE(global[slot], upscaleIsWindowed(presentation) ? KWin::UpscaleMethod::Off : KWin::UpscaleMethod::Auto);
+    }
     QVERIFY(!upscaleResolveSettings(nullptr).acts());
 
     // A profile that is switched off takes no part in matching, by both

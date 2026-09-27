@@ -430,3 +430,29 @@ void UpscaleSnapshotTest::unsupportedFormat()
 }
 
 QTEST_GUILESS_MAIN(UpscaleSnapshotTest)
+
+// The metrics line is the contract with a program rather than with a person:
+// a harness reads it to learn what the effect decided, and it must say the
+// same thing whatever language the session runs in. Every presentation is
+// named, and no two share a name, so a run that was classified one way cannot
+// be read as another.
+void UpscaleSnapshotTest::metricsNameEveryPresentationTheSameInEveryLanguage()
+{
+    QSet<QString> names;
+    for (std::size_t slot = 0; slot < upscalePresentationCount; ++slot) {
+        const auto presentation = UpscalePresentation(slot);
+        const QString name = upscalePresentationName(presentation);
+        QVERIFY2(!name.isEmpty(), qPrintable(QString::number(slot)));
+        QVERIFY2(!names.contains(name), qPrintable(name));
+        names.insert(name);
+
+        UpscaleSnapshot snapshot = scaling();
+        snapshot.presentedAs = presentation;
+        // The screen's frame mode is a different question with a neighbouring
+        // name. Moving it must not move what this line says the window is,
+        // which is the mistake this case exists to catch.
+        snapshot.presentation = int((slot + 1) % upscalePresentationCount);
+        const QString metrics = upscaleMetrics(snapshot);
+        QVERIFY2(metrics.contains(QStringLiteral("presentation=") + name), qPrintable(metrics));
+    }
+}

@@ -3,7 +3,7 @@ SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de
 SPDX-License-Identifier: GPL-2.0-or-later
 -->
 
-# Slice: Wine and Proton games through a smaller screen in their prefix
+# Slice: Wine and Proton games at a smaller screen
 
 ## Status
 
@@ -24,6 +24,14 @@ server, so the game's own mode choice can reach no further than that screen. See
 [the screen in the prefix](#the-screen-in-the-prefix) for the mechanism and
 [the experiment that ran](#the-experiment-that-ran-2026-09-23) for the
 measurement. What remains open is a session test with a game.
+
+On 2026-09-25 Jens settled a different route for the same topic: the X11
+forwarding proxy gives every connection of a game's prefix a smaller screen,
+and the prefix companion stays retired. This slice keeps the topic and changes
+the mechanism; see
+[the proxy replaces the prefix screen](#wine-identity-through-the-proxy-replaces-the-prefix-screen-2026-09-25).
+The measurements below stand, and the reason a virtual desktop did not hold
+every game is why a prefix still has exactly one screen size to give.
 
 The citations name the upstream file and line in the versions listed under
 [sources](#sources).
@@ -629,6 +637,16 @@ new choices Jens makes. The earlier Wreckfest run had active upscaling and
 accurate edge input but used existing preparation; clean-start acceptance
 is still outstanding.
 
+On 2026-09-24 Jens requested clearing Wreckfest's Wine preparation before proxy
+testing. Inspection found no forced screen sections in system.reg and neither
+an Explorer Desktop value nor a Default virtual-desktop size in user.reg. The
+helper still had one Wreckfest record with Described=2560x1440+0+0@120 and
+Never=true. Backed up both registries and the helper record in
+build/wreckfest-wine-cleanup-e4rtqbqw, then removed only that Wreckfest record.
+Read-back verified the record removal and byte-for-byte unchanged registries.
+No game settings, saves, prefix recreation or game launch was involved. This
+establishes removal of preparation state, not successful proxy game acceptance.
+
 The queued-maintenance fix passed the complete helper regression in Trixie,
 including lost preparation followed by Off or another size, and explicit
 Reset while the running game keeps presenting its preference. It is included
@@ -710,3 +728,141 @@ wording correction. No metadata changed from the earlier validated checkpoint.
 The effect and helper are installed together; hashes match their native outputs,
 and the reloaded effect reports build time 2026-09-24T10:06:29Z. The session is
 still locked, so neither Wreckfest acceptance nor the L4D2 live trace has run.
+
+### Wine identity through the proxy replaces the prefix screen, 2026-09-25
+
+Jens settled the route on 2026-09-25: Wine and Proton games are served by the
+X11 forwarding proxy that [resolution control](slice-resolution-control.md)
+owns, and the retired prefix companion stays retired. The mechanism this slice
+was written for, a smaller screen described in the game's own prefix, is
+superseded. What it established remains in force, above all that a prefix is
+one wineserver, one registry and one Windows desktop, and therefore has exactly
+one screen size to give.
+
+One unrecorded result decided this. The private diagnostic effect of
+2026-09-24, built from copies of two sources under `build/` to test whether the
+legacy Wine guards prevent generic presentation, ran as sx-qlj_k3z7 at 00:40 on
+2026-09-25. The guards are not the obstacle. The effect selects the Wine
+window, supplies 2560 × 1440 against a 3840 × 2160 destination, and the frame
+settles covering the screen; the window growth of sx-d8159h3_ and sx-wrofjh_w
+is gone. The run still fails, on the pointer at 3600 × 2010: the window's input
+region stays 854 × 480 logical while its frame covers 1280 × 720, so a click
+past roughly two thirds of the screen never reaches the game. This is the
+input-shape class that L4D2 needed `updateShape()` for. No correction has been
+written for it.
+
+Wine names the program each of its processes runs, as an absolute path. In
+sx-o7j42c5w the probe's connection reports
+`Z:\src\build\proxy-conformance\wine-source\display-probe.exe`, while every
+Wine component of the same prefix names itself below `C:\windows\system32` or
+`C:\windows\syswow64`. That directory is the discriminator between a prefix's
+own programs and Wine's own, so no list of helper names is needed. Wine answers
+only for the process asked: the connection the proxy actually received in that
+run was explorer, naming itself, and every process of the prefix is reparented
+to init, so ancestry associates nothing with the game.
+
+Decided with Jens on 2026-09-25:
+
+- The unit of decision is the prefix, not the connection and not the program.
+  Every connection of a prefix is answered the same way, from a decision the
+  first connection makes and the rest reuse.
+- A launcher or a second program sharing the prefix is scaled with the game.
+  Two differently configured games in one prefix cannot both be served and the
+  first match wins. Accepted as unlikely, and visible rather than subtle.
+- A profile matches the tail of the program's path, which is the same on every
+  machine the effect is installed on. A prefix path is not: library location,
+  Flatpak and hand-made prefixes all differ, so it is the cache key and a
+  diagnostic, never a shipped identity.
+- Matching a launcher is as good as matching the game, because both reach the
+  same desktop, so a profile may name either or both.
+- Windowed programs are not scaled. Fullscreen and borderless present one
+  window that is the desktop, which is one rectangle to scale; a windowed
+  program breaks that identity and would need a moving input origin, a
+  continuous resize negotiation and frame geometry KWin owns. The rule is to
+  scale a window whose size matches the prefix's current screen and to present
+  every other window untouched.
+- The proxy resolves the identity and sends plain strings to the effect, so the
+  plugin gains no platform-specific reader and stays portable.
+- The resolved candidates are reported per prefix, because a profile that names
+  none of them otherwise fails silently at the native size.
+
+Open, in this order:
+
+- The interval between a prefix's first connection and its first program that
+  is not Wine's own. sx-o7j42c5w measured a prefix being created, where wineboot
+  ran between explorer at 609507 and the program at 609612. An existing prefix
+  should be far tighter, and the first connection of a Wine prefix has to be
+  held until the program appears rather than answered from the ordinary 500 ms
+  budget, because the program's path is the only portable identity. Unmeasured.
+- A prefix whose wineserver still runs from an earlier program receives no new
+  connection, so its screen was decided for that program. No answer proposed.
+- Acceptance across fullscreen, borderless and windowed presentation, for a
+  cold prefix, a warm prefix and a launcher-first start, on real games.
+
+### A refusal from an offscreen pass, 2026-09-25
+
+Reading sx-qlj_k3z7 as a Wine defect cost three wrong explanations before the
+measurement that settled it. The suite ran every session at output scale one,
+while the acceptance machine runs its 3840 × 2160 screen at three. Closing
+that gap found the defect, and it is neither Wine's nor input's.
+
+An offscreen pass of a window - a thumbnail, a preview, anything drawn away
+from the output - draws it at a scale of its own. The effect refuses to replace
+such a pass, which is right, because it is not what the person is looking at.
+That refusal was then kept as the reason the window was not replaced and
+reported as such. On an output at scale one an offscreen pass matches the
+screen and never refuses, so the effect never reported it; at another scale it
+does, and the effect then says a window it is upscaling is not being upscaled.
+It was this report, not the presentation, that every reading of sx-qlj_k3z7
+followed. Such a pass is now refused without being remembered.
+
+The session runner takes `--scale=`, writing the outputs and, which is what was
+missing at first, a setup naming them: without one KWin generates a
+configuration of its own and the recorded scale never applies. A virtual output
+is matched by connector name alone, `Virtual-0` upwards, having no EDID to
+hash. The new session `upscale-x11-scaled` runs the two pointer-coverage tests
+at scale three; the sessions confirm 1280 × 720 logical on a 3840 × 2160
+output.
+
+Both of those tests fail at scale three before this correction and pass after
+it, and the same mistake the Wine harness made was in them: they placed the
+pointer in device pixels. They now convert, and a new `coversPointerWithoutEmulatedMode`
+covers a program that never asks for a mode and is therefore presented by the
+effect rather than by Xwayland's emulation, which is what a Wine game is. The
+assertion that no offscreen pass is reported was checked against the unfixed
+effect and fails there.
+
+All 27 suites pass in Trixie with GCC.
+
+### A borderless window covers the screen it was given, 2026-09-25
+
+Jens asked on 2026-09-25 whether a borderless window at the size of the
+display was still supported, after the windowed method slots were removed.
+It was, and it would also have failed for exactly the games this route exists
+for.
+
+Fullscreen survives because it is a state: KWin gives such a window the
+output's geometry whatever size its client is, so the effect only has to hold
+the client smaller underneath. Borderless has no state to read and is judged on
+geometry alone - `upscaleCoversOutput()` required the window's frame edges to
+match the output's. A game whose connection has been answered with a smaller
+screen makes a borderless window that size, because the proxy rewrites what the
+client is told and not Xwayland's root, which stays at the output's size. Such
+a window covers part of the output, is classified windowed, and is refused.
+
+The rule this slice already records answers it: a window covers *its* screen,
+and for a program whose connection was answered that is the size advertised
+rather than the output. The effect now keeps that size beside the process it
+answered for, and measures coverage against it. Nothing about the test is Wine
+specific, and no size is written into the code: the case asks the effect's own
+connection policy what screen it would advertise and makes a window of exactly
+that.
+
+The new case fails before the correction with the refusal it predicts, "not
+fullscreen or a selected borderless window", and passes after it. It runs in a
+session with one 4K screen at scale three, which is the acceptance machine's
+own arrangement; a connection is answered before any window exists, so what an
+answer names is a screen and not an arrangement of them, and the session that
+runs two outputs skips the case for that stated reason alone.
+
+All 27 suites pass in Trixie with GCC.

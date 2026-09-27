@@ -48,8 +48,10 @@ bool UpscaleX11Resolution::holdMap(xcb_generic_event_t *generic)
                           NET::WMPid | NET::WMState | NET::WMWindowType, NET::WM2WindowClass);
     const QString executable = info.pid() > 0 ? executablePathFromPid(info.pid()) : QString();
     // Wine obtains its screen from its prefix at startup. Resizing its running
-    // window fights that screen and flickers; preparation owns this path.
-    if (upscaleWineRuntime(executable)) {
+    // window fights that screen and flickers, so one whose connection was not
+    // answered with a smaller screen is left alone. One whose was already
+    // renders at the size wanted and maps like any other program.
+    if (upscaleWineRuntime(executable) && !upscaleServed(info.pid())) {
         return false;
     }
     const UpscaleApplication *application = upscaleApplicationFor({executable,

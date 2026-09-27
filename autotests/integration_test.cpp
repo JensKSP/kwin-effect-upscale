@@ -47,14 +47,13 @@ static void writeResolution(KConfigGroup &group, std::optional<int> resolution)
     }
 }
 
-// Every one of the global profile's six answers, stated. The default is Auto,
+// Every answer the global profile can give, stated. The default is Auto,
 // which asks a window for a smaller buffer and waits for its answer; a case
 // about something else states what it asks, so that Auto's waiting does not
 // become part of what it measures.
 static void writeGlobalMethods(KConfigGroup &group, const QString &fullScreen)
 {
-    for (const char *key : {"MethodWaylandBorderless", "MethodWaylandWindowed", "MethodX11FullScreen",
-                            "MethodX11Borderless", "MethodX11Windowed"}) {
+    for (const char *key : {"MethodWaylandBorderless", "MethodX11FullScreen", "MethodX11Borderless"}) {
         group.writeEntry(key, QStringLiteral("Off"));
     }
     group.writeEntry("MethodWaylandFullScreen", fullScreen);
@@ -128,8 +127,8 @@ void UpscaleIntegrationTest::configureResolution(bool asking, bool unlisted, std
     if (!asking || unlisted) {
         writeGlobalMethods(group, asking ? QStringLiteral("AdvertisedMode") : QStringLiteral("Off"));
     } else {
-        for (const char *key : {"MethodWaylandFullScreen", "MethodWaylandBorderless", "MethodWaylandWindowed",
-                                "MethodX11FullScreen", "MethodX11Borderless", "MethodX11Windowed"}) {
+        for (const char *key : {"MethodWaylandFullScreen", "MethodWaylandBorderless",
+                                "MethodX11FullScreen", "MethodX11Borderless"}) {
             group.deleteEntry(key);
         }
     }
@@ -172,7 +171,7 @@ void UpscaleIntegrationTest::selectedBorderlessPresentation()
     // the presentation alone: an unset method is Automatic, which would ask
     // this window for a smaller scale.
     writeCatalogue(integrationWindow(QStringLiteral(
-        "MethodWaylandFullScreen=Off\nMethodWaylandBorderless=Off\nMethodWaylandWindowed=Off\n")));
+        "MethodWaylandFullScreen=Off\nMethodWaylandBorderless=Off\n")));
     QTRY_VERIFY2(status().contains(QStringLiteral("FSR 1, sharpening")), qPrintable(status()));
     client.resize(QSize(96, 96));
     QTRY_VERIFY2(status().contains(QStringLiteral("the window is not fullscreen")), qPrintable(status()));

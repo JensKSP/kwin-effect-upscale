@@ -70,6 +70,14 @@ void UpscaleMethodControls::build(QFormLayout *form, QWidget *parent, bool inher
 {
     for (std::size_t slot = 0; slot < upscalePresentationCount; ++slot) {
         QComboBox *box = addBox(slot, parent);
+        // Every slot has its box, so that everything indexed by one finds it,
+        // but a windowed presentation gets no row: the effect refuses such a
+        // window before a method is read, so a choice here could not take
+        // effect. The box offers Off alone and answers Off when stored.
+        if (upscaleIsWindowed(UpscalePresentation(slot))) {
+            box->hide();
+            continue;
+        }
         if (!inherit) {
             connect(box, &QComboBox::currentIndexChanged, this, &UpscaleMethodControls::changed);
             form->addRow(upscalePresentationLabel(UpscalePresentation(slot)), box);
@@ -81,8 +89,8 @@ void UpscaleMethodControls::build(QFormLayout *form, QWidget *parent, bool inher
         QWidget *row = inheritingRow(slot, parent);
         form->addRow(m_names[slot], row);
     }
-    // One width for the six, so they read as the one table they are rather
-    // than as boxes as wide as each one's longest entry.
+    // One width for the rows shown, so they read as the one table they are
+    // rather than as boxes as wide as each one's longest entry.
     int widest = 0;
     for (const QComboBox *box : m_boxes) {
         widest = std::max(widest, box->sizeHint().width());

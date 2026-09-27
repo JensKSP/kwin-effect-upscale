@@ -396,6 +396,16 @@ EffectWindow *UpscaleEffect::findCandidate(UpscaleRefusal *refusal, UpscaleOutpu
 // whatever another output's last pass happened to leave behind.
 UpscaleRefusal UpscaleEffect::rememberPassRefusal(EffectWindow *window, UpscaleRefusal refusal)
 {
+    // A thumbnail, a preview or any other pass that draws this window away
+    // from its output draws it at a scale of its own. Refusing to replace it
+    // is right - it is not what the person is looking at - but it says nothing
+    // about the pass that is, so it must not become the reason this window was
+    // not replaced. On an output whose scale is one such a pass matches the
+    // screen and never refuses, which is why reporting it wrong stayed hidden
+    // until a desktop that runs its screen at another scale.
+    if (refusal == UpscaleRefusal::ScaledPass) {
+        return refusal;
+    }
     if (refusal == UpscaleRefusal::None) {
         m_passRefusals.remove(window);
     } else {

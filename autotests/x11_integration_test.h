@@ -25,6 +25,9 @@ private Q_SLOTS:
     void lifecycle_data();
     void lifecycle();
     void presentsWithoutEmulation();
+    void refreshesStartupInputShape();
+    void coversPointerWithoutEmulatedMode();
+    void coversTheScreenItWasGiven();
     void keepsEmulatedPointerCoverage_data();
     void keepsEmulatedPointerCoverage();
     void expiresDepartedClientRefusal();
@@ -49,6 +52,8 @@ private:
     QString status();
     void configure(bool enabled, Stored resolution = Stored::Performance);
     void movePointer(const QPoint &position);
+    /** @p device, which is where an X11 window is, in KWin's logical pixels. */
+    static QPoint logical(const QPoint &device);
     QDBusInterface m_effects{QStringLiteral("org.kde.KWin"), QStringLiteral("/Effects"),
                              QStringLiteral("org.kde.kwin.Effects"), QDBusConnection::sessionBus()};
 };

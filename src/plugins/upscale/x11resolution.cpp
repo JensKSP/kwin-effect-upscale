@@ -174,6 +174,17 @@ static UpscalePresentation x11PresentationOf(const Window *window)
     return upscalePresentationFor(true, window->isFullScreen(), !window->isDecorated() && coversOutput);
 }
 
+// Whether asking this window to resize would contradict a screen it already
+// has. A program whose connection was answered renders at the size that answer
+// set, so it is presented across its output rather than asked to resize. One
+// running under Wine whose connection was not answered takes its screen from
+// its prefix instead, which a resize fights in the same way, and it is left
+// alone until it is restarted into a screen the effect did set.
+static bool upscaleKeepsItsOwnScreen(const X11Window *window)
+{
+    return !upscaleServed(window->pid()) && upscaleWineRuntime(upscaleExecutableOf(window));
+}
+
 // Whether this window is one to ask for a smaller drawable.
 //
 // Auto and an explicit X11Resize both resize, and on X11 they mean the same
@@ -296,7 +307,7 @@ UpscaleX11Resolution::Request UpscaleX11Resolution::requestFor(X11Window *window
     if (!m_enabled || m_restoring || !kwinApp()->x11Connection() || window->isDeleted()
         || window->isUnmanaged() || !window->isNormalWindow() || !window->output()
         || window->output()->transform() != OutputTransform::Normal
-        || upscaleWineRuntime(upscaleExecutableOf(window))) {
+        || upscaleKeepsItsOwnScreen(window)) {
         return {};
     }
     const QString key = keyFor(window, enteringFullscreen);

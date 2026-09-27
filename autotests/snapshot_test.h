@@ -28,6 +28,7 @@ private Q_SLOTS:
     void pixelSizesAreNotGrouped();
     void developerInformationCoversTheState();
     void namesEveryPresetAndTransferFunction();
+    void metricsNameEveryPresentationTheSameInEveryLanguage();
     void reportsPresentedFramesAndTheirSlowTail();
     void namesTheClientItIsLookingAt();
     void separatesWhatWasRequestedFromWhatArrived();

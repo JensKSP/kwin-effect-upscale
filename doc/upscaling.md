@@ -164,6 +164,9 @@ it is one click on the settings page. The game is still started the way it
 always is; the helper changes configuration the game reads, never how it is
 started. For Wine and
 Proton games this is [a smaller screen in their prefix](#games-that-ignore-resizing-a-smaller-screen-in-their-prefix).
+The legacy helper is now excluded from normal builds and packages while the
+X11 proxy replacement is being validated; this exception is not an installed
+capability of the default build.
 
 **Sommelier is still worth reading, as a source of technique rather than a
 route.** It solves, in a proxy, several of the problems this effect has from
@@ -354,8 +357,59 @@ live no longer than its server, reached through a key that is only a link
 where that link would go is read instead, at every start and after every refresh
 Wine makes.
 
-Implemented 2026-09-23 as an optional helper, verified in a prefix of its own
-and not yet with a game:
+A second route reaches the same place without writing anything into the prefix.
+Wine asks the display server once per prefix, so the X11 forwarding proxy can
+answer that question with a smaller screen for every connection the prefix
+makes. This is the route the effect is being built for; the design below is
+settled and not yet implemented, and no Wine or Proton game acceptance has been
+established through it.
+
+- **The prefix is the unit.** One prefix is one Wine server, one registry and
+  one Windows desktop, so it has exactly one screen size to give. Every
+  connection a prefix makes is answered the same way, from a decision the first
+  one makes. A launcher or a second program sharing the prefix is therefore
+  scaled with the game, and two games in one prefix cannot be given different
+  sizes.
+- **A game is recognized by the program Wine runs.** Wine names that program,
+  as an absolute path, in the command line of the process that runs it, and
+  names its own components below `C:\windows\system32` and
+  `C:\windows\syswow64`, which is how the prefix's own programs are told from
+  Wine's. Matching a game's launcher works as well as matching the game,
+  because both reach the same desktop.
+- **A program is named for where it runs as well as for what it is**, in the
+  shape of a URI, so that one pattern reaches a program whether it runs on the
+  host or inside a runtime. A program of the host keeps its plain path. One
+  Wine runs is named `wine://<prefix>/<program>`, and because a prefix is an
+  absolute path it leaves the authority empty, the way `file:///` does:
+
+  ```text
+  /usr/games/extremetuxracer
+  wine:///home/me/.steam/steam/steamapps/compatdata/228380/pfx/Z:/home/me/.steam/steam/steamapps/common/Wreckfest/Wreckfest.exe
+  ```
+
+  So `Wreckfest/Wreckfest\.exe$` names that game on any machine, `^wine://`
+  names every Wine and Proton game at once, and a pattern naming a prefix as
+  well singles out one installation. A prefix path differs between machines,
+  so it belongs in a personal profile and never in one that ships. Separators
+  are written `/`, because a pattern is a regular expression and a backslash
+  in one has to be written twice. The names are not percent-encoded: game
+  paths are full of spaces, and `Rocket%20League` is not a name anybody reads
+  on disk. The remaining schemes are reserved for the container runtimes,
+  which the effect does not resolve yet.
+- **A windowed game is not scaled**, which is the effect's rule for every
+  program and not one this route adds: only a fullscreen or borderless window
+  is a single rectangle to scale and to map input through. A Wine game's own
+  list of resolutions reaches no further than the screen its prefix was given,
+  and a window smaller than that screen keeps the size it asked for.
+- **The plugin stays portable.** The proxy resolves the identity and passes
+  plain text to the effect, which matches it against profiles and reads nothing
+  about processes or prefixes itself.
+
+The legacy helper's implementation remains in the source tree. Normal builds
+and packages exclude its binary and activation services; an explicit
+`UPSCALE_BUILD_WINE_HELPER=ON` development build enables them and their tests.
+Removing the helper leaves existing prefix preparation intact. The retained
+helper works as follows:
 
 - The effect recognizes Wine and Proton by the process's standard Wine loader
   or preloader name, using KWin's process identity API. It skips the early
@@ -1622,14 +1676,28 @@ that a smaller drawable fixes an uncooperative renderer.
 
 ### Selecting the resolution control method
 
-Implemented as six slots per profile, one per presentation: Wayland and X11,
-each fullscreen, borderless and windowed. Each slot is **Automatic**, one of
-the methods its protocol can carry, or **Off**. A game's slot that states no
-method inherits the package's measurement, and without one the global
-profile's method, shown in italics with a reset button like every other
-inherited value. The global profile's slots default to Automatic; it answers
-for unlisted applications only while it is switched on and never reaches a
-windowed window.
+**Planned simplification after successful compatibility testing:** each
+presentation slot becomes **On** or **Off**. On selects the verified automatic
+path internally, including any generic client-dependent handling. Users do not
+choose between proxying, resizing, mode advertisement or scale advertisement.
+Resolution, quality and OSD preferences remain separate. This simplification
+requires coverage of the known application/presentation combinations first;
+unsupported cases must still be reported honestly. The controls described below
+are the current implementation, not the intended final interface.
+
+Implemented as four slots per profile, one per presentation the effect acts
+on: Wayland and X11, each fullscreen and borderless. Each slot is
+**Automatic**, one of the methods its protocol can carry, or **Off**. A game's
+slot that states no method inherits the package's measurement, and without one
+the global profile's method, shown in italics with a reset button like every
+other inherited value. The global profile's slots default to Automatic and
+answer for unlisted applications only while it is switched on.
+
+A window the person sized themselves is never scaled, on either protocol.
+Obtaining a smaller buffer from one would mean holding its size while the
+client renders below it, which no method does, so the effect refuses such a
+window before any slot is read and offers no slot that would say otherwise. A
+game presents full screen or borderless when it wants this effect.
 Game detection selects the profile; it does not by itself establish that
 resolution control succeeded.
 
@@ -1639,9 +1707,51 @@ resolution control succeeded.
 | Advertised screen mode | **Implemented for verified native Wayland client/runtime combinations.** Tell one recognized native Wayland client that its screen has a smaller current mode when it binds the output. This does not control Xwayland games. It needs no launch helper or restart and changes nothing outside that connection. |
 | Wayland negotiation | Generic surface-scale negotiation remains experimental; the implemented advertised scale and mode-and-scale methods are separate profile choices. |
 | X11 buffer request | **Implemented.** Request a smaller drawable and require client-owned fullscreen emulation to retain output coverage. The window keeps the place and size the system gave it; only the size the client renders at changes. |
-| Display proxy | **Out of scope.** Sommelier's direct-scale mode supplied smaller buffers, native and through a private Xwayland, but every form of it starts the game. Kept as a measured mechanism and as technique worth reading, not an offered method. |
+| Session X11 proxy | **Experimental.** Interpose on the session's X11 connections to give selected clients smaller display information before their first window, retaining stock Xwayland and ordinary game launching. The package installs a Plasma environment hook and a user-context launcher for normal session routing; compatibility acceptance remains incomplete. |
+| Per-game display proxy | **Out of scope as the final user workflow.** Sommelier's direct-scale mode supplied smaller buffers, native and through a private Xwayland, but every form of it starts the game. Kept as a measured mechanism and as technique worth reading, not an offered method. |
 | Gamescope | **Out of scope.** It forwarded smaller original buffers in testing, but the game has to be started through it, and its image arrives as a child surface this effect rejects. Kept here as a measured mechanism, not an offered method. |
 | Game settings only | Make no automatic resolution changes; show the desired pixels as guidance and scale eligible supplied buffers. |
+
+**Session proxy lifecycle:** the proxy runs
+with the logged-in user's permissions. Only installation of system-wide files
+requires administrator privileges; the runtime must not require a root service,
+setuid executable or added capabilities. Disabling either the effect or its
+session X11 proxy setting must result in stock Xwayland serving clients directly,
+with no proxy process running. Forwarding unchanged traffic is not disabled.
+At disabled startup, the launcher must replace itself with stock Xwayland rather
+than stay resident. An active proxied connection cannot survive simply stopping
+its relay. Settings must distinguish a requested change from the active routing
+state and explain any required restart; they must not silently disconnect X11
+applications or report the proxy stopped while it is still forwarding traffic.
+Changing routing in an active session takes effect at the next login. Until
+then, show **Restart required** and explain that logging out and back in applies
+the change; reloading the effect alone does not remove the proxy. Disabling the
+effect stops its upscaling immediately, but the existing proxy transport remains
+active until the session ends. The next login with either control disabled must
+start stock Xwayland directly. Enabling routing likewise requires a new session
+when the current one started without the proxy.
+
+The proxy asks the effect for a connection policy before forwarding the client's
+setup bytes. Early selection requires an explicit `X11ConnectionExecutable`
+catalogue pattern; a window-class match alone cannot identify a client before
+its first window. The current policy supports one output at the desktop origin
+and requires compatible X11 presentation settings. Unidentified clients retain
+stock display information. This includes Wine/Proton clients until their early
+identity is implemented; recognising their later game window is insufficient.
+
+If Xwayland's mode list is not ready for the first connection, the proxy retries
+within a 500 ms decision interval. An unavailable policy or target mode falls
+back to unchanged forwarding. The retry does not block the window-manager
+channel and never holds application startup indefinitely. Connection policy and
+fallback reasons are logged separately from observed buffer and input state.
+
+For a selected connection, setting its root screen to the size already
+advertised is a no-op. The proxy forwards an X11 NoOperation in its place,
+preserving request sequence numbers and leaving the shared desktop unchanged.
+This avoids Xwayland rejecting the smaller size against its physical CRTC.
+Different sizes, other windows and invalid physical-size arguments retain the
+server's normal validation. This handling alone does not establish correct
+fullscreen rendering or input for a client.
 
 Only implemented and verified methods may be enabled for the current case.
 Show unavailable methods with a reason. An explicit method must not silently
@@ -1881,6 +1991,14 @@ that a later mismatch can be traced rather than guessed at.
 | Left 4 Dead 2 | Steam build 23990068 | program `.*/Left 4 Dead 2/hl2_linux`, class and instance `hl2_linux` | — | X11 fullscreen: X11 buffer request | follows the global |
 | glmark2 | 2023.01 | program `.*/glmark2-wayland` | class `com.github.glmark2.glmark2`, instance `glmark2-wayland` | Wayland fullscreen: advertised screen scale | follows the global |
 | vkmark | 2025.01 | program `.*/vkmark` | class `com.github.vkmark.vkmark`, instance `vkmark` | Wayland fullscreen: advertised screen mode and scale | follows the global |
+
+Left 4 Dead 2's listed X11 buffer request is not a validated way to reduce its
+internal rendering. On the tested native build, its menu retained a 3840 × 2160
+GL viewport and downscaled into the requested 2560 × 1440 X11 drawable, with
+incorrect pointer targeting. The buffer reported by the compositor describes
+what the client submitted; it cannot prove the size of the client's internal
+render targets. This title needs further work before automatic resizing can be
+considered supported.
 
 The Wayland entries state their program alone, as a regular expression for the
 file name in any folder, because their method is said before the window
@@ -2303,6 +2421,19 @@ correctly. Rotated outputs and unavailable modes are not negotiated. Mixed
 desktop scales, output hotplug and physical pointer confinement still require
 device acceptance.
 
+Stock KWin also exposes a scale override on its shared Xwayland Wayland
+connection. Changing that override changes Xwayland's advertised logical
+output dimensions without changing the physical output mode or native
+Wayland clients' output information. X11 connection setup, root geometry,
+RandR, Xinerama and VidMode can agree on the smaller size. This affects the
+shared X11 display, not an individual game, and is not a production method in
+this effect. Applications can retain their own earlier display information:
+the SDL revision bundled with the tested Left 4 Dead 2 build caches its display
+modes and bounds at initialization despite later X11 display changes. A fresh
+SDL instance reads the smaller advertisement. Shared advertisement alone
+therefore establishes neither application isolation nor correct rendering and
+input for running games.
+
 | Required constraint | Mechanism and demonstrated scope |
 | --- | --- |
 | Controlled from the plugin | Target selection, requested size and X11 operations reside in the effect; no application-specific function calls are needed. |
@@ -2592,6 +2723,34 @@ Each slice states both gates: the supported scope it can close against, and the
 full acceptance that keeps its requirement open. A slice document is retained
 while either remains incomplete, and blocked hardware cases are recorded as
 blocked rather than counted as passed.
+
+### A release is as conformant as what it sits on
+
+Laid down by Jens, 2026-09-27.
+
+The effect changes what a compositor shows and what a display server tells its
+clients. Anything it breaks there, it breaks for every program on the machine,
+not only for the game it was pointed at. So a release is measured against the
+thing it is placed in front of: **the Wayland and X11 conformance suites are
+part of release testing, and a release is accepted only where it passes them as
+well as the Xwayland and KWin underneath it do.**
+
+The comparison is what carries the meaning, not the score. Neither suite passes
+completely on a stock system, and a release is not asked to do better than the
+system it runs on. What it may not do is turn a case that passed without it
+into one that fails with it. Each suite is therefore run twice against the same
+build of everything else:
+
+| | Without the effect acting | With a reduced resolution and upscaling |
+| --- | --- | --- |
+| **Wayland** | the baseline this release is judged against | no case in the baseline may regress |
+| **X11** | the baseline this release is judged against | no case in the baseline may regress |
+
+A case that fails both ways is the system's and is recorded as such. A case
+that passes without the effect and fails with it blocks the release until it is
+fixed or the release's supported scope excludes it by name. The suites are run
+against the same Xwayland and KWin in both halves of a pair, because a
+comparison between two different systems says nothing about this one.
 
 ## Validation requirements
 
@@ -2986,8 +3145,10 @@ road decides whether it arrives at all. The advertised-mode and
 advertised-scale methods work by answering a client's `wl_output` bind, so they
 reach a native Wayland client and nothing else: an application running through
 Xwayland never binds the compositor's `wl_output`, because Xwayland binds it
-once on behalf of every X11 client at the same time. Such an application can
-only be reached by the X11 resize method.
+once on behalf of every X11 client at the same time. The effect's implemented
+per-application control for such a client uses the X11 resize method. Changing
+Xwayland's shared output advertisement is a separate mechanism with different
+isolation and application-caching constraints, described above.
 
 This is not a detail of one game. SDL chooses its video driver per launch from
 the environment, so the same binary is a Wayland client on one run and an X11

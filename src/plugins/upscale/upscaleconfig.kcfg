@@ -14,6 +14,8 @@ SPDX-License-Identifier: GPL-2.0-or-later
          where it states nothing of its own; the table in settings.h says
          which entry here belongs to which preference. -->
     <group name="Effect-upscale">
+        <!-- Session routing changes take effect at the next login. -->
+        <entry name="X11Proxy" type="Bool"><default>true</default></entry>
         <!-- Whether the global profile acts on a window no profile claimed.
              Off, because nothing is known about a program nobody measured:
              out of the box only the games in the catalogue are touched.
@@ -46,10 +48,8 @@ SPDX-License-Identifier: GPL-2.0-or-later
              way kwinupscalerc does, and parsed by the same reader. -->
         <entry name="MethodWaylandFullScreen" type="String"><default>Auto</default></entry>
         <entry name="MethodWaylandBorderless" type="String"><default>Auto</default></entry>
-        <entry name="MethodWaylandWindowed" type="String"><default>Auto</default></entry>
         <entry name="MethodX11FullScreen" type="String"><default>Auto</default></entry>
         <entry name="MethodX11Borderless" type="String"><default>Auto</default></entry>
-        <entry name="MethodX11Windowed" type="String"><default>Auto</default></entry>
         <!-- Kept on, and not offered in the settings: the four displays below
              each switch themselves, and all four off already means nothing is
              drawn, so a switch above them only said the same thing twice. It

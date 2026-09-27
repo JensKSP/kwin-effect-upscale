@@ -184,6 +184,7 @@ static std::vector<UpscaleApplication> readApplications(const KSharedConfig::Ptr
         application.name = group.readEntry("Name", application.id);
         application.version = group.readEntry("MeasuredVersion", QString());
         application.executable = group.readEntry("Executable", QString());
+        application.x11ConnectionExecutable = group.readEntry("X11ConnectionExecutable", QString());
         application.executableMatch = upscaleStringMatchFromKey(group.readEntry("ExecutableMatch", QString()));
         application.windowClass = group.readEntry("WindowClass", QString());
         application.windowClassMatch = upscaleStringMatchFromKey(group.readEntry("WindowClassMatch", QString()));
@@ -332,6 +333,7 @@ static void writeApplication(KConfigGroup &group, const UpscaleApplication &appl
 {
     writeField(group, "Name", application.name, original.name);
     writeField(group, "Executable", application.executable, original.executable);
+    writeField(group, "X11ConnectionExecutable", application.x11ConnectionExecutable, original.x11ConnectionExecutable);
     writeField(group, "ExecutableMatch", upscaleStringMatchKey(application.executableMatch),
                upscaleStringMatchKey(original.executableMatch));
     writeField(group, "WindowClass", application.windowClass, original.windowClass);
@@ -341,6 +343,9 @@ static void writeApplication(KConfigGroup &group, const UpscaleApplication &appl
     writeField(group, "InstanceMatch", upscaleStringMatchKey(application.instanceMatch),
                upscaleStringMatchKey(original.instanceMatch));
     for (std::size_t slot = 0; slot < upscalePresentationCount; ++slot) {
+        if (upscaleIsWindowed(UpscalePresentation(slot))) {
+            continue;
+        }
         const char *key = upscalePresentationKey(UpscalePresentation(slot));
         const std::optional<UpscaleMethod> &stated = application.methods[slot];
         if (stated == original.methods[slot]) {

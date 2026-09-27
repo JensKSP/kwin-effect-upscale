@@ -60,6 +60,7 @@ if(KWin_VERSION VERSION_LESS 6.7)
         ../src/plugins/upscale/display.h
         ../src/plugins/upscale/eligibility.cpp
         ../src/plugins/upscale/windowidentity.cpp
+        ../src/plugins/upscale/x11proxypolicy.cpp
         ../src/plugins/upscale/refusaltext.cpp
         ../src/plugins/upscale/modeoverride.cpp
         ../src/plugins/upscale/waylandscale.cpp
@@ -75,6 +76,7 @@ if(KWin_VERSION VERSION_LESS 6.7)
         ../src/plugins/upscale/upscale_display.cpp
         ../src/plugins/upscale/autorequest.cpp
         ../src/plugins/upscale/x11geometry.cpp
+        ../src/plugins/upscale/x11modes.cpp
         ../src/plugins/upscale/x11input.cpp
         ../src/plugins/upscale/x11resolution.cpp
         ../src/plugins/upscale/x11resolution_events.cpp
@@ -148,7 +150,26 @@ if(KWin_VERSION VERSION_LESS 6.7)
         # need more headroom than one session of the other test does.
         set_tests_properties(upscale-x11-${session} PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
     endforeach()
-    set(sessions upscale-integration upscale-x11-integration upscale-x11-prepared)
+    # The same session as a desktop actually has one: a single 4K screen at the
+    # scale such a screen is run at. Only the tests that cross between logical
+    # and device pixels run here, and the one whose connection is answered
+    # before its window exists, which names a screen rather than an
+    # arrangement of them. A whole second suite would buy nothing and cost a
+    # second session's worth of round trips.
+    add_test(
+        NAME upscale-x11-scaled
+        COMMAND
+            ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-integration-test.py
+            $<TARGET_FILE:upscale_x11_integration_test> --x11 --scale=3 --outputs=1
+            coversPointerWithoutEmulatedMode refreshesStartupInputShape coversTheScreenItWasGiven
+    )
+    set_tests_properties(upscale-x11-scaled PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
+    set(sessions
+        upscale-integration
+        upscale-x11-integration
+        upscale-x11-prepared
+        upscale-x11-scaled
+    )
     if(NOT UPSCALE_SESSION_TESTS)
         # Disabled rather than unregistered, so the test binaries are still
         # compiled and linked by a package build and only the sessions are

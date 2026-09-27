@@ -310,13 +310,12 @@ void upscaleSetGlobalMethods(const UpscaleMethods &methods)
 {
     // Through the generated setters rather than the group, so that the page's
     // own save() writes these along with everything else it manages instead
-    // of writing its cached values back over them.
+    // of writing its cached values back over them. A windowed presentation has
+    // no entry: the effect refuses such a window before a method is read.
     UpscaleConfig::setMethodWaylandFullScreen(upscaleMethodKey(methods[std::size_t(UpscalePresentation::WaylandFullScreen)]));
     UpscaleConfig::setMethodWaylandBorderless(upscaleMethodKey(methods[std::size_t(UpscalePresentation::WaylandBorderless)]));
-    UpscaleConfig::setMethodWaylandWindowed(upscaleMethodKey(methods[std::size_t(UpscalePresentation::WaylandWindowed)]));
     UpscaleConfig::setMethodX11FullScreen(upscaleMethodKey(methods[std::size_t(UpscalePresentation::X11FullScreen)]));
     UpscaleConfig::setMethodX11Borderless(upscaleMethodKey(methods[std::size_t(UpscalePresentation::X11Borderless)]));
-    UpscaleConfig::setMethodX11Windowed(upscaleMethodKey(methods[std::size_t(UpscalePresentation::X11Windowed)]));
 }
 
 UpscaleSettings upscaleGlobalSettings()
