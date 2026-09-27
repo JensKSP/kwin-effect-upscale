@@ -12,6 +12,7 @@
 #include "preparation.h"
 #include "snapshot.h"
 #include "upscale.h"
+#include "upscaleconfig.h"
 #include "windowidentity.h"
 
 #include "effect/effecthandler.h"
@@ -30,10 +31,29 @@ EffectWindow *UpscaleEffect::displayed() const
     if (EffectWindow *scaled = candidate()) {
         return scaled;
     }
-    // A refused fullscreen window is exactly the case that needs explaining,
-    // so the display follows it. Ordinary desktop windows are left alone.
+    return explained();
+}
+
+EffectWindow *UpscaleEffect::explained() const
+{
+    // A refused window is exactly the case that needs explaining, but only
+    // when this effect was meant to act on it: its application's profile is
+    // switched on, or All applications is. Anything else that presents full
+    // screen - a browser playing a video, a slide show - is none of this
+    // effect's business, and a display drawn over it would hold its screen in
+    // composition as well. Following those too is a choice of its own, for
+    // finding out why a game went unrecognized. Ordinary desktop windows are
+    // left alone either way, and asking about the window's shape comes first
+    // because it is the cheap question and this one is asked every frame.
     EffectWindow *active = effects->activeWindow();
-    return active && upscalePresentation(active) && !active->isDeleted() ? active : nullptr;
+    if (!active || active->isDeleted() || upscaleIsWindowed(upscalePresentationOf(active))) {
+        return nullptr;
+    }
+    if (UpscaleConfig::osdEveryFullScreen()) {
+        return active;
+    }
+    const bool acts = upscaleResolveSettings(upscaleApplicationForWindow(active->window())).acts();
+    return acts && upscalePresentation(active) ? active : nullptr;
 }
 
 void UpscaleEffect::paintDisplay(const RenderTarget &target, const RenderViewport &viewport, UpscaleOutput *screen)

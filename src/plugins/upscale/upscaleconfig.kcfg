@@ -60,6 +60,16 @@ SPDX-License-Identifier: GPL-2.0-or-later
         <entry name="OsdSummary" type="Bool"><default>true</default></entry>
         <entry name="OsdStatistics" type="Bool"><default code="true">KWin::upscaleDebugBuild</default></entry>
         <entry name="OsdDeveloper" type="Bool"><default code="true">KWin::upscaleDebugBuild</default></entry>
+        <!-- Which windows the displays describe. Off, only a window this
+             effect acts on: an application whose profile is switched on, or
+             any application while All applications is checked. On, also every
+             other window that presents full screen, fullscreen or borderless
+             over its screen, which is how to find out why a game went
+             unrecognized. Global only, like All applications, because it
+             decides about windows no profile acts on. Off in every build
+             type: a browser playing a video full screen is not something a
+             Debug build has to explain either. -->
+        <entry name="OsdEveryFullScreen" type="Bool"><default>false</default></entry>
         <!-- Which corner each display occupies, in the order the settings
              list them: top left, top right, bottom left, bottom right. The
              three are always distinct, so no two displays can be drawn over

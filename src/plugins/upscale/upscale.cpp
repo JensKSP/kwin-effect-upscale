@@ -265,10 +265,15 @@ bool UpscaleEffect::isActive() const
     // KWin only calls the paint hooks of effects that say they are active, so
     // an effect that refused every window would never get to say why. The
     // display keeps it in the chain for exactly the case its explanation is
-    // needed, and drops out again as soon as it has nothing to show.
-    EffectWindow *window = effects->activeWindow();
-    return !effects->isScreenLocked() && window && upscalePresentation(window)
-        && !window->isDeleted() && m_display.activeFor(window, upscaleResolveSettings(upscaleApplicationForWindow(window->window())));
+    // needed, and drops out again as soon as it has nothing to show. Which
+    // window that is, is the display's decision and asked of it rather than
+    // repeated here, so the effect never holds a screen in composition for a
+    // display that would not be drawn on it.
+    if (effects->isScreenLocked()) {
+        return false;
+    }
+    EffectWindow *window = explained();
+    return window && m_display.activeFor(window, upscaleResolveSettings(upscaleApplicationForWindow(window->window())));
 }
 
 bool UpscaleEffect::x11RequestsSettled() const

@@ -1204,6 +1204,20 @@ Use this OSD rather than introducing a second notification surface. Draw
 it independently of the game's captured buffer so it remains sharp and cannot
 be processed by the upscaler.
 
+**The displays describe only what this effect acts on.** They follow the
+window the effect selected, and when it refused one, the active window
+presenting full screen if its application's profile is switched on or **All
+applications** is checked, because a refusal there is what needs explaining.
+Every other window that fills its screen, such as a browser playing a video or
+a slide show, is left alone: nothing is drawn over it, and the effect does not
+hold its screen in composition, so it keeps direct scanout. **Show for every
+fullscreen window** widens this to any window presenting fullscreen or
+borderless over its screen, which is how to find out why a game went
+unrecognized. It is stored as `OsdEveryFullScreen`, global only like **All
+applications**, and off in every build type, since a Debug build has no more
+reason than a release to draw over a browser. Decided by Jens on 2026-09-27,
+after the displays had appeared over a browser in fullscreen.
+
 **The OSD follows the session's scaling settings.** It is KDE user interface
 and must look like it: take the font family and size from the session's font
 settings and the scale factor from the output the message is shown on, so the
@@ -1226,9 +1240,12 @@ reference every KDE scale factor is stated against. Nothing watches the font
 settings: a changed family or size applies to the next layout, which happens
 whenever the text or the scale changes, and a static message keeps the size it
 was drawn with until then. While it is visible the effect reports itself active, because KWin skips
-the paint methods of an inactive effect, and a refused window is exactly when
-the explanation is needed; the composition requirement that comes with it ends
-when the display is hidden. It announces the application and shows the basic summary for the configured
+the paint methods of an inactive effect, and a refused window it was meant to
+act on is exactly when the explanation is needed; the composition requirement
+that comes with it ends when the display is hidden. Whether the effect stays
+active for a refused window is the display's own choice of window, asked rather
+than restated, so the effect never holds composition for a display that is not
+drawn. It announces the application and shows the basic summary for the configured
 timeout. An application whose identity matches the shipped catalogue is
 announced as *recognized* by name; every other window is announced as merely
 *selected*, and neither wording claims that a resolution request succeeded.
@@ -1245,7 +1262,8 @@ persistent statistics view. An overall Off hides every OSD mode without
 changing effect settings or disabling logging.
 
 Implemented: the switches exist in the settings page and in `kwinrc` as `Osd`,
-`OsdDetection`, `OsdSummary`, `OsdStatistics`, `OsdDeveloper` and `OsdTimeout`.
+`OsdDetection`, `OsdSummary`, `OsdStatistics`, `OsdDeveloper` and `OsdTimeout`,
+with `OsdEveryFullScreen` beside them for which windows they describe.
 The two persistent choices default to the build configuration of the binary
 that reads them, decided by whether `NDEBUG` is defined, which is exactly the
 Debug versus Release distinction above. A choice equal to that default is
@@ -1259,6 +1277,7 @@ if the user had chosen it.
 | Timed basic scale/shader summary | On | On |
 | Persistent statistics | On | Off |
 | Developer information | On | Off |
+| Show for every fullscreen window | Off | Off |
 
 Use the actual build configuration: only `Debug` selects developer defaults;
 `Release`, `RelWithDebInfo` and `MinSizeRel` select release defaults. For a

@@ -91,11 +91,12 @@ void UpscaleIntegrationTest::configureColors(bool unsupported)
     QVERIFY(reply.type() != QDBusMessage::ErrorMessage);
 }
 
-void UpscaleIntegrationTest::configureDisplay(bool enabled, bool statistics)
+void UpscaleIntegrationTest::configureDisplay(bool enabled, bool statistics, bool everyFullScreen)
 {
     const KSharedConfig::Ptr config = KSharedConfig::openConfig(QStringLiteral("kwinrc"));
     KConfigGroup group(config, QStringLiteral("Effect-upscale"));
     group.writeEntry("Osd", enabled);
+    group.writeEntry("OsdEveryFullScreen", everyFullScreen);
     group.writeEntry("OsdDetection", true);
     group.writeEntry("OsdSummary", true);
     group.writeEntry("OsdStatistics", statistics);
@@ -244,6 +245,19 @@ void UpscaleIntegrationTest::lifecycle()
         QVERIFY(status().contains(QStringLiteral("blocksScanout: false")));
         configureDisplay(true, true);
         QTRY_VERIFY(status().contains(QStringLiteral("blocksScanout: true")));
+        // Unlisted again, the same window is no longer this effect's to
+        // describe: the frame rate stays switched on and is drawn over nothing,
+        // and the screen is not held in composition for it. A browser playing
+        // a video full screen is this case. Asking for every fullscreen window
+        // brings the display back, and the composition it needs with it.
+        configure(false, false);
+        QTRY_VERIFY2(status().contains(QStringLiteral("the application is not in the list")), qPrintable(status()));
+        QTRY_VERIFY2(status().contains(QStringLiteral("blocksScanout: false")), qPrintable(status()));
+        configureDisplay(true, true, true);
+        QTRY_VERIFY2(status().contains(QStringLiteral("blocksScanout: true")), qPrintable(status()));
+        configureDisplay(true, true);
+        QTRY_VERIFY2(status().contains(QStringLiteral("blocksScanout: false")), qPrintable(status()));
+        configure(true, false);
         configureDisplay(false, false);
         QTRY_VERIFY(status().contains(QStringLiteral("blocksScanout: false")));
         // The screen's own frames are measured whether or not the display is

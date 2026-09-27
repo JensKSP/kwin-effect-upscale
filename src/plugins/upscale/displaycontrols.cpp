@@ -5,8 +5,8 @@
 */
 
 // The settings page's on-screen display section: which of the four displays
-// are shown, how long an announcement lasts, and which corner each one
-// occupies. It is a separate translation unit from the rest of the page
+// are shown, how long an announcement lasts, which corner each one occupies,
+// and which windows they describe. It is a separate translation unit from the rest of the page
 // because the page as a whole had outgrown the file-size limit, and this is
 // the part of it that stands on its own: everything here is about the blocks
 // drawn over the game, and nothing else on the page needs any of it.
@@ -34,6 +34,7 @@ void UpscaleEffectConfig::addDisplayControls(QFormLayout *layout)
     m_osdSummary->setObjectName(QStringLiteral("osdSummary"));
     m_osdStatistics->setObjectName(QStringLiteral("osdStatistics"));
     m_osdDeveloper->setObjectName(QStringLiteral("osdDeveloper"));
+    m_osdEveryFullScreen->setObjectName(QStringLiteral("osdEveryFullScreen"));
     m_osdAnnouncementPosition->setObjectName(QStringLiteral("osdAnnouncementPosition"));
     m_osdStatisticsPosition->setObjectName(QStringLiteral("osdStatisticsPosition"));
     m_osdDeveloperPosition->setObjectName(QStringLiteral("osdDeveloperPosition"));
@@ -65,10 +66,19 @@ void UpscaleEffectConfig::addDisplayControls(QFormLayout *layout)
     gap();
     layout->addRow(QString(), m_osdDeveloper);
     layout->addRow(i18n("Developer information position:"), m_osdDeveloperPosition);
+    gap();
+    // Not one of the displays but which windows all three describe, so it
+    // comes after them. It is global only, like All applications, and a
+    // game's own tab has no counterpart: a game the effect acts on is
+    // described whatever this says.
+    m_osdEveryFullScreen->setToolTip(i18n("Normally the displays appear only over applications this effect acts on. "
+                                          "This also shows them over any other window that fills its screen, such as "
+                                          "a browser playing a video, to find out why a game is not recognized."));
+    layout->addRow(QString(), m_osdEveryFullScreen);
     // A Debug build shows statistics and developer information unless the
     // user has said otherwise; a release build shows only the announcement.
     // The defaults live in upscaleconfig.kcfg, not here.
-    for (QCheckBox *box : {m_osdDetection, m_osdSummary, m_osdStatistics, m_osdDeveloper}) {
+    for (QCheckBox *box : {m_osdDetection, m_osdSummary, m_osdStatistics, m_osdDeveloper, m_osdEveryFullScreen}) {
         connect(box, &QCheckBox::toggled, this, [this]() {
             updatePreview();
             setNeedsSave(true);

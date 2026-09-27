@@ -285,6 +285,23 @@ void UpscaleConfigTest::displayDefaults()
     QCOMPARE(position->currentIndex(), int(KWin::UpscaleCorner::BottomLeft));
     module.defaults();
     QCOMPARE(position->currentIndex(), int(KWin::UpscaleCorner::TopRight));
+
+    // Which windows the displays describe is not a build-type default: a
+    // Debug build has no more reason to draw over a browser at full screen
+    // than a release has. Switching it on is stored, and switching it off
+    // again leaves no entry behind.
+    QCheckBox *every = module.widget()->findChild<QCheckBox *>(QStringLiteral("osdEveryFullScreen"));
+    QVERIFY(every);
+    QVERIFY(!every->isChecked());
+    every->setChecked(true);
+    QVERIFY(module.needsSave());
+    module.save();
+    QVERIFY(stored().readEntry("OsdEveryFullScreen", false));
+    module.load();
+    QVERIFY(every->isChecked());
+    every->setChecked(false);
+    module.save();
+    QVERIFY(!stored().hasKey("OsdEveryFullScreen"));
 }
 
 void UpscaleConfigTest::installedBuildVersion()

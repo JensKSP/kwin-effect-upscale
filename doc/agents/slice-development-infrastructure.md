@@ -497,6 +497,38 @@ was a build for Jens to try: the container builds, Clang, clang-tidy and both
 pre-commit stages have not been run for this change, and no native acceptance
 of the new placement has been recorded yet.
 
+Display scope, 2026-09-27: Jens found the announcement, the frame rate and the
+developer dump drawn over Brave in fullscreen. Cause: the display followed any
+active window presenting full screen whenever nothing was selected, so that a
+refusal could be explained, and `isActive()` repeated that rule, which also
+held the browser's screen in composition and cost it direct scanout. The
+frame rate was on through `OsdStatistics=true` in his `kwinrc`, and the
+developer dump through the Debug build's default. The installed build was
+`0.2.0+git20260924.72a4652764-dirty`, Debug, loaded by a KWin started after
+the install; no commit on any branch had changed this rule, so it was not an
+outdated installation. Now the display explains a refused window only when
+its application's profile is switched on or All applications is checked, and
+`isActive()` asks the display's choice (`explained()`) instead of restating
+it. **Show for every fullscreen window** (`OsdEveryFullScreen`, global, off in
+every build type) restores the wide behaviour for diagnosis. New coverage: the
+`lifecycle` integration case makes the client unlisted with the frame rate on
+and requires `blocksScanout: false`, then true with the switch and false
+without it; `displayDefaults` covers the switch's default and storage.
+Observed: clang-format 19 passed on the changed files, and the Trixie
+container built everything with GCC, warnings as errors. `upscale-integration`
+passed, including the new case. The other focused tests
+(`upscale-x11-integration`, `upscale-x11-prepared`, `upscale-x11-scaled`,
+`upscale-config`, `upscale-display`, `upscale-display-gles`,
+`upscale-application-editor`) have not completed: the first run ended when the
+machine went down hard at 19:34, during `upscale-x11-integration`, with no
+kernel trace, and the second was stopped at the same test before anything
+else was risked. Not run: Clang, `neon-unstable`, clang-tidy and both
+pre-commit stages. This was a build for Jens to try: the native Debug build
+`0.2.0+git20260927.f6afd18260-dirty` was installed at 19:45, and Jens
+confirmed in his session the same evening that Brave in fullscreen no longer
+shows the displays. Still open before this is committed: the focused tests
+above, Clang, `neon-unstable`, clang-tidy and both pre-commit stages.
+
 ### PR #8 coverage follow-up
 
 Hosted run `35338192292` failed the unchanged 90% C++ line gate: 744 of 1079

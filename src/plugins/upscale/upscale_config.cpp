@@ -71,6 +71,7 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     , m_osdSummary(new QCheckBox(i18n("Include details"), widget()))
     , m_osdStatistics(new QCheckBox(i18n("Show frame rate"), widget()))
     , m_osdDeveloper(new QCheckBox(i18n("Show developer information"), widget()))
+    , m_osdEveryFullScreen(new QCheckBox(i18n("Show for every fullscreen window"), widget()))
     , m_osdAnnouncementPosition(new QComboBox(widget()))
     , m_osdStatisticsPosition(new QComboBox(widget()))
     , m_osdDeveloperPosition(new QComboBox(widget()))
@@ -354,6 +355,7 @@ void UpscaleEffectConfig::showSettings()
     m_osdSummary->setChecked(UpscaleConfig::osdSummary());
     m_osdStatistics->setChecked(UpscaleConfig::osdStatistics());
     m_osdDeveloper->setChecked(UpscaleConfig::osdDeveloper());
+    m_osdEveryFullScreen->setChecked(UpscaleConfig::osdEveryFullScreen());
     // Separated on the way in for the same reason the effect separates them:
     // a file edited by hand can name one corner twice, and the page must not
     // show two displays sharing one.
@@ -385,6 +387,7 @@ void UpscaleEffectConfig::applySettings()
     UpscaleConfig::setOsdSummary(m_osdSummary->isChecked());
     UpscaleConfig::setOsdStatistics(m_osdStatistics->isChecked());
     UpscaleConfig::setOsdDeveloper(m_osdDeveloper->isChecked());
+    UpscaleConfig::setOsdEveryFullScreen(m_osdEveryFullScreen->isChecked());
     UpscaleConfig::setOsdAnnouncementPosition(m_osdAnnouncementPosition->currentIndex());
     UpscaleConfig::setOsdStatisticsPosition(m_osdStatisticsPosition->currentIndex());
     UpscaleConfig::setOsdDeveloperPosition(m_osdDeveloperPosition->currentIndex());

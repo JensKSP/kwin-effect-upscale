@@ -92,10 +92,14 @@ private:
     // refused it. Paint passes share this decision with their diagnostics.
     EffectWindow *candidate(UpscaleRefusal *refusal = nullptr, UpscaleOutput *output = nullptr) const;
     EffectWindow *findCandidate(UpscaleRefusal *refusal, UpscaleOutput *output) const;
-    // The window the on-screen display describes: the candidate, or the
-    // active fullscreen window that was refused, which is the case a
-    // developer needs to see explained.
+    // The window the on-screen display describes: the candidate, or else
+    // what explained() names.
     EffectWindow *displayed() const;
+    // The active window the display explains when nothing was selected: one
+    // presenting full screen that this effect was meant to act on and
+    // refused, or, when the person asked for it, any window presenting full
+    // screen. Null for everything else, which is most of the desktop.
+    EffectWindow *explained() const;
     // The render target is the frame being painted, and null when the caller
     // is outside a paint pass and colour is therefore not observable.
     UpscaleSnapshot snapshot(EffectWindow *window, const RenderTarget *target) const;

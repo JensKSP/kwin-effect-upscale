@@ -82,6 +82,7 @@ private:
     QCheckBox *m_osdSummary;
     QCheckBox *m_osdStatistics;
     QCheckBox *m_osdDeveloper;
+    QCheckBox *m_osdEveryFullScreen;
     QComboBox *m_osdAnnouncementPosition;
     QComboBox *m_osdStatisticsPosition;
     QComboBox *m_osdDeveloperPosition;
