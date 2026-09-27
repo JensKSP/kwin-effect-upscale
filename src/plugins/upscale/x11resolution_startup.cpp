@@ -17,11 +17,14 @@
 #include "utils/executable_path.h"
 #include "x11window.h"
 
+#include <QAbstractEventDispatcher>
+#include <QCoreApplication>
 #include <QElapsedTimer>
 #include <QLoggingCategory>
 #include <QScopedValueRollback>
 #include <QTimer>
 
+#include <cstdlib>
 #include <cstring>
 #include <optional>
 
@@ -29,6 +32,27 @@ Q_DECLARE_LOGGING_CATEGORY(KWIN_UPSCALE)
 
 namespace KWin
 {
+
+namespace
+{
+
+// What KWin's own X11 event loop does before it waits again: hand on the
+// events XCB has already read (Xwayland::dispatchEvents with EventQueue).
+void dispatchQueuedEvents()
+{
+    xcb_connection_t *connection = kwinApp()->x11Connection();
+    if (!connection) {
+        return;
+    }
+    while (xcb_generic_event_t *event = xcb_poll_for_queued_event(connection)) {
+        qintptr result = 0;
+        QCoreApplication::eventDispatcher()->filterNativeEvent(QByteArrayLiteral("xcb_generic_event_t"), event, &result);
+        std::free(event);
+    }
+    xcb_flush(connection);
+}
+
+} // namespace
 
 // SFML maps before requesting fullscreen and waits for visibility during
 // construction. If KWin exposes the window before handling that request, its
@@ -76,6 +100,16 @@ bool UpscaleX11Resolution::holdMap(xcb_generic_event_t *generic)
         const auto pending = m_pendingMaps.constFind(id);
         if (pending != m_pendingMaps.cend() && pending->token == token) {
             mapPending(id);
+            // KWin handles a mapping inside its X11 event loop, and that loop
+            // goes on to the events the mapping itself caused before control
+            // returns, above all the FocusIn that makes the window active,
+            // which the round trips of managing it have already read. A
+            // mapping released from this timer finishes that loop here.
+            // Otherwise the window stays inactive until the loop next runs,
+            // and anything that looks at it in between finds it inactive:
+            // measured 2026-09-27, 34 of KWin 6.3.6's own X11 window and
+            // stacking cases failed while this effect held their windows.
+            dispatchQueuedEvents();
         }
     });
     if (info.state().testFlag(NET::FullScreen)) {
@@ -147,6 +181,16 @@ bool UpscaleX11Resolution::startupEvent(xcb_generic_event_t *generic)
     }
     if (type == XCB_DESTROY_NOTIFY) {
         m_pendingMaps.remove(reinterpret_cast<xcb_destroy_notify_event_t *>(generic)->window);
+        return false;
+    }
+    if (type == XCB_UNMAP_NOTIFY) {
+        // A held window is still unmapped, so a client withdrawing it produces
+        // only the synthetic notification ICCCM 4.1.4 sends to the root, and
+        // KWin acts on that only for a window it manages. The mapping the
+        // client sent first goes first; replayed after the hold instead, it
+        // would show a window its client had already withdrawn, such as a
+        // toolkit popup shown and hidden at once.
+        mapPending(reinterpret_cast<xcb_unmap_notify_event_t *>(generic)->window);
         return false;
     }
     if (type != XCB_CLIENT_MESSAGE) {

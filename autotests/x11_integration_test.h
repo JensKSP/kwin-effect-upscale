@@ -20,6 +20,7 @@ private Q_SLOTS:
     void cleanup();
     void initialWindowedMapping_data();
     void initialWindowedMapping();
+    void withdrawnWhileHeld();
     void initialFullscreenMapping_data();
     void initialFullscreenMapping();
     void lifecycle_data();

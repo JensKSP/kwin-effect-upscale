@@ -59,6 +59,16 @@ public:
      */
     int closeRequests() const;
     /**
+     * Withdraw the window the way XWithdrawWindow does: unmap it, and tell the
+     * window manager with the synthetic UnmapNotify ICCCM 4.1.4 sends to the
+     * root, which is all it hears of a window it has not mapped yet.
+     */
+    void withdraw();
+    /** How many UnmapNotify events the window has received. */
+    int unmapNotifies() const;
+    /** Whether the window is mapped and all its ancestors are. */
+    bool isViewable() const;
+    /**
      * Report this process as the window's owner, in _NET_WM_PID, when shown.
      *
      * Off unless asked: KWin groups a process's windows by it, and the cases
@@ -85,6 +95,7 @@ private:
     int m_configureNotifies = 0;
     QList<QSize> m_configuredSizes;
     int m_closeRequests = 0;
+    int m_unmapNotifies = 0;
     xcb_atom_t m_protocols = XCB_NONE;
     xcb_atom_t m_deleteWindow = XCB_NONE;
     bool m_cooperative;

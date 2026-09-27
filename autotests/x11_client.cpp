@@ -13,6 +13,7 @@
 #include <QTimer>
 
 #include <cstdlib>
+#include <cstring>
 #include <memory>
 #include <xcb/randr.h>
 #include <xcb/shape.h>
@@ -229,6 +230,35 @@ int X11Client::configureNotifies() const
     return m_configureNotifies;
 }
 
+void X11Client::withdraw()
+{
+    xcb_unmap_window(m_connection, m_window);
+    xcb_unmap_notify_event_t event{};
+    event.response_type = XCB_UNMAP_NOTIFY;
+    event.event = m_screen->root;
+    event.window = m_window;
+    // XCB copies 32 bytes, the fixed size of every X11 event.
+    char bytes[32] = {};
+    static_assert(sizeof(event) <= sizeof(bytes));
+    std::memcpy(bytes, &event, sizeof(event));
+    xcb_send_event(m_connection, false, m_screen->root,
+                   XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY, bytes);
+    xcb_flush(m_connection);
+}
+
+int X11Client::unmapNotifies() const
+{
+    return m_unmapNotifies;
+}
+
+bool X11Client::isViewable() const
+{
+    const Reply<xcb_get_window_attributes_reply_t> attributes(xcb_get_window_attributes_reply(m_connection,
+                                                                                              xcb_get_window_attributes(m_connection, m_window), nullptr),
+                                                              &std::free);
+    return attributes && attributes->map_state == XCB_MAP_STATE_VIEWABLE;
+}
+
 QRect X11Client::geometry() const
 {
     const Reply<xcb_get_geometry_reply_t> geometry(xcb_get_geometry_reply(m_connection,
@@ -346,6 +376,8 @@ void X11Client::dispatch()
                     paint(size);
                 }
             }
+        } else if (type == XCB_UNMAP_NOTIFY) {
+            ++m_unmapNotifies;
         } else if (type == XCB_EXPOSE) {
             paint(m_size);
         } else if (type == XCB_CLIENT_MESSAGE) {

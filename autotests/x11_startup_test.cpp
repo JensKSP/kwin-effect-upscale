@@ -58,6 +58,23 @@ void UpscaleX11IntegrationTest::initialWindowedMapping()
     QVERIFY(!target.isFullscreen());
 }
 
+// A window its client withdraws while its first mapping is held stays
+// withdrawn, and the client hears that it was unmapped: KWin sees the mapping
+// and the withdrawal in the order the client sent them. A toolkit popup shown
+// and hidden at once does this; replayed after the hold, the mapping showed a
+// window nobody wanted any more.
+void UpscaleX11IntegrationTest::withdrawnWhileHeld()
+{
+    configure(true);
+    X11Client target(false);
+    QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 1024, 768), false));
+    target.withdraw();
+    QTRY_VERIFY(target.unmapNotifies() > 0);
+    // Past the hold, after which a mapping still pending would be released.
+    QTest::qWait(300);
+    QVERIFY(!target.isViewable());
+}
+
 // A game fills the screen it believes in. Once its connection has been
 // answered with a smaller one, its borderless window is that size and no
 // larger, and nothing about such a window says fullscreen. Measured against
