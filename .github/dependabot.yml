@@ -24,6 +24,20 @@ updates:
     groups:
       actions:
         patterns: ['*']
+  - package-ecosystem: github-actions
+    directory: /.github/actions/build-package
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']
+  - package-ecosystem: github-actions
+    directory: /.github/actions/test-package
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']
 
   # The base images. These are rolling tags on purpose - the minimum supported
   # environment is whatever Debian Trixie currently ships, and neon unstable
