@@ -89,9 +89,12 @@ class BuildInfoTest(unittest.TestCase):
 
     def test_commit_branch_and_tag_apart(self) -> None:
         """The full commit, the branch and a tag on it are separate fields."""
+        # A branch of its own, because the clone is detached wherever the
+        # checkout it was made from is, as a forge's checkout of a pull request.
+        branch = "topic/fixture"
+        self.git("checkout", "--quiet", "-B", branch)
         generated = self.generate()
         self.assertEqual(self.field(generated, "commit"), self.git("rev-parse", "HEAD"))
-        branch = self.git("rev-parse", "--abbrev-ref", "HEAD")
         self.assertEqual(self.field(generated, "branch"), branch)
         self.assertEqual(self.field(generated, "tag"), "")
         self.git("tag", "v0.1.0")
