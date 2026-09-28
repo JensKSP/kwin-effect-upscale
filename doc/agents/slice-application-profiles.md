@@ -61,6 +61,13 @@ learning anything about how it works. Concretely, all of the following hold:
 - **The editor offers Use global on every inheritable item**, reorders
   profiles, clears a profile's overrides, and never turns a displayed
   inherited value into a stored override.
+  Clearing a profile's overrides at once was missing until 2026-09-28 (item 40
+  of the open list): **Use Global Settings** under a game's tabs forgets every
+  value it sets for itself and returns its methods to the package's
+  measurement, enabled only while it states something.
+  `ApplicationListTest::clearsEverythingAGameStatesAtOnce` covers it and fails
+  when the methods are left. Its label and tooltip are new text for the text
+  review.
 - **An existing installation survives the upgrade**: the stored `Automatic`
   preset, the `-1` threshold, `UnknownApplications` and the single `Method`
   field are each read once into the new form, and no old key is reinterpreted

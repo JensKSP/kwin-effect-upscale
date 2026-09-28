@@ -17,6 +17,7 @@
 #include <KLocalizedString>
 
 #include <QFormLayout>
+#include <QIcon>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -26,6 +27,8 @@
 #include <QStackedWidget>
 #include <QTabWidget>
 #include <QVBoxLayout>
+
+#include <algorithm>
 
 namespace KWin
 {
@@ -46,6 +49,15 @@ static QFormLayout *addTab(QTabWidget *tabs, const QString &title)
     return form;
 }
 
+// Whether a game sets anything for itself: a value of its own, or a method
+// other than the one the package measured for it.
+static bool statesAnything(const UpscaleApplication &application)
+{
+    return std::ranges::any_of(application.overrides, [](const std::optional<int> &value) {
+        return value.has_value();
+    }) || application.methods != application.measured;
+}
+
 // Sectioned as the settings page is, so that a game's form reads like the
 // global one, with what the game states for itself marked.
 void UpscaleApplicationEditor::buildDetails(QVBoxLayout *details)
@@ -54,8 +66,19 @@ void UpscaleApplicationEditor::buildDetails(QVBoxLayout *details)
     m_note->setTextFormat(Qt::PlainText);
     auto *tabs = new QTabWidget(this);
     tabs->setObjectName(QStringLiteral("applicationDetails"));
+    // Beside the reset of each value, one action for all of them, under the
+    // tabs it applies to: shown with a game, never with "All applications".
+    auto *game = new QWidget(this);
+    auto *gameLayout = new QVBoxLayout(game);
+    gameLayout->setContentsMargins(0, 0, 0, 0);
+    gameLayout->addWidget(tabs);
+    m_clear = new QPushButton(QIcon::fromTheme(QStringLiteral("edit-clear-all")), i18nc("@action:button", "Use Global Settings"), game);
+    m_clear->setObjectName(QStringLiteral("applicationClear"));
+    m_clear->setToolTip(i18nc("@info:tooltip", "Forget every value this game sets for itself, so that it follows the global settings again"));
+    connect(m_clear, &QPushButton::clicked, this, &UpscaleApplicationEditor::clearOverrides);
+    gameLayout->addWidget(m_clear, 0, Qt::AlignRight);
     m_details = new QStackedWidget(this);
-    m_details->addWidget(tabs);
+    m_details->addWidget(game);
     details->addWidget(m_details);
     QFormLayout *identification = addTab(tabs, i18n("Identification"));
     identification->addRow(i18n("Name:"), m_name);
@@ -106,6 +129,7 @@ void UpscaleApplicationEditor::showSelected()
     const int row = m_list->currentRow();
     m_up->setEnabled(valid && row > rowOf(0));
     m_down->setEnabled(valid && row + 1 < m_list->count());
+    m_clear->setEnabled(valid && statesAnything(*application));
     if (!valid) {
         m_note->clear();
         return;
@@ -177,6 +201,7 @@ void UpscaleApplicationEditor::applyToSelected()
     showNote(*application);
     m_methods->store(application->methods, application->measured);
     m_settings->store(application->overrides);
+    m_clear->setEnabled(statesAnything(*application));
     updatePreview();
     // Whether the entry takes part is its check box in the list, the only
     // one: a second beside the details said the same thing twice.
@@ -184,6 +209,19 @@ void UpscaleApplicationEditor::applyToSelected()
     if (QListWidgetItem *item = m_list->currentItem()) {
         item->setText(application->name);
     }
+    Q_EMIT changed();
+}
+
+void UpscaleApplicationEditor::clearOverrides()
+{
+    UpscaleApplication *application = selected();
+    if (!application) {
+        return;
+    }
+    // A measured method is the package's, not the game's own, so it stays.
+    application->overrides = {};
+    application->methods = application->measured;
+    showSelected();
     Q_EMIT changed();
 }
 

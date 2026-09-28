@@ -122,6 +122,9 @@ private:
     void showNote(const UpscaleApplication &application);
     void updatePreview();
     void applyToSelected();
+    // Every value the selected game sets for itself goes, so that it follows
+    // the package's measurement and the global settings again.
+    void clearOverrides();
     void addApplication();
     void addFromWindow();
     void askForProgram();
@@ -153,6 +156,7 @@ private:
     UpscaleMethods m_globalMethods = upscaleGlobalMethods();
     QLabel *m_note;
     QPushButton *m_delete;
+    QPushButton *m_clear = nullptr;
     QPushButton *m_up;
     QPushButton *m_down;
     // The window KWin's picker returned, while the effect is asked its program.
