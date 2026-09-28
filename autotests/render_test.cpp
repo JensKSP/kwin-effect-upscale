@@ -11,6 +11,7 @@
 #include "opengl/gltexture.h"
 #include "opengl/glvertexbuffer.h"
 
+#include <QFile>
 #include <QTest>
 
 #include <array>
@@ -36,6 +37,7 @@ private Q_SLOTS:
     void overlayPlacement_data();
     void overlayPlacement();
     void overlayEmphasis();
+    void carriesAmdNotices();
 
 private:
     UpscaleRenderFixture m_fixture;
@@ -325,6 +327,21 @@ void UpscaleRenderTest::overlayEmphasis()
 
 // The overlay measures and draws text, which needs a font database, so this
 // test needs a GUI application even though it renders offscreen.
+
+// The FSR 1 shaders are AMD's, under MIT, whose notice has to go with every
+// copy. They reach the plugin as resources, so the resources keep all of it.
+void UpscaleRenderTest::carriesAmdNotices()
+{
+    for (const QString &name : {QStringLiteral(":/opengl/upscale/easu.glsl"), QStringLiteral(":/opengl/upscale/rcas.glsl")}) {
+        QFile shader(name);
+        QVERIFY2(shader.open(QIODevice::ReadOnly), qPrintable(name));
+        const QByteArray text = shader.readAll();
+        QVERIFY2(text.contains("Copyright (c) 2021 Advanced Micro Devices, Inc. All rights reserved."), qPrintable(name));
+        QVERIFY2(text.contains("Permission is hereby granted, free of charge"), qPrintable(name));
+        QVERIFY2(text.contains("THE SOFTWARE IS PROVIDED \"AS IS\""), qPrintable(name));
+    }
+}
+
 QTEST_MAIN(UpscaleRenderTest)
 
 #include "render_test.moc"

@@ -107,11 +107,16 @@ def main() -> None:
         check=True,
         env={**os.environ, "UPSCALE_BUILD_DIR": str(build)},
     )
+    stage = root / "build/source-stage"
     subprocess.run(
         ["cmake", "--install", str(build)],
         check=True,
-        env={**os.environ, "DESTDIR": str(root / "build/source-stage")},
+        env={**os.environ, "DESTDIR": str(stage)},
     )
+    # What the archive installs has to carry the notices its sources carry.
+    if not list(stage.rglob("kwin-effect-upscale/third-party-notices.md")):
+        message = "the extracted source archive installs no third-party notices"
+        raise RuntimeError(message)
 
 
 if __name__ == "__main__":

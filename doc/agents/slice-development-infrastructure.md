@@ -353,6 +353,16 @@ Planned checks, not observed results:
   archives. Check notice resources and corresponding-source access against the
   release contents; missing required attribution/license resources fail the
   appropriate existing checks rather than being silently omitted in the UI.
+  Done 2026-09-28 (item 59 of the open list). The render test reads the FSR 1
+  shaders from the plugin's resources and requires AMD's copyright line,
+  permission notice and warranty disclaimer in each (`carriesAmdNotices`,
+  which fails with the copyright line removed). The GCC and Clang checks and the
+  source archive build now fail an installation without
+  `kwin-effect-upscale/third-party-notices.md`. Observed: a build with
+  `KWIN_BUILD_KCMS=OFF` installs the effect and the notices and no settings
+  module; the extracted source archive, built from a committed copy, passed
+  all 31 tests, recorded its commit and branch in `source-version`, and
+  installed the notices; the Trixie package carries them (item 55).
 - Run repository checks, metadata validation, both compiler/container builds
   with warnings as errors, targeted settings/build-info/package tests, and
   native settings, logging and OSD acceptance on wzpc. This slice checks the

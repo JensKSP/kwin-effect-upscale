@@ -105,6 +105,18 @@ def check(mode: str, *, build_only: bool = False) -> None:
         os.environ["DESTDIR"] = str((build / "stage").resolve())
         run("cmake", "--install", str(build))
         del os.environ["DESTDIR"]
+        require_notices(build / "stage")
+
+
+def require_notices(stage: Path) -> None:
+    """Fail an installation that left out the third-party notices.
+
+    MIT asks for AMD's notice to go with every copy of the FSR 1 shaders, and
+    every installation carries them, with or without the settings module.
+    """
+    if not list(stage.rglob("kwin-effect-upscale/third-party-notices.md")):
+        message = f"the installation under {stage} has no third-party notices"
+        raise SystemExit(message)
 
 
 def main() -> None:
