@@ -47,6 +47,9 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   `x11_integration_test.cpp` (11) and `x11_prepared_test.cpp` (6). Some can
   wait on a condition; the "nothing happens within X" ones need a signal.
   Production code (`src/`) has none.
+  **Agreed with Jens 2026-09-28:** go through all of them; waits for something
+  to happen become condition waits; waits proving something does not happen
+  get a signal where cheap, otherwise stay bounded with a comment saying why.
 - **2.** **test, S** – Nightly has published nothing since 2026-09-20 (`c88f842`):
   red 23–27 Sep on `Build / FreeBSD amd64 Package` at `94d93e0` (fixed by
   `ee6b3b2`), then item 1. The release carries none of the stable download
@@ -56,6 +59,9 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   on `release/0.3.0` at `1bd904e` passed every job** (all package builds and
   tests, neon, FreeBSD, attestation). Nothing published; the scheduled master
   nightly stays red until `release/0.3.0` reaches master.
+  **Agreed with Jens 2026-09-28:** waits for #23. After the merge, check that
+  the next scheduled nightly publishes, that the release carries the stable
+  download names, and that the README's links resolve.
 
 - **2a.** **fix** – `autotests/kwin_conformance.h:65` (from `ee6b3b2`, #21) connects
   to `EffectsHandler::effectsChanged`, which is a protected member function,
@@ -82,6 +88,12 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   loading the test image), the KWin harness build steps (packaged source), and
   documentation in `doc/checks.md`. Owning slice to decide: Wayland conformance
   or build and release pipeline.
+  **Agreed with Jens 2026-09-28:** `containers/vm-host/Containerfile`, a
+  cloud-init template beside it (no key in it), `tools/conformance-vm.py`
+  (create with a fresh key and known_hosts, start, stop, run in the guest's
+  test container, prepare KWin's packaged source), and when and how in
+  `doc/checks.md`. Owned by the Wayland conformance slice. Checked by
+  recreating the VM with the script and running `testUpscaleProduction`.
 
 - **2c.** **Closed 2026-09-28, no defect.** Locally, under the address sanitizer,
   every session reported an 8-byte leak inside KF6ConfigCore in the KWin
@@ -98,11 +110,59 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   the proxy restores XRes QueryClientIds results from the original peer PIDs,
   so KWin 6.6 sees the game rather than the proxy. The effect's two PID
   sources remain.
+  **Fixed 2026-09-28:** the map hold asks XRes where `_NET_WM_PID` is unset;
+  `anUnnamedProgramIsHeldAtItsFirstMapping` fails without it on KWin 6.6 (3 of
+  3) and passes with it (3 of 3). Commit and hosted run pending.
 - **2e.** **upstream?** – KWin 6.6.6 / Xwayland 24.1.10 leaves a window its client
   withdraws right after mapping it mapped, and the client hears no
   UnmapNotify, with or without the effect; KWin 6.3.6 withdraws it. KWin
   6.3.6 also leaks a QPointingDevice and an OffscreenQuickView per crashing
   X11 client (suppressed in `autotests/lsan.supp`). Both observed 2026-09-28.
+  Reproducer (no effect, bare nested KWin): 6.3.6 withdraws the window 3 of 3;
+  6.6.6 and master leave it mapped 3 of 3, with Xwayland 24.1.10 and 24.1.8.
+  **Agreed with Jens 2026-09-28:** (a) report to KDE, later: prepare the
+  report text with the reproducer then; filing is Jens's call. (b) not reported,
+  stays suppressed and documented.
+
+- **2f.** **impl, test** – Install every package in a standard installation of
+  every system it is built for, and show the effect works without further
+  configuration (Jens, 2026-09-28). **Agreed with Jens 2026-09-28:** one VM per
+  system and architecture (Debian Trixie, Kubuntu 26.04, Fedora, openSUSE
+  Tumbleweed on amd64 and arm64, Arch amd64, FreeBSD amd64): the system's cloud
+  image with its usual Plasma desktop and SDDM; OpenGL by Mesa llvmpipe in the
+  guest on virtio-gpu, never the host GPU; amd64 under KVM, arm64 under full
+  system emulation (qemu-system-aarch64) before releases, binfmt not enough
+  because it boots no system; check whether GitHub's arm64 runners offer KVM.
+  In each: install the package with the system's package manager, log in
+  through SDDM into Plasma Wayland, and check KWin running, the effect loaded
+  and supported, the settings module, the proxy, a smaller buffer scaled, an
+  X11 program answered through the proxy, removal leaving KWin running; one
+  report per system. Tooling in Python under `tools/`, the best fit for the
+  repository's own tools. 2b becomes one profile of it, and it tests 8 on every
+  distribution. Owned by a new slice for package installation in standard VMs.
+
+- **2g.** **fix, S** – CodeRabbit asked for changes on #23 (review 5342421790
+  at `74de7c8`), found 2026-09-28: five comments, each checked against the
+  code and holding.
+
+  - `src/x11proxy/display.cpp:165`: the monitor reply withdraws the policy
+    only for more than one monitor, not for one monitor spanning several
+    outputs, which the resources reply refuses; a client that asks for
+    monitors first gets rewritten sizes.
+  - `src/x11proxy/display.cpp:174`: `outputInfo()` filters by the modes it
+    knows; when the backend no longer offers them, the reply keeps no mode and
+    the policy stays on.
+  - `tools/check-presentations.py:162`: an explicitly requested case whose
+    program is missing reports `absent` and exits 0.
+  - `tools/check-presentations.py:275`: `--acted` defaults to true even for
+    `--presentation windowed`, which the effect never acts on.
+  - `tools/measure-frame-times.py:452`: a missing program fails only after
+    kwinrc has been changed, with a traceback and no report.
+
+  **Fixed 2026-09-28, pending commit:** all five, the proxy with two unit
+  cases in `x11proxy_display_test.cpp`, the tools with
+  `tools/test_check_presentations.py` and a case in
+  `test_measure_frame_times.py`; each new tool test failed on the old code.
 
 ## B. Resolution control – `slice-resolution-control.md`
 
@@ -123,28 +183,89 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   26.04 / KWin 6.6; X11 tests pass there locally. Hosted: verify-only
   nightly 36456685843 running.
   resolute runners; X11 test duration on CI (L1956-1966, L2530). Blocked by 1.
+- **6a.** **investigate/fix, S** – First hosted run of the new KWin 6.6 job
+  (verify-only nightly 36456685843 at `7eac56e`): Kubuntu 26.04 arm64 passed,
+  amd64 failed one case, `repeatedFullscreenTransitions`
+  (`x11_integration_test.cpp:403`). On one re-entry into fullscreen the effect
+  sent its request while the window's frame was still 1920 × 1080, Xwayland's
+  emulated mode then dropped, the client drew 3840 × 2160 and validation judged
+  the request failed after its three seconds; the one retry crossed the same
+  way, and the effect gave up, leaving the window unscaled. The session took
+  154 s on the runner against 62 s locally, where the case passes. Open whether
+  the test paces badly or the effect requests against a frame that is still
+  changing, which a slow real machine could hit too. Found 2026-09-28.
+  **Fixed 2026-09-28, pending commit:** `fullscreenRequest()` began a request
+  while the client still owed the withdrawal of its previous mode; it now
+  leaves that to `apply()`. New case `reenteringFullscreenAtOnce`: 8/8 failed
+  on KWin 6.6.6 before, 8/8 passed after. Written up in the slice.
 - **7.** **test, S** – Normal launch: re-enable from a session started directly;
   **Done 2026-09-28, `7eac56e`, pushed; CI pending.** (a) covered by
   `proxyRestartStatus`; (b) new `effectSwitchedOffMidSession`.
   disabling stops upscaling at once (L3629-3633).
 - **8.** **test, S** – systemd-managed Plasma login path (L3487).
+  **Agreed with Jens 2026-09-28:** make it work through each distribution's
+  default path (SDDM, Plasma with KWin as a systemd user service; startplasma
+  without systemd on the BSDs), not through anything particular to wzpc. Read
+  startplasma in Plasma 6.3 and 6.6 for where `plasma-workspace/env` runs and
+  how its environment reaches the service; any gap is fixed with a standard
+  mechanism. Tested for real by 2f.
 - **9.** **test, S** – Neon runtime session, needs a render device (L3479).
+  **Closed with Jens 2026-09-28, superseded:** KWin master stays build-only by
+  design (`doc/checks.md`); the nightly runs every test on KWin 6.6 (item 6), and
+  2f runs the packages in real sessions. A neon VM profile in 2f can add master
+  later if wanted.
 - **10.** **test, S** – Signal/shutdown review, connection and descriptor-leak
     stress (L3523-3525).
+  **Agreed with Jens 2026-09-28, important:** two proxy session tests, run in
+  every pull request and under the sanitizers: SIGTERM to a session with an open
+  connection ends Xwayland and itself within a bound and removes its socket, and
+  an Xwayland that ignores SIGTERM is killed after the grace period; 500
+  connections opened and closed leave the proxy's open descriptors as they were,
+  counted portably. Plus a short review of the signal path, recorded in the slice.
 - **11.** **decide, –** – Is the XTS release-conformance gate judged with the suite's
     windows kept from the window manager? (L3936-3939)
+  **Decided by Jens 2026-09-28:** the XTS release gate is judged with the
+  suite's windows kept from the window manager (override redirect). The run with
+  KWin managing them is reported beside it for information, its known
+  window-manager races named; a new failure there beyond them is still looked at.
 - **12.** **test, F** – Live L4D2 at 4K with mouse look after the `updateShape()` fix;
     last attempt blocked, KWin reported zero screens (L3781-3797).
+  **Closed 2026-09-28 on Jens's report:** L4D2 live at 4K, mouse look
+  included, tested by Jens and OK. His report, not a recorded measurement; into
+  the resolution-control slice with the next commit.
 - **13.** **decide → impl, F** – Early Wine/Proton identity: Wreckfest starts at 4K
     unidentified; reading `SteamAppId` needs an exception to "no `/proc`"
     (L3752-3755, L3815-3818).
+  **Closed with Jens 2026-09-28, superseded** by the route decided on
+  2026-09-25 (Proton slice): the prefix is the unit and the game is recognized by
+  the program path Wine names; no SteamAppId, no new `/proc` exception. Wreckfest
+  at 4K is solved through items 26 to 28.
 - **14.** **investigate, F** – Wine OpenGL fullscreen grows by 1280×720 on every size
     notification; input check never reached (L3861-3869).
+  **Agreed with Jens 2026-09-28:** reproduce with the current code first (the
+  same Wine OpenGL probe, fullscreen through the proxy, in the conformance VM);
+  if it no longer grows, record and close. Otherwise trace which of effect, proxy
+  and Wine drives the loop, fix it there, and add a regression test (a Wine
+  OpenGL fullscreen window keeps its size over many size notifications, input
+  landing). Together with 26 to 28, which share the path and the setup.
 - **15.** **fix, –** – Incoherent advertisement: `wl_output.mode` falsified beside a
     truthful `xdg_output`; recorded as a defect in shipped code, no fix
     recorded (L1363-1365, L1841-1851).
+  **Agreed with Jens 2026-09-28:** the fix is to make `xdg_output` consistent
+  with the told mode (logical size = mode ÷ scale), sent when the program asks
+  for its `xdg_output` and given back on restore. To find out first whether the
+  effect can reach one program's `xdg_output` on KWin 6.3.6 and 6.6. If stuck,
+  call in Fable.
 - **16.** **impl/test, –** – SuperTuxKart hard requirement: automated matrix of all
     six cells with output capture; live in-game changes (L1233, L1321-1325).
+  **Agreed with Jens 2026-09-28:** `tools/check-supertuxkart.py` runs the six
+  cells in the 2f/2b VM (llvmpipe OpenGL, lavapipe Vulkan, no host GPU): per cell
+  a nested KWin with OpenGL and the installed effect, the test's own game list
+  loaded through the settings import, STK with a fresh private configuration,
+  and checks of the committed 2560 × 1440 buffer, FSR, and an output capture
+  against plain enlargement. In-game changes automated where STK can be driven,
+  otherwise on the hardware session's checklist. A report per run, before every
+  release. Release gate (hard requirement).
 - **17.** **investigate, –** – SuperTuxKart writes the reduced mode into its own
     configuration; to be answered from the compositor side (L1256-1264).
 - **18.** **impl, –** – A program that sizes a plain window from the mode it was told
