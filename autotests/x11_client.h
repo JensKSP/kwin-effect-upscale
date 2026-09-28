@@ -53,6 +53,14 @@ public:
     /** Sizes reported by ConfigureNotify, in arrival order. */
     QList<QSize> configuredSizes() const;
     /**
+     * The size the server gives the window as the client learns it was first
+     * mapped, or an invalid size before that. Asked of the server rather than
+     * taken from the events: a mapping the effect held is released under a
+     * server grab, and the question waits for the grab to end, so it reads what
+     * the client will draw at, the size its first frame is made for.
+     */
+    QSize sizeAtMapping() const;
+    /**
      * How many times the window manager asked the window to close, with
      * WM_DELETE_WINDOW, which the window says it understands. A window that
      * does not say so is killed instead, and its client with it.
@@ -94,6 +102,7 @@ private:
     int m_focusLosses = 0;
     int m_configureNotifies = 0;
     QList<QSize> m_configuredSizes;
+    QSize m_sizeAtMapping;
     int m_closeRequests = 0;
     int m_unmapNotifies = 0;
     xcb_atom_t m_protocols = XCB_NONE;

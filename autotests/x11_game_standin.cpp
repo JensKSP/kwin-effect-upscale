@@ -11,11 +11,12 @@
 // one is made by the process whose name says so, and names itself in
 // _NET_WM_PID for 6.3 as well.
 //
-// Arguments: the window's class, its width and height, and when it asks for
+// Arguments: the window's class, its width and height, when it asks for
 // fullscreen - as it maps (on-map), right after (after-map) or not at all
-// (never). It reports each change a test asks about on standard output, one
-// per line - "fullscreen 0|1", "geometry X Y W H", "configured W H" and
-// "close" - and exits when its standard input closes.
+// (never) - and optionally "anonymous", which leaves _NET_WM_PID unset, as a
+// few programs do. It reports each change a test asks about on standard
+// output, one per line - "fullscreen 0|1", "geometry X Y W H", "configured W H",
+// "mapped W H" and "close" - and exits when its standard input closes.
 
 #include "x11_client.h"
 
@@ -31,13 +32,15 @@ int main(int argc, char **argv)
 {
     QCoreApplication application(argc, argv);
     const QStringList arguments = application.arguments();
-    if (arguments.size() != 5) {
-        std::fprintf(stderr, "usage: %s CLASS WIDTH HEIGHT on-map|after-map|never\n", argv[0]);
+    if (arguments.size() != 5 && !(arguments.size() == 6 && arguments.at(5) == QLatin1String("anonymous"))) {
+        std::fprintf(stderr, "usage: %s CLASS WIDTH HEIGHT on-map|after-map|never [anonymous]\n", argv[0]);
         return 2;
     }
     const QString when = arguments.at(4);
     X11Client game(false);
-    game.reportProcess();
+    if (arguments.size() == 5) {
+        game.reportProcess();
+    }
     if (!game.show(arguments.at(1).toLatin1(), QRect(0, 0, arguments.at(2).toInt(), arguments.at(3).toInt()),
                    when == QLatin1String("on-map"))) {
         return 3;
@@ -60,6 +63,7 @@ int main(int argc, char **argv)
     QRect geometry;
     qsizetype configured = 0;
     int closes = 0;
+    bool mapped = false;
     QTimer report;
     QObject::connect(&report, &QTimer::timeout, &application, [&]() {
         if (game.isFullscreen() != fullscreen) {
@@ -73,6 +77,10 @@ int main(int argc, char **argv)
         const QList<QSize> sizes = game.configuredSizes();
         for (; configured < sizes.size(); ++configured) {
             std::printf("configured %d %d\n", sizes.at(configured).width(), sizes.at(configured).height());
+        }
+        if (!mapped && game.sizeAtMapping().isValid()) {
+            mapped = true;
+            std::printf("mapped %d %d\n", game.sizeAtMapping().width(), game.sizeAtMapping().height());
         }
         for (; closes < game.closeRequests(); ++closes) {
             std::printf("close\n");

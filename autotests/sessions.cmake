@@ -96,7 +96,7 @@ if(KWin_VERSION VERSION_LESS 6.7)
     target_include_directories(upscale_test_driver PRIVATE ../src/plugins/upscale)
     target_link_libraries(
         upscale_test_driver
-        PRIVATE kwin Qt6::DBus KF6::ConfigGui KF6::I18n Libdrm::Libdrm XCB::XCB XCB::RANDR
+        PRIVATE kwin Qt6::DBus KF6::ConfigGui KF6::I18n Libdrm::Libdrm XCB::XCB XCB::RANDR XCB::RES
     )
     set_target_properties(
         upscale_test_driver
@@ -157,11 +157,18 @@ if(KWin_VERSION VERSION_LESS 6.7)
                     x11_input_test.cpp
                     x11_crash_test.cpp
                     crash_game.h
+                    x11_standin_game.h
             )
+            # The anonymous game of anUnnamedProgramIsHeldAtItsFirstMapping.
+            target_compile_definitions(
+                upscale_x11_${session}_test
+                PRIVATE UPSCALE_TEST_X11_GAME="$<TARGET_FILE:upscale_test_x11_game>"
+            )
+            add_dependencies(upscale_x11_${session}_test upscale_test_x11_game)
         else()
             target_sources(
                 upscale_x11_${session}_test
-                PRIVATE x11_prepared_test.h x11_preparation_gate_test.cpp
+                PRIVATE x11_prepared_test.h x11_preparation_gate_test.cpp x11_standin_game.h
             )
             # Started under a Wine loader's name; see x11_game_standin.cpp.
             target_compile_definitions(
