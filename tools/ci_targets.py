@@ -59,6 +59,11 @@ class Target:
     # What the suite additionally needs to start a nested compositor session.
     # Only a target that runs the suite has any.
     session: str = ""
+    # Also runs the checks each night, in a container of its own release: the
+    # target with the newest KWin a package ships for. Pull requests check
+    # Trixie's KWin alone and a package build runs no test, so without this
+    # the suite would never meet that KWin on a hosted runner.
+    checked: bool = False
 
 
 TARGETS = (
@@ -76,6 +81,7 @@ TARGETS = (
     Target(
         identifier="resolute",
         label="Kubuntu 26.04 LTS",
+        checked=True,
         alias="kubuntu",
         family="deb",
         container="package",
@@ -190,6 +196,7 @@ def matrix(
     *,
     container_only: bool = True,
     architectures: list[str] | None = None,
+    checked_only: bool = False,
 ) -> list[dict[str, object]]:
     """One entry per job, carrying everything a job needs and nothing it does not."""
     chosen = [target(name) for name in identifiers] if identifiers else list(TARGETS)
@@ -209,6 +216,7 @@ def matrix(
         }
         for entry in chosen
         if not (container_only and not entry.container)
+        if not (checked_only and not entry.checked)
         for architecture in entry.architectures
         if architecture in wanted
     ]
@@ -234,6 +242,11 @@ def main() -> None:
         action="store_true",
         help="only those targets, which have their own jobs and share no step",
     )
+    parser.add_argument(
+        "--checked",
+        action="store_true",
+        help="only the targets whose checks run each night",
+    )
     arguments = parser.parse_args()
     names = [name for name in arguments.targets.split(",") if name]
     architectures = [name for name in arguments.architectures.split(",") if name]
@@ -241,6 +254,7 @@ def main() -> None:
         names or None,
         container_only=not (arguments.include_virtual_machines or arguments.only_virtual_machines),
         architectures=architectures or None,
+        checked_only=arguments.checked,
     )
     if arguments.only_virtual_machines:
         entries = [entry for entry in entries if not entry["container"]]

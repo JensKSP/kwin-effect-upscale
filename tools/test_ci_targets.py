@@ -58,6 +58,13 @@ class CiTargetsTest(unittest.TestCase):
         selected = matrix(["arch"])
         self.assertEqual([entry["architecture"] for entry in selected], ["amd64"])
 
+    def test_the_newest_kwin_is_checked_every_night(self) -> None:
+        """Only the nightly's checks meet that KWin, on both architectures."""
+        checked = matrix(checked_only=True)
+        self.assertEqual({entry["target"] for entry in checked}, {"resolute"})
+        self.assertEqual({entry["architecture"] for entry in checked}, {"amd64", "arm64"})
+        self.assertTrue(all(entry["container"] for entry in checked))
+
     def test_release_inventory_reads_the_same_table(self) -> None:
         """Two lists are how a release ships whichever targets succeeded."""
         self.assertEqual(release_assets.DISTRIBUTIONS, ci_targets.DEB_TARGETS)

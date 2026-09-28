@@ -818,9 +818,10 @@ render-device API also changes paint callbacks, EGL construction and shader
 validation. These are separate compatibility boundaries: the presence of
 `core/region.h` does not imply `core/renderdevice.h`. The compatibility layer
 keeps these differences out of the scaling and colour logic. The full test
-suite runs against KWin 6.3.6 on Debian Trixie; the Kubuntu package is only
-installed and loaded in a clean container, and the tracked development version
-is built nightly without running its tests.
+suite runs against KWin 6.3.6 on Debian Trixie for every pull request, and
+each night against KWin 6.6 on Kubuntu 26.04 as well, on both architectures;
+the Kubuntu package itself is installed and loaded in a clean container, and
+the tracked development version is built nightly without running its tests.
 
 ### Which release of each distribution
 
@@ -3623,7 +3624,11 @@ CI's final `Quality gate` requires every supported-platform check to succeed.
 Both tagged releases and nightly publication depend on these checks for their
 own commit. Nightly also builds against neon with GCC and Clang, independently
 of publication; it compiles and does not test, because what that job answers is
-whether the effect still builds against a KWin nobody here controls. Container dependencies refresh
+whether the effect still builds against a KWin nobody here controls. It also
+runs the checks on the newest KWin a package ships for, the target
+`tools/ci_targets.py` marks as checked, currently Kubuntu 26.04's KWin 6.6, on
+both architectures. That job does not gate publication either; it is the only
+hosted run of the test suite, the X11 sessions above all, on that KWin. Container dependencies refresh
 daily; action commits and Python checker versions are pinned. Dependabot proposes
 updates weekly for the actions used by the workflows and by the four composite
 actions under `.github/actions/`, and for the base images of
