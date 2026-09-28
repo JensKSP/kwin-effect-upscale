@@ -304,6 +304,8 @@ def reported_value(output: str, pattern: str) -> str:
 
 def capture_pattern(text: str) -> str:
     """Reject invalid output patterns before a run changes any settings."""
+    if not text:
+        return text
     try:
         pattern = re.compile(text)
     except re.error as problem:

@@ -255,6 +255,21 @@ class WrittenReportTest(unittest.TestCase):
 class CommandTest(unittest.TestCase):
     """Arbitrary commands and explicit observations replace built-in games."""
 
+    def test_output_patterns_are_independently_optional(self) -> None:
+        """Parse commands with neither, either or both output observations."""
+        for rate in ("", r"rate=(\S+)"):
+            for renderer in ("", r"renderer=(\S+)"):
+                arguments = ["--window", "target"]
+                if rate:
+                    arguments += ["--rate-pattern", rate]
+                if renderer:
+                    arguments += ["--renderer-pattern", renderer]
+                with self.subTest(rate=rate, renderer=renderer):
+                    options, _ = HARNESS["parse_arguments"]([*arguments, "--", "program"])
+                    self.assertEqual(options.rate_pattern, rate)
+                    self.assertEqual(options.renderer_pattern, renderer)
+                    self.assertEqual(options.command, ["program"])
+
     def test_launch_preserves_arguments_and_only_expands_duration(self) -> None:
         """Spaces, shell syntax and unrelated braces remain literal arguments."""
         plan = HARNESS["Plan"](
