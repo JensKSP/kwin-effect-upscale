@@ -3647,8 +3647,14 @@ daily; action commits and Python checker versions are pinned. Dependabot propose
 updates weekly for the actions used by the workflows and by the four composite
 actions under `.github/actions/`, and for the base images of
 `containers/trixie`, `containers/neon-unstable` and `containers/package`.
-Distribution package versions remain the distributions' responsibility rather
-than a second list of project build dependencies.
+The pre-commit hooks have their own updater, `tools/update-hooks.py`, and no
+other: every Monday the Hook updates workflow runs it and states in its
+summary which hooks have a newer version. It moves a hook to the newest tag on
+its project's default branch, never to an older one than the pin, and a hook
+whose `rev` line says `# held to <prefix>` only within that series, which keeps
+clang-format on the major version Trixie ships. It proposes and opens no pull
+request yet. Distribution package versions remain the distributions'
+responsibility rather than a second list of project build dependencies.
 
 ### Build, test, release
 
