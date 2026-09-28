@@ -74,6 +74,7 @@ private Q_SLOTS:
     void showsTheGlobalSettingsAsTheFirstEntry();
     void aGameFollowsWhatAllApplicationsShows();
     void aGameInheritsItsMethods();
+    void clearsEverythingAGameStatesAtOnce();
     void defaultsRestoreOnlyTheGlobalSettings();
     void exportsAndImportsTheList();
 };
@@ -267,6 +268,53 @@ void ApplicationListTest::aGameInheritsItsMethods()
     module.save();
     QVERIFY(stored.open(QIODevice::ReadOnly));
     QVERIFY(!stored.readAll().contains("MethodWaylandFullScreen"));
+}
+
+// One action forgets everything a game states for itself: its values follow
+// the global settings again, its methods the package's measurement, and
+// nothing of its own is stored.
+void ApplicationListTest::clearsEverythingAGameStatesAtOnce()
+{
+    QWidget host;
+    KWin::UpscaleEffectConfig module(&host, KPluginMetaData());
+    auto *editor = module.widget()->findChild<KWin::UpscaleApplicationEditor *>();
+    auto *list = editor->findChild<QListWidget *>(QStringLiteral("applicationList"));
+    auto *game = editor->findChild<QTabWidget *>(QStringLiteral("applicationDetails"));
+    auto *clear = editor->findChild<QPushButton *>(QStringLiteral("applicationClear"));
+    auto *sharpening = editor->findChild<QCheckBox *>(QStringLiteral("Sharpening"));
+    QVERIFY(list && game && clear && sharpening);
+    auto *wayland = game->findChild<QComboBox *>(QStringLiteral("method0"));
+    QVERIFY(wayland);
+    const auto kart = [list]() {
+        for (int row = 0; row < list->count(); ++row) {
+            if (list->item(row)->text() == QStringLiteral("SuperTuxKart")) {
+                return row;
+            }
+        }
+        return -1;
+    }();
+    QVERIFY(kart > 0);
+    list->setCurrentRow(kart);
+    // The package's own entry states nothing of the person's yet.
+    QVERIFY(!clear->isEnabled());
+    sharpening->click();
+    wayland->setCurrentIndex(wayland->findText(KWin::upscaleMethodLabel(KWin::UpscaleMethod::Auto)));
+    QCOMPARE(inheritance(game, QStringLiteral("Sharpening")), States);
+    QCOMPARE(inheritance(game, QStringLiteral("method0")), States);
+    QVERIFY(clear->isEnabled());
+
+    clear->click();
+    QCOMPARE(inheritance(game, QStringLiteral("Sharpening")), Follows);
+    QCOMPARE(inheritance(game, QStringLiteral("method0")), Follows);
+    QCOMPARE(wayland->currentText(), KWin::upscaleMethodLabel(KWin::UpscaleMethod::AdvertisedMode));
+    QVERIFY(!clear->isEnabled());
+    module.save();
+    QFile stored(upscaleUserApplicationFile());
+    const QByteArray written = stored.open(QIODevice::ReadOnly) ? stored.readAll() : QByteArray();
+    QVERIFY2(!written.contains("Sharpening") && !written.contains("MethodWaylandFullScreen"), written.constData());
+    // And "All applications" offers nothing to clear.
+    list->setCurrentRow(0);
+    QVERIFY(!clear->isVisible() || !clear->isEnabled());
 }
 
 // System Settings' Defaults is the global profile's: it restores "All
