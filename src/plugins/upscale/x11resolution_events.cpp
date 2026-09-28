@@ -102,6 +102,15 @@ bool UpscaleX11Resolution::fullscreenRequest(X11Window *window, xcb_client_messa
         m_prepared.remove(window);
         return false;
     }
+    // The client has not yet withdrawn the mode it held for the request that
+    // leaving fullscreen gave back, as when it leaves and re-enters at once.
+    // ask() waits for that answer before asking anything new, and a request
+    // made here would not: on KWin 6.6 the withdrawal, arriving after it,
+    // sizes the window to its whole frame and undoes it. KWin enters this
+    // fullscreen itself, and apply() asks once the answer has arrived.
+    if (m_withdrawals.contains(window)) {
+        return false;
+    }
     // The fullscreen request has not reached KWin yet. Resolve the settings
     // for the state it requests, not the smaller window's current windowed
     // state: refusing it here lets a native configure reach SFML before the

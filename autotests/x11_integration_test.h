@@ -11,6 +11,14 @@
 #include <QObject>
 #include <QPoint>
 
+// Waits until the effect has nothing in flight for any X11 window: no restore,
+// no request waiting to be sent, no client still to withdraw its mode. A
+// geometry that already matches before a reconfiguration says nothing about
+// what the reconfiguration did, so a case judges it only after this. Bounded
+// by the withdrawal fallback plus the nightly's slowest runner.
+#define UPSCALE_TRY_SETTLED() \
+    QTRY_VERIFY2_WITH_TIMEOUT(status().contains(QStringLiteral("x11Settled: true")), qPrintable(status()), 30000)
+
 class UpscaleX11IntegrationTest : public QObject
 {
     Q_OBJECT
@@ -45,6 +53,7 @@ private Q_SLOTS:
     void preservesModeOnFullscreenEntry();
     void aGameThatCrashesWhileResizedIsLetGo();
     void anUnnamedProgramIsHeldAtItsFirstMapping();
+    void reenteringFullscreenAtOnce();
 
 private:
     // The global resolution as kwinrc stores it, spelled out rather than taken
