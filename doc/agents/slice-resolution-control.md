@@ -1396,6 +1396,47 @@ fullscreen at 3840 × 2160 and `SDL_VIDEODRIVER=wayland`. The window committed
 committed 1920 × 1080, and the window stayed fullscreen at 0,0 3840 × 2160.
 The log is `build/game-probe/stk-vk-scale.log`.
 
+**All six cells automated, 2026-09-29** (item 16 of the open list, as agreed
+with Jens on 2026-09-28). `tools/check-supertuxkart.py` runs them in the
+conformance machine with the game test image (`containers/game-tests`): a
+compositor per cell at 3840 × 2160, the effect at Quality, the check's own game
+list (`autotests/data/game-tests/kwinupscalerc`, the shipped entry), and
+SuperTuxKart 1.4 with a fresh `config.xml` naming only the renderer and
+`vulkan_fullscreen_desktop`, started with `-R --track=lighthouse --numkarts=1`.
+Once the effect reports that it enlarges the game, the probe stops the game with
+SIGSTOP, so that every picture shows one frame, captures the output through
+ScreenShot2, unloads the effect and captures again. The stopped game cannot
+take its size back, so the second capture is KWin alone drawing the same buffer:
+on Wayland its plain stretch, for X11 the 2560 × 1440 frame unscaled in the
+window's corner, from which the stretch is computed bilinearly. A cell passes
+when the buffer is 2560 × 1440 drawn to 3840 × 2160, the effect still scales at
+the capture, the capture looks like the stretch (thumbnail difference under 6
+of 255) and has at least 10 % more detail (mean Laplacian), and fails, or is
+reported as not run, otherwise.
+
+The run of 2026-09-29, effect from the working tree: all six passed, each
+supplying 2560 × 1440, with the effect's capture 25 to 29 % sharper than the
+stretch and 0.03 to 0.15 apart from it. The effect classifies every cell as
+fullscreen, both Vulkan kinds included. Found on the way, and fixed in the
+check rather than read as the effect's fault: captures of a running game show
+different frames (the timer read 00:00.308 on the screen and 00:00.558 in the
+window), and a reading taken after a window capture described that offscreen
+draw rather than the screen; hence the stopped frame and the reading before the
+pictures. X11 goes through the session proxy, as Plasma routes it, with the
+tests running as the guest's user, which the proxy requires.
+
+KWin sometimes draws no frame after the game is stopped, so the first capture
+never comes: three times in 26 stopped cells, in a Wayland OpenGL, a Wayland
+Vulkan and an Xwayland OpenGL cell, once for over two minutes. A control of
+twelve sessions, six with the effect and six without it, stopping the game 40
+seconds in rather than five seconds after the effect first enlarges it,
+captured every time within one and a half seconds, so nothing points at the
+effect. The probe now stops the game a second time five seconds later when the
+first capture gets no answer within a minute, and the report names the stall;
+the run after that passed all six cells with one stall retried. Not driven by
+the check: changes made inside the running game and effect settings changed
+during play, which stay with the checks in Jens's session.
+
 Next, in order:
 
 1. The six cells in Jens's real session, one by one, with the installed build.

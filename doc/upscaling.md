@@ -3256,9 +3256,18 @@ In every cell:
   drew, not by reading the status alone.
 - **An automated test proves it.** One command runs all six cells against KWin's
   virtual backend on the minimum supported KWin and fails when any cell fails.
-  A cell that could not run is reported as not run, never as passed. No command
-  runs the six cells yet: the generic presentation runner checks one
-  explicitly supplied launch command at a time.
+  A cell that could not run is reported as not run, never as passed. That
+  command is `tools/check-supertuxkart.py`, run in the conformance machine
+  ([building and checking](checks.md#supertuxkart-in-every-presentation)). Each
+  cell starts a compositor of its own at 3840 × 2160 with the effect at
+  Quality, the check's own game list, and the game with a fresh configuration
+  that names only the renderer and the kind of fullscreen. Once the effect
+  says it enlarges the game, the game is stopped on one frame, and a capture
+  of the output is compared with KWin's own plain stretch of that same buffer,
+  taken after the effect is unloaded: the capture has to show the same
+  picture, upright and in place, with more detail than the stretch. Changes
+  made inside the running game are not driven by it and stay with the checks
+  in a real session.
 
 A cell whose failure has been explained is still a failing cell. "The game
 keeps its resolution in this mode" is a defect to fix, not a limitation to
