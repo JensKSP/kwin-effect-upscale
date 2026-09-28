@@ -8,6 +8,8 @@
 
 #include "effect/effecthandler.h"
 
+#include <QFontDatabase>
+
 #include <array>
 
 namespace KWin
@@ -190,6 +192,12 @@ void UpscaleDisplay::compose()
     // given no text at all, which is also what releases what it was holding.
     // Turning the developer dump on no longer changes the view beside it: the
     // measurements are their own block, in their own place, either way.
+    // The session's fixed-width font, read again each time: a change to it in
+    // the session's settings reaches the blocks at their next update.
+    const QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+    for (UpscaleOverlay *overlay : {&m_announcementOverlay, &m_statisticsOverlay, &m_developerOverlay}) {
+        overlay->setFont(font);
+    }
     m_announcementOverlay.setText(timed.join(QLatin1Char('\n')), m_snapshot.outputScale);
     // Larger than the rest: this is the block read at a glance mid-game, from
     // as far away as the player is sitting, and it holds five figures for it.

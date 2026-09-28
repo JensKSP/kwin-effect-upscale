@@ -436,9 +436,14 @@ Planned checks, not observed results:
   and the size is multiplied by the scale factor of the output the text is
   drawn on. A point size is converted at the 96 dpi reference KDE scale
   factors are stated against.
-- [ ] Re-lay out when the session's font settings change. A changed family or
+- [x] Re-lay out when the session's font settings change. A changed family or
   size applies to the next layout, which happens when the text or the scale
-  changes; nothing watches the settings themselves.
+  changes; nothing watches the settings themselves. Done 2026-09-28: the
+  overlay takes its font with `setFont()`, and the display and the question
+  pass the session's fixed-width font at every update, where the text is laid
+  out again when the font differs. `followsTheSessionFont` in the placement
+  test fails without the new layout. What the platform theme reports after a
+  change in System Settings is its own: not yet watched in a real session.
 - [ ] Complete automated, package and native acceptance; preserve lasting design
   in source/human documentation before removing this slice.
 

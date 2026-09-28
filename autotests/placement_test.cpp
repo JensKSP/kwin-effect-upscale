@@ -17,6 +17,7 @@
 #include "placement.h"
 #include "snapshot.h"
 
+#include <QFontDatabase>
 #include <QGuiApplication>
 #include <QRectF>
 #include <QTest>
@@ -33,6 +34,7 @@ class UpscalePlacementTest : public QObject
 private Q_SLOTS:
     void cornersAreKeptApart();
     void blocksStayInTheirQuarter();
+    void followsTheSessionFont();
 };
 
 // Choosing a corner someone else holds moves them on, and a file that names
@@ -188,6 +190,21 @@ void UpscalePlacementTest::blocksStayInTheirQuarter()
     nowhere.setText(texts[2], 1, 1);
     nowhere.fit(QSizeF(0, 0));
     QVERIFY2(nowhere.size().isEmpty(), "a block given no room was drawn anyway");
+}
+
+// A block follows the font it is given, as its owner reads it from the
+// session at each update; the text itself need not change for that.
+void UpscalePlacementTest::followsTheSessionFont()
+{
+    QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+    font.setPixelSize(12);
+    UpscaleOverlay overlay;
+    overlay.setFont(font);
+    overlay.setText(QStringLiteral("Upscale"), 1);
+    const QSizeF before = overlay.size();
+    font.setPixelSize(24);
+    overlay.setFont(font);
+    QVERIFY2(overlay.size().height() > before.height(), "a larger session font was not followed");
 }
 
 QTEST_MAIN(UpscalePlacementTest)

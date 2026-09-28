@@ -9,6 +9,7 @@
 
 #include "effect/effecthandler.h"
 
+#include <QFontDatabase>
 #include <QKeyEvent>
 
 namespace KWin
@@ -38,6 +39,7 @@ bool UpscaleQuestion::ask(Effect *owner, UpscaleOutput *output, const Content &c
     m_chosen = chosen;
     // The name of what is asking, so that the question is not an anonymous
     // box in the middle of a game, and then what it asks.
+    m_text.setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
     m_text.setText(upscaleHighlight(content.title) + QStringLiteral("\n\n") + content.text, output->scale(), questionEmphasis);
     m_buttons.clear();
     for (qsizetype index = 0; index < content.answers.size(); ++index) {
