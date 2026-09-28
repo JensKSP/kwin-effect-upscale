@@ -93,6 +93,16 @@ public:
      * reconfiguration did, rather than a delay that may or may not cover it.
      */
     bool settled() const;
+    /**
+     * How often validation has judged a request since this was created, once
+     * for each time it did, whether the request held or not. A caller notes it
+     * before acting and waits for it to grow, rather than for a delay that may
+     * or may not cover the validation window on a slow machine.
+     */
+    int judgements() const
+    {
+        return m_judgements;
+    }
     /** What this keeps per window or program; see UpscaleEffect::records(). */
     QString records() const
     {
@@ -249,5 +259,7 @@ private:
     xcb_atom_t m_fullscreenAtom = XCB_ATOM_NONE;
     xcb_atom_t m_emulationAtom = XCB_ATOM_NONE;
 #endif
+    // Outside the block above: judgements() answers in every build.
+    int m_judgements = 0;
 };
 }

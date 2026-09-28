@@ -92,6 +92,7 @@ void UpscaleX11Resolution::validate(const QString &key, int generation, int revi
         request.answered = true;
         const QString unmet = unmetCondition(request);
         if (!unmet.isEmpty()) {
+            ++m_judgements;
             qCInfo(KWIN_UPSCALE) << "X11 validation unmet:" << key << "window" << request.window->window() << unmet;
             if (retry(key, generation)) {
                 return;
@@ -112,6 +113,7 @@ void UpscaleX11Resolution::validate(const QString &key, int generation, int revi
     if (!observed) {
         return;
     }
+    ++m_judgements;
     const auto accepted = m_negotiations.find(key);
     if (accepted != m_negotiations.end()) {
         accepted->attempt = {};

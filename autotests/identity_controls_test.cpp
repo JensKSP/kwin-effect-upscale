@@ -15,7 +15,9 @@
 #include "editor_stand_ins.h"
 #include "settings_fixture.h"
 
+#include <QCoreApplication>
 #include <QDBusConnection>
+#include <QDBusMessage>
 #include <QFormLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -46,7 +48,10 @@ void IdentityControlsTest::saysWhichOpenWindowsAnEntryMatches()
     // Nobody answers without the effect, and no answer is not "no window",
     // so nothing is said.
     controls.show(kart);
-    QTest::qWait(600);
+    // The bus answers in order: once it has answered this, it has refused the
+    // question the controls asked before it, and the refusal is delivered.
+    QVERIFY(QDBusConnection::sessionBus().call(QDBusMessage::createMethodCall(QStringLiteral("org.freedesktop.DBus"), QStringLiteral("/org/freedesktop/DBus"), QStringLiteral("org.freedesktop.DBus.Peer"), QStringLiteral("Ping"))).type() == QDBusMessage::ReplyMessage);
+    QCoreApplication::processEvents();
     QVERIFY(matches->isHidden());
 
     QDBusConnection bus = QDBusConnection::sessionBus();

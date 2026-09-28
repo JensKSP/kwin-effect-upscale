@@ -230,9 +230,11 @@ void UpscaleProductionTest::ignoredRequestIsRestored()
     QVERIFY(window);
     QTRY_VERIFY(Test::waylandSync() && fractional->preferredScale() == 80);
     for (int frame = 0; frame < 45; ++frame) {
+        // A frame is one the compositor presented, not a stretch of time.
+        QSignalSpy rendered(workspace()->outputs().first()->renderLoop(), &RenderLoop::framePresented);
         Test::render(surface.get(), pattern(QSize(384, 216)));
         QVERIFY(Test::waylandSync());
-        QTest::qWait(25);
+        QVERIFY(rendered.wait());
     }
     QTRY_VERIFY(Test::waylandSync() && fractional->preferredScale() == 120);
     QVERIFY(!status().contains(QStringLiteral("scaling=1")));
@@ -333,7 +335,13 @@ void UpscaleProductionTest::windowedClientIsUnchanged()
     auto shell = Test::createXdgToplevelSurface(surface.get());
     Window *window = Test::renderAndWaitForShown(surface.get(), pattern(QSize(160, 90)));
     QVERIFY(window);
-    QTest::qWait(100);
+    // A frame presented with the window in it, committed again so that one
+    // follows: the effect has looked at the window, and whatever it asked of
+    // the client has arrived after the sync.
+    QSignalSpy rendered(workspace()->outputs().first()->renderLoop(), &RenderLoop::framePresented);
+    Test::render(surface.get(), pattern(QSize(160, 90)));
+    QVERIFY(rendered.wait());
+    QVERIFY(Test::waylandSync());
     QCOMPARE(fractional->preferredScale(), 120);
     QCOMPARE(window->frameGeometry().size(), QSizeF(160, 90));
     QVERIFY(!status().contains(QStringLiteral("scaling=1")));
@@ -349,7 +357,13 @@ void UpscaleProductionTest::nativeBufferBypassesScaling()
     });
     Window *window = Test::renderAndWaitForShown(surface.get(), pattern(QSize(384, 216)));
     QVERIFY(window);
-    QTest::qWait(100);
+    // A frame presented with the window in it, committed again so that one
+    // follows: the effect has looked at the window, and whatever it asked of
+    // the client has arrived after the sync.
+    QSignalSpy rendered(workspace()->outputs().first()->renderLoop(), &RenderLoop::framePresented);
+    Test::render(surface.get(), pattern(QSize(384, 216)));
+    QVERIFY(rendered.wait());
+    QVERIFY(Test::waylandSync());
     QVERIFY2(status().contains(QStringLiteral("scaling=0")), qPrintable(status()));
     QCOMPARE(window->windowItem()->surfaceItem()->bufferSize(), QSize(384, 216));
 }

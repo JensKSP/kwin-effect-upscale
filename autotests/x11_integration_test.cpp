@@ -14,6 +14,7 @@
 #include <QDBusReply>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QRegularExpression>
 #include <QSaveFile>
 #include <QTest>
 
@@ -64,6 +65,12 @@ QString UpscaleX11IntegrationTest::status()
 {
     const QDBusReply<QString> reply = m_effects.call(QStringLiteral("supportInformation"), QStringLiteral("upscale_test_driver"));
     return reply.isValid() ? reply.value() : reply.error().message();
+}
+
+int UpscaleX11IntegrationTest::judgements()
+{
+    static const QRegularExpression count(QStringLiteral("x11Judgements: (\\d+)"));
+    return count.match(status()).captured(1).toInt();
 }
 
 // The window under test is claimed by the catalogue entry init() writes while
@@ -138,13 +145,14 @@ void UpscaleX11IntegrationTest::lifecycle()
     // KWin, Xwayland and the client, and an instrumented build makes those
     // slower without making them wrong.
     UPSCALE_TRY_GEOMETRY(target, QRect(position, native));
+    int judged = judgements();
     configure(true);
     UPSCALE_TRY_GEOMETRY(target, QRect(position, QSize(1920, 1080)));
     QTRY_VERIFY2(status().contains(QStringLiteral("Supplied input: 1920 × 1080")), qPrintable(status()));
     QTRY_VERIFY2(status().contains(QStringLiteral("Destination: 3840 × 2160")), qPrintable(status()));
-    // Wait beyond negotiation's deadline: a transient small window does not
-    // prove an accepted buffer with a full-output presentation.
-    QTest::qWait(3500);
+    // Until validation has judged the request: a transient small window does
+    // not prove an accepted buffer with a full-output presentation.
+    UPSCALE_TRY_JUDGED(judged, 1);
     QCOMPARE(target.geometry(), QRect(position, QSize(1920, 1080)));
     QVERIFY2(!status().contains(QStringLiteral("did not supply")), qPrintable(status()));
     X11Client other;
@@ -169,6 +177,7 @@ void UpscaleX11IntegrationTest::lifecycle()
     QTRY_VERIFY_WITH_TIMEOUT(target.configureNotifies() > answered, 30000);
     QCOMPARE(target.geometry(), QRect(position, QSize(1920, 1080)));
     QCOMPARE(other.geometry(), otherGeometry);
+    judged = judgements();
     configure(true, Stored::Quality);
     // Changing the resolution releases the window and asks the client for
     // another size. Until 2026-09-21 that request was undone on KWin 6.6 by the
@@ -178,7 +187,7 @@ void UpscaleX11IntegrationTest::lifecycle()
     // asks, so this is a round trip again; the bound stays generous because a
     // generous bound costs a passing run nothing.
     UPSCALE_TRY_GEOMETRY(target, QRect(position, QSize(2560, 1440)));
-    QTest::qWait(3500);
+    UPSCALE_TRY_JUDGED(judged, 1);
     QCOMPARE(target.geometry(), QRect(position, QSize(2560, 1440)));
     QCOMPARE(other.geometry(), otherGeometry);
     configure(false);
@@ -227,6 +236,7 @@ void UpscaleX11IntegrationTest::presentsWithoutEmulation()
     QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), native));
     QTRY_VERIFY_WITH_TIMEOUT(target.isFullscreen(), 10000);
     QTRY_COMPARE(target.geometry(), native);
+    const int judged = judgements();
     configure(true);
     // The client accepts the window and supplies the buffer but never asks
     // Xwayland for a mode, which is what Left 4 Dead 2 does. The effect then
@@ -234,7 +244,7 @@ void UpscaleX11IntegrationTest::presentsWithoutEmulation()
     // size past negotiation, the buffer is captured, and status says who is
     // presenting it.
     QTRY_COMPARE(target.geometry().size(), QSize(1920, 1080));
-    QTest::qWait(3500);
+    UPSCALE_TRY_JUDGED(judged, 1);
     QCOMPARE(target.geometry().size(), QSize(1920, 1080));
     QVERIFY2(!status().contains(QStringLiteral("request failed")), qPrintable(status()));
     QVERIFY2(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()));
@@ -268,7 +278,11 @@ void UpscaleX11IntegrationTest::presentsWithoutEmulation()
     // Nothing starts a fresh negotiation on its own after the request is
     // released: the client's own resize must not put the effect back to work.
     target.resize(QSize(1600, 900));
+    // Bounded, not awaited: KWin answers a resize it refuses with nothing, so
+    // there is no event that says it has read this one. Once it has, nothing
+    // is in flight either.
     QTest::qWait(500);
+    UPSCALE_TRY_SETTLED();
     QCOMPARE(target.geometry(), native);
 }
 
@@ -318,7 +332,9 @@ void UpscaleX11IntegrationTest::expiresDepartedClientRefusal()
         QTRY_COMPARE(independent.geometry(), QRect(3840, 0, 1920, 1080));
         QCOMPARE(refused.geometry(), native);
     }
-    QTest::qWait(3500);
+    // The departed windows' negotiations, their refusal among them, expire
+    // once their grace has passed.
+    QTRY_VERIFY2_WITH_TIMEOUT(status().contains(QStringLiteral("x11Negotiations=0 ")), qPrintable(status()), 30000);
     // All connections belong to this test process: the same PID/profile/output
     // now represents a later launch, without reconfiguring the plugin.
     X11Client relaunched;
@@ -365,7 +381,10 @@ void UpscaleX11IntegrationTest::preservesModeOnFullscreenEntry()
     target.fullscreen(true);
     QTRY_VERIFY(target.isFullscreen());
     QTRY_VERIFY2(status().contains(QStringLiteral("as its X11 window size")), qPrintable(status()));
-    QTest::qWait(500);
+    // Every configure KWin sends for this entry has been sent once the effect
+    // has nothing in flight, and has arrived once the client has synced.
+    UPSCALE_TRY_SETTLED();
+    target.sync();
     const QList<QSize> received = target.configuredSizes().sliced(before);
     QVERIFY2(!received.contains(QSize(3840, 2160)), qPrintable(QDebug::toString(received)));
     QCOMPARE(target.geometry().size(), reduced);
@@ -403,9 +422,10 @@ void UpscaleX11IntegrationTest::repeatedFullscreenTransitions()
         // on the size check three lines up rather than here.
         QTRY_VERIFY_WITH_TIMEOUT(!target.isFullscreen(), 30000);
     }
+    const int judged = judgements();
     target.fullscreen(true);
     QTRY_VERIFY_WITH_TIMEOUT(target.isFullscreen(), 10000);
-    QTest::qWait(3500);
+    UPSCALE_TRY_JUDGED(judged, 1);
     QVERIFY2(!status().contains(QStringLiteral("did not supply")), qPrintable(status()));
     QVERIFY2(!status().contains(QStringLiteral("repeatedly replaced")), qPrintable(status()));
     QTRY_VERIFY_WITH_TIMEOUT(status().contains(QStringLiteral("captured: upscale-x11-test")), 30000);
@@ -438,8 +458,10 @@ void UpscaleX11IntegrationTest::retriesADroppedResizeOnce()
     QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 3840, 2160)));
     QTRY_VERIFY_WITH_TIMEOUT(target.isFullscreen(), 10000);
     QTRY_COMPARE(target.geometry().size(), QSize(3840, 2160));
+    const int judged = judgements();
     configure(true);
-    QTest::qWait(7000);
+    // Judged twice: the dropped request, and the retry that holds.
+    UPSCALE_TRY_JUDGED(judged, 2);
     QCOMPARE(target.geometry().size(), QSize(1920, 1080));
     QVERIFY2(!status().contains(QStringLiteral("request failed")), qPrintable(status()));
     QVERIFY2(status().contains(QStringLiteral("Destination: 3840 × 2160")), qPrintable(status()));
@@ -483,12 +505,13 @@ void UpscaleX11IntegrationTest::independentOutputRules()
     // other window would already be on its way.
     UPSCALE_TRY_SETTLED();
     UPSCALE_TRY_GEOMETRY(first, QRect(0, 0, 1920, 1080));
-    QTest::qWait(500);
+    other.sync();
     QCOMPARE(other.geometry(), QRect(3840, 0, 3840, 2160));
     QCOMPARE(first.geometry().size(), QSize(1920, 1080));
 
     second.writeEntry("MinimumPixels", 1920 * 1080);
     second.sync();
+    const int judged = judgements();
     configure(true);
     UPSCALE_TRY_SETTLED();
     UPSCALE_TRY_GEOMETRY(other, QRect(3840, 0, 1920, 1080));
@@ -496,7 +519,8 @@ void UpscaleX11IntegrationTest::independentOutputRules()
     QTRY_VERIFY2(status().contains(QStringLiteral("captured: upscale-x11-test,second-x11-test"))
                      || status().contains(QStringLiteral("captured: second-x11-test,upscale-x11-test")),
                  qPrintable(status()));
-    QTest::qWait(3500);
+    // One request for each window.
+    UPSCALE_TRY_JUDGED(judged, 2);
     QCOMPARE(other.geometry(), QRect(3840, 0, 1920, 1080));
     QCOMPARE(first.geometry().size(), QSize(1920, 1080));
 

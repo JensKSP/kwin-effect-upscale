@@ -19,6 +19,13 @@
 #define UPSCALE_TRY_SETTLED() \
     QTRY_VERIFY2_WITH_TIMEOUT(status().contains(QStringLiteral("x11Settled: true")), qPrintable(status()), 30000)
 
+// Waits until the effect's validation has judged @p count more requests than
+// the @p before a case noted before acting: what a request left behind is
+// judged only then, three seconds after it was made, however slowly the
+// machine got there. Bounded like the waits above.
+#define UPSCALE_TRY_JUDGED(before, count) \
+    QTRY_VERIFY2_WITH_TIMEOUT(judgements() >= (before) + (count), qPrintable(status()), 30000)
+
 class UpscaleX11IntegrationTest : public QObject
 {
     Q_OBJECT
@@ -64,6 +71,8 @@ private:
         Performance = 4,
     };
     QString status();
+    /** How often the effect's X11 validation has judged a request so far. */
+    int judgements();
     void configure(bool enabled, Stored resolution = Stored::Performance);
     void movePointer(const QPoint &position);
     /** @p device, which is where an X11 window is, in KWin's logical pixels. */

@@ -50,6 +50,14 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   **Agreed with Jens 2026-09-28:** go through all of them; waits for something
   to happen become condition waits; waits proving something does not happen
   get a signal where cheap, otherwise stay bounded with a comment saying why.
+  **Done 2026-09-28, except the legacy helper path:** 24 waits replaced. The
+  effect counts its X11 validations (`judgements()`), the Wayland client its
+  presented frames, the X11 client gained a round trip; the rule is in
+  `doc/conventions.md`. Left as they are: polling loops and retry backoff in
+  `tools/`, measurement durations in `measure-frame-times.py`, two bounded
+  waits with no signal (commented), the 300 ms in `x11proxy_session_test.cpp`
+  that belongs to item 26, and the 13 in the Wine helper, prepared-list and
+  prepared-session tests, which wait for item 32.
 - **2.** **test, S** – Nightly has published nothing since 2026-09-20 (`c88f842`):
   red 23–27 Sep on `Build / FreeBSD amd64 Package` at `94d93e0` (fixed by
   `ee6b3b2`), then item 1. The release carries none of the stable download

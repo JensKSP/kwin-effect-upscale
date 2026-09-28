@@ -20,6 +20,12 @@ public:
     ~X11Client() override;
     bool show(const QByteArray &identity, const QRect &geometry, bool fullscreen = true);
     bool waitForMapping();
+    /**
+     * Receives everything the X server sent this client before now: a round
+     * trip, then the events it overtook. A configure the window manager sent
+     * before the caller last heard from it has then arrived.
+     */
+    void sync();
     QRect geometry() const;
     bool isFullscreen() const;
     bool mode(const QSize &size);
