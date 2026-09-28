@@ -347,6 +347,17 @@ void UpscaleConfigTest::installedBuildVersion()
     // view, not to the settings page.
     QCOMPARE(build->text(), KWin::UpscaleBuildInfo::version());
     QVERIFY(QRegularExpression(QStringLiteral("^[0-9]+\\.[0-9]+\\.[0-9]+")).match(build->text()).hasMatch());
+    // The record the log gets names every field, labelled, the whole commit
+    // among them; the line the screen shows carries it abbreviated.
+    const QString record = KWin::UpscaleBuildInfo::record().join(QLatin1Char('\n'));
+    for (const auto label : {"Branch: ", "Tag: ", "Commit: ", "Built: ", "Qt: ", "Project: ", "License: GPL-2.0-or-later", "Third-party notices: "}) {
+        QVERIFY2(record.contains(QLatin1String(label)), qPrintable(record));
+    }
+    if (!KWin::UpscaleBuildInfo::commit().isEmpty()) {
+        QCOMPARE(KWin::UpscaleBuildInfo::commit().size(), 40);
+        QVERIFY2(record.contains(KWin::UpscaleBuildInfo::commit()), qPrintable(record));
+        QVERIFY2(KWin::UpscaleBuildInfo::describe().contains(KWin::UpscaleBuildInfo::commit().left(10)), qPrintable(KWin::UpscaleBuildInfo::describe()));
+    }
 #else
     QCOMPARE(build->text(), QStringLiteral("Unknown"));
 #endif

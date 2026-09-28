@@ -15,7 +15,7 @@ Name:           kwin-effect-upscale
 Version:        @VERSION@
 Release:        1%{?dist}
 Summary:        KWin effect that upscales fullscreen windows
-License:        GPL-2.0-or-later
+License:        GPL-2.0-or-later AND MIT
 URL:            https://github.com/JensKSP/kwin-effect-upscale
 Source0:        %{name}-%{version}.tar.gz
 
@@ -68,6 +68,7 @@ DESTDIR=%{buildroot} cmake --install build
 %{_libdir}/qt6/plugins/kwin/effects/plugins/upscale.so
 %{_libdir}/qt6/plugins/kwin/effects/configs/kwin_upscale_config.so
 %config(noreplace) %{_sysconfdir}/xdg/kwinupscalerc
+%{_datadir}/kwin-effect-upscale/
 %{_libdir}/libexec/kwin-upscale-x11/Xwayland
 %{_sysconfdir}/xdg/plasma-workspace/env/kwin-upscale-x11.sh
 

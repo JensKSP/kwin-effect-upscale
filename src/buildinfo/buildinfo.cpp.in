@@ -10,6 +10,8 @@
 
 #include "buildinfo.h"
 
+#include <QStandardPaths>
+
 #include <QStringLiteral>
 #include <QtGlobal>
 
@@ -33,9 +35,19 @@ QString revision()
     return QStringLiteral("@UPSCALE_GIT_HASH@@UPSCALE_GIT_DIRTY@");
 }
 
+QString commit()
+{
+    return QStringLiteral("@UPSCALE_GIT_COMMIT@");
+}
+
 QString branch()
 {
     return QStringLiteral("@UPSCALE_GIT_BRANCH@");
+}
+
+QString tag()
+{
+    return QStringLiteral("@UPSCALE_GIT_TAG@");
 }
 
 QString buildDate()
@@ -43,15 +55,58 @@ QString buildDate()
     return QStringLiteral("@UPSCALE_BUILD_DATE@");
 }
 
+bool reproducibleBuildDate()
+{
+    return @UPSCALE_BUILD_DATE_REPRODUCIBLE@;
+}
+
+// Branch and tag as far as they are known, in parentheses, or nothing.
+static QString origin()
+{
+    QStringList parts;
+    if (!branch().isEmpty()) {
+        parts.append(QStringLiteral("branch ") + branch());
+    }
+    if (!tag().isEmpty()) {
+        parts.append(QStringLiteral("tag ") + tag());
+    }
+    return parts.isEmpty() ? QString() : QStringLiteral(" (") + parts.join(QStringLiteral(", ")) + QStringLiteral(")");
+}
+
+static QString dated()
+{
+    return buildDate() + (reproducibleBuildDate() ? QStringLiteral(" from SOURCE_DATE_EPOCH") : QString());
+}
+
 QString describe()
 {
-    QString text = QStringLiteral("upscale ") + version();
-    if (!branch().isEmpty()) {
-        text += QStringLiteral(" (branch ") + branch() + QStringLiteral(")");
+    QString text = QStringLiteral("upscale ") + version() + origin();
+    // Abbreviated as git abbreviates it: this line is drawn on the screen, and
+    // record() gives the log the whole hash.
+    if (!commit().isEmpty()) {
+        text += QStringLiteral(", commit ") + commit().left(10);
     }
-    text += QStringLiteral(", built ") + buildDate();
+    text += QStringLiteral(", built ") + dated();
     text += QStringLiteral(", Qt ") + QStringLiteral(QT_VERSION_STR);
     return text;
+}
+
+QStringList record()
+{
+    const QString unknown = QStringLiteral("unknown");
+    const QString notices = QStandardPaths::locate(QStandardPaths::GenericDataLocation,
+                                                   QStringLiteral("kwin-effect-upscale/third-party-notices.md"));
+    return {
+        QStringLiteral("Upscale ") + version(),
+        QStringLiteral("  Branch: ") + (branch().isEmpty() ? unknown : branch()),
+        QStringLiteral("  Tag: ") + (tag().isEmpty() ? QStringLiteral("none") : tag()),
+        QStringLiteral("  Commit: ") + (commit().isEmpty() ? unknown : commit()),
+        QStringLiteral("  Built: ") + dated(),
+        QStringLiteral("  Qt: built with ") + QStringLiteral(QT_VERSION_STR) + QStringLiteral(", running ") + QString::fromLatin1(qVersion()),
+        QStringLiteral("  Project: https://github.com/JensKSP/kwin-effect-upscale"),
+        QStringLiteral("  License: GPL-2.0-or-later, https://github.com/JensKSP/kwin-effect-upscale/blob/master/LICENSES/GPL-2.0-or-later.txt"),
+        QStringLiteral("  Third-party notices: ") + (notices.isEmpty() ? QStringLiteral("not installed") : notices),
+    };
 }
 
 void announce()
@@ -63,7 +118,7 @@ void announce()
     // The default logging category is deliberate: a Q_LOGGING_CATEGORY here
     // would collide with the one the effect declares for itself, and this line
     // has to appear with the default logging configuration in every build.
-    qInfo("%s", qUtf8Printable(describe()));
+    qInfo("%s", qUtf8Printable(record().join(QLatin1Char('\n'))));
 }
 
 } // namespace UpscaleBuildInfo

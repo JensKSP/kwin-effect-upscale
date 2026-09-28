@@ -20,6 +20,7 @@
 #pragma once
 
 #include <QString>
+#include <QStringList>
 
 namespace KWin
 {
@@ -43,10 +44,21 @@ QString baseVersion();
 QString revision();
 
 /**
- * The branch or exact tag the build came from, empty when git could not say.
- * A release tarball has no git and therefore no branch.
+ * The full commit the build came from, also on release tags, where the
+ * version carries no hash. Empty when neither git nor the source archive
+ * recorded it.
+ */
+QString commit();
+
+/**
+ * The branch the build came from, empty when it was not built from one: a
+ * detached checkout, a build for a tag, or a source archive that did not
+ * record it.
  */
 QString branch();
+
+/** The tag on the commit the build came from, empty when it carries none. */
+QString tag();
 
 /**
  * When the build ran, as ISO 8601 in UTC. A packaged build reports the date of
@@ -56,13 +68,27 @@ QString branch();
 QString buildDate();
 
 /**
- * One line naming the version, the branch, the build date and the Qt the
- * plugin was built against. This is what goes in a log and in an about box.
+ * Whether buildDate() is the one SOURCE_DATE_EPOCH gave rather than the time
+ * the build ran.
+ */
+bool reproducibleBuildDate();
+
+/**
+ * One line naming the version, the branch and the tag, the abbreviated commit,
+ * the build date and the Qt the plugin was built against. This is the build
+ * line of the developer information.
  */
 QString describe();
 
 /**
- * Writes describe() to the log at information level, once per call.
+ * The whole record, one labelled field per line: describe()'s fields, the Qt
+ * the process runs with, the project, the license and where the third-party
+ * notices are installed. What the log gets when the effect starts.
+ */
+QStringList record();
+
+/**
+ * Writes record() to the log at information level, once per call.
  *
  * The effect calls this when it initializes. It is deliberately not a static
  * initializer: this unit is also linked into the settings module, which would

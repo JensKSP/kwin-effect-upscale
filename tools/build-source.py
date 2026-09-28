@@ -12,6 +12,37 @@ from pathlib import Path
 from release_assets import validate_version
 
 
+def git(*arguments: str) -> str:
+    """Ask Git, or answer nothing where it cannot say."""
+    result = subprocess.run(["git", *arguments], capture_output=True, text=True, check=False)
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def provenance(revision: str) -> dict[str, str]:
+    """Where the archived sources came from, as far as it is known.
+
+    The build of the extracted archive has no Git, and reads these beside the
+    version. A tree archived for a local check is no commit and has no branch,
+    so for it nothing is recorded rather than something guessed.
+    """
+    commit = git("rev-parse", "--verify", "--quiet", f"{revision}^{{commit}}")
+    if not commit:
+        return {}
+    recorded = {"commit": commit}
+    if os.environ.get("GITHUB_REF_TYPE") == "tag" and os.environ.get("GITHUB_REF_NAME"):
+        recorded["tag"] = os.environ["GITHUB_REF_NAME"]
+    else:
+        branch = os.environ.get("GITHUB_HEAD_REF") or os.environ.get("GITHUB_REF_NAME")
+        if not branch and git("rev-parse", "HEAD") == commit:
+            branch = git("symbolic-ref", "--short", "--quiet", "HEAD")
+        if branch:
+            recorded["branch"] = branch
+        tag = git("describe", "--tags", "--exact-match", commit)
+        if tag:
+            recorded["tag"] = tag
+    return recorded
+
+
 def main() -> None:
     """Test the archive without access to the checkout's Git metadata."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -31,6 +62,7 @@ def main() -> None:
         "# SPDX-FileCopyrightText: None\n# SPDX-License-Identifier: CC0-1.0\n"
         + arguments.version
         + "\n"
+        + "".join(f"{field}={value}\n" for field, value in provenance(arguments.revision).items())
     )
     archive = artifacts / f"{name}.tar.gz"
     subprocess.run(

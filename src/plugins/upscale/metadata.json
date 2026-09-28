@@ -10,7 +10,8 @@
         "Category": "Appearance",
         "Description": "Render games at a lower resolution and upscale them to the display’s native resolution for better performance.",
         "EnabledByDefault": true,
-        "License": "GPL",
-        "Name": "Upscale"
+        "License": "GPL-2.0-or-later",
+        "Name": "Upscale",
+        "Website": "https://github.com/JensKSP/kwin-effect-upscale"
     }
 }

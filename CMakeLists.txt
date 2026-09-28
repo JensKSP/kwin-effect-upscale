@@ -214,6 +214,10 @@ include(UpscaleInstrumentation)
 
 add_subdirectory(src/plugins/upscale)
 add_subdirectory(src/x11proxy)
+# The third-party notices go with every package, with or without the settings
+# module, where they can be read offline. Beside the data rather than among a
+# distribution's documents, whose directory differs between distributions.
+install(FILES doc/third-party-notices.md DESTINATION ${KDE_INSTALL_DATADIR}/kwin-effect-upscale)
 # Retain the old preparation helper for explicit development builds while the
 # X11 proxy is validated. Normal builds and packages must not install or
 # activate a service that changes Wine prefixes.
