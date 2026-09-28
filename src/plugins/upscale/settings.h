@@ -177,8 +177,8 @@ private:
  * rest, and a null profile takes the global layer entire.
  *
  * This reads configuration that has already been parsed, not the disk. It is
- * cheap enough to call when a window's identity changes and on reconfigure,
- * and it is never called while a frame is being painted.
+ * cheap enough to call when a window's identity changes, on reconfigure and
+ * while preparing a frame or its diagnostics.
  */
 UpscaleSettings upscaleResolveSettings(const UpscaleApplication *claimed);
 

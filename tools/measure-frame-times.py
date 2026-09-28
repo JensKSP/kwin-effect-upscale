@@ -28,27 +28,26 @@ import contextlib
 import csv
 import math
 import os
+import re
+import shlex
 import shutil
 import signal
 import subprocess
 import sys
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TextIO
 
 from effect_control import (
     PRESETS,
     RATIOS,
     configure,
     qdbus,
-    reset_game_resolution,
     run_command,
     status,
 )
 from frame_metrics import Sample, Summary, parse_status, summarize
-from game_output import clear_game_log, game_log, game_reported_rate, game_reported_renderer
-from game_settings import Outcome, prepare, still_holds
 from measurement_report import (
     announce,
     compare,
@@ -58,113 +57,16 @@ from measurement_report import (
     write_markdown,
 )
 
-if TYPE_CHECKING:
-    # Only ever named in an annotation, and this module postpones those.
-    from collections.abc import Mapping
 
-
-@dataclass(frozen=True)
-class Game:
-    """How one game is started so that it renders without a person present.
-
-    A demo or profile mode is what makes a run repeatable: the same scene, the
-    same route, the same length, so that two runs differ by the resolution and
-    by nothing else.
-    """
-
-    program: str
-    arguments: tuple[str, ...] = ()
-    window: str = ""
-    keys: tuple[str, ...] = ()
-    startup: float = 10.0
-    environment: Mapping[str, str] = field(default_factory=dict)
-
-
-GAMES = {
-    "supertuxkart": Game(
-        program="supertuxkart",
-        # Drives itself for a fixed time and prints its own frame count when it
-        # finishes, which is the game's render throughput rather than what the
-        # screen presented. Both are worth having: they answer different
-        # questions and disagree whenever frames are dropped or repeated.
-        arguments=("--profile-time={seconds}", "--fullscreen"),
-        window="supertuxkart",
-        # SDL chooses its video driver per launch, and on this session it picks
-        # X11 even where Wayland is available. An Xwayland client never binds
-        # the compositor's wl_output, so the advertised-mode method cannot reach
-        # it and the game renders full size. Measured 2026-09-19: forced to
-        # Wayland the same build accepts the advertised mode and commits it.
-        environment={"SDL_VIDEODRIVER": "wayland"},
-    ),
-    "extremetuxracer": Game(
-        program="etr",
-        # No demo mode of its own. The menu is keyboard driven, so the run is
-        # started by sending keys to the window; the sequence follows the menu,
-        # which moves between versions. Read off 0.8.4 on 2026-09-20 by
-        # screenshotting every step: Return leaves the player-and-character
-        # screen, Down selects Practice over Enter an event, Return opens the
-        # course list, a second Return takes the course the list already
-        # highlights and puts Tux at its start gate, and Up pushes him off it.
-        # That second Return is the one a four-key sequence was missing: its Up
-        # moved the highlight inside the course list instead of starting
-        # anything, so every run measured a menu. Practice rather than an
-        # event, because an event depends on what this machine's player has
-        # unlocked. Tux then slides the course unattended.
-        window="etr",
-        keys=("Return", "Down", "Return", "Return", "Up"),
-        # Its window is up in about a second and every screen in the sequence
-        # answers a key immediately, so the long default start only left a
-        # person watching a menu. The keys wait for the window rather than for
-        # a fixed time, so this is how long the game gets to draw its first
-        # screen, not how long the sequence takes.
-        startup=3.0,
-    ),
-    "left4dead2": Game(
-        program="steam",
-        # Steam hands the request to the running client, so the launch returns
-        # long before the game appears and the wait covers the whole startup.
-        arguments=("-applaunch", "550", "-novid", "-console"),
-        window="left4dead2",
-        startup=90.0,
-    ),
-}
-
-
-# The effect answers with a line written for programs: untranslated keys and
-# values, one space apart. The prose above it is built with i18n and says the
-# same things in the session's language, which is exactly why it is not read
-# here -- a harness that parsed it would report "nothing was measured" on any
-# machine not running in English.
-def launch(plan: Plan, seconds: int) -> subprocess.Popen[str]:
-    """Start the game in whatever mode renders without a person at the keyboard.
-
-    @p seconds is how long the game has to keep rendering, which is the whole
-    run and not only its sampled part: a demo mode told to last as long as the
-    sampling window would stop while the warm-up was still being discarded.
-    """
-    definition = GAMES[plan.game]
-    program = shutil.which(definition.program)
-    if not program:
-        missing = f"{definition.program} is not installed"
-        raise SystemExit(missing)
-    arguments = [item.format(seconds=seconds) for item in definition.arguments]
-    # A new process group, so that stopping the run stops the game and anything
-    # it started rather than leaving a renderer behind holding the screen.
-    environment = dict(os.environ)
-    environment.update(definition.environment)
-    # SDL picks its video driver per launch, so naming one is how a game is
-    # made a Wayland client or an X11 client on the same session.
-    if plan.window_system:
-        environment["SDL_VIDEODRIVER"] = plan.window_system
-    if plan.renderer:
-        arguments.append(f"--render-driver={plan.renderer}")
+def launch(plan: Plan, seconds: int, log: TextIO) -> subprocess.Popen[str]:
+    """Start the supplied argument vector, substituting only its duration token."""
+    arguments = [item.replace("{seconds}", str(seconds)) for item in plan.command]
     return subprocess.Popen(
-        [program, *arguments],
-        stdout=subprocess.PIPE,
+        arguments,
+        stdout=log,
         stderr=subprocess.STDOUT,
         text=True,
         start_new_session=True,
-        env=environment,
     )
 
 
@@ -201,8 +103,7 @@ def focus_window(window: str) -> str:
     # well, because that property belongs to an X11 window manager and nothing
     # maintains it. getwindowfocus asks the X server where it will actually
     # send key events, and its answer is compared by window id rather than by
-    # name: a class name is not the instance name the search matched, and
-    # Extreme Tux Racer's differ by more than case.
+    # name: a class name need not equal the instance name the search matched.
     focused = run_command(["xdotool", "getwindowfocus"]).stdout.strip()
     if focused not in identifiers:
         return (
@@ -212,32 +113,24 @@ def focus_window(window: str) -> str:
     return ""
 
 
-def send_keys(game: str) -> str:
+def send_keys(plan: Plan) -> str:
     """Walk a menu-driven game into a running scene, where it needs one.
 
     Returns what went wrong, or nothing when the keys were sent.
     """
-    definition = GAMES[game]
-    if not definition.keys:
+    if not plan.keys:
         return ""
     if not shutil.which("xdotool"):
         return "xdotool is not installed, so the game was left in its menu"
-    window = definition.window
+    window = plan.window
     if not wait_for_window(window, seconds=30):
         return f"no {window} window appeared, so no keys were sent and the game stayed in its menu"
-    # Focus the window once, then type into it as a person would. The keys used
-    # to be delivered with "xdotool key --window", which sends them with
-    # XSendEvent: a toolkit is free to ignore such an event or to handle it
-    # inconsistently, and SFML does the latter. Observed on Extreme Tux Racer
-    # 0.8.4, 2026-09-20: one Down moved the menu selection two entries and the
-    # Return after it did nothing, so every run measured the main menu while
-    # reporting that its keys had been sent. Without --window, xdotool uses the
-    # XTEST extension, which is indistinguishable from real typing; the same
-    # sequence then walks the menu exactly one step per key.
+    # XTEST delivers ordinary input; XSendEvent can be ignored by toolkits.
+    # Check focus before sending keys so they cannot reach another window.
     failure = focus_window(window)
     if failure:
         return failure
-    for key in definition.keys:
+    for key in plan.keys:
         # Long enough for a screen to appear, short enough that nobody watches
         # a menu for ten seconds before a run begins.
         time.sleep(0.6)
@@ -250,18 +143,17 @@ def send_keys(game: str) -> str:
     return ""
 
 
-def stop(process: subprocess.Popen[str]) -> str:
-    """End the run and collect whatever the game said on its way out."""
+def stop(process: subprocess.Popen[str]) -> None:
+    """End the process group while its output remains in the run log."""
     if process.poll() is None:
         with contextlib.suppress(ProcessLookupError, PermissionError):
             os.killpg(os.getpgid(process.pid), signal.SIGTERM)
     try:
-        output, _ = process.communicate(timeout=30)
+        process.wait(timeout=30)
     except subprocess.TimeoutExpired:
         with contextlib.suppress(ProcessLookupError, PermissionError):
             os.killpg(os.getpgid(process.pid), signal.SIGKILL)
-        output, _ = process.communicate(timeout=30)
-    return output or ""
+        process.wait(timeout=30)
 
 
 @dataclass
@@ -269,11 +161,18 @@ class Plan:
     """How one run is conducted, so that a run is described rather than listed."""
 
     game: str = ""
-    seconds: int = 60
+    command: tuple[str, ...] = ()
+    window: str = ""
+    startup: float = 10.0
+    keys: tuple[str, ...] = ()
+    rate_pattern: str = ""
+    renderer_pattern: str = ""
+    logs: Path = Path("build/measurements")
+    seconds: float = 60
     interval: float = 2.0
     warm_up: float = 10.0
     sharpening: bool = False
-    # Empty leaves the game to choose, which is what a player gets.
+    # Expectations only; the supplied command selects the protocol and renderer.
     window_system: str = ""
     renderer: str = ""
     # Which screen the run is about, so a session with several is unambiguous.
@@ -294,41 +193,36 @@ def measure(
         summary = Summary(game=game, preset=preset, run_id=run_id, repeat=repeat)
         summary.notes.append(f"not measured: {misconfigured}")
         return summary, []
-    # Before anything starts, so the run is not inheriting the last one's size.
-    clear_game_log(game)
-    settings = prepare(game, plan.output)
-    print(f"      settings           {settings.describe()}", flush=True)
-    reset = reset_game_resolution(game, plan.output)
-    startup = GAMES[game].startup
-    # The game outlives the sampling window by the time it spends starting and
-    # warming up, and then by a margin: a demo that ends one second early takes
-    # the last sample with it and leaves the run one reading short.
-    process = launch(plan, int(startup + warm_up + seconds + 15))
+    # Keep stdout in a file: a full pipe would stall the client being measured.
+    plan.logs.mkdir(parents=True, exist_ok=True)
+    log_path = plan.logs / f"{run_id or 'run'}.log"
     samples: list[Sample] = []
-    try:
-        time.sleep(startup)
-        driven = send_keys(game)
-        # Shaders compile and caches fill on the first frames of a scene, and
-        # they do it again at a resolution the game has not drawn before. A run
-        # that counted them would charge the change of resolution for work that
-        # happens once.
-        time.sleep(warm_up)
-        started = time.monotonic()
-        # A game that never reached its scene is sitting in a menu, and a menu
-        # renders whatever it likes at whatever rate it likes. Sampling it
-        # produces figures that look like a measurement and describe nothing,
-        # which is how three runs tonight reported a main menu as a benchmark.
-        while not driven and time.monotonic() - started < seconds:
-            sample = parse_status(status(tool))
-            sample.elapsed = round(time.monotonic() - started, 1)
-            sample.run_id = run_id
-            samples.append(sample)
-            if process.poll() is not None:
-                break
-            time.sleep(interval)
-    finally:
-        output = stop(process)
-    summary = summarize(game, preset, samples, GAMES[game].window)
+    with log_path.open("w") as log:
+        process = launch(plan, int(plan.startup + warm_up + seconds + 15), log)
+        try:
+            time.sleep(plan.startup)
+            driven = send_keys(plan)
+            # Shaders compile and caches fill on the first frames of a scene, and
+            # they do it again at a resolution the game has not drawn before. A run
+            # that counted them would charge the change of resolution for work that
+            # happens once.
+            time.sleep(warm_up)
+            started = time.monotonic()
+            # A game that never reached its scene is sitting in a menu, and a menu
+            # renders whatever it likes at whatever rate it likes. Sampling it
+            # produces figures that look like a measurement and describe nothing,
+            # which is how three runs tonight reported a main menu as a benchmark.
+            while not driven and time.monotonic() - started < seconds:
+                sample = parse_status(status(tool))
+                sample.elapsed = round(time.monotonic() - started, 1)
+                sample.run_id = run_id
+                samples.append(sample)
+                if process.poll() is not None:
+                    break
+                time.sleep(interval)
+        finally:
+            stop(process)
+    summary = summarize(game, preset, samples, plan.window)
     # Readings taken while the effect described some other window are not this
     # game's frames. Without this a run reports the desktop.
     if not any(sample.selected for sample in samples):
@@ -338,7 +232,7 @@ def measure(
     record_conditions(
         summary,
         plan,
-        Conducted(run_id, repeat, settings, driven, output, reset),
+        Conducted(run_id, repeat, driven, log_path.read_text(errors="replace")),
     )
     return summary, samples
 
@@ -349,10 +243,8 @@ class Conducted:
 
     run_id: str = ""
     repeat: int = 1
-    settings: Outcome = field(default_factory=Outcome)
     driven: str = ""
     spoken_output: str = ""
-    reset: str = ""
 
 
 def record_conditions(summary: Summary, plan: Plan, done: Conducted) -> None:
@@ -361,18 +253,13 @@ def record_conditions(summary: Summary, plan: Plan, done: Conducted) -> None:
     Kept apart from conducting the run so that neither is read through the
     other: one starts a game and waits, this one writes down what that was.
     """
-    # What the game says it did, against what it was asked to do. A request is
-    # not proof: SDL falls back to another video driver without complaint, and
-    # a renderer a build does not carry is simply not the one that ran. A run
-    # that measured something other than what it was set up to measure has to
-    # say so rather than be read as the case it was named after.
-    summary.started_at = done.reset
-    summary.settings = done.settings.describe()
-    # The application writes its own settings on the way out, so what was
-    # verified before the run is not necessarily what the run ended with.
-    kept = still_holds(plan.game)
-    if not kept.controlled:
-        summary.notes.append(f"settings changed while running: {kept.describe()}")
+    summary.settings = (
+        "Application settings are supplied by the operator; not modified or verified."
+    )
+    summary.command = list(plan.command)
+    summary.window = plan.window
+    summary.rate_pattern = plan.rate_pattern
+    summary.renderer_pattern = plan.renderer_pattern
     summary.run_id = done.run_id
     summary.repeat = done.repeat
     summary.requested_window_system = plan.window_system
@@ -383,21 +270,48 @@ def record_conditions(summary: Summary, plan: Plan, done: Conducted) -> None:
     summary.sampled_every = plan.interval
     if done.driven:
         summary.notes.append(done.driven)
-    spoken = done.spoken_output + game_log(plan.game)
-    summary.game_rate = game_reported_rate(spoken)
-    summary.renderer_used = game_reported_renderer(spoken, plan.game)
-    if plan.renderer and summary.renderer_used:
-        wanted = plan.renderer.replace("gl", "opengl")
-        if wanted not in summary.renderer_used.lower().replace(" ", ""):
-            summary.notes.append(
-                f"asked for the {plan.renderer} renderer but the game reports "
-                f"{summary.renderer_used!r}; this run did not measure {plan.renderer}"
-            )
+    rate = reported_value(done.spoken_output, plan.rate_pattern)
+    if rate:
+        try:
+            value = float(rate)
+            if math.isfinite(value) and value >= 0:
+                summary.game_rate = value
+            else:
+                summary.notes.append("the supplied rate pattern produced an invalid rate")
+        except ValueError:
+            summary.notes.append("the supplied rate pattern did not produce a number")
+    summary.renderer_used = reported_value(done.spoken_output, plan.renderer_pattern)
+    if (
+        plan.renderer
+        and summary.renderer_used
+        and plan.renderer.casefold() not in summary.renderer_used.casefold()
+    ):
+        summary.notes.append(
+            f"expected renderer {plan.renderer!r}, observed {summary.renderer_used!r}"
+        )
     if plan.window_system and summary.window_system and summary.window_system != plan.window_system:
         summary.notes.append(
             f"asked for the {plan.window_system} window system but the effect saw "
             f"{summary.window_system}; this run did not measure {plan.window_system}"
         )
+
+
+def reported_value(output: str, pattern: str) -> str:
+    """Read one explicitly supplied capture pattern, or leave the value unknown."""
+    found = re.search(pattern, output, re.MULTILINE) if pattern else None
+    return (found.group(1) or "").strip() if found else ""
+
+
+def capture_pattern(text: str) -> str:
+    """Reject invalid output patterns before a run changes any settings."""
+    try:
+        pattern = re.compile(text)
+    except re.error as problem:
+        raise argparse.ArgumentTypeError(str(problem)) from problem
+    if pattern.groups != 1:
+        message = "use exactly one capture group for the reported value"
+        raise argparse.ArgumentTypeError(message)
+    return text
 
 
 # What a reading needs beside it to stand on its own: which run it belongs to
@@ -477,10 +391,27 @@ def positive_seconds(text: str) -> float:
     return value
 
 
-def main(argv: list[str] | None = None) -> int:
-    """Run the comparison the handbook's matrix asks for and report it."""
+def parse_arguments(argv: list[str] | None) -> tuple[argparse.Namespace, list[str]]:
+    """Validate launch and measurement inputs before changing session settings."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("game", choices=sorted(GAMES))
+    parser.add_argument("--name", default="application", help="label for the report files")
+    parser.add_argument("--window", required=True, help="window identity in the effect's metrics")
+    parser.add_argument("--startup", type=waiting_seconds, default=10.0)
+    parser.add_argument("--key", action="append", default=[], help="X11 key to send after startup")
+    parser.add_argument(
+        "--rate-pattern", type=capture_pattern, default="", help="stdout regex capturing a rate"
+    )
+    parser.add_argument(
+        "--renderer-pattern",
+        type=capture_pattern,
+        default="",
+        help="stdout regex capturing the renderer",
+    )
+    parser.add_argument(
+        "command",
+        nargs=argparse.REMAINDER,
+        help="-- program [arguments]; {seconds} expands to run duration",
+    )
     parser.add_argument(
         "--presets",
         default="native,quality,performance",
@@ -501,13 +432,12 @@ def main(argv: list[str] | None = None) -> int:
         "--window-system",
         default="",
         choices=["", "wayland", "x11"],
-        help="tell the game which window system to use",
+        help="expected window system; select it in the supplied command",
     )
     parser.add_argument(
         "--renderer",
         default="",
-        choices=["", "gl", "vulkan"],
-        help="tell the game which graphics API to use",
+        help="expected renderer; select it in the supplied command",
     )
     parser.add_argument("--output", type=Path, default=Path("build/measurements"))
     parser.add_argument(
@@ -515,17 +445,41 @@ def main(argv: list[str] | None = None) -> int:
     )
     options = parser.parse_args(argv)
 
+    command = options.command[1:] if options.command[:1] == ["--"] else options.command
+    if not command or not options.window.strip():
+        parser.error("supply a command after -- and a nonempty --window")
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", options.name):
+        parser.error("--name must contain only letters, digits, underscores and hyphens")
+    if options.repeats < 1:
+        parser.error("--repeats must be positive")
     presets = [name.strip() for name in options.presets.split(",") if name.strip()]
     unknown = [name for name in presets if name not in PRESETS]
+    if not presets:
+        parser.error("supply at least one preset")
     if unknown:
         parser.error(f"unknown preset(s): {', '.join(unknown)}")
+    options.command = command
+    return options, presets
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Run the requested comparisons and report their observations."""
+    options, presets = parse_arguments(argv)
     if not os.environ.get("WAYLAND_DISPLAY") and not os.environ.get("DISPLAY"):
-        parser.error("no session to measure; this runs on a real desktop, not in a container")
+        print("no session to measure; this runs on a real desktop, not in a container")
+        return 1
 
     summaries: list[Summary] = []
     rows: list[tuple[Summary, Sample]] = []
     plan = Plan(
-        game=options.game,
+        game=options.name,
+        command=tuple(options.command),
+        window=options.window,
+        startup=options.startup,
+        keys=tuple(options.key),
+        rate_pattern=options.rate_pattern,
+        renderer_pattern=options.renderer_pattern,
+        logs=options.output,
         seconds=options.seconds,
         interval=options.interval,
         warm_up=options.warm_up,
@@ -553,7 +507,8 @@ def main(argv: list[str] | None = None) -> int:
                 number,
                 total,
                 {
-                    "name": f"{options.game} at {preset}",
+                    "name": f"{options.name} at {preset}",
+                    "command": shlex.join(plan.command),
                     "repeat": f"{repeat + 1} of {options.repeats}",
                     "window API": plan.window_system or "the game chooses",
                     "graphics API": plan.renderer or "the game chooses",
@@ -563,7 +518,7 @@ def main(argv: list[str] | None = None) -> int:
                     "sampled for": f"{options.seconds} s after {options.warm_up} s warm-up",
                 },
             )
-            run_id = f"{options.game}-{stamp}-{repeat + 1:02d}-{preset}"
+            run_id = f"{options.name}-{stamp}-{repeat + 1:02d}-{preset}"
             summary, samples = measure(plan, preset, run_id, repeat + 1)
             summary.asked_for = preset_size(preset, conditions.output_pixels)
             summaries.append(summary)
@@ -571,7 +526,7 @@ def main(argv: list[str] | None = None) -> int:
             report(summary)
             records.append(asdict(summary))
 
-    stem = options.output / f"{options.game}-{stamp}"
+    stem = options.output / f"{options.name}-{stamp}"
     write_samples(stem.with_suffix(".csv"), rows)
     write_json(stem.with_suffix(".json"), conditions, records)
     write_markdown(stem.with_suffix(".md"), conditions, records)

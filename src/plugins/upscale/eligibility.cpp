@@ -119,9 +119,7 @@ static bool showingOnItsOutput(EffectWindow *window)
 // output at scale 1.45 is 2648.28 x 1489.66 logical, and a client can only ever
 // commit whole pixels, so no window can equal that rectangle exactly. Comparing
 // the two as they stand therefore refuses a window that covers the screen
-// completely: measured on 2026-09-19, a fullscreen SuperTuxKart whose image
-// reached all four edges of the screen was refused for coverage, at the one
-// desktop scale the earlier evidence had never been gathered at.
+// completely.
 //
 // The question is settled where the answer is defined, in the device pixels the
 // scaler reads and writes. Two edges that round to the same pixel cover the same
@@ -130,11 +128,9 @@ static bool samePixel(double first, double second, double scale)
 {
     // Within one device pixel, rather than rounding each side and comparing.
     // Rounding on its own is not enough: two edges a fraction of a pixel apart
-    // can still fall either side of a rounding boundary. Measured 2026-09-19
-    // on a 3840 x 2160 output at scale 1.45, a fullscreen SuperTuxKart window
-    // was 1490.3 logical high against an output 1489.7 high — 2160.9 device
-    // pixels against 2160.1 — and was refused for a difference no pixel can
-    // show and no frame can draw.
+    // can still fall either side of a rounding boundary. At scale 1.45,
+    // logical heights of 1490.3 and 1489.7 differ by less than one device
+    // pixel but round to different integers.
     return std::abs(first - second) * scale <= 1.0;
 }
 

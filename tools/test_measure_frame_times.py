@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Regression tests for reading the effect's measurements out of its status."""
 
+import argparse
+import io
 import runpy
 import subprocess
 import sys
@@ -16,8 +18,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).parent))
 
 HARNESS = runpy.run_path(str(Path(__file__).with_name("measure-frame-times.py")))
-game_reported_rate = HARNESS["game_reported_rate"]
-game_reported_renderer = HARNESS["game_reported_renderer"]
+reported_value = HARNESS["reported_value"]
 
 from effect_control import screen_pixels  # noqa: E402
 from frame_metrics import Sample, Summary, parse_status, summarize  # noqa: E402
@@ -31,7 +32,7 @@ from measurement_report import Environment, write_markdown  # noqa: E402
 # Disagreeing numbers prove that here without writing the fixture in a language
 # this project does not otherwise use: a parser that read the prose would
 # report 1.0 and 99 frames, which no assertion below accepts.
-SCALING = """Desired: 2560 x 1440 requested from SuperTuxKart as its screen mode
+SCALING = """Desired: 2560 x 1440 requested from Test application as its screen mode
 Supplied input: 1 x 1
 Destination: 9 x 9
 FSR 1, sharpening 0%
@@ -39,7 +40,7 @@ Presented at 1.0/s, fixed refresh.
 Presented: 1.0/s average, 1% low 1.0/s, 99th percentile 1.0 ms (99 frames)
 metrics: presented=118.40 low=61.20 p99=20.400 worst=31.700 frames=1024 \
 client=117.90 repaints=118.20 interval=1.000 supplied=2560x1440 \
-destination=3840x2160 window=supertuxkart scaling=1 selected=1 \
+destination=3840x2160 window=test-application scaling=1 selected=1 \
 windowsystem=wayland buffer=gpu""".replace("\\\n", "")
 
 # The same window before the first sampling interval has completed. The line is
@@ -48,7 +49,7 @@ windowsystem=wayland buffer=gpu""".replace("\\\n", "")
 UNMEASURED = """Desired: Select 2560 x 1440 in the game
 Supplied input: 3840 x 2160
 Inactive: the window is not fullscreen or a selected borderless window covering its output.
-metrics: supplied=3840x2160 destination=3840x2160 window=supertuxkart scaling=0 selected=0"""
+metrics: supplied=3840x2160 destination=3840x2160 window=test-application scaling=0 selected=0"""
 
 # A build that predates the machine line, or any answer without one.
 NO_CONTRACT = """Desired: Automatic (no request)
@@ -138,7 +139,9 @@ class SummarizeTest(unittest.TestCase):
 
     def test_uses_the_median_and_reports_the_spread(self) -> None:
         """One wild sample moves the spread, not the figure being compared."""
-        summary = summarize("supertuxkart", "quality", self.samples([100.0, 102.0, 101.0, 60.0]))
+        summary = summarize(
+            "test-application", "quality", self.samples([100.0, 102.0, 101.0, 60.0])
+        )
         self.assertEqual(summary.samples, 4)
         self.assertAlmostEqual(measured(summary.presented_rate), 100.5)
         self.assertAlmostEqual(measured(summary.presented_spread), 42.0)
@@ -151,19 +154,19 @@ class SummarizeTest(unittest.TestCase):
         would call a real change inconclusive, or an inconclusive one real,
         depending only on where the rates happened to sit.
         """
-        summary = summarize("supertuxkart", "quality", self.samples([100.0, 50.0]))
+        summary = summarize("test-application", "quality", self.samples([100.0, 50.0]))
         self.assertAlmostEqual(measured(summary.presented_spread), 50.0)
         # 1000/50 - 1000/100 = 20 - 10.
         self.assertAlmostEqual(measured(summary.frame_time_spread), 10.0)
 
     def test_frame_time_is_the_reciprocal_of_the_rate(self) -> None:
         """The reported frame time follows the rate it was derived from."""
-        summary = summarize("supertuxkart", "native", self.samples([50.0]))
+        summary = summarize("test-application", "native", self.samples([50.0]))
         self.assertAlmostEqual(measured(summary.frame_time), 20.0)
 
     def test_samples_that_measured_nothing_are_left_out(self) -> None:
         """Readings taken before the instrument had a rate do not count."""
-        summary = summarize("supertuxkart", "native", self.samples([None, None, 80.0]))
+        summary = summarize("test-application", "native", self.samples([None, None, 80.0]))
         self.assertEqual(summary.samples, 1)
         self.assertAlmostEqual(measured(summary.presented_rate), 80.0)
 
@@ -174,14 +177,14 @@ class SummarizeTest(unittest.TestCase):
         window it can describe, so a game that never appeared leaves the
         desktop's frame rate where the game's should have been.
         """
-        summary = summarize("supertuxkart", "quality", [parse_status(OTHER_WINDOW)])
+        summary = summarize("test-application", "quality", [parse_status(OTHER_WINDOW)])
         self.assertEqual(summary.samples, 0)
         self.assertIsNone(summary.presented_rate)
         self.assertTrue(any("another window" in note for note in summary.notes))
 
     def test_a_run_that_measured_nothing_says_so(self) -> None:
         """An empty run reports a note rather than an invented figure."""
-        summary = summarize("supertuxkart", "native", self.samples([None]))
+        summary = summarize("test-application", "native", self.samples([None]))
         self.assertEqual(summary.samples, 0)
         self.assertIsNone(summary.presented_rate)
         self.assertTrue(summary.notes)
@@ -227,7 +230,7 @@ class WrittenReportTest(unittest.TestCase):
         """
         runs = [
             Summary(
-                game="supertuxkart",
+                game="test-application",
                 preset="quality",
                 supplied="2560x1440",
                 destination="3840x2160",
@@ -249,17 +252,58 @@ class WrittenReportTest(unittest.TestCase):
         self.assertGreaterEqual(len(table), 3, "expected a header, a rule and a row")
 
 
-class GameReportedRateTest(unittest.TestCase):
-    """The rate a game's own demo mode prints, where it prints one."""
+class CommandTest(unittest.TestCase):
+    """Arbitrary commands and explicit observations replace built-in games."""
 
-    def test_reads_supertuxkart_profile_output(self) -> None:
-        """Its profile summary gives frames and time, not a rate."""
-        output = "[info   ] profile: Number of frames: 3600 time 60.0 ."
-        self.assertAlmostEqual(game_reported_rate(output), 60.0)
+    def test_launch_preserves_arguments_and_only_expands_duration(self) -> None:
+        """Spaces, shell syntax and unrelated braces remain literal arguments."""
+        plan = HARNESS["Plan"](
+            command=("/opt/any program", "--time={seconds}", "a b", "$(touch nope)", "{other}"),
+            renderer="vulkan",
+            window_system="wayland",
+        )
+        with mock.patch("subprocess.Popen") as opened:
+            HARNESS["launch"](plan, 75, io.StringIO())
+        self.assertEqual(
+            opened.call_args.args[0],
+            ["/opt/any program", "--time=75", "a b", "$(touch nope)", "{other}"],
+        )
+        self.assertNotIn("env", opened.call_args.kwargs)
+        self.assertNotIn("shell", opened.call_args.kwargs)
 
-    def test_missing_output_is_not_a_rate_of_zero(self) -> None:
-        """A game that printed nothing is reported as having printed nothing."""
-        self.assertIsNone(game_reported_rate("no summary here"))
+    def test_output_is_unknown_without_an_explicit_pattern(self) -> None:
+        """Familiar-looking output is not assumed to be a measurement."""
+        self.assertEqual(reported_value("FPS: 60 renderer: Vulkan", ""), "")
+        self.assertEqual(reported_value("rate=42.5", r"rate=(\S+)"), "42.5")
+        self.assertEqual(reported_value("no summary", r"rate=(\S+)"), "")
+
+    def test_bad_patterns_are_rejected_before_launch(self) -> None:
+        """Malformed and ambiguous captures cannot reach the sampling loop."""
+        for pattern in ("[", "rate=.*", "(a)(b)"):
+            with self.subTest(pattern=pattern), self.assertRaises(argparse.ArgumentTypeError):
+                HARNESS["capture_pattern"](pattern)
+
+    def test_expected_renderer_is_not_reported_as_observed(self) -> None:
+        """The launch intent is recorded separately from output evidence."""
+        plan = HARNESS["Plan"](command=("arbitrary",), renderer="Vulkan", window="target")
+        summary = Summary()
+        HARNESS["record_conditions"](summary, plan, HARNESS["Conducted"]())
+        self.assertEqual(summary.requested_renderer, "Vulkan")
+        self.assertEqual(summary.renderer_used, "")
+        self.assertIsNone(summary.game_rate)
+        self.assertEqual(summary.command, ["arbitrary"])
+        self.assertIn("not modified or verified", summary.settings)
+
+    def test_nonfinite_rates_are_not_measurements(self) -> None:
+        """A supplied parser cannot put NaN or infinity into a report."""
+        plan = HARNESS["Plan"](rate_pattern=r"rate=(\S+)")
+        for value in ("nan", "inf", "-1", "invalid"):
+            summary = Summary()
+            HARNESS["record_conditions"](
+                summary, plan, HARNESS["Conducted"](spoken_output=f"rate={value}")
+            )
+            self.assertIsNone(summary.game_rate)
+            self.assertTrue(summary.notes)
 
 
 if __name__ == "__main__":

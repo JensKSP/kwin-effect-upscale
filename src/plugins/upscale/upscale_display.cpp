@@ -26,6 +26,22 @@
 namespace KWin
 {
 
+void UpscaleEffect::prepareFrame(UpscaleOutput *output)
+{
+    if (!m_inPaint || !output || (m_frame.valid && m_frame.output == output)) {
+        return;
+    }
+    m_frame.window = findCandidate(&m_frame.refusal, output);
+    const Window *internal = m_frame.window ? m_frame.window->window() : nullptr;
+    const UpscaleApplication *claimed = upscaleApplicationForWindow(internal);
+    m_frame.settings = upscaleResolveSettings(claimed);
+    // Request even when no buffer is eligible yet. Auto must reach a window
+    // drawing at full size without relying on the display or a status query.
+    askForSmallerBuffer(output, m_frame.window, claimed);
+    m_frame.output = output;
+    m_frame.valid = true;
+}
+
 EffectWindow *UpscaleEffect::displayed() const
 {
     if (EffectWindow *scaled = candidate()) {
@@ -64,6 +80,9 @@ void UpscaleEffect::paintDisplay(const RenderTarget &target, const RenderViewpor
         m_display.hide();
         return;
     }
+    // Drawing may have invalidated selection through a renderer/color refusal.
+    // Refresh before the display observes it; observation itself only reads.
+    prepareFrame(m_paintOutput);
     EffectWindow *window = displayed();
     if (!window) {
         m_display.hide();
@@ -93,13 +112,8 @@ UpscalePaintResult UpscaleEffect::paintScreen(const RenderTarget &target, const 
 {
     const QScopedValueRollback painting(m_inPaint, true);
     const QScopedValueRollback output(m_paintOutput, screen);
-    m_candidateCached = false;
-    // Resolve this output's candidate now rather than leaving it to whoever
-    // asks first. Resolving is where a window drawing at full size is asked
-    // for a smaller buffer, and such a window is never eligible, so drawWindow
-    // never asks for it; with the display switched off nothing else would, and
-    // the request would never be made.
-    candidate(nullptr, screen);
+    m_frame.valid = false;
+    prepareFrame(screen);
     // The display is drawn after the screen pass, which is after the scaler
     // captured the game's surface. That ordering is what keeps this text out
     // of the captured image and out of the enlargement.

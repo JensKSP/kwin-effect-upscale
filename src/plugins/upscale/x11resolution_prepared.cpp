@@ -70,7 +70,7 @@ void UpscaleX11Resolution::pinPrepared(X11Window *window)
     // Answered already, and presented by this effect from the start: there is
     // no emulated mode to wait for and nothing to validate against one.
     m_requests.insert(window, {window, key, position, size, false, true, true, {}});
-    m_requested.insert(key, size);
+    m_negotiations[key].requested = size;
     // The same sequence a client's own fullscreen request takes; see
     // fullscreenRequest().
     window->blockGeometryUpdates();

@@ -2955,7 +2955,7 @@ against the same Xwayland and KWin in both halves of a pair, because a
 comparison between two different systems says nothing about this one.
 
 What exists is narrower than this requirement. `tools/check-conformance.py`
-runs the pair for three X11 suites through piglit - `xts`, `render`
+runs comparisons for three X11 suites through piglit - `xts`, `render`
 (rendercheck) and `glx` - in the image built from `containers/conformance`,
 started by hand with a render device. `tools/check-wayland-conformance.py` runs
 KWin's own Wayland integration tests, unmodified, in three arms - the effect
@@ -2966,16 +2966,34 @@ in the project VM, never beside a desktop session on its GPU; neither is run by
 a workflow or the default check groups, so the gate is not yet part of the
 release workflow.
 
-The X Test Suite assumes no window manager, and a session without one does not
-exist for this effect: KWin manages every window a test creates, a moment after
-it is mapped. A test that has not finished by then sees KWin place, reparent or
-focus its window in the middle, and anything that makes a client slower - the
-X11 proxy's relay included - moves that moment into more tests. Such cases vary
-between two runs of the stock system as well. XTS has a switch for this,
-`XT_DEBUG_OVERRIDE_REDIRECT`, which creates its windows override-redirect so no
-window manager touches them; its own configuration says it is not for
-verification runs. Whether the X11 half of the gate is judged with it is Jens's
-decision and has not been taken.
+The XTS runner generates the suite's execution configuration against the live
+display and saves it with each arm's results. Setup failure stops the run.
+All arms must finish normally, load the effect, exercise the intended proxy
+policy and complete the same case inventory. Partial results from a timeout
+and missing cases cannot qualify as a passing comparison.
+
+The X Test Suite assumes no window manager. Its protocol acceptance runs on
+an isolated rootful stock Xwayland display hosted by KWin, with three arms:
+bare Xwayland, the production proxy relaying unchanged information, and the
+production proxy advertising a reduced display. The live effect supplies the
+connection policy in the latter two arms. Every passing baseline case must
+remain passing in both proxy arms, and reducing the display must introduce no
+further regression. The runner checks all three comparisons. It never retries a failed
+case until it passes or silently excludes a case.
+
+The startup connection claims Xwayland's required `WM_S0` selection but selects
+no window-management events. KWin sees only the outer surface, on which the
+effect does not act. XTS therefore owns its windows' geometry, focus and
+properties, as the suite expects. `XT_DEBUG_OVERRIDE_REDIRECT` remains `No`:
+its debug mode is not a verification mode. Each arm records the nested display
+and root event mask alongside the generated configuration and results.
+
+KWin's integration and rendering tests remain required for managed windows,
+resolution negotiation, input mapping and presentation. XTS on KWin's managed
+rootless display is diagnostic: asynchronous reparenting and focus changes can
+race assertions even on stock Xwayland. Those differences do not gate protocol
+acceptance; neither does the isolated protocol result establish managed-window
+or physical-display acceptance. Jens approved this separation on 2026-09-28.
 
 A case the Wayland pair excludes by name fails with the effect for a reason that
 is not a defect of it, and `tools/check-wayland-conformance.py` reports it as
@@ -2987,19 +3005,15 @@ excluded rather than dropping it, only in the arm named:
 | `testScreenAddRemove` | acting | a program the effect acts on is told the reduced output mode when it binds the output |
 | `testOpenClose` (input method), `testMaximizeApply`, `testMaximizeApplyNow`, `testMaximizeForce`, `testMaximizeForceTemporarily`, `testMaximizeRemember`, `testFullscreen` (server-side deco), `testMaximizedToFullscreen` (server-side deco), `testMaximizeStateRestoredAfterEnablingOutput` (Full Maximization) | acting | the effect acts on the test's window, fullscreen or covering its output without decoration; asking it for another scale, or giving the scale back, sends a configure of its own, one more than the test counts, and when it goes out depends on the frame at which the window qualifies |
 
-Both halves of a pair carry this effect, loaded and running, with its X11
-proxy in front of the same Xwayland; two settings separate them. In the first
-it acts on nothing, because All applications is off and no profile names the
-suite's programs, which asks whether the effect troubles anything merely by
-being there. In the second All applications is on, so it acts on every program
-presenting full screen or borderless, and a profile names the suite's programs
-in `X11ConnectionExecutable`, because a program is told a smaller screen at
-connection only through a profile; this asks what scaling itself costs. A pair
-whose two halves differ by the effect being absent rather than idle would
-charge every difference to the plugin being loaded at all.
+The Render and GLX pairs carry this effect, loaded and running, with its X11
+proxy in front of the same Xwayland. In the first it acts on nothing. In the
+second All applications is on and a profile names the suite's programs in
+`X11ConnectionExecutable`, so connection-time display advertisement and
+managed-window scaling are both exercised. The isolated XTS arms leave All
+applications off and use only the explicit connection profile.
 
-Decided by Jens on 2026-09-27: **passing both pairs is what qualifies the
-version for 0.3.** Until a pair has produced a verdict, the number stays where
+Decided by Jens on 2026-09-27: **passing the Wayland and X11 comparisons is what
+qualifies the version for 0.3.** Until each has produced a verdict, the number stays where
 it is; a version that claimed the gate before the gate ran would be the one
 claim this separation exists to prevent.
 
@@ -3193,8 +3207,7 @@ for Vulkan) or exclusive. The OpenGL renderer offers a player exclusive
 fullscreen only, so there is no OpenGL borderless cell. Irrlicht's legacy path,
 reached through the environment variable `IRR_DISABLE_NETWM=1` rather than any
 game setting, can still put an OpenGL window over the screen without fullscreen
-state; `tools/check-presentations.py` uses that as a borderless case outside
-the six cells.
+state; that is a borderless case outside the six cells.
 
 | Display path | OpenGL, fullscreen | Vulkan, borderless | Vulkan, exclusive fullscreen |
 | --- | --- | --- | --- |
@@ -3228,8 +3241,8 @@ In every cell:
 - **An automated test proves it.** One command runs all six cells against KWin's
   virtual backend on the minimum supported KWin and fails when any cell fails.
   A cell that could not run is reported as not run, never as passed. No command
-  runs the six cells yet: `tools/check-presentations.py` selects no renderer
-  and has no Vulkan case.
+  runs the six cells yet: the generic presentation runner checks one
+  explicitly supplied launch command at a time.
 
 A cell whose failure has been explained is still a failing cell. "The game
 keeps its resolution in this mode" is a defect to fix, not a limitation to
@@ -3373,33 +3386,46 @@ three decide how a run is conducted:
   game reports its own throughput, report that too. Never present the
   compositor's presented rate as the game's rendered FPS.
 
-`tools/measure-frame-times.py` runs part of the matrix above against a real
-session, for SuperTuxKart, Extreme Tux Racer and Left 4 Dead 2; glmark2 and
-vkmark are not among its games. For each preset it sets the effect's preset
-and sharpening, applies them, rewrites SuperTuxKart's and Extreme Tux Racer's
-own settings to a fixed quality and SuperTuxKart's resolution to the screen's
-own size, starts the game, polls the status at an interval, and reports the
-median of the readings with their spread and the difference from the native
-baseline. It writes every reading to a CSV under `build/measurements/` so that
-a summary can be checked rather than believed, and it marks a difference
-smaller than the spread as inconclusive instead of reporting it as a result.
-It never switches the effect off, so it produces no A0 or B run. It writes the
-preset to the older `Preset` key, which the effect honours only while no
-`Resolution` key exists; where one does, the run measures the stored
-resolution instead.
+`tools/measure-frame-times.py` accepts any program as a command after `--`,
+with an explicit window identity and an optional report name. For each preset
+it writes the effect's `Resolution` and sharpening settings, applies them,
+starts the command, polls the status, and reports the median, spread and
+difference from the native baseline. Every reading is kept in CSV alongside
+a JSON record, Markdown report and process log under `build/measurements/`.
+Differences smaller than the spread are marked inconclusive. It never switches
+the effect off, so it produces no A0 or B run.
 
 ```sh
-python3 -B tools/measure-frame-times.py supertuxkart --presets native,quality,performance
+python3 -B tools/measure-frame-times.py --name trial --window example \
+    --presets native,quality,performance -- /path/to/program arguments
 ```
 
-A run has to render without a person at the keyboard, or repeating it changes
-the scene as well as the resolution:
+The caller supplies a repeatable scene, initial application settings and all
+launch arguments. The tools contain no game definitions, configuration editors
+or built-in log formats. Game-specific behavior in the effect is described
+only by the settings catalogue; implementation decisions use those settings
+and observed protocol state, never a title or executable name.
 
-| Application | How a run is driven | What it reports itself |
-| --- | --- | --- |
-| SuperTuxKart | `--profile-time=<seconds> --fullscreen` drives itself for a fixed time | Frames and elapsed time when it finishes, which is its render throughput |
-| Extreme Tux Racer | No demo mode; the menu is keyboard driven, so keys are sent to the window and Tux then slides the course unattended | Nothing; it is measured through the effect alone |
-| Left 4 Dead 2 | Launched through Steam by application id with the console open (`-applaunch 550 -novid -console`); the script loads no map, so this run is not yet unattended | Nothing; the script reads none of Source's own counters |
+`--startup` sets the delay before warm-up, and repeated `--key` arguments can
+supply an X11 menu sequence. The command can include `{seconds}`, which expands
+to startup, warm-up, sampling time and a margin. Other arguments pass through
+unchanged, without a shell. Environment choices can be supplied through `env`
+as the command. `--window-system` and `--renderer` state expectations; they do
+not append application arguments or set toolkit variables. The observed window
+system comes from the effect. An optional `--rate-pattern` or
+`--renderer-pattern` reads one capture group from the command's standard output;
+without a pattern these observations remain unknown. A rate capture must already
+be in frames per second. The report records the command, window and patterns.
+Application settings are neither changed nor claimed to be verified.
+
+`tools/check-presentations.py` likewise runs one explicit command and checks
+`--window`, `--presentation` and `--acted` or `--no-acted` in its own nested
+session. For example:
+
+```sh
+python3 -B tools/check-presentations.py --build build/native --window example \
+    --presentation windowed --no-acted -- /path/to/program arguments
+```
 
 A game whose resolution is chosen at startup has to be started again for each
 preset, because the request is made before its window exists. The script

@@ -437,9 +437,8 @@ void UpscaleIntegrationTest::autoAsksTheWindowForAFractionalScale()
     // the global limit at exactly that.
     writeCatalogue(integrationEntry(QStringLiteral("MinimumPixels=0\n")));
     configureResolution(true, false, Stored::Quality);
-    // With the display off, which is how most people run the effect. Auto
-    // asks where the candidate is resolved, and a window drawing at full size
-    // was resolved only for the display, so with it off nothing was asked.
+    // Frame preparation must ask even with the display off, before any
+    // smaller buffer can be selected for rendering.
     configureDisplay(false, false);
     const auto pump = [this](WaylandClient &client, QSocketNotifier &notifier) {
         connect(&notifier, &QSocketNotifier::activated, this, [&client]() {
@@ -459,6 +458,13 @@ void UpscaleIntegrationTest::autoAsksTheWindowForAFractionalScale()
         // Quality is two thirds, which the protocol carries in 120ths.
         QTRY_VERIFY2(honouring.preferredScale() == 80,
                      qPrintable(QString::number(honouring.preferredScale()) + QLatin1Char('\n') + status()));
+        // Withdraw a request before the client answers, then enable Auto
+        // again on the same native-size window. Neither step depends on the
+        // display or on polling status to prepare the next frame.
+        configureResolution(false, false, Stored::Quality);
+        QTRY_COMPARE(honouring.preferredScale(), 120);
+        configureResolution(true, false, Stored::Quality);
+        QTRY_COMPARE(honouring.preferredScale(), 80);
         // The report names what Auto asked for, not only the resolution wanted.
         QTRY_VERIFY2(status().contains(QStringLiteral("85 × 85 requested from Upscale integration test as its surface scale")),
                      qPrintable(status()));

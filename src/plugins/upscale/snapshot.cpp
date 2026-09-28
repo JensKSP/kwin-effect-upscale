@@ -290,9 +290,7 @@ QString upscaleHeadsUp(const UpscaleSnapshot &snapshot)
     // the side where it still means something. A screen cannot present more
     // often than it refreshes, so above the refresh the presented rate stops
     // answering what a resolution costs, while the interval between the
-    // buffers the game commits keeps answering it. Measured on 2026-09-19 at
-    // 3840 x 2160 on a 240 Hz screen: SuperTuxKart presented 237/s at native,
-    // quality and performance alike, and drew 493, 833 and 949 frames a second.
+    // buffers the client commits keeps answering it.
     // The recent window, not every frame held, so the figure answers for now.
     // It falls back to the whole window for a caller that fills a snapshot
     // without the statistics behind it, such as the settings page.

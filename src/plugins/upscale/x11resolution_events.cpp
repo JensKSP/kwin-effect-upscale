@@ -64,14 +64,9 @@ void UpscaleX11Resolution::expireState()
     for (X11Window *window : std::as_const(m_watched)) {
         live.insert(keyFor(window));
     }
-    const auto orphaned = [&live](const auto &entry) {
+    m_negotiations.removeIf([&live](const auto &entry) {
         return !live.contains(entry.key());
-    };
-    m_requested.removeIf(orphaned);
-    m_failures.removeIf(orphaned);
-    m_attempts.removeIf(orphaned);
-    m_retries.removeIf(orphaned);
-    m_validation.removeIf(orphaned);
+    });
     // Validation revisions are unique across keys and expiry, so a delayed
     // callback cannot validate a later launch that happens to reuse a PID.
 }

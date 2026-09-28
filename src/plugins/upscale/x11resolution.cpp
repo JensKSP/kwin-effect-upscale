@@ -52,11 +52,7 @@ UpscaleX11Resolution::UpscaleX11Resolution()
         m_pendingMaps.clear();
         ++m_generation;
         m_requests.clear();
-        m_requested.clear();
-        m_failures.clear();
-        m_attempts.clear();
-        m_retries.clear();
-        m_validation.clear();
+        m_negotiations.clear();
         m_waitingForBuffer.clear();
         m_withdrawals.clear();
         m_overdue.clear();
@@ -109,11 +105,7 @@ void UpscaleX11Resolution::reconfigure()
     for (X11Window *window : windows) {
         release(window);
     }
-    m_requested.clear();
-    m_failures.clear();
-    m_attempts.clear();
-    m_retries.clear();
-    m_validation.clear();
+    m_negotiations.clear();
     m_waitingForBuffer.clear();
     m_overdue.clear();
     // m_withdrawals and m_releases stay: they record what the clients are
@@ -143,7 +135,7 @@ bool UpscaleX11Resolution::settled() const
 QSize UpscaleX11Resolution::requested(const Window *window) const
 {
 #if KWIN_BUILD_X11
-    return m_requested.value(keyFor(window));
+    return m_negotiations.value(keyFor(window)).requested;
 #else
     Q_UNUSED(window)
     return {};
@@ -153,7 +145,7 @@ QSize UpscaleX11Resolution::requested(const Window *window) const
 QString UpscaleX11Resolution::failure(const Window *window) const
 {
 #if KWIN_BUILD_X11
-    return m_failures.value(keyFor(window));
+    return m_negotiations.value(keyFor(window)).failure.value_or(QString());
 #else
     Q_UNUSED(window)
     return {};
@@ -311,7 +303,7 @@ UpscaleX11Resolution::Request UpscaleX11Resolution::requestFor(X11Window *window
         return {};
     }
     const QString key = keyFor(window, enteringFullscreen);
-    if (key.isEmpty() || m_failures.contains(key)) {
+    if (key.isEmpty() || m_negotiations.value(key).failure.has_value()) {
         return {};
     }
     const QSize size = upscaleWantedSize(window);
@@ -359,7 +351,8 @@ bool UpscaleX11Resolution::begin(const Request &request)
     // next reconfiguration or the end of its window lifecycle, so restoring a
     // client cannot immediately retry it.
     // Leaving and re-entering fullscreen on the same XID is not replacement.
-    Attempt &attempt = m_attempts[request.key];
+    Negotiation &negotiation = m_negotiations[request.key];
+    Attempt &attempt = negotiation.attempt;
     if (attempt.window != request.window) {
         attempt.window = request.window;
         ++attempt.count;
@@ -378,10 +371,10 @@ bool UpscaleX11Resolution::begin(const Request &request)
                          << "frame" << request.window->frameGeometry() << "target" << request.size
                          << "position" << request.position << "replacement attempt" << attempt.count
                          << "mode already matched" << live.answered;
-    m_requested.insert(request.key, request.size);
+    negotiation.requested = request.size;
     const int generation = m_generation;
     const int revision = ++m_nextValidation;
-    m_validation.insert(request.key, revision);
+    negotiation.validation = revision;
     QTimer::singleShot(s_validationWindow, this, [this, key = request.key, generation, revision]() {
         validate(key, generation, revision);
     });
@@ -398,9 +391,7 @@ void UpscaleX11Resolution::apply(X11Window *window)
     }
     // Fullscreen is a state, not a size, and upscalePresentation() answers the
     // state. A client holds it while its window is still being sized during
-    // startup - measured on Left 4 Dead 2, 2026-09-19: four resizes between
-    // the output size and its own in the first 1.5 seconds, every one of them
-    // fullscreen - and a window this effect has itself made smaller holds it
+    // startup, and a window this effect has itself made smaller holds it
     // as well. Beginning a negotiation there resizes a window that was never
     // presenting full-screen, which is how this effect shrinks a game instead
     // of scaling it. A request already in flight is deliberately exempt: its
@@ -509,7 +500,10 @@ void UpscaleX11Resolution::restore(X11Window *window)
     if (std::ranges::none_of(m_requests, [&request](const Request &other) {
         return other.key == request.key;
     })) {
-        m_requested.remove(request.key);
+        const auto negotiation = m_negotiations.find(request.key);
+        if (negotiation != m_negotiations.end()) {
+            negotiation->requested = {};
+        }
     }
     // present() sized the surface item to the frame so that KWin would paint
     // the whole enlarged image rather than its top-left corner. A client that

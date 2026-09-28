@@ -27,7 +27,7 @@ namespace UpscaleX11
  * URI: `<scheme>://<where>/<program>`. Wine's prefix is an absolute path, so
  * it occupies the path and leaves the authority empty the way `file:///` does:
  *
- *     wine:///home/me/.steam/.../compatdata/228380/pfx/Z:/.../Wreckfest.exe
+ *     wine:///home/me/prefix/Z:/path/to/program.exe
  *
  * A container's identifier is a token instead, so it occupies the authority:
  * `docker://<container>/usr/bin/game`. Those schemes are left open; only Wine

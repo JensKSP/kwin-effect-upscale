@@ -26,7 +26,6 @@ class UpscaleModeOverride;
 class UpscalePreparation;
 class UpscaleWaylandScale;
 class UpscaleX11Resolution;
-class UpscaleWaylandScale;
 class UpscaleScaler;
 class Window;
 
@@ -88,6 +87,9 @@ public:
     void paintDisplay(const RenderTarget &target, const RenderViewport &viewport, UpscaleOutput *screen);
 
 private:
+    // Prepare selection, settings and resolution requests for this paint pass.
+    // Queries below only read the result or inspect current window state.
+    void prepareFrame(UpscaleOutput *output);
     // The window this effect would scale, or null with the one condition that
     // refused it. Paint passes share this decision with their diagnostics.
     EffectWindow *candidate(UpscaleRefusal *refusal = nullptr, UpscaleOutput *output = nullptr) const;
@@ -113,10 +115,15 @@ private:
     // queries must see current buffer, geometry, focus and lock state.
     bool m_inPaint = false;
     UpscaleOutput *m_paintOutput = nullptr;
-    mutable UpscaleOutput *m_candidateOutput = nullptr;
-    mutable bool m_candidateCached = false;
-    mutable QPointer<EffectWindow> m_candidate;
-    mutable UpscaleRefusal m_candidateRefusal = UpscaleRefusal::NoWindow;
+    struct FrameSelection
+    {
+        UpscaleOutput *output = nullptr;
+        QPointer<EffectWindow> window;
+        UpscaleRefusal refusal = UpscaleRefusal::NoWindow;
+        UpscaleSettings settings;
+        bool valid = false;
+    };
+    FrameSelection m_frame;
     std::unique_ptr<UpscaleScaler> m_scaler;
     // Talks to a recognized application when it connects, which is before any
     // window of it exists. It therefore outlives individual windows and is
@@ -130,15 +137,11 @@ private:
     std::unique_ptr<UpscalePreparation> m_preparation;
 
     /** Auto's Wayland half for the selected window, or giving its scale back. */
-    void askForSmallerBuffer(UpscaleOutput *output, EffectWindow *candidate, const UpscaleApplication *claimed) const;
+    void askForSmallerBuffer(UpscaleOutput *output, EffectWindow *candidate, const UpscaleApplication *claimed);
     bool autoWaiting() const;
     // Refused windows are independent. Output colour/configuration changes
     // and window output changes invalidate their refusal without reconfiguration.
     QList<QPointer<EffectWindow>> m_unsupportedColors;
-    // Resolved for the window that was selected, because every preference is
-    // now a global value a profile may override and no two windows need agree.
-    // Updated where the candidate is, which is off the paint path.
-    mutable UpscaleSettings m_settings;
     bool m_failed = false;
     // The largest texture this GPU will allocate, read from the driver rather
     // than assumed. The scaler needs one at the destination size.

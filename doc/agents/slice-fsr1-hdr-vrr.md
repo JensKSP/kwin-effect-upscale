@@ -761,3 +761,38 @@ pre-push stage passed in Trixie on an isolated copy under
 documents. Local documentation links and heading anchors resolved. No
 implementation, rendering test or real-device acceptance was performed for
 this extension.
+
+## Generic benchmark inputs, 2026-09-28
+
+Jens requires game-specific knowledge to live only in the settings catalogue,
+including removal of per-game benchmark code. The effect and proxy already
+select behavior through profile settings. The measurement and presentation
+tools still embed launch arguments, menu sequences, configuration paths and
+log formats for particular titles.
+
+Replace those definitions with explicit command-line inputs: command and
+arguments, window identity, startup time, optional keys and optional output
+patterns. Remove game configuration writers; the operator supplies a repeatable
+scene and initial settings. Record requested protocol and renderer separately
+from observations, without injecting toolkit or game-specific arguments.
+The presentation runner checks one explicitly described case per invocation.
+Update the handbook and regression tests alongside the tools.
+
+Supported-scope acceptance is arbitrary commands preserved as argument vectors,
+measurements restricted to the named window, output parsed only with an explicit
+pattern, and clean maintained-container Python checks. This does not claim new
+performance or hardware results. The existing full physical acceptance matrix
+below remains open. The X11 state cleanup and XTS run remain owned by the
+[resolution-control slice](slice-resolution-control.md#x11-negotiation-ownership-2026-09-28).
+
+Implemented explicit commands and window identities in both benchmark runners,
+and removed `game_settings.py`, `game_output.py` and the remaining per-game
+resolution reset. Optional stdout capture patterns replace built-in log formats;
+commands, patterns and the expected and observed renderer remain separate in
+the record. Process output goes to a run log instead of an undrained pipe.
+Both lint stages, strict typing and the checker regression suite passed in the
+maintained Trixie container. The added tests cover literal argument boundaries,
+duration substitution, unknown observations without patterns, malformed patterns
+and rejection of nonfinite rates. No physical benchmark was run. Jens then
+directed work back to the proxy simplification; no further benchmark scope is
+being added.

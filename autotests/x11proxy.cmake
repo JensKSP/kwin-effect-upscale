@@ -61,3 +61,25 @@ if(UPSCALE_DBUS_RUN_SESSION)
         COMMAND ${UPSCALE_DBUS_RUN_SESSION} -- $<TARGET_FILE:upscale_x11proxy_session_test>
     )
 endif()
+
+# Used by the VM-only XTS runner, not a standalone ctest case.
+add_executable(
+    upscale_x11proxy_conformance
+    x11proxy_conformance.cpp
+    ../src/x11proxy/session.cpp
+    ../src/x11proxy/connection.cpp
+    ../src/x11proxy/startup.cpp
+    ../src/x11proxy/lifecycle.cpp
+)
+target_include_directories(
+    upscale_x11proxy_conformance
+    PRIVATE ../src/x11proxy ${CMAKE_BINARY_DIR}/src/x11proxy
+)
+target_link_libraries(
+    upscale_x11proxy_conformance
+    PRIVATE upscale_x11_transport Qt6::DBus KF6::ConfigCore KF6::I18n KF6::CoreAddons
+)
+target_compile_definitions(
+    upscale_x11proxy_conformance
+    PRIVATE TRANSLATION_DOMAIN="kwin_effect_upscale"
+)

@@ -11,25 +11,25 @@ system, and a release is not asked to do better than the system it runs on.
 What it may not do is turn a case that passed without it into one that fails
 with it.
 
-Each suite is run twice against the same everything else. Both arms carry this
-release, loaded and running, with its transport in front of the same Xwayland:
-one setting separates them. The first acts on nothing, because no profile names
-the suite's programs, and so answers whether the effect troubles anything
-merely by being there. The second acts on every unlisted program and so answers
-what scaling itself costs. It names the suite's own programs in a profile,
-because that is what the effect answers a connection with: acting on unlisted
-programs reaches a window, and a client asks what the display measures long
-before it has one.
+XTS runs on an isolated rootful Xwayland display, whose windows no window
+manager touches. Three arms compare the same stock server directly, through
+this release's proxy with unchanged display information, and through its proxy
+with reduced display information supplied by the live effect. KWin integration
+tests separately cover managed windows and rendering. Render and GLX retain
+paired runs against KWin's managed display, with the effect idle and scaling.
 
-Run it inside the conformance image, as an ordinary user, with a render device:
+Run it in the project VM, inside the conformance image, as an ordinary user:
 
     podman run --rm --user 1000 --userns=keep-id --group-add keep-groups \
-        --device /dev/dri/renderD128 -v "$PWD:/src" -w /src \
-        -e XDG_RUNTIME_DIR=/src/build/tmp/cruntime -e HOME=/src/build/tmp/chome \
+        --device /dev/dri/card0 --device /dev/dri/renderD128 -v "$PWD:/src" -w /src \
+        -e XDG_RUNTIME_DIR=/tmp \
         upscale-conformance:trixie \
         python3 -B tools/check-conformance.py --suite xts --build build/gcc
 
-The device is not optional. KWin's virtual backend offers OpenGL compositing
+Use the VM's vgem primary node in place of card0 if its number differs, and
+give the run user access to both nodes. Never use the desktop's GPU. The
+primary and render nodes are both required: KWin's virtual backend allocates
+its buffers through the primary node. It offers OpenGL compositing
 only where it finds one, the effect answers that it is unsupported under any
 other and is then never loaded, and a pair whose effect never came up has
 compared a system against itself.
@@ -98,6 +98,7 @@ class ArmResult(TypedDict):
     root: str
     cases: dict[str, str]
     engaged: bool
+    complete: bool
 
 
 @dataclass(frozen=True)
@@ -136,7 +137,7 @@ class Run:
 
 @dataclass(frozen=True)
 class Arm:
-    """One half of a pair: the same suite, with and without this release."""
+    """Run the same suite with one connection and window policy."""
 
     name: str
     tree: Path
@@ -153,22 +154,15 @@ def write_session(root: Path, arm: Arm, run: Run, runtime: Path) -> dict[str, st
     """Lay out one arm's private configuration and say how to reach it."""
     config = root / "config"
     config.mkdir(parents=True)
-    # The release is loaded, enabled and live in both arms, and one setting
-    # separates them: whether it acts on programs no profile names. Arm one
-    # therefore answers "does this effect trouble anything merely by running",
-    # and arm two "does scaling trouble anything". A baseline without the
-    # plugin would answer neither, because every difference could be charged
-    # to the plugin being there at all.
-    #
-    # Unlisted applications is what reaches a suite: it is thousands of
-    # programs nobody wrote a profile for, and naming them by the path they
-    # start from would cover only the ones somebody remembered.
+    # XTS's outer rootful surface must stay unmanaged by the effect. The
+    # scaling arm's profile still supplies real per-connection policy to XTS.
+    act_on_windows = arm.upscaled and run.suite != "xts"
     (config / "kwinrc").write_text(
         "[Plugins]\nupscaleEnabled=true\n"
         "[Effect-upscale]\n"
         "Enabled=true\n"
         "X11Proxy=true\n"
-        f"UnlistedApplications={'true' if arm.upscaled else 'false'}\n"
+        f"UnlistedApplications={'true' if act_on_windows else 'false'}\n"
         f"Resolution={PERFORMANCE}\n"
         "MethodX11FullScreen=Auto\nMethodX11Borderless=Auto\n"
         "MinimumPixels=0\nSharpening=false\nOsd=false\n"
@@ -229,7 +223,7 @@ def write_session(root: Path, arm: Arm, run: Run, runtime: Path) -> dict[str, st
     }
 
 
-def inner_script(root: Path, suite: str, minutes: int) -> Path:
+def inner_script(root: Path, arm: Arm, run: Run) -> Path:
     """Write the command the compositor runs: the suite, inside its own session."""
     results = root / "piglit"
     arguments = [
@@ -242,7 +236,7 @@ def inner_script(root: Path, suite: str, minutes: int) -> Path:
         "15",
         "-l",
         "quiet",
-        *SUITES[suite].arguments,
+        *SUITES[run.suite].arguments,
         str(results),
     ]
     # The effect is switched on in the configuration rather than loaded on
@@ -253,8 +247,28 @@ def inner_script(root: Path, suite: str, minutes: int) -> Path:
     # an arm whose effect never came up measures nothing, whichever side of
     # the pair it is, and the list it prints is what says which happened.
     script = root / "inside.sh"
+    marker = shlex.quote(str(root / "exit-code"))
+    on_exit = shlex.quote('status=$?; echo "$status" > ' + marker)
+    if run.suite == "xts":
+        arguments = [
+            sys.executable,
+            "-B",
+            str(Path(__file__).with_name("x11_conformance.py").resolve()),
+            "--root",
+            str(root),
+            "--build",
+            str(run.build),
+            "--arm",
+            arm.name,
+            "--size",
+            f"{run.size[0]}x{run.size[1]}",
+            "--",
+            *arguments,
+        ]
     script.write_text(
         "#!/bin/sh\n"
+        "set -eu\n"
+        f"trap {on_exit} 0\n"
         "# The suite runs inside the session because the display it tests is\n"
         "# the session's own, and the transport in front of it is reached\n"
         "# through DISPLAY like any other client reaches it.\n"
@@ -268,6 +282,7 @@ def inner_script(root: Path, suite: str, minutes: int) -> Path:
         "    sleep 1\n"
         "done\n"
         'echo "effects: $loaded" >&2\n'
+        'case " $loaded " in *" upscale "*) ;; *) exit 1 ;; esac\n'
         # Xwayland starts with the first X11 client, and the effect can answer
         # what a client asks about the display only once KWin has a connection
         # to that server itself. A suite whose own first case starts Xwayland
@@ -279,12 +294,10 @@ def inner_script(root: Path, suite: str, minutes: int) -> Path:
         "i=0\n"
         "until xdpyinfo >/dev/null 2>&1; do\n"
         "    i=$((i + 1))\n"
-        "    [ $i -gt 30 ] && break\n"
+        "    [ $i -gt 30 ] && exit 1\n"
         "    sleep 1\n"
         "done\n"
-        "sleep 2\n"
-        f"timeout {minutes * 60} {shlex.join(arguments)}\n"
-        "echo $? > " + shlex.quote(str(root / "exit-code")) + "\n"
+        "sleep 2\n" + f"timeout {run.minutes * 60} {shlex.join(arguments)}\n"
     )
     script.chmod(0o700)
     return script
@@ -308,16 +321,22 @@ def run_arm(arm: Arm, root: Path, run: Run) -> ArmResult:
     )
     runtime.chmod(0o700)
     environment = write_session(cell, arm, run, runtime)
-    inner = inner_script(cell, run.suite, run.minutes)
+    inner = inner_script(cell, arm, run)
     binaries = cell / "bin"
     binaries.mkdir()
-    # Installed for both arms: the release is present in each and only its
-    # settings differ.
+    # The effect supplies connection policy in each arm. XTS's bare arm uses
+    # it only for the outer session, not for the nested test display.
     shutil.copyfile(
         run.build / "bin" / "kwin" / "effects" / "plugins" / "upscale.so", EFFECTS / "upscale.so"
     )
     if not shutil.which("kwin_wayland"):
-        return {"arm": arm.name, "root": str(cell), "cases": {}, "engaged": False}
+        return {
+            "arm": arm.name,
+            "root": str(cell),
+            "cases": {},
+            "engaged": False,
+            "complete": False,
+        }
     # KWin finds Xwayland on the path, and both arms put this release's
     # transport there. It supervises the stock server rather than replacing
     # it, so the two arms measure the very same Xwayland and differ only in
@@ -352,8 +371,37 @@ def run_arm(arm: Arm, root: Path, run: Run) -> ArmResult:
         "arm": arm.name,
         "root": str(cell),
         "cases": read_cases(cell / "piglit"),
-        "engaged": engaged(arm, (cell / "session.log").read_text(errors="replace")),
+        "engaged": arm_engaged(arm, cell, run.suite),
+        "complete": completed(cell),
     }
+
+
+def arm_engaged(arm: Arm, root: Path, suite: str) -> bool:
+    """Check the outer effect and the server that actually received the tests."""
+    session = (root / "session.log").read_text(errors="replace")
+    if suite != "xts":
+        return engaged(arm, session)
+    if not engaged(Arm("present", BASELINE_TREE, upscaled=False), session):
+        return False
+    nested = root / "nested.log"
+    if not nested.is_file():
+        return False
+    log = nested.read_text(errors="replace")
+    routed = "Upscale X11 backend started" in log
+    advertised = "connection display advertisement" in log
+    bypassed = "executing stock Xwayland directly" in log
+    return not bypassed and routed == (arm.name != "bare") and advertised == arm.upscaled
+
+
+def completed(root: Path) -> bool:
+    """Require normal runner exit and its final results, not a partial prefix."""
+    marker = root / "exit-code"
+    results = root / "piglit"
+    return (
+        marker.is_file()
+        and marker.read_text().strip() == "0"
+        and any((results / name).is_file() for name in ("results.json.bz2", "results.json"))
+    )
 
 
 def wait_for_arm(started: subprocess.Popen[bytes], marker: Path, minutes: int) -> None:
@@ -391,7 +439,7 @@ def engaged(arm: Arm, log: str) -> bool:
     routed = "Upscale X11 backend started" in log
     bypassed = "executing stock Xwayland directly" in log
     loaded = any(
-        line.startswith("effects: ") and " upscale " in f"{line[len('effects: ') :]} "
+        line.startswith("effects: ") and "upscale" in line[len("effects: ") :].split()
         for line in log.splitlines()
     )
     # The transport prints its answer the way Qt prints a variant, so what is
@@ -403,10 +451,8 @@ def engaged(arm: Arm, log: str) -> bool:
 def read_cases(results: Path) -> dict[str, str]:
     """Read the outcome piglit recorded for every case it completed.
 
-    A run whose budget ran out has no assembled result file, only the one file
-    piglit writes per case as it goes. Those are read as well, so that an arm
-    which was cut short still says what it measured: the comparison is over the
-    cases both arms completed, and one that stopped early simply offers fewer.
+    Partial files are retained for diagnosis, but completed() prevents an
+    interrupted arm from qualifying for acceptance.
     """
     packed = results / "results.json.bz2"
     plain = results / "results.json"
@@ -463,35 +509,36 @@ def compare(baseline: dict[str, str], upscaled: dict[str, str]) -> Verdict:
     }
 
 
-def report(suite: str, verdict: Verdict) -> int:
+def report(suite: str, verdict: Verdict, baseline: str = "present", target: str = "scaling") -> int:
     """Say what the pair showed, and fail only on what this release caused."""
     counts = verdict["completed"]
     print(
-        f"{suite}: {counts['baseline']} cases without this release, "
-        f"{counts['upscaled']} with it, {counts['compared']} comparable"
+        f"{suite} {baseline} -> {target}: {counts['baseline']} baseline cases, "
+        f"{counts['upscaled']} target cases, {counts['compared']} comparable"
     )
     for name in verdict["missing"][:20]:
-        print(f"  only not acting: {name}")
+        print(f"  only baseline:   {name}")
     for name in verdict["added"][:20]:
-        print(f"  only scaling:     {name}")
+        print(f"  only target:      {name}")
     for name in verdict["repaired"][:20]:
         print(f"  repaired:     {name}")
     for name in verdict["regressed"]:
         print(f"  REGRESSED:    {name}")
+    if verdict["missing"] or verdict["added"]:
+        print("\nthe arms did not complete the same cases; the pair is incomplete")
+        return 1
     if verdict["regressed"]:
-        print(
-            f"\n{len(verdict['regressed'])} cases pass with the effect off and fail with it scaling"
-        )
+        print(f"\n{len(verdict['regressed'])} cases pass in {baseline} and fail in {target}")
         return 1
     if not counts["compared"]:
         print("\nno case completed in both arms; nothing was compared")
         return 1
-    print("\nno case that passes with the effect merely running fails with it scaling")
+    print("\nno baseline case regressed")
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Run a suite in both arms and compare them."""
+    """Run the suite's arms and reject regressions or incomplete comparisons."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--suite", choices=sorted(SUITES), default="xts")
     parser.add_argument(
@@ -504,7 +551,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--width", type=int, default=3840)
     parser.add_argument("--height", type=int, default=2160)
     parser.add_argument("--minutes", type=int, default=90, help="how long one arm gets")
-    parser.add_argument("--out", default="", help="where the two arms are kept")
+    parser.add_argument("--out", default="", help="where the arms are kept")
     arguments = parser.parse_args(argv)
     build = Path(arguments.build).resolve()
     if not (build / "bin" / "Xwayland").exists():
@@ -514,26 +561,38 @@ def main(argv: list[str] | None = None) -> int:
         print("the suites are missing; run this in the conformance image")
         return 1
     root = (
-        Path(arguments.out)
+        Path(arguments.out).resolve()
         if arguments.out
         else Path(tempfile.mkdtemp(prefix="conformance-", dir=build))
     )
     root.mkdir(parents=True, exist_ok=True)
     size = (arguments.width, arguments.height)
     run = Run(build=build, suite=arguments.suite, size=size, minutes=arguments.minutes)
-    produced = {arm.name: run_arm(arm, root, run) for arm in ARMS}
+    arms = (Arm("bare", BASELINE_TREE, upscaled=False), *ARMS) if run.suite == "xts" else ARMS
+    if run.suite == "xts" and not (build / "bin" / "upscale_x11proxy_conformance").is_file():
+        print("missing XTS session driver; build with BUILD_TESTING=ON")
+        return 1
+    produced = {arm.name: run_arm(arm, root, run) for arm in arms}
+    (root / "arms.json").write_text(json.dumps(produced, indent=2))
     # An arm that did not do its own job cannot be compared against the other.
     # Reporting that as "no regression" would be the most expensive kind of
     # green: a gate that passes because it measured nothing.
-    idle = [name for name, arm in produced.items() if not arm["engaged"]]
+    idle = [name for name, arm in produced.items() if not arm["engaged"] or not arm["complete"]]
     if idle:
         for name in idle:
-            print(f"{name}: did not run as itself; see {produced[name]['root']}/session.log")
+            print(f"{name}: did not complete as itself; see {produced[name]['root']}/session.log")
         print("\nthe pair was not comparable, so nothing was measured")
         return 1
-    verdict = compare(produced["present"]["cases"], produced["scaling"]["cases"])
-    (root / "verdict.json").write_text(json.dumps(verdict, indent=2))
-    outcome = report(arguments.suite, verdict)
+    pairs = [("present", "scaling")]
+    if run.suite == "xts":
+        pairs = [("bare", "present"), ("bare", "scaling"), *pairs]
+    verdicts = {}
+    outcome = 0
+    for baseline, target in pairs:
+        verdict = compare(produced[baseline]["cases"], produced[target]["cases"])
+        verdicts[f"{baseline}-to-{target}"] = verdict
+        outcome = max(outcome, report(arguments.suite, verdict, baseline, target))
+    (root / "verdict.json").write_text(json.dumps(verdicts, indent=2))
     print(f"arms under {root}")
     return outcome
 

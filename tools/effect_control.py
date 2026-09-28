@@ -3,8 +3,7 @@
 """Set the effect's own settings for a run, and ask it what it sees.
 
 The effect's settings are touched, never the session's, and they are not put
-back afterwards: the last run's resolution and sharpening stay in kwinrc. The
-one game setting reset here is SuperTuxKart's stored screen size. Separated
+back afterwards: the last run's resolution and sharpening stay in kwinrc. Separated
 from the script that starts games because talking to a running compositor is a
 different job from launching a process and waiting for it, and because this
 half can be read without the other.
@@ -15,7 +14,6 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
-from pathlib import Path
 
 GROUP = "Effect-upscale"
 # Values of the Resolution key: the ResolutionPreset enum in
@@ -103,39 +101,6 @@ def configure(preset: str, *, sharpening: bool) -> str:
     if read.stdout.strip() != str(PRESETS[preset]):
         return f"the resolution is {read.stdout.strip() or 'unset'}, not {preset}"
     return ""
-
-
-def reset_game_resolution(game: str, output: str = "") -> str:
-    """Put the game back to the screen's own size before a run.
-
-    A game that stores the resolution it last ran at starts the next run from
-    there, so one run decides what the next one renders: measured 2026-09-19,
-    a run at Performance left 1920 x 1080 in SuperTuxKart's configuration and
-    every later run began at 1080p whatever the effect advertised. Starting
-    each run at the screen's size makes the effect's request the only thing
-    that can change it.
-
-    Returns what was changed, for the record, or why nothing was.
-    """
-    if game != "supertuxkart":
-        return "not configurable here"
-    path = Path.home() / ".config/supertuxkart/config-0.10/config.xml"
-    if not path.exists():
-        return "no configuration yet"
-    native = screen_pixels(output)
-    if not native:
-        return "screen size unknown"
-    width, height = native
-    text = path.read_text()
-    for key, value in (
-        ("real_width", width),
-        ("real_height", height),
-        ("width", width),
-        ("height", height),
-    ):
-        text = re.sub(rf'(\n\s*{key}=")[^"]*(")', rf"\g<1>{value}\g<2>", text)
-    path.write_text(text)
-    return f"{width}x{height}"
 
 
 def screen_pixels(output: str = "") -> tuple[int, int] | None:

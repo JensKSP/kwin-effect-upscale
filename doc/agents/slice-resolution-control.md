@@ -3983,3 +3983,258 @@ historical per-process served-screen cache remains; consolidating its ownership
 with live connection state belongs to the later maintainability work, not these
 protocol fixes. No branch, commit, push, pull request or native installation was
 created for this review correction.
+
+## Explicit frame preparation, 2026-09-28
+
+Starting state: `candidate()` is a const query that also resolves paint
+settings and calls `askForSmallerBuffer()` while painting. Its cache is spread
+across mutable members. Paint, activation and status therefore reach the
+resolution controller through the same query.
+
+The end state is an explicit, non-const frame-preparation step. Candidate and
+status queries only read selection; the selection, refusal and resolved settings
+for a paint pass live together. Preserve the existing selection rules, request
+ordering, cache invalidation, renderer fallback and per-output behavior.
+
+This step owns only frame preparation in the existing effect. X11 controller
+state consolidation and program-identity changes remain separate follow-up
+work. The concurrent edit in `x11resolution_present.cpp` is outside this step.
+The existing resolution controllers and integration driver are dependencies.
+
+Planned acceptance: keep preparation before the downstream screen pass, refresh
+an invalidated selection before subsequent drawing and display observation,
+and keep queries outside paint free of resolution requests. Exercise Auto with
+the display disabled, request withdrawal and reconfiguration, color fallback,
+multiple outputs and normal rendering through the existing runtime suite.
+Run both lint stages, both compiler/container builds and clang-tidy.
+
+The supported-scope gate for this refactor is unchanged observable behavior in
+those automated cases and clean maintained-container checks. It adds no new
+supported client or graphics path. Full acceptance of the resolution-control
+slice still requires its outstanding physical-display, Wine/Proton and HDR/VRR
+checks; this refactor cannot close them.
+
+Implemented `prepareFrame()` at the existing screen-pass entry and at drawing
+and display refresh points after cache invalidation. `candidate()` now reads
+the prepared selection or inspects current windows, without issuing resolution
+requests. `FrameSelection` owns the selected window, refusal and settings, and
+the five mutable selection/settings members are gone. The request method is
+non-const as well. No selection rule, profile matching or controller timeout
+was changed.
+
+Observed validation: both lint stages passed; Trixie GCC and Clang built with
+warnings as errors and each passed all 29 runtime CTests and staged install.
+The extended Auto test passed with each compiler: with the display disabled,
+turning Auto off before the client answers restores its scale, and turning it
+on again requests the smaller scale from that same window. Both Neon builds
+against KWin master passed with warnings as errors. The full clang-tidy scan
+and metadata validation passed. Physical-session acceptance was not run.
+
+## X11 negotiation ownership, 2026-09-28
+
+Starting state: requested sizes, failures, replacement attempts, retries and
+validation revisions share the same profile/output/PID key and lifetime, but
+are stored in five hashes. Reconfiguration, Xwayland teardown and expiry must
+clear all five independently. Window requests and withdrawal/release waits
+have a different lifetime and must survive or end independently of that history.
+
+Consolidate the five keyed collections into one negotiation record per key.
+Preserve the six-window replacement budget, one retry, validation revisions,
+generation checks, three-second expiry and all request/restore ordering.
+Keep window-owned requests and waits separate, and leave the concurrent
+`x11resolution_present.cpp` edit alone. No game-path or protocol-policy changes
+are part of this step. This depends on the existing X11 controller and tests.
+
+Planned supported-scope acceptance: replacement windows retain their budget,
+different output keys remain independent, departed clients expire, and
+reconfiguration and late callbacks retain current behavior. Run the maintained
+compiler/container matrix, lint, static analysis and runtime suites.
+
+Jens additionally requires the full X11 Test Suite after the rework, before
+calling it complete. Compare baseline and acting results on the same KWin and
+Xwayland, including the idle-proxy arm so regressions caused by relay alone
+remain visible. Use the project VM and conformance environment described in
+the handbook; retain per-case failures and investigate regressions. Ordinary
+proxy CTests do not satisfy this requirement. The project's VM connection
+details were recovered below; the full suite has now run for this step.
+Full acceptance still includes the resolution slice's physical-display and
+Wine/Proton requirements; no new hardware support is claimed by this refactor.
+
+### Proxy framing ownership
+
+Jens clarified that the next cleanup must return to the proxy itself. Its
+`Policy` currently combines buffering and protocol frame boundaries with
+request tracking, identity correction and display rewriting. Extract the
+framing state into `Framer`: byte order, setup, BIG-REQUESTS, bounded buffers,
+streaming and transparent fallback. Keep the existing `Policy::feed` interface
+and request/reply decisions, using one frame handler for completed frames and
+oversized-frame headers. Framing must process each frame before reading the
+next, because BigReqEnable changes how the next request is framed.
+
+Acceptance includes existing fragmentation, coalescing, invalid lengths, byte
+orders, descriptor transport and transparency regressions, the full maintained
+build/check matrix and the full XTS comparison above. No extension behavior,
+buffer limit or game-specific policy is added.
+
+Recovered the prior VM launch from the stopped `upscale-vm` container. Its
+bind-mounted disk and startup script had been removed. Restored the Debian 13
+KVM guest under `build/release-conformance/vm`, reusing the existing
+`upscale-vm-host:trixie` and `upscale-conformance:trixie` images. The replacement
+container is `upscale-complexity-vm`; SSH is `tester@127.0.0.1` port 2223 with
+the key and known-hosts file in that directory. The project is mounted at
+`/src` through virtio 9p. Only `/dev/kvm` reaches the host container; the guest
+loads `vgem` for its own render node. No desktop GPU is passed through.
+
+KWin's virtual backend selects vgem's primary node to allocate buffers; the
+render node alone is insufficient. Pass the guest's `/dev/dri/card1` and
+`/dev/dri/renderD128` with their supplementary groups (44 and 991 in this
+guest). The initial attempts without usable vgem access were stopped and kept
+under `complexity-xts-no-render-access` and `complexity-xts-no-primary-node`;
+they are invalid comparisons. The current run is under
+`build/release-conformance/complexity-xts`. The scratch `run-xts.py` derives
+from the tracked runner, adds a bare arm using stock Xwayland with the effect
+disabled, and runs each arm in a separate container. XTS override redirect
+is not enabled. Logs confirm the effect loaded in idle and scaling, no
+advertisement in idle, and 1920x1080 advertisements in scaling.
+
+Implementation now separates framing from reply policy. The existing
+BIG-REQUESTS regression also feeds the enable request and the next extended
+request in one read, in both byte orders. The controller regression additionally
+checks that refusing one output leaves the same PID/profile free to negotiate
+on another output. Both Trixie compilers passed all 29 runtime CTests, and
+both Neon builds passed with warnings as errors. Whole-tree lint and both
+hook stages explicitly covering the two new source files passed. The 65-file
+clang-tidy scan found one new complexity warning in `validate()`; an early
+return flattened the success path. The focused rerun and metadata validation
+passed, as did both compiler/container builds and both runtime suites after
+that change.
+
+The full XTS verification run completed 4,858 cases in each arm, with all arms
+confirmed engaged and no missing cases between them:
+
+| Arm | Pass | Fail | Skip | Timeout |
+| --- | --- | --- | --- | --- |
+| Bare KWin/Xwayland | 2,980 | 986 | 881 | 11 |
+| Refactored proxy idle | 3,005 | 961 | 881 | 11 |
+| Refactored proxy scaling | 3,025 | 943 | 880 | 10 |
+
+The ordinary gate is **not green**: 21 cases passed bare and failed idle, 20
+passed bare and failed scaling, and 10 passed idle and failed scaling. The
+full case lists are in `complexity-xts/verdicts.json`. These counts must not
+be replaced with the larger total pass count in a proxy arm.
+
+Investigated the 27 cases in the union of bare-to-proxy differences with
+ordinary-mode repeats and a control proxy built from committed `c7020b8` in
+`build/proxy-before/`, using the same current effect in each proxy arm. Sixteen
+of the 27 failed on the first bare repeat after passing its full run. The
+control and refactored proxy also changed outcomes between repeats. After
+three idle repeats and two scaling repeats, no case consistently passed its
+committed-proxy controls and consistently failed its refactored-proxy repeats.
+In particular, `XChangeProperty-5` failed the first two idle repeats with extra
+PropertyNotify events, then passed the third. This is evidence of timing
+sensitivity, not a waiver of the gate.
+
+A separate override-redirect diagnostic passed 25/27 bare, 24/27 idle and
+25/27 scaling. It cleared the property-event failures; `KeyPress-1` still
+failed in both proxy arms, and it also failed in ordinary bare/control
+repeats. XTS explicitly excludes this switch from verification, so these
+results are diagnostic only. The six additional idle-to-scaling differences
+all failed in a bare repeat and in the second committed-proxy scaling control;
+the current proxy passed two of them in its second scaling repeat. No
+consistently new failure was established by these controls. The ordinary XTS
+gate remains unresolved, rather than being marked passed from diagnostic or
+variable results. Physical-display acceptance and the existing decision about
+the XTS window-manager assumptions remain open.
+
+### XTS runner correctness, 2026-09-28
+
+Jens requested that the unresolved XTS result be fixed. Inspection of the VM
+image found that no `tetexec.cfg` exists: the image defers generation until a
+display is available, but the runner never performs it. Piglit supplies only
+a few environment defaults. Assertions needing the remaining parameters can
+therefore report unresolved setup instead of testing the server. The runner
+also accepted partial results when an arm timed out, and its comparison did
+not fail on missing cases.
+
+The repair generates XTS's execution configuration against the running
+display, saves it per arm, stops before running tests on setup failure, and
+requires successful runner completion with identical case inventories. Three
+regression tests cover configuration failure, interrupted runs and missing
+cases. They pass, as do both hook stages, strict typing and the complete tool
+regression suite in the maintained Trixie image.
+
+The configured ordinary pair completed all 4,858 cases per arm. Idle recorded
+3,078 pass, 847 fail, 922 skip and 11 timeout; scaling recorded 3,075 pass,
+852 fail, 921 skip and 10 timeout. The comparison has 27 regressions and 24
+repairs, with no missing or added cases. Its results are under
+`build/release-conformance/complexity-xts-configured-vgem/`. After the VM
+reboot, vgem is `card0`; an initial attempt using the old `card1` number could
+not load the effect and was stopped. That attempt is not a comparison.
+
+A separate diagnostic launcher under `build/release-conformance/protocol/`
+links the current production Session and transport code, with the live effect
+providing its connection policy, to a rootful Xwayland display. Its startup
+connection claims `WM_S0`, which Xwayland requires before accepting ordinary
+clients, but selects no window-management events. The XTS root's event mask
+is empty, and `XT_DEBUG_OVERRIDE_REDIRECT=No` in the generated configuration.
+All 33 disputed assertions passed unchanged in each of the bare, relaying and
+1920x1080-advertisement arms. The subsequent full protocol runs completed
+4,858 cases in every arm, with the effect loaded and the intended connection
+policy verified:
+
+| Protocol arm | Pass | Fail | Skip | Timeout |
+| --- | ---: | ---: | ---: | ---: |
+| Bare Xwayland | 3,642 | 276 | 927 | 13 |
+| Relaying | 3,643 | 275 | 927 | 13 |
+| Reduced display | 3,647 | 272 | 926 | 13 |
+
+There are zero regressions and zero missing or added cases in all three
+comparisons: bare to relaying, bare to reduced display and relaying to reduced
+display. Results are under `complexity-xts-protocol-full/`,
+`complexity-xts-protocol-present-full/` and
+`complexity-xts-protocol-scaling-full/` in `build/release-conformance/`;
+`protocol/verdicts.json` records the comparisons.
+
+The complete pre-cleanup effect and proxy from `c7020b8` were also built in
+Trixie with GCC and warnings as errors. Focused managed-window controls on
+the new 27-case difference set varied in both builds and both execution
+orders. Four assertions initially passed in both old-build controls and
+failed in both current-build controls: `XSetDeviceFocus-7`, `XGrabButton-4`,
+`XGrabKeyboard-11` and `XMapWindow-3`. When those four ran without the preceding
+cases, all four failed in both builds. Crossed old/current effect and proxy
+combinations also reproduced the focus, grab and visibility failures. The
+result depends on test history and window-manager timing; it does not establish
+a new functional regression. The ordinary gate still reports its differences.
+
+This isolates the protocol from KWin's reparenting, focus and property updates.
+It does not exercise the effect managing the individual XTS windows.
+
+### Separate protocol acceptance, 2026-09-28
+
+Jens explicitly approved using isolated XTS protocol acceptance alongside the
+required KWin managed-window and rendering integration tests. The full results
+above establish the protocol comparison for this cleanup. The managed-XTS
+differences remain recorded as diagnostics, not an acceptance blocker. No XTS
+assertions are excluded, and override-redirect debug mode remains disabled.
+
+The maintained runner now starts the isolated display for XTS, links the test
+entry point to the unchanged production Session implementation, and compares
+bare, relaying and reduced-display arms. The entry point is not installed and
+does not relax the desktop launcher's KWin-parent requirement. The runner
+checks the nested proxy's policy separately from the outer effect's presence,
+saves all three arms, and rejects incomplete or mismatched case inventories.
+Render and GLX retain their managed-display setup. Real-game, hardware and the
+remaining full-release acceptance requirements remain open.
+
+The maintained launcher replayed the original 33 disputed assertions in all
+three arms: every assertion passed, with normal completion, the intended
+connection policy and no missing cases. Results are under
+`build/release-conformance/complexity-xts-maintained/`. These are focused
+launcher checks; the complete 4,858-case comparisons above were not rerun.
+The updated Python regression tests and both hook stages pass. The final test
+entry point builds with GCC and Clang in Trixie and Neon, with warnings as
+errors; focused clang-tidy is clean. Both Trixie runtime runs passed all 29
+tests without skips. GCC's hook initially reported files changing during its
+successful test run because runner edits were still in progress; its final
+compilation and the subsequent Clang check completed normally. The VM has
+been shut down.

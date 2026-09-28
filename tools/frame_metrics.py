@@ -120,6 +120,10 @@ class Summary:
 
     run_id: str = ""
     game: str = ""
+    command: list[str] = field(default_factory=list)
+    window: str = ""
+    rate_pattern: str = ""
+    renderer_pattern: str = ""
     preset: str = ""
     repeat: int = 1
     requested_window_system: str = ""

@@ -206,7 +206,7 @@ void UpscaleEffect::reconfigure(ReconfigureFlags flags)
         m_waylandScale->releaseAll();
     }
     m_failed = false;
-    m_candidateCached = false;
+    m_frame.valid = false;
     m_renderedInputs.clear();
     m_unsupportedColors.clear();
     m_passRefusals.clear();
@@ -298,7 +298,7 @@ void UpscaleEffect::watchOutput(UpscaleOutput *output)
         m_unsupportedColors.removeIf([output](const QPointer<EffectWindow> &window) {
             return !window || window->screen() == output;
         });
-        m_candidateCached = false;
+        m_frame.valid = false;
         effects->addRepaintFull();
     };
     connect(output, &UpscaleOutput::changed, this, changed);
@@ -326,26 +326,13 @@ EffectWindow *UpscaleEffect::candidate(UpscaleRefusal *refusal, UpscaleOutput *o
         }
         return selected;
     }
-    if (!m_inPaint) {
+    if (!m_inPaint || !m_frame.valid || m_frame.output != output) {
         return findCandidate(refusal, output);
     }
-    if (!m_candidateCached || m_candidateOutput != output) {
-        m_candidate = findCandidate(&m_candidateRefusal, output);
-        // Resolve once, here, where the window was chosen. Every value the
-        // frame then needs - the sharpening strength, the wish, the display's
-        // choices - comes from this one answer, so a frame never asks which
-        // layer a setting came from and never reads configuration at all.
-        const Window *internal = m_candidate ? m_candidate->window() : nullptr;
-        const UpscaleApplication *claimed = upscaleApplicationForWindow(internal);
-        m_settings = upscaleResolveSettings(claimed);
-        askForSmallerBuffer(output, m_candidate, claimed);
-        m_candidateOutput = output;
-        m_candidateCached = true;
-    }
     if (refusal) {
-        *refusal = m_candidateRefusal;
+        *refusal = m_frame.refusal;
     }
-    return m_candidate;
+    return m_frame.window;
 }
 
 EffectWindow *UpscaleEffect::findCandidate(UpscaleRefusal *refusal, UpscaleOutput *output) const
@@ -424,7 +411,11 @@ UpscalePaintResult UpscaleEffect::drawWindow(const RenderTarget &target, const R
 {
     // Selection is shared by the draws in this paint pass. Check the actual
     // window again before using its surface, which may have been replaced.
-    if (m_renderer && eligible(window) && window == candidate(nullptr, m_inPaint ? m_paintOutput : window->screen())) {
+    const bool canRender = m_renderer && eligible(window);
+    if (canRender) {
+        prepareFrame(m_paintOutput);
+    }
+    if (canRender && window == candidate(nullptr, m_inPaint ? m_paintOutput : window->screen())) {
         if (!supportsUpscaleColors(targetColors(target))) {
             // Unlike the conditions above, this one follows the output's
             // colour setup and will hold for every frame of this window.
@@ -433,7 +424,7 @@ UpscalePaintResult UpscaleEffect::drawWindow(const RenderTarget &target, const R
             // handed back to KWin anyway. Other windows remain independent.
             m_unsupportedColors.removeAll(nullptr);
             m_unsupportedColors.append(window);
-            m_candidateCached = false;
+            m_frame.valid = false;
             effects->addRepaintFull();
         } else if (const UpscaleRefusal pass = rememberPassRefusal(window, passRefusal(target, viewport, window, mask, data));
                    pass == UpscaleRefusal::None) {
@@ -446,7 +437,7 @@ UpscalePaintResult UpscaleEffect::drawWindow(const RenderTarget &target, const R
 #else
             const UpscaleRegion clip = region == infiniteRegion() ? region : viewport.mapToRenderTarget(region);
 #endif
-            if (!m_failed && m_scaler->render(target, viewport, window->windowItem()->surfaceItem(), window->frameGeometry(), clip, m_settings.sharpening())) {
+            if (!m_failed && m_scaler->render(target, viewport, window->windowItem()->surfaceItem(), window->frameGeometry(), clip, m_frame.settings.sharpening())) {
                 m_renderedInputs.insert(window, window->windowItem()->surfaceItem()->bufferSize());
 #if UPSCALE_RENDER_DEVICE_API
                 return true;
@@ -458,7 +449,7 @@ UpscalePaintResult UpscaleEffect::drawWindow(const RenderTarget &target, const R
             // keep blocking scanout. Retry only after a reconfiguration.
             qCWarning(KWIN_UPSCALE, "shader, texture or framebuffer failure; using normal rendering until reconfiguration");
             m_failed = true;
-            m_candidateCached = false;
+            m_frame.valid = false;
             m_scaler.reset();
             effects->addRepaintFull();
         }
