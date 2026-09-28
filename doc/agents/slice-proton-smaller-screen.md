@@ -794,6 +794,15 @@ Open, in this order:
   should be far tighter, and the first connection of a Wine prefix has to be
   held until the program appears rather than answered from the ordinary 500 ms
   budget, because the program's path is the only portable identity. Unmeasured.
+  Found implemented on 2026-09-28, since #21 (`src/x11proxy/connection.cpp`):
+  a Wine component's connection is held only when the effect answers that the
+  prefix may match (`x11PrefixMayMatch`), and then until the prefix's program
+  is known, retried every 250 ms within a ten-second bound
+  (`prefixDecisionMilliseconds`) rather than the 500 ms of an ordinary
+  connection. `selectedWineComponentWaitsForProgram` covers it, and now waits
+  for the session's own "waiting for the program of prefix" rather than for
+  300 ms; it fails when the prefix is refused. The interval on a real prefix
+  stays unmeasured, and belongs to the acceptance below.
 - A prefix whose wineserver still runs from an earlier program receives no new
   connection, so its screen was decided for that program. No answer proposed.
 - Acceptance across fullscreen, borderless and windowed presentation, for a

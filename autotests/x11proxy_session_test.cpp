@@ -19,6 +19,19 @@
 
 using namespace UpscaleX11Test;
 
+namespace
+{
+// What the session logs, for a case that waits until it has said something.
+QStringList s_logged;
+QtMessageHandler s_passOn = nullptr;
+
+void record(QtMsgType type, const QMessageLogContext &context, const QString &message)
+{
+    s_logged.append(message);
+    s_passOn(type, context, message);
+}
+}
+
 // The effect's side of the question, counting how often it is asked.
 class EffectStandIn : public QObject
 {
@@ -280,7 +293,14 @@ void ProxySessionTest::selectedWineComponentWaitsForProgram()
     const pid_t component = spawnWine("C:\\windows\\system32\\explorer.exe", {"--connect", m_path}, prefix);
     QVERIFY(component > 0);
     const int before = m_effect.asked;
-    QTest::qWait(300);
+    // The session says when it holds a connection for its prefix's program;
+    // until then it has not asked anything either.
+    s_logged.clear();
+    s_passOn = qInstallMessageHandler(record);
+    const auto passOn = qScopeGuard([]() {
+        qInstallMessageHandler(s_passOn);
+    });
+    QTRY_VERIFY(s_logged.join(QLatin1Char('\n')).contains(QStringLiteral("waiting for the program of prefix")));
     QCOMPARE(m_effect.asked, before);
     const pid_t game = spawnWine("C:\\Games\\Delayed.exe", {"--wait"}, prefix);
     QVERIFY(game > 0);
