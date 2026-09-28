@@ -87,6 +87,43 @@ jobs:
           # is this repository's to answer for.
           build-only: true
 
+  # The checks on the newest KWin a package ships for, which tools/ci_targets.py
+  # names. Pull requests check Trixie's KWin alone and the package jobs build
+  # without tests, so this is the one place the suite, the X11 sessions above
+  # all, meets that KWin on a hosted runner. Like KWin master it does not gate
+  # the packages: a night's release of the supported platforms should not wait
+  # on a slower KWin's sessions, and a failure here is still heard within a day.
+  checked-targets:
+    name: Select checked targets
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.select.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: select
+        run: echo "matrix=$(python3 -B tools/ci_targets.py --checked)" >> "$GITHUB_OUTPUT"
+
+  checked:
+    name: Run ${{ matrix.label }} ${{ matrix.architecture }} Checks (gcc)
+    needs: checked-targets
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.checked-targets.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/run-checks
+        with:
+          environment: ${{ matrix.container }}
+          base-image: ${{ matrix.image }}
+          mode: gcc
+
   # Every target: Debian, Kubuntu, Fedora, openSUSE, Arch and FreeBSD, on every
   # architecture each is built for. Nightly and nowhere earlier for most of
   # them - their KWin is well ahead of the supported minimum and three of them

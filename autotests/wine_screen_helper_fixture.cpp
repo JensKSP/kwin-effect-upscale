@@ -60,7 +60,7 @@ std::unique_ptr<QProcess> WineScreenHelperTest::startGame() const
     environment.insert(QStringLiteral("STEAM_COMPAT_DATA_PATH"), m_root->filePath(QStringLiteral("compatdata/228380")));
     environment.insert(QStringLiteral("SteamAppId"), QStringLiteral("228380"));
     game->setProcessEnvironment(environment);
-    game->start(QStringLiteral("sleep"), {QStringLiteral("60")});
+    game->start(QStringLiteral(UPSCALE_TEST_STANDIN), QStringList());
     game->waitForStarted();
     // QProcess reports the start before the new program's environment is in
     // place; a real game has long been running when the effect asks.

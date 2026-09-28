@@ -33,8 +33,18 @@ void UpscaleX11IntegrationTest::keepsEmulatedPointerCoverage()
     QTRY_COMPARE(target.geometry(), QRect(origin, QSize(1920, 1080)));
     QTRY_VERIFY2(status().contains(QStringLiteral("presented by Xwayland's emulated mode")), qPrintable(status()));
 
+    // KWin sees an explicit input shape at the drawable's size under Xwayland
+    // 24.1.6, which is what the effect repairs, and scaled with the viewport to
+    // the frame under the 24.1.10 of Ubuntu 26.04. What follows holds either way.
+    const auto inputBounds = [this](const QSize &drawable) {
+        const QString reported = status();
+        const auto bounds = [](const QSize &size) {
+            return QStringLiteral("inputBounds: 0,0,%1,%2").arg(size.width()).arg(size.height());
+        };
+        return reported.contains(bounds(drawable)) || reported.contains(bounds(drawable * 2));
+    };
     target.inputShape(QRect(0, 0, 1920, 1080));
-    QTRY_VERIFY(status().contains(QStringLiteral("inputBounds: 0,0,1920,1080")));
+    QTRY_VERIFY(inputBounds(QSize(1920, 1080)));
     // Xwayland already scales coordinates. Extending input coverage must not
     // scale them again, and clicks in the extended area must never reach below.
     // Enter and motion are separate Wayland events. Xwayland 24.1.6 does not
@@ -59,7 +69,7 @@ void UpscaleX11IntegrationTest::keepsEmulatedPointerCoverage()
     // A smaller intentional input shape is not the complete drawable. Stop
     // claiming clicks as soon as it replaces the shape which needed repair.
     target.inputShape(QRect(0, 0, 960, 540));
-    QTRY_VERIFY(status().contains(QStringLiteral("inputBounds: 0,0,960,540")));
+    QTRY_VERIFY(inputBounds(QSize(960, 540)));
     click();
     QTRY_COMPARE(below.presses(), 1);
     QCOMPARE(target.presses(), 1);

@@ -18,3 +18,10 @@ target_sources(
     upscale_wine_screen_helper_test
     PRIVATE wine_screen_helper_fixture.cpp wine_screen_helper_test.h
 )
+# The game it looks for; see standin.cpp.
+add_executable(upscale_test_standin standin.cpp)
+target_compile_definitions(
+    upscale_wine_screen_helper_test
+    PRIVATE UPSCALE_TEST_STANDIN="$<TARGET_FILE:upscale_test_standin>"
+)
+add_dependencies(upscale_wine_screen_helper_test upscale_test_standin)

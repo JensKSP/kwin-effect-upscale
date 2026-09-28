@@ -2507,6 +2507,31 @@ carried this change. Until one has, the cure is established on the mechanism
 and on a local reproduction of it, and not on the pipeline that reported the
 failure.
 
+2026-09-28: no hosted job could carry it any more. Since the pipeline's
+reorganisation (#19) the package jobs build without tests and the package test
+stage only installs, so the suite met KWin 6.6 nowhere. The nightly now runs the
+checks, `run-checks.py gcc`, in a Kubuntu 26.04 container on both architectures,
+for the target `tools/ci_targets.py` marks as checked; like KWin master it does
+not gate publication. Run locally first, on KWin 6.6.6 with Xwayland 24.1.10,
+nine X11 cases failed, none because of the effect:
+
+- The Wine cases' stand-in was a renamed copy of `sleep`, which Ubuntu 26.04's
+  multi-call uutils refuses to be under another name. And KWin 6.6 takes an
+  X11 window's process from its connection through XRes, where 6.3 took
+  `_NET_WM_PID`, so a window the test process made could no longer claim a Wine
+  process. The window is now made by a process of its own under the Wine name,
+  `autotests/x11_game_standin.cpp`.
+- Xwayland 24.1.10 scales an explicit input shape with the viewport, where
+  24.1.6 left it at the drawable's size. Motion and clicks land correctly
+  without the effect's repair; the preconditions now accept both.
+- KWin 6.6 leaves a window withdrawn right after mapping mapped, and its client
+  hears no UnmapNotify, with or without the effect. `withdrawnWhileHeld` skips
+  on 6.6 and later; 6.3 keeps it.
+
+Observed after the changes, locally: `run-checks.py gcc` in the Kubuntu 26.04
+image passed with every session, `upscale-x11-integration` in 62 s, the usual
+time; Trixie GCC and Clang passed. Hosted: pending the first nightly with it.
+
 ### The Kubuntu package job still fails, and could not be reproduced here
 
 The hosted `resolute` package job fails on both architectures on `4ec65c3`,

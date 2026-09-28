@@ -13,6 +13,7 @@
 #include <QDBusInterface>
 #include <QDBusReply>
 #include <QTest>
+#include <QVersionNumber>
 
 void UpscaleX11IntegrationTest::initialFullscreenMapping_data()
 {
@@ -65,8 +66,17 @@ void UpscaleX11IntegrationTest::initialWindowedMapping()
 // and the withdrawal in the order the client sent them. A toolkit popup shown
 // and hidden at once does this; replayed after the hold, the mapping showed a
 // window nobody wanted any more.
+//
+// What KWin itself does with such a window changed: 6.3 withdraws it and the
+// client hears so, while 6.6 leaves it mapped and says nothing, with or
+// without this effect (observed 2026-09-28 on 6.6.6 with Xwayland 24.1.10).
+// There is then no withdrawal for the order to be judged by, so the case
+// runs where KWin still withdraws the window.
 void UpscaleX11IntegrationTest::withdrawnWhileHeld()
 {
+    if (QVersionNumber::fromString(QStringLiteral(UPSCALE_TEST_KWIN_VERSION)) >= QVersionNumber(6, 6)) {
+        QSKIP("KWin 6.6 leaves a window withdrawn right after mapping mapped, with or without the effect");
+    }
     configure(true);
     X11Client target(false);
     QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 1024, 768), false));

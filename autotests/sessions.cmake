@@ -136,6 +136,9 @@ if(KWin_VERSION VERSION_LESS 6.7)
             anOutputVersionWithoutScaleIsLeftAlone
     )
     set_tests_properties(upscale-integration-outputs PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
+    # A game's X11 window in a process of its own; see x11_game_standin.cpp.
+    add_executable(upscale_test_x11_game x11_game_standin.cpp x11_client.cpp)
+    target_link_libraries(upscale_test_x11_game PRIVATE Qt6::Core XCB::XCB XCB::RANDR XCB::SHAPE)
     # The X11 sessions: the request path, and a window a helper prepared.
     foreach(session IN ITEMS integration prepared)
         add_executable(upscale_x11_${session}_test x11_${session}_test.cpp x11_client.cpp)
@@ -144,6 +147,7 @@ if(KWin_VERSION VERSION_LESS 6.7)
                 upscale_x11_${session}_test
                 PRIVATE
                     UPSCALE_APPLICATION_DEFAULTS="${CMAKE_SOURCE_DIR}/src/plugins/upscale/kwinupscalerc"
+                    UPSCALE_TEST_KWIN_VERSION="${KWin_VERSION}"
             )
             target_sources(
                 upscale_x11_${session}_test
@@ -159,6 +163,12 @@ if(KWin_VERSION VERSION_LESS 6.7)
                 upscale_x11_${session}_test
                 PRIVATE x11_prepared_test.h x11_preparation_gate_test.cpp
             )
+            # Started under a Wine loader's name; see x11_game_standin.cpp.
+            target_compile_definitions(
+                upscale_x11_${session}_test
+                PRIVATE UPSCALE_TEST_X11_GAME="$<TARGET_FILE:upscale_test_x11_game>"
+            )
+            add_dependencies(upscale_x11_${session}_test upscale_test_x11_game)
         endif()
         target_link_libraries(
             upscale_x11_${session}_test

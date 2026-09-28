@@ -81,7 +81,7 @@ at the earliest level that can carry it, and moves up only when it cannot.
 | commit | formatters and linters, on the changed files | ~1s, and they fix rather than complain |
 | push | whole-tree checks and the regression tests | they scale with the repository, not with the commit |
 | pull request | both of the above over the whole tree, plus builds with GCC and with Clang that run the render tests, an arm64 GCC build, clang-tidy and the plugin metadata schema, coverage, AddressSanitizer and UBSan with fuzzing, ThreadSanitizer, and a Trixie package built and installed when packaging inputs change; a Markdown-only change gets only the hooks on its changed files | needs a toolchain and KDE Frameworks installed |
-| nightly | every package: two Debian-family distributions on two architectures, Fedora, openSUSE, Arch and FreeBSD, each installed and tested afterwards, and a build against KWin master | expensive, or a moving target nobody pushing can be blamed for |
+| nightly | every package: two Debian-family distributions on two architectures, Fedora, openSUSE, Arch and FreeBSD, each installed and tested afterwards, a build against KWin master, and the test suite on the newest KWin a package ships for (Kubuntu 26.04) | expensive, or a moving target nobody pushing can be blamed for |
 
 - A commit hook that takes noticeable time gets skipped with `--no-verify`, and a
   check that is skipped is not a check. Keep the commit level to what a commit
