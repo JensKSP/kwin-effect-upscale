@@ -14,6 +14,7 @@
 
 #include "effect/effecthandler.h"
 #include "effect/effectwindow.h"
+#include "main.h"
 #include "scene/surfaceitem.h"
 #include "scene/windowitem.h"
 #include "window.h"
@@ -159,7 +160,11 @@ bool upscaleCoversOutput(const EffectWindow *window)
     const Window *internal = window->window();
     const QSize given = internal ? upscaleServedScreen(internal->pid()) : QSize();
     if (!given.isEmpty()) {
-        output.setSize(QSizeF(given.width() / scale, given.height() / scale));
+        // The screen a program was served is counted in X11 pixels, which
+        // Xwayland maps to logical ones by its own scale: the output's while
+        // X11 programs scale themselves, one while the system scales them.
+        const qreal x11Scale = kwinApp()->xwaylandScale();
+        output.setSize(QSizeF(given.width() / x11Scale, given.height() / x11Scale));
     }
     // The far edges, not the dimensions. Rounding each of an origin and a
     // width to the output's values still permits their sum to land a pixel
