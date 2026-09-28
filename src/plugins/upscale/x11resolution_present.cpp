@@ -54,13 +54,15 @@ static bool fillsFrame(X11Window *window, SurfaceItem *surface)
         && std::abs((destination.height() / frame.height()) - 1) < 1e-6;
 }
 
-template<typename Region>
-static bool isBufferRectangle(const Region &input, const QRectF &buffer)
+// The input region counts whole pixels up to KWin 6.6 and fractional ones
+// after it. A whole-pixel region is compared with the aligned rectangle.
+template<typename InputRegion>
+static bool isBufferRectangle(const InputRegion &input, const QRectF &buffer)
 {
-    if constexpr (std::is_same_v<Region, QRegion>) {
-        return input == QRegion(buffer.toAlignedRect());
+    if constexpr (std::is_same_v<InputRegion, UpscaleRegion>) {
+        return input == UpscaleRegion(UpscaleRect(buffer.toAlignedRect()));
     } else {
-        return input == Region(buffer);
+        return input == InputRegion(buffer);
     }
 }
 

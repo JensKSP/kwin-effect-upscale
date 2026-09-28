@@ -309,7 +309,7 @@ public:
         if (!surface) {
             return QStringLiteral("none");
         }
-        const QRectF bounds = surface->input().boundingRect();
+        const QRectF bounds = UpscaleRectF(surface->input().boundingRect());
         return QStringLiteral("%1,%2,%3,%4").arg(bounds.x()).arg(bounds.y()).arg(bounds.width()).arg(bounds.height());
     }
 
