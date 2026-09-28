@@ -7,6 +7,8 @@
 #include "x11_client.h"
 #include "x11_integration_test.h"
 
+#include <KConfigGroup>
+#include <KSharedConfig>
 #include <QCoreApplication>
 #include <QDBusInterface>
 #include <QDBusReply>
@@ -112,4 +114,63 @@ void UpscaleX11IntegrationTest::coversTheScreenItWasGiven()
     QVERIFY(!target.isFullscreen());
     QTRY_VERIFY2(!status().contains(QStringLiteral("not fullscreen or a selected borderless window")),
                  qPrintable(status()));
+
+    // A connection that returns to native display replies can resize to the
+    // physical output. Its historical smaller screen must not disqualify it.
+    X11Client native(false);
+    native.reportProcess();
+    QVERIFY(native.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 3840, 2160), false));
+    QVERIFY(native.waitForMapping());
+    QTRY_VERIFY2(!status().contains(QStringLiteral("not fullscreen or a selected borderless window")),
+                 qPrintable(status()));
+}
+
+void UpscaleX11IntegrationTest::winePrefixEligibility_data()
+{
+    QTest::addColumn<QString>("pattern");
+    QTest::addColumn<QString>("change");
+    QTest::addColumn<bool>("expected");
+    QTest::newRow("shipped-native-catalogue") << QString() << QString() << false;
+    QTest::newRow("wine-program") << QStringLiteral(".*/Wreckfest/Wreckfest\\.exe") << QString() << true;
+    QTest::newRow("wine-prefix") << QStringLiteral("wine:///test/prefix/.*") << QString() << true;
+    QTest::newRow("other-prefix") << QStringLiteral("wine:///other/prefix/.*") << QString() << false;
+    QTest::newRow("known-loader") << QStringLiteral("/usr/bin/wine") << QString() << true;
+    QTest::newRow("native-resolution") << QStringLiteral("wine://.*") << QStringLiteral("Native") << false;
+    QTest::newRow("disabled-profile") << QStringLiteral("wine://.*") << QStringLiteral("Disabled") << false;
+    QTest::newRow("off-presentation") << QStringLiteral("wine://.*") << QStringLiteral("Off") << false;
+    QTest::newRow("below-threshold") << QStringLiteral("wine://.*") << QStringLiteral("Threshold") << false;
+}
+
+void UpscaleX11IntegrationTest::winePrefixEligibility()
+{
+    QFETCH(QString, pattern);
+    QFETCH(QString, change);
+    QFETCH(bool, expected);
+    const KSharedConfig::Ptr catalogue = KSharedConfig::openConfig(QStringLiteral("kwinupscalerc"));
+    const KConfig shipped(QStringLiteral(UPSCALE_APPLICATION_DEFAULTS), KConfig::SimpleConfig);
+    for (const QString &name : shipped.groupList()) {
+        KConfigGroup destination(catalogue, name);
+        KConfigGroup(&shipped, name).copyTo(&destination);
+    }
+    KConfigGroup entry(catalogue, QStringLiteral("Application-test"));
+    entry.writeEntry("X11ConnectionExecutable", pattern);
+    if (change == QLatin1String("Native")) {
+        entry.writeEntry("Resolution", QStringLiteral("Native"));
+    } else if (change == QLatin1String("Off")) {
+        entry.writeEntry("MethodX11Borderless", QStringLiteral("Off"));
+    } else if (change == QLatin1String("Threshold")) {
+        entry.writeEntry("MinimumPixels", 3840 * 2160 + 1);
+    }
+    entry.sync();
+    configure(change != QLatin1String("Disabled"));
+    QDBusInterface policy(QStringLiteral("org.kde.KWin"), QStringLiteral("/org/kde/KWin/Effect/Upscale1"),
+                          QStringLiteral("org.kde.KWin.Effect.Upscale1"), QDBusConnection::sessionBus());
+    const QDBusReply<bool> answer = policy.call(QStringLiteral("x11PrefixMayMatch"), QStringLiteral("/test/prefix"),
+                                                QStringList{QStringLiteral("wine:///test/prefix/C:/windows/system32/winecfg.exe"), QStringLiteral("/usr/bin/wine")});
+    QVERIFY2(answer.isValid(), qPrintable(answer.error().message()));
+    // The multi-output companion session cannot advertise a connection size.
+    if (qEnvironmentVariableIntValue("UPSCALE_TEST_OUTPUT_COUNT") != 1) {
+        expected = false;
+    }
+    QCOMPARE(answer.value(), expected);
 }

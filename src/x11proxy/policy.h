@@ -14,7 +14,7 @@ class Policy
 {
 public:
     // The largest frame held whole to be read. Larger ones are relayed as
-    // they arrive, so this is also the most a single read can release.
+    // they arrive. Coalesced frames are drained before buffering more input.
     static constexpr qsizetype s_bufferLimit = qsizetype(8) * 1024 * 1024;
     explicit Policy(QSize size = {}, Registry *registry = nullptr, quint32 pid = 0, const QByteArray &timing = {});
     ~Policy();

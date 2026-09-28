@@ -125,6 +125,11 @@ if(KWin_VERSION VERSION_LESS 6.7)
     foreach(session IN ITEMS integration prepared)
         add_executable(upscale_x11_${session}_test x11_${session}_test.cpp x11_client.cpp)
         if(session STREQUAL "integration")
+            target_compile_definitions(
+                upscale_x11_${session}_test
+                PRIVATE
+                    UPSCALE_APPLICATION_DEFAULTS="${CMAKE_SOURCE_DIR}/src/plugins/upscale/kwinupscalerc"
+            )
             target_sources(
                 upscale_x11_${session}_test
                 PRIVATE x11_integration_test.h x11_startup_test.cpp x11_input_test.cpp
@@ -162,6 +167,7 @@ if(KWin_VERSION VERSION_LESS 6.7)
             ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-integration-test.py
             $<TARGET_FILE:upscale_x11_integration_test> --x11 --scale=3 --outputs=1
             coversPointerWithoutEmulatedMode refreshesStartupInputShape coversTheScreenItWasGiven
+            winePrefixEligibility
     )
     set_tests_properties(upscale-x11-scaled PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
     set(sessions

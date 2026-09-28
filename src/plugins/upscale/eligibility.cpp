@@ -159,6 +159,16 @@ bool upscaleCoversOutput(const EffectWindow *window)
     auto output = screen->geometryF();
     const Window *internal = window->window();
     const QSize given = internal ? upscaleServedScreen(internal->pid()) : QSize();
+    const auto covers = [&frame, scale](const QRectF &rectangle) {
+        return samePixel(frame.x(), rectangle.x(), scale) && samePixel(frame.y(), rectangle.y(), scale)
+            && samePixel(frame.x() + frame.width(), rectangle.x() + rectangle.width(), scale)
+            && samePixel(frame.y() + frame.height(), rectangle.y() + rectangle.height(), scale);
+    };
+    if (covers(output)) {
+        // A display change may withdraw a connection's smaller advertisement.
+        // A game that follows the native size still covers its current output.
+        return true;
+    }
     if (!given.isEmpty()) {
         // The screen a program was served is counted in X11 pixels, which
         // Xwayland maps to logical ones by its own scale: the output's while
@@ -170,9 +180,7 @@ bool upscaleCoversOutput(const EffectWindow *window)
     // width to the output's values still permits their sum to land a pixel
     // short or a pixel over, which is a strip left uncovered or drawn past the
     // screen. Where the edges agree, every pixel between them is covered.
-    return samePixel(frame.x(), output.x(), scale) && samePixel(frame.y(), output.y(), scale)
-        && samePixel(frame.x() + frame.width(), output.x() + output.width(), scale)
-        && samePixel(frame.y() + frame.height(), output.y() + output.height(), scale);
+    return covers(output);
 }
 
 bool upscaleRequestCoversOutput(const Window *window)

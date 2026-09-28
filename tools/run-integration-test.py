@@ -131,6 +131,7 @@ def main() -> int:
             # place X11 windows in the device pixels X11 still counts in, so
             # they have to know which of the two this session separates.
             UPSCALE_TEST_OUTPUT_SCALE=str(scale),
+            UPSCALE_TEST_OUTPUT_COUNT=str(outputs),
         )
         environment.pop("QT_QPA_PLATFORM", None)
         environment["QT_PLUGIN_PATH"] = str(build / "bin")

@@ -82,6 +82,9 @@ public Q_SLOTS:
      */
     QVariantMap x11ConnectionPolicy(uint pid, const QStringList &candidates) const;
 
+    /** Whether resolving this Wine prefix could select an enabled display policy. */
+    bool x11PrefixMayMatch(const QString &prefix, const QStringList &candidates) const;
+
     /**
      * The captions of the open windows an entry with these fields would match.
      *

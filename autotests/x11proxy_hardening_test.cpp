@@ -157,6 +157,40 @@ void hostileClient(bool little)
     check(policy.feed(0, huge) == huge && policy.transparent(), "an oversized QueryExtension was not relayed");
 }
 
+// A socket read may finish a frame at the buffer limit and also contain the
+// next frame. The limit bounds retained frames, not the combined read.
+void coalescedBoundary(bool little, std::size_t side, bool selected)
+{
+    Wire wire;
+    wire.little = little;
+    Policy policy(selected ? QSize(2560, 1440) : QSize());
+    setup(policy, wire, selected);
+    const quint16 sequence = enableBigRequests(policy, wire, 1);
+    for (const qsizetype length : {Policy::s_bufferLimit - 4, Policy::s_bufferLimit, Policy::s_bufferLimit + 4}) {
+        QByteArray message(length, '\0');
+        message[0] = side == 0 ? 127 : 1;
+        wire.integer(message, 4, static_cast<quint32>((length - (side == 0 ? 0 : 32)) / 4));
+        QByteArray following(side == 0 ? 8 : 32, '\0');
+        following[0] = side == 0 ? 127 : 6;
+        if (side == 0) {
+            wire.word(following, 2, 2);
+        }
+        const QByteArray input = message + following;
+        QByteArray output = policy.feed(side, input.first(8));
+        for (qsizetype offset = 8; offset < input.size(); offset += 65536) {
+            output += policy.feed(side, input.mid(offset, 65536));
+        }
+        check(output == input, "coalesced frame boundary lost bytes");
+        check(!policy.pending(side) && !policy.transparent(), "coalesced frame boundary lost framing");
+    }
+    // Framing still counts requests after the large messages.
+    if (side == 0 && selected) {
+        check(policy.feed(0, geometryRequest(wire, 42)) == geometryRequest(wire, 42), "geometry request changed");
+        const QByteArray result = policy.feed(1, geometryReply(wire, sequence + 6));
+        check(wire.word(result, 16) == 2560, "boundary lost request sequence");
+    }
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -169,6 +203,10 @@ int main(int argc, char **argv)
             bigRequestFraming(little);
             ambiguousOpcode(little);
             hostileClient(little);
+            for (const bool selected : {true, false}) {
+                coalescedBoundary(little, 0, selected);
+                coalescedBoundary(little, 1, selected);
+            }
         }
     } catch (const std::exception &error) {
         qCritical() << error.what();

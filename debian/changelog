@@ -1,3 +1,27 @@
+kwin-effect-upscale (0.3.0) unstable; urgency=medium
+
+  * Auto reaches every program it applies to. A starting Wayland program is
+    told the smaller output mode when it binds wl_output, and one the
+    announcement did not reach falls back to a fractional scale below one.
+  * An experimental session proxy in front of Xwayland gives selected X11
+    games smaller display information before their first window. KWin
+    starts it from the next login on; it can be switched off in the
+    settings.
+  * Game settings inherit from All applications, whose methods now default
+    to Auto. An inherited value is shown in italics, and a reset button
+    returns a changed one to the value of All applications.
+  * Native no longer refuses a window, and the heads-up shows the supplied
+    size in red when a game draws at a size other than the one chosen.
+  * The pointer, clicks and mouse look reach an X11 game across the whole
+    upscaled picture, and an X11 fullscreen game is given its size before
+    its first window is shown.
+  * A game that stays at full size can be handed to an optional helper on
+    the session bus. This package does not install one.
+  * The catalogue recognizes Left 4 Dead 2 by its game folder, adds
+    Wreckfest, and no longer pins the benchmarks to Native.
+
+ -- Jens Koehler <kwin-effect-upscale@koehler-speyer.de>  Mon, 28 Sep 2026 06:51:43 +0200
+
 kwin-effect-upscale (0.2.0) unstable; urgency=medium
 
   * Every setting is a global default with an optional per-application

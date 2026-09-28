@@ -29,6 +29,8 @@ private Q_SLOTS:
     void refreshesStartupInputShape();
     void coversPointerWithoutEmulatedMode();
     void coversTheScreenItWasGiven();
+    void winePrefixEligibility_data();
+    void winePrefixEligibility();
     void keepsEmulatedPointerCoverage_data();
     void keepsEmulatedPointerCoverage();
     void expiresDepartedClientRefusal();

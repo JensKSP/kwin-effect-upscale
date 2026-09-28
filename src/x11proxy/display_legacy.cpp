@@ -32,7 +32,9 @@ QByteArray DisplayReplies::screenInfo(const QByteArray &bytes)
         }
     }
     if (!found) {
-        throw std::runtime_error("Requested legacy size absent from server");
+        disable("Requested legacy size absent from server");
+        m_sizes.clear();
+        return bytes;
     }
     QByteArray result = Wire::slice(bytes, 0, 32) + sizes + rateLists;
     m_wire.word(result, 20, kept);
@@ -45,7 +47,8 @@ QByteArray DisplayReplies::vidmode(quint32 operation, QByteArray bytes)
 {
     if (operation == 1) {
         if (m_currentTiming.isEmpty()) {
-            throw std::runtime_error("Display policy requires RandR before VidMode current timing");
+            disable("Display policy requires RandR before VidMode current timing");
+            return bytes;
         }
         m_wire.integer(bytes, 8, m_wire.integer(m_currentTiming, 8) / 1000);
         const std::pair<int, int> fields[] = {{12, 4}, {14, 12}, {16, 14}, {18, 16}, {20, 18}, {22, 6}, {24, 20}, {26, 22}, {28, 24}};

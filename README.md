@@ -388,7 +388,7 @@ what the longer list further down describes.
 | FreeBSD | amd64 | [.pkg](https://github.com/JensKSP/kwin-effect-upscale/releases/latest/download/kwin-effect-upscale-freebsd-amd64.pkg) | [.pkg](https://github.com/JensKSP/kwin-effect-upscale/releases/download/nightly/kwin-effect-upscale-freebsd-amd64.pkg) |
 
 > [!NOTE]
-> The *Latest release* column resolves once the first `v0.2.0` tag is
+> The *Latest release* column resolves once the first `v0.3.0` tag is
 > published. The *Nightly* column resolves once a nightly built from the
 > current `master` is published: the stable file names above are newer than the
 > nightly on the [nightly release page](https://github.com/JensKSP/kwin-effect-upscale/releases/tag/nightly),
@@ -887,8 +887,8 @@ A release is created from a tag; nothing else is performed manually:
 
 ```bash
 # the tag, project(VERSION) and debian/changelog must agree, or CI stops
-git tag -a v0.2.0 -m 'kwin-effect-upscale 0.2.0'
-git push origin v0.2.0
+git tag -a v0.3.0 -m 'kwin-effect-upscale 0.3.0'
+git push origin v0.3.0
 ```
 
 The release workflow builds every package in the table above - Debian Trixie

@@ -401,7 +401,11 @@ Proton game acceptance has been established through it.
   names a connection made by one of the prefix's programs after that program,
   and one made by Wine's own components after the program the prefix last
   connected with or, before any has, the one it finds running in the prefix,
-  for which it waits up to ten seconds. A prefix whose connections have all
+  for which it waits up to ten seconds only when an enabled connection profile
+  could select that prefix. An empty or ineligible policy and the shipped
+  native-only patterns do not hold Wine tools for a nonexistent game. Broad
+  custom patterns that could match both native and Wine programs can still
+  require that bounded wait. A prefix whose connections have all
   closed has stopped, and what it ran is forgotten, so the next game started
   in it is found anew. Each process is matched on its own, once: a connection
   it opens while another of its connections is still open receives the same
@@ -1867,7 +1871,8 @@ stock display information; recognising a later game window is insufficient. A
 Wine or Proton client is identified by the program Wine runs and its prefix, as
 `wine://<prefix>/<program>` ([naming](#games-that-ignore-resizing-a-smaller-screen-in-their-prefix)),
 and a connection from one of Wine's own components waits for the program the
-prefix was started for. The proxy reads that identity from Linux's `/proc`, so
+prefix was started for only if an eligible profile could match it. The proxy
+reads that identity from Linux's `/proc`, so
 it exists on Linux only. No shipped entry carries such a pattern.
 
 If Xwayland's mode list is not ready for the first connection, the proxy retries
@@ -1885,6 +1890,13 @@ This avoids Xwayland rejecting the smaller size against its physical CRTC.
 Different sizes, other windows and invalid physical-size arguments retain the
 server's normal validation. This handling alone does not establish correct
 fullscreen rendering or input for a client.
+
+If a later display query reports unsupported output topology or no longer
+offers the requested size, that connection returns to native display replies
+and events. It remains connected, and XRes still reports its original process.
+Legacy size indices already advertised remain mapped until the client reads
+a native size table. Returning to the old output arrangement does not revive
+the withdrawn advertisement on that connection.
 
 Only implemented and verified methods may be enabled for the current case.
 Show unavailable methods with a reason. An explicit method must not silently
