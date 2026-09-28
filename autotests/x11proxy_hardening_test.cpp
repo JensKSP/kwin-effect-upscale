@@ -103,11 +103,11 @@ void bigRequestFraming(bool little)
     QByteArray enable(4, '\0');
     enable[0] = char(133);
     wire.word(enable, 2, 1);
-    check(fragmented(policy, 0, enable) == enable, "BigReqEnable changed");
     QByteArray big(12, '\0');
     big[0] = 60;
     wire.integer(big, 4, 3);
-    check(fragmented(policy, 0, big) == big, "a BIG-REQUESTS request misframed");
+    // Enabling changes the next boundary even within the same socket read.
+    check(policy.feed(0, enable + big) == enable + big, "coalesced BigReqEnable and request misframed");
     // An extended length of one is the four bytes Xwayland consumes; its
     // length field is then read as the start of the next request.
     QByteArray one(8, '\0');

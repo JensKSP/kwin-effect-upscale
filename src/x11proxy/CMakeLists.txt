@@ -15,6 +15,7 @@ add_library(
     STATIC
     relay.cpp
     policy.cpp
+    framer.cpp
     policy_identity.cpp
     registry.cpp
     display.cpp

@@ -22,6 +22,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 
 #if KWIN_BUILD_X11
 #include "x11eventfilter.h"
@@ -163,6 +164,17 @@ private:
         QPointer<X11Window> window;
         int count = 0;
     };
+    // One profile/output/PID negotiation survives short gaps between a
+    // client's replacement windows. Reset or expire the whole history together;
+    // live window requests and waits below have their own lifetime.
+    struct Negotiation
+    {
+        QSize requested;
+        std::optional<QString> failure;
+        Attempt attempt;
+        bool retried = false;
+        int validation = 0;
+    };
     // How long a client has to answer a request before validation judges it.
     // It bounds every wait on the client here as well: for its answer before
     // a release, and for its withdrawal before the next request.
@@ -192,12 +204,8 @@ private:
     bool applyPrepared(X11Window *window);
     void unpinPrepared(X11Window *window);
 
+    QHash<QString, Negotiation> m_negotiations;
     QHash<X11Window *, Request> m_requests;
-    QHash<QString, QSize> m_requested;
-    QHash<QString, QString> m_failures;
-    QHash<QString, Attempt> m_attempts;
-    QHash<QString, int> m_retries;
-    QHash<QString, int> m_validation;
     QSet<X11Window *> m_watched;
     QSet<X11Window *> m_scheduled;
     QSet<X11Window *> m_waitingForBuffer;

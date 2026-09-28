@@ -33,10 +33,9 @@ namespace KWin
 QString UpscaleX11Resolution::unmetCondition(const Request &request)
 {
     // A smaller drawable alone cannot prove that a client handled its resize.
-    // ETR can discard that event during startup and keep a native viewport;
-    // its profile requires the mode SFML selects when the game accepts it.
-    // Other clients, including L4D2, never select a mode, so they may use the
-    // effect's own presentation. Report the particular condition that failed.
+    // A profile may require explicit mode selection as confirmation. Other
+    // profiles allow the effect to present the resized buffer itself. Report
+    // the particular condition that failed.
     X11Window *window = request.window;
     if (!window->output()) {
         return i18n("The window is not on an output.");
@@ -78,7 +77,9 @@ QString UpscaleX11Resolution::unmetCondition(const Request &request)
 
 void UpscaleX11Resolution::validate(const QString &key, int generation, int revision)
 {
-    if (generation != m_generation || revision != m_validation.value(key) || m_failures.contains(key)) {
+    const auto negotiation = m_negotiations.constFind(key);
+    if (generation != m_generation || negotiation == m_negotiations.cend()
+        || revision != negotiation->validation || negotiation->failure.has_value()) {
         return;
     }
     bool observed = false;
@@ -108,17 +109,22 @@ void UpscaleX11Resolution::validate(const QString &key, int generation, int revi
                              << "buffer" << request.size << "presented by" << (request.presentedByEffect ? "effect" : "Xwayland");
         observed = true;
     }
-    if (observed) {
-        m_attempts.remove(key);
-        // The surface reached its requested size somewhere in the last three
-        // seconds; a pointer that has not moved since still has to follow it.
-        m_input->refresh();
+    if (!observed) {
+        return;
     }
+    const auto accepted = m_negotiations.find(key);
+    if (accepted != m_negotiations.end()) {
+        accepted->attempt = {};
+    }
+    // The surface reached its requested size somewhere in the last three
+    // seconds; a pointer that has not moved since still has to follow it.
+    m_input->refresh();
 }
 
 bool UpscaleX11Resolution::retry(const QString &key, int generation)
 {
-    if (m_retries.value(key) != 0) {
+    Negotiation &negotiation = m_negotiations[key];
+    if (negotiation.retried) {
         return false;
     }
     // Clients can discard resize events during a loading/state transition.
@@ -126,7 +132,7 @@ bool UpscaleX11Resolution::retry(const QString &key, int generation)
     // events may be ignored if the toolkit cached the requested size already.
     // Never loop on a client which cannot establish full-output presentation.
     qCInfo(KWIN_UPSCALE) << "X11 retry after restoring normal geometry:" << key;
-    m_retries.insert(key, 1);
+    negotiation.retried = true;
     const auto windows = m_requests.keys();
     for (X11Window *window : windows) {
         if (m_requests.value(window).key != key) {
@@ -145,8 +151,9 @@ bool UpscaleX11Resolution::retry(const QString &key, int generation)
 
 void UpscaleX11Resolution::refuse(const QString &key, const QString &reason)
 {
-    m_failures.insert(key, reason);
-    m_requested.remove(key);
+    Negotiation &negotiation = m_negotiations[key];
+    negotiation.failure = reason;
+    negotiation.requested = {};
     qCWarning(KWIN_UPSCALE) << "X11 resolution control:" << key << reason;
     const auto windows = m_requests.keys();
     for (X11Window *window : windows) {

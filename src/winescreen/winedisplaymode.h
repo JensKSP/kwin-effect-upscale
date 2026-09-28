@@ -31,9 +31,8 @@
  * Wine matches a mode a program asks for against this list and refuses one that
  * is not in it, so a list of one size is a screen a program cannot choose
  * another size on. That is the point: a game offered several sizes picks one of
- * them, and which one it picks is the game's own business - Wreckfest takes the
- * smallest (measured 2026-09-23) - while the size a program is to render at is
- * the effect's to decide.
+ * them according to its own policy. Offering only the requested size makes
+ * the rendering resolution unambiguous.
  */
 QByteArray wineDisplayModes(const QSize &size, int refreshRate);
 

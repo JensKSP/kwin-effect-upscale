@@ -401,9 +401,9 @@ public:
         // streaming-buffer frame around the entire screen, including the OSD.
         // Asked here, before the effect's own paint begins, because that is
         // where KWin asks. Asked from drawWindow instead, inside the effect's
-        // paint, it resolved the candidate for the painted output as a side
-        // effect, and that hid an effect that asked nothing unless something
-        // else resolved it: Auto with the display switched off.
+        // paint, it used to prepare resolution requests as a side effect of
+        // candidate lookup. Keep activation outside the paint so the test
+        // exercises the effect's explicit frame preparation.
         m_active = m_effect->isActive();
         m_context->makeCurrent();
         GLFramebuffer::pushFramebuffer(m_framebuffer.get());

@@ -21,12 +21,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
 import sys
 import tempfile
-import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -35,7 +35,6 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from frame_metrics import parse_status
 
 
 @dataclass(frozen=True)
@@ -64,55 +63,6 @@ class Case:
     # What the effect calls this game's window, so that a reading about some
     # other window is not read as an answer about this one.
     window: str = ""
-
-
-def cases(size: tuple[int, int]) -> list[Case]:
-    """Every case, for a screen of this many pixels.
-
-    Each game is taken as what it is rather than pushed onto a protocol it
-    does not speak. SuperTuxKart links Wayland and runs there, which is where
-    a Wayland game belongs; Extreme Tux Racer links X11 alone and so reaches
-    the effect through Xwayland, the same road every Wine and Proton game
-    takes. Between them both protocols are covered by a program that actually
-    uses them.
-
-    SuperTuxKart also reaches all three presentations on its own: fullscreen,
-    a window of a size it is given, and, through Irrlicht's legacy path, a
-    window over the screen carrying no fullscreen state, which is the shape of
-    a borderless game and the shape that went unhandled.
-    """
-    wide, high = size
-    windowed = f"{wide // 2}x{high // 2}"
-    return [
-        Case(
-            "supertuxkart",
-            "fullscreen",
-            "supertuxkart",
-            ("--fullscreen",),
-            expected="fullscreen",
-            window="supertuxkart",
-        ),
-        Case(
-            "supertuxkart",
-            "borderless",
-            "supertuxkart",
-            ("--fullscreen",),
-            environment={"IRR_DISABLE_NETWM": "1"},
-            expected="borderless",
-            window="supertuxkart",
-        ),
-        Case(
-            "supertuxkart",
-            "windowed",
-            "supertuxkart",
-            ("--windowed", f"--screensize={windowed}"),
-            expected="windowed",
-            acted=False,
-            window="supertuxkart",
-        ),
-        Case("extremetuxracer", "fullscreen", "etr", expected="fullscreen", window="etr"),
-        Case("extremetuxracer", "windowed", "etr", expected="windowed", acted=False, window="etr"),
-    ]
 
 
 def session_environment(root: Path, build: Path, runtime: Path) -> dict[str, str]:
@@ -197,49 +147,6 @@ def write_configuration(root: Path, size: tuple[int, int], scale: int) -> None:
         )
 
 
-def effect_status(environment: Mapping[str, str]) -> str:
-    """Ask the effect what it says about the window it is looking at."""
-    tool = shutil.which("qdbus6") or shutil.which("qdbus") or ""
-    if not tool:
-        return ""
-    finished = subprocess.run(
-        [tool, "org.kde.KWin", "/Effects", "org.kde.kwin.Effects.supportInformation", "upscale"],
-        capture_output=True,
-        text=True,
-        env=dict(environment),
-        check=False,
-    )
-    return finished.stdout
-
-
-def observe(environment: Mapping[str, str], seconds: float) -> tuple[str, bool, str]:
-    """Wait for the effect to describe a window, and say what it decided.
-
-    A game takes time to put its window up and longer to draw into it, so this
-    waits for a reading that names a window rather than taking the first answer
-    and calling an empty one a refusal.
-    """
-    deadline = time.monotonic() + seconds
-    presentation, acted, supplied = "", False, ""
-    while time.monotonic() < deadline:
-        text = effect_status(environment)
-        sample = parse_status(text)
-        found = next(
-            (
-                entry.removeprefix("presentation=")
-                for entry in text.split()
-                if entry.startswith("presentation=")
-            ),
-            "",
-        )
-        if found:
-            presentation, acted, supplied = found, sample.selected, sample.supplied
-            if acted:
-                return presentation, acted, supplied
-        time.sleep(1.0)
-    return presentation, acted, supplied
-
-
 def run_case(case: Case, root: Path, build: Path, screen: Screen) -> dict[str, object]:
     """Start a compositor, run one game in it, and read what the effect said."""
     # The game's name carries the protocol, which is not a directory of its own.
@@ -251,8 +158,8 @@ def run_case(case: Case, root: Path, build: Path, screen: Screen) -> dict[str, o
     runtime.chmod(0o700)
     environment = session_environment(cell, build, runtime)
     write_configuration(cell, screen.size, screen.scale)
-    program = shutil.which(case.program) or f"/usr/games/{case.program}"
-    if not Path(program).exists():
+    program = shutil.which(case.program)
+    if not program:
         return {
             "game": case.game,
             "presentation": case.presentation,
@@ -360,20 +267,39 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--height", type=int, default=2160)
     parser.add_argument("--scale", type=int, default=1, help="the screen's scale")
     parser.add_argument("--seconds", type=float, default=60.0, help="how long one game gets")
-    parser.add_argument("--game", action="append", help="run only these games")
+    parser.add_argument("--name", default="application", help="label for this case")
+    parser.add_argument("--window", required=True, help="window identity in the effect's metrics")
+    parser.add_argument(
+        "--presentation", required=True, choices=["fullscreen", "borderless", "windowed"]
+    )
+    parser.add_argument("--acted", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("command", nargs=argparse.REMAINDER, help="-- program [arguments]")
     arguments = parser.parse_args(argv)
+    command = arguments.command[1:] if arguments.command[:1] == ["--"] else arguments.command
+    if not command or not arguments.window.strip():
+        parser.error("supply a command after -- and a nonempty --window")
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", arguments.name):
+        parser.error("--name must contain only letters, digits, underscores and hyphens")
     build = Path(arguments.build).resolve()
     if not (build / "bin").is_dir():
         print(f"no build at {build}")
         return 1
     size = (arguments.width, arguments.height)
-    wanted = [case for case in cases(size) if not arguments.game or case.game in arguments.game]
+    case = Case(
+        game=arguments.name,
+        presentation=arguments.presentation,
+        program=command[0],
+        arguments=tuple(command[1:]),
+        expected=arguments.presentation,
+        acted=arguments.acted,
+        window=arguments.window,
+    )
     # Kept rather than removed: a case that did not present as expected is
     # answered by its session log, and a harness that deletes the evidence of
     # its own failures is one nobody can act on.
     directory = Path(tempfile.mkdtemp(prefix="presentations-", dir=build))
     screen = Screen(size, arguments.scale, arguments.seconds)
-    rows = [run_case(case, Path(directory), build, screen) for case in wanted]
+    rows = [run_case(case, directory, build, screen)]
     outcome = report(rows)
     print(f"\nsessions under {directory}")
     return outcome

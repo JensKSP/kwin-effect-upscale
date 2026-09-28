@@ -56,7 +56,7 @@ void UpscaleIdentityControls::build(QFormLayout *form, QWidget *parent)
         row->addWidget(field.match);
         form->addRow(labels[index], row);
     }
-    m_fields[0].value->setToolTip(i18n("The program's full path. As a regular expression, .*/supertuxkart matches "
+    m_fields[0].value->setToolTip(i18n("The program's full path. As a regular expression, .*/program matches "
                                        "that program in any folder."));
     m_matches = new QLabel(parent);
     m_matches->setObjectName(QStringLiteral("applicationMatches"));

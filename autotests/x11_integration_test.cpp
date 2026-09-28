@@ -318,6 +318,13 @@ void UpscaleX11IntegrationTest::expiresDepartedClientRefusal()
         QTRY_VERIFY_WITH_TIMEOUT(refused.isFullscreen(), 10000);
         QTRY_VERIFY2(status().contains(QStringLiteral("repeatedly replaced its window")), qPrintable(status()));
         QCOMPARE(refused.geometry(), native);
+        // A refusal belongs to this output as well as the profile and PID.
+        // The same process can still negotiate on another output.
+        X11Client independent;
+        QVERIFY(independent.show(QByteArrayLiteral("upscale-x11-test"), QRect(3840, 0, 3840, 2160)));
+        QTRY_VERIFY_WITH_TIMEOUT(independent.isFullscreen(), 10000);
+        QTRY_COMPARE(independent.geometry(), QRect(3840, 0, 1920, 1080));
+        QCOMPARE(refused.geometry(), native);
     }
     QTest::qWait(3500);
     // All connections belong to this test process: the same PID/profile/output

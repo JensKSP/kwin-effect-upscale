@@ -68,10 +68,8 @@ static double autoRatio(EffectWindow *window, const UpscaleApplication *claimed,
     // A slot that names an advertisement is asked too, when the advertisement
     // did not reach the window. An advertised mode reaches only a client that
     // takes its buffer from the modes it was told, as SDL's exclusive
-    // fullscreen does. The same program presenting another way ignores it:
-    // SuperTuxKart's Vulkan renderer, in the borderless fullscreen it uses by
-    // default, keeps drawing at full size, and follows the fractional scale
-    // instead. A window that already draws smaller without anything asked of
+    // fullscreen does. A borderless client can ignore the mode and follow
+    // the fractional surface scale instead. A window that already draws smaller without anything asked of
     // it from here is left alone, under Auto as well: an advertisement Auto
     // made at bind reached it, or the game renders smaller on its own, and
     // asking again would change nothing and claim its buffer for the wrong
@@ -112,12 +110,12 @@ bool UpscaleEffect::autoWaiting() const
     });
 }
 
-// Auto's Wayland half, run where the candidate was resolved. The window asked
+// Auto's Wayland half, run during frame preparation. The window asked
 // is the one this output would scale once its buffer allowed it: the
 // candidate when there is one, and otherwise the window that qualifies in
 // every respect but its buffer - which is the window Auto exists for.
 void UpscaleEffect::askForSmallerBuffer(UpscaleOutput *output, EffectWindow *candidate,
-                                        const UpscaleApplication *claimed) const
+                                        const UpscaleApplication *claimed)
 {
     EffectWindow *window = candidate ? candidate : upscaleWindowAwaitingBuffer(output);
     m_waylandScale->releaseOthers(output, window);
