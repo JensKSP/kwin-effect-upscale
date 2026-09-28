@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Exercise release validation with real Debian archives and corrupted inventories."""
 
+import datetime
 import hashlib
 import re
 import subprocess
@@ -20,6 +21,7 @@ from release_assets import (
     validate_version,
     write_manifest,
 )
+from release_sbom import Origin, sbom_name
 
 
 class ReleaseAssetsTest(unittest.TestCase):
@@ -68,6 +70,13 @@ class ReleaseAssetsTest(unittest.TestCase):
                 (self.assets / name).write_bytes(b"source")
         for name in self.distribution_assets():
             (self.assets / name).write_bytes(b"package")
+        self.origin = Origin(
+            repository="owner/kwin-effect-upscale",
+            tag=f"v{self.version}",
+            commit="0123456789abcdef0123456789abcdef01234567",
+            created=datetime.datetime(2026, 9, 28, tzinfo=datetime.UTC),
+            source=Path(__file__).resolve().parent.parent,
+        )
 
     def distribution_assets(self) -> list[str]:
         """Return the names a nightly candidate carries beside the Debian ones."""
@@ -184,7 +193,9 @@ class ReleaseAssetsTest(unittest.TestCase):
             for entry in ci_targets.TARGETS
             for architecture in entry.architectures
         )
-        write_manifest(self.assets, self.version)
+        # The description is required: a release without it is incomplete.
+        expected.add(sbom_name(self.version))
+        write_manifest(self.assets, self.version, self.origin)
         entries = (self.assets / "SHA256SUMS").read_text().splitlines()
         self.assertEqual({line.split("  ")[1] for line in entries}, expected)
         for line in entries:
@@ -195,7 +206,7 @@ class ReleaseAssetsTest(unittest.TestCase):
 
     def test_every_target_gets_one_stable_download_name(self) -> None:
         """The README links to these names, so a missing one is a broken link."""
-        write_manifest(self.assets, self.version)
+        write_manifest(self.assets, self.version, self.origin)
         names = {path.name for path in self.assets.iterdir()}
         for entry in ci_targets.TARGETS:
             for architecture in entry.architectures:
@@ -205,7 +216,7 @@ class ReleaseAssetsTest(unittest.TestCase):
 
     def test_a_stable_name_is_a_copy_of_the_package_it_names(self) -> None:
         """A link that downloads something other than that package is worse than none."""
-        write_manifest(self.assets, self.version)
+        write_manifest(self.assets, self.version, self.origin)
         alias = self.assets / ci_targets.download_name("trixie", "amd64")
         package = self.assets / f"kwin-effect-upscale_{self.version}.trixie_amd64.deb"
         self.assertEqual(alias.read_bytes(), package.read_bytes())
@@ -215,7 +226,7 @@ class ReleaseAssetsTest(unittest.TestCase):
         original = {
             path.name.replace("~", "."): path.read_bytes() for path in self.assets.iterdir()
         }
-        write_manifest(self.assets, self.version)
+        write_manifest(self.assets, self.version, self.origin)
         for name, contents in original.items():
             self.assertNotIn("~", name)
             self.assertEqual((self.assets / name).read_bytes(), contents)
@@ -228,7 +239,7 @@ class ReleaseAssetsTest(unittest.TestCase):
         (self.assets / "unexpected.deb").write_bytes(b"unexpected")
         original = {path.name for path in self.assets.iterdir()}
         with self.assertRaises(ValueError):
-            write_manifest(self.assets, self.version)
+            write_manifest(self.assets, self.version, self.origin)
         self.assertEqual({path.name for path in self.assets.iterdir()}, original)
 
     def test_reject_missing_package(self) -> None:

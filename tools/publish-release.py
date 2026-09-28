@@ -184,7 +184,8 @@ def installation_guide(repository: str, tag: str, names: list[str]) -> str:
                 "<details>",
                 (
                     "<summary>Stable download names, debug symbols, source"
-                    " packages, build records and checksums</summary>"
+                    " packages, build records, checksums and the software bill"
+                    " of materials</summary>"
                 ),
                 "",
             )

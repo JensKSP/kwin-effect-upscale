@@ -255,12 +255,45 @@ rows above. What each check actually returned:
   Local execution through `tools/run-codeql.py` is unaffected.
 - **Auto-merge and merged-branch cleanup (section 3): enabled and read back.**
   Hook update PRs and failure notifications remain.
-- **Section 4: nothing is implemented.** There is no `.github/release.yml`, so
-  generated release notes are not categorised against the labels above. No SBOM
-  is generated anywhere in `tools/` or `.github/`. No Pages workflow exists, so
-  the permanent handbook is not published. `GITHUB_STEP_SUMMARY` appears only in
-  `nightly.yml`, so the platform, compiler, coverage and reproducibility jobs
-  write no summaries.
+- **Section 4: release notes, summaries and the SBOM implemented; Pages not.**
+  Recorded 2026-09-28 (item 86 of the open list). `.github/release.yml` sorts
+  the notes that `tools/publish-release.py` already asks GitHub to generate
+  (`--generate-notes`) by every label the repository has; `duplicate`, `invalid`
+  and `wontfix` are left out, and a pull request without a sorted label lands
+  under "Other changes". Every check job now ends with a step that runs
+  `tools/job-summary.py` whatever the check step did: it states the step's own
+  outcome, where only `success` reads "passed" and a skipped, cancelled or
+  missing outcome is said to be so, the ctest count from `runtime-tests.xml`,
+  the line coverage from gcovr's `summary.json`, and the artifact that holds the
+  logs. A missing report is said to be missing, and a build-only platform says
+  its tests were not run. `tools/test_job_summary.py` holds those rules. Not
+  yet verified: the notes preview between real release refs, and a failing
+  hosted run's summary.
+
+  Every release and nightly now carries `kwin-effect-upscale-<version>.spdx.json`
+  (SPDX 2.3, `tools/release_sbom.py`), written before `SHA256SUMS`, so the
+  checksums and the existing provenance attestation cover it like every other
+  file. It describes each release file by SHA-256 and download URL, as
+  generated from the source commit, and each stable download name as a
+  `COPY_OF` its package. Bundled components come from the infrastructure
+  slice's inventory rather than a list of their own: every `debian/copyright`
+  paragraph for files under `src/` is contained in the source and in each
+  installable package, its name and version taken from the paragraph's
+  comment, which is refused when it names neither. Dependencies are told
+  apart by kind: each Debian package's `Depends` become
+  `RUNTIME_DEPENDENCY_OF`, each Debian source package's `Build-Depends` become
+  `BUILD_DEPENDENCY_OF`, or `TEST_DEPENDENCY_OF` where marked `<!nocheck>`.
+  RPM, Arch and FreeBSD dependencies are not read yet; those packages say
+  `DEPENDS_ON NOASSERTION` instead. The release job validates the document
+  with SPDX's own `pyspdxtools` (spdx-tools 0.8.5) before attesting, and
+  `tools/test_release_sbom.py` and the inventory test require it. Observed
+  2026-09-28: the document written for the 38 files of the 2026-09-20 nightly
+  validates (142 elements, 239 relationships), and the validator rejects a
+  dangling reference and a broken licence expression with exit status 1. Not
+  yet observed: a hosted release run that carries it.
+
+  No Pages workflow exists, so the permanent handbook is not published;
+  turning Pages on is a repository setting for Jens.
 
 These are observations of state. No hosted run was dispatched, no milestone or
 label was created, and no setting was changed to produce them.

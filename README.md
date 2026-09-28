@@ -462,6 +462,10 @@ gh attestation verify ./kwin-effect-upscale_<version>.<distribution>_<architectu
 
 `SHA256SUMS` lists every asset in the release. `provenance.sigstore.json` holds
 the signing bundle and is verified separately, so it is not itself listed there.
+`kwin-effect-upscale-<version>.spdx.json` is the release's software bill of
+materials in SPDX 2.3: every asset with its checksum, the AMD shader code the
+packages contain, and each Debian package's runtime and build dependencies. It
+is listed in `SHA256SUMS` and attested like the packages.
 
 The package version uses a tilde before the distribution suffix, as Debian
 expects, but GitHub release assets cannot preserve that tilde. For example,
