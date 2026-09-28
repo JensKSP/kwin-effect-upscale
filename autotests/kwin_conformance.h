@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "effect/effect.h"
 #include "effect/effecthandler.h"
 #include "main.h"
 
@@ -62,10 +63,15 @@ inline void loadUpscaleConformance()
     }
     qInfo().noquote() << "UPSCALE_CONFORMANCE arm=" + arm
                       << "opengl=1 loaded=" + QString::number(loaded);
-    QObject::connect(effects, &EffectsHandler::effectsChanged, effects, []() {
-        qInfo().noquote() << "UPSCALE_CONFORMANCE state loaded="
-                + QString::number(effects->isEffectLoaded(QStringLiteral("upscale")));
-    });
+    // A case that unloads the effect runs the rest of itself without it, and
+    // has to say so. KWin 6.3.6 announces an unload with no public signal,
+    // but the unloaded effect is destroyed, and that is heard the same way on
+    // every version.
+    if (Effect *effect = effects->findEffect(QStringLiteral("upscale"))) {
+        QObject::connect(effect, &QObject::destroyed, []() {
+            qInfo().noquote() << "UPSCALE_CONFORMANCE state loaded=0";
+        });
+    }
     // Do not poll status here: candidate queries can themselves initiate
     // requests. The upstream comparison must exercise normal compositor
     // activity. The explicit scaling cases inspect status only after their

@@ -134,9 +134,15 @@ management cases that had flipped in `full-4` showed no difference.
 from the committed tree. `autotests/kwin_conformance.h` connects to
 `EffectsHandler::effectsChanged`, which KWin 6.3.6 declares as a protected
 member function, not a signal, so `kwin_wayland_test.cpp` fails to compile.
-That run removed the connection in its disposable prepared copy only; the
-committed file is unchanged, and without the connection a case cannot report
-that the effect was unloaded under it. Not fixed. Two more notes for the next
+That run removed the connection in its disposable prepared copy only.
+
+Fixed the same day: the harness now connects to the effect's own `destroyed`,
+which KWin emits on every version when it unloads an effect. Built from the
+committed tree and run in the VM: `testUpscaleProduction` passed all 17
+outcomes; `testDontCrashReinitializeCompositor`, which reinitialises the
+compositor, is reported with the effect lost in the idle and active arms and
+not in the absent one, and so as invalid there; `testBounceKeys`, which does
+not touch effects, is never reported lost. Two more notes for the next
 build: `build/kwin-6.3.6` is the bare upstream source, which asks for
 KDecoration and Plasma 6.3.6 and does not configure on Trixie; Debian's
 packaged source, whose `relax-interplasma-versioned-deps.patch` lowers that to
