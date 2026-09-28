@@ -11,6 +11,7 @@
 #include <QTemporaryFile>
 #include <QTest>
 
+#include <algorithm>
 #include <cstring>
 
 WaylandClient::WaylandClient(uint32_t outputVersion)
@@ -48,7 +49,13 @@ WaylandClient::~WaylandClient()
         wl_shm_destroy(m_sharedMemory);
     }
     for (const auto &output : m_outputs) {
+        if (output->logical) {
+            zxdg_output_v1_destroy(output->logical);
+        }
         wl_output_destroy(output->proxy);
+    }
+    if (m_outputManager) {
+        zxdg_output_manager_v1_destroy(m_outputManager);
     }
     if (m_compositor) {
         wl_compositor_destroy(m_compositor);
@@ -64,7 +71,6 @@ WaylandClient::~WaylandClient()
 
 void WaylandClient::global(void *data, wl_registry *registry, uint32_t name, const char *interface, uint32_t version)
 {
-    Q_UNUSED(version)
     auto client = static_cast<WaylandClient *>(data);
     if (std::strcmp(interface, "wl_compositor") == 0) {
         client->m_compositor = static_cast<wl_compositor *>(wl_registry_bind(registry, name, &wl_compositor_interface, 4));
@@ -90,6 +96,9 @@ void WaylandClient::global(void *data, wl_registry *registry, uint32_t name, con
     } else if (std::strcmp(interface, "wp_fractional_scale_manager_v1") == 0) {
         client->m_fractionalScaleManager = static_cast<wp_fractional_scale_manager_v1 *>(
             wl_registry_bind(registry, name, &wp_fractional_scale_manager_v1_interface, 1));
+    } else if (std::strcmp(interface, "zxdg_output_manager_v1") == 0) {
+        client->m_outputManager = static_cast<zxdg_output_manager_v1 *>(
+            wl_registry_bind(registry, name, &zxdg_output_manager_v1_interface, std::min(version, 3U)));
     } else if (std::strcmp(interface, "wp_viewporter") == 0) {
         client->m_viewporter = static_cast<wp_viewporter *>(wl_registry_bind(registry, name, &wp_viewporter_interface, 1));
     } else if (std::strcmp(interface, "xdg_wm_base") == 0) {
@@ -112,6 +121,24 @@ bool WaylandClient::initialize(bool fullscreen)
     wl_registry_add_listener(m_registry, &listener, this);
     if (wl_display_roundtrip(m_display) < 0 || !m_compositor || !m_sharedMemory || !m_shell || !m_viewporter) {
         return false;
+    }
+    // Every output's xdg_output, once all are bound, in the order they were
+    // announced, as SDL asks for them.
+    for (const auto &output : m_outputs) {
+        if (!m_outputManager) {
+            break;
+        }
+        output->logical = zxdg_output_manager_v1_get_xdg_output(m_outputManager, output->proxy);
+        static const zxdg_output_v1_listener listener{
+            [](void *, zxdg_output_v1 *, int32_t, int32_t) {},
+            [](void *data, zxdg_output_v1 *, int32_t width, int32_t height) {
+            static_cast<Output *>(data)->logicalSize = QSize(width, height);
+        },
+            [](void *, zxdg_output_v1 *) {},
+            [](void *, zxdg_output_v1 *, const char *) {},
+            [](void *, zxdg_output_v1 *, const char *) {},
+        };
+        zxdg_output_v1_add_listener(output->logical, &listener, output.get());
     }
     // A second round trip: the output's own events follow the bind, and the
     // request the effect makes is one of them.
@@ -213,6 +240,11 @@ void WaylandClient::framePresented(void *data, wl_callback *callback, uint32_t t
 int WaylandClient::advertisedScale(int output) const
 {
     return output >= 0 && output < int(m_outputs.size()) ? m_outputs.at(output)->scale : 0;
+}
+
+QSize WaylandClient::advertisedLogicalSize(int output) const
+{
+    return output >= 0 && output < int(m_outputs.size()) ? m_outputs.at(output)->logicalSize : QSize();
 }
 
 void WaylandClient::configure(void *data, xdg_surface *surface, uint32_t serial)

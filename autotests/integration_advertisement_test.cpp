@@ -23,6 +23,7 @@ void UpscaleIntegrationTest::asksApplicationsForASmallerImage()
         WaylandClient untouched;
         QVERIFY(untouched.initialize());
         QCOMPARE(untouched.advertisedMode(), QSize(128, 128));
+        QCOMPARE(untouched.advertisedLogicalSize(), QSize(128, 128));
     }
 
     // Quality is two thirds of the destination, which on this screen is 85.
@@ -31,6 +32,11 @@ void UpscaleIntegrationTest::asksApplicationsForASmallerImage()
         WaylandClient asked;
         QVERIFY(asked.initialize());
         QCOMPARE(asked.advertisedMode(), QSize(85, 85));
+        // And the logical size its xdg_output reports goes with that mode, or
+        // a program comparing the two would take the difference for a
+        // density, as SDL3 does. It is sent after KWin's own, in the same
+        // message as a rule, which the round trip covers where it is not.
+        QTRY_COMPARE((asked.roundtrip(), asked.advertisedLogicalSize()), QSize(85, 85));
         // The refresh rate stays the screen's own: only the size is in
         // question, and frame pacing is not this effect's to change.
         // Nothing asks this client for a scale, because an unscaled screen
@@ -46,10 +52,12 @@ void UpscaleIntegrationTest::asksApplicationsForASmallerImage()
         WaylandClient restored;
         QVERIFY(restored.initialize());
         QCOMPARE(restored.advertisedMode(), QSize(85, 85));
+        QTRY_COMPARE((restored.roundtrip(), restored.advertisedLogicalSize()), QSize(85, 85));
         configureResolution(false, true, Stored::Quality);
         QVERIFY(restored.roundtrip());
         QCOMPARE(restored.advertisedMode(), QSize(128, 128));
         QCOMPARE(restored.advertisedScale(), 1);
+        QCOMPARE(restored.advertisedLogicalSize(), QSize(128, 128));
     }
 
     // Unlisted applications are off unless the user asks: nothing is known in

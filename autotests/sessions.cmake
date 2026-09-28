@@ -9,7 +9,8 @@ pkg_get_variable(WAYLAND_PROTOCOLS wayland-protocols pkgdatadir)
 find_program(WAYLAND_SCANNER wayland-scanner REQUIRED)
 set(protocol_sources)
 # The fractional scale is how Auto asks a Wayland window for a smaller buffer,
-# so the test client binds it to see what it was asked.
+# so the test client binds it to see what it was asked, and xdg_output is
+# where it reads the logical size that goes with the mode it was told.
 foreach(
     path
     IN
@@ -17,6 +18,7 @@ foreach(
         stable/xdg-shell/xdg-shell
         stable/viewporter/viewporter
         staging/fractional-scale/fractional-scale-v1
+        unstable/xdg-output/xdg-output-unstable-v1
 )
     get_filename_component(protocol ${path} NAME)
     set(protocol_xml "${WAYLAND_PROTOCOLS}/${path}.xml")
@@ -65,6 +67,7 @@ if(KWin_VERSION VERSION_LESS 6.7)
         ../src/plugins/upscale/windowidentity.cpp
         ../src/plugins/upscale/x11proxypolicy.cpp
         ../src/plugins/upscale/refusaltext.cpp
+        ../src/plugins/upscale/logicalsize.cpp
         ../src/plugins/upscale/modeoverride.cpp
         ../src/plugins/upscale/waylandscale.cpp
         ../src/plugins/upscale/observation.cpp

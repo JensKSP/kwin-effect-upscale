@@ -7,6 +7,7 @@
 #pragma once
 
 #include "application.h"
+#include "logicalsize.h"
 #include "resolution.h"
 #include "settings.h"
 
@@ -113,6 +114,7 @@ private:
     QSet<const OutputInterface *> m_watched;
     QList<Announcement> m_announced;
     QHash<const ClientConnection *, QHash<QString, QSize>> m_advertised;
+    UpscaleLogicalSizes m_logicalSizes;
 };
 
 } // namespace KWin

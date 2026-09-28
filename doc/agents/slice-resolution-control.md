@@ -1947,6 +1947,33 @@ the true and the falsified size together, which makes what its exclusive-mode
 matcher picks unpredictable without running it. This is independent of Auto and
 wants fixing on its own.
 
+Fixed 2026-09-28 (item 15 of the open list; Jens: make `xdg_output` agree with
+the told mode, and call in Fable if stuck). Fable read KWin 6.3.6, libwayland
+1.23.1 and SDL 2.32.4 and 3.2.10 and found: only `AdvertisedMode` disagrees,
+because the methods that send a scale already keep mode ÷ scale equal to
+KWin's logical size; SDL 2 applies the first two `done` events and ignores
+later ones, so it is unaffected either way, while SDL 3 reprocesses every
+`done`, so a logical size sent after KWin's still takes effect; and KWin 6.3,
+6.6 and master offer no hook where a program creates an `xdg_output`
+(`XdgOutputV1Interface` is private to `xdgoutput_v1.cpp`). The lasting fix is
+a small KWin change, a `bound` signal on the `xdg_output` global like
+`OutputInterface::bound`, which the effect would use where KWin has it.
+
+Until then `UpscaleLogicalSizes` (`logicalsize.cpp`), through libwayland's
+public API only: a resource-created listener on each client the effect told a
+smaller mode notices its `zxdg_output_v1` objects as they are made; for that
+moment alone a protocol logger reads the `logical_position` KWin sends on the
+new object, which says which output it is; an idle callback, which libwayland
+runs after the round of requests and before KWin flushes, then sends the told
+size - the mode divided by the output's own scale - and the `done` that
+applies it (`wl_output.done` from version 3). `restore()` sends KWin's own
+size back with the modes. Tested: the one-output session reads 85 × 85 from
+the told client's `xdg_output` and 128 × 128 after the request is withdrawn;
+the two-output session at scale 2 reads 43 × 43 from both outputs' objects,
+told apart by position, and 64 × 64 after. Each assertion failed against an
+effect that never told the size, never gave it back, or matched positions
+wrongly.
+
 #### The bench that settles all of it
 
 Each application is run three ways - mode at bind, fractional scale after the

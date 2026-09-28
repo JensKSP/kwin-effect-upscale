@@ -70,6 +70,10 @@ void UpscaleIntegrationTest::anOutputThatGoesAwayWhileAdvertised()
         QVERIFY(game.initialize());
         QCOMPARE(game.advertisedMode(0), QSize(85, 85));
         QCOMPARE(game.advertisedMode(1), QSize(85, 85));
+        // Each output's xdg_output, told apart by the position KWin sends on
+        // it, reports the logical size of the mode told for that output: 85
+        // pixels at scale 2, where the output's own is 64.
+        QTRY_VERIFY((game.roundtrip(), game.advertisedLogicalSize(0) == QSize(43, 43) && game.advertisedLogicalSize(1) == QSize(43, 43)));
         disableOutput(1);
         QTRY_VERIFY(game.roundtrip() && !game.offered(1));
         QVERIFY(game.offered(0));
@@ -77,6 +81,7 @@ void UpscaleIntegrationTest::anOutputThatGoesAwayWhileAdvertised()
         QVERIFY(game.roundtrip());
         QCOMPARE(game.advertisedMode(0), QSize(128, 128));
         QCOMPARE(game.advertisedScale(0), 2);
+        QCOMPARE(game.advertisedLogicalSize(0), QSize(64, 64));
     }
     configureResolution(true, false, Stored::Quality);
     disableOutput(-1);

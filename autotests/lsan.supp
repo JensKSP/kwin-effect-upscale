@@ -22,3 +22,10 @@ leak:KStandardShortcut::StandardShortcutWatcher::~StandardShortcutWatcher
 # per crash as the crash sessions (sessions.cmake, 2026-09-28).
 leak:KWin::OffscreenQuickView::OffscreenQuickView
 leak:QPointingDevice::QPointingDevice
+# KWin destroys a removed output's Wayland global five seconds after removing
+# it, on a timer its generated globalRemove() arms, and does not free the
+# output interfaces at shutdown (above). A session that ends sooner after an
+# output goes away leaves that timer: the output session leaks these 88 bytes
+# on every run, and none when it waits six seconds after the removal
+# (2026-09-28).
+leak:KWin::Workspace::outputRemoved
