@@ -48,6 +48,19 @@ public:
     bool offered(int output) const;
     /** The last preferred scale the compositor sent, in 120ths, or zero before any. */
     int preferredScale() const;
+    /**
+     * How many of this client's commits the compositor has presented, counted
+     * by their frame callbacks. A test that runs a client for a number of
+     * frames waits for this, so that a frame is one KWin drew rather than a
+     * stretch of time that may or may not have held one.
+     */
+    int presentedFrames() const;
+    /**
+     * Commits @p count frames, each once the compositor has presented the one
+     * before, which the caller's event loop hears of. False when one of them
+     * was not presented within five seconds.
+     */
+    bool presentFrames(int count);
 
 private:
     // One bound output. The listener is handed this record, so it keeps its
@@ -67,6 +80,7 @@ private:
     static void resize(void *data, xdg_toplevel *toplevel, int32_t width, int32_t height, wl_array *states);
     static void outputMode(void *data, wl_output *output, uint32_t flags, int32_t width, int32_t height, int32_t refresh);
     static void outputScale(void *data, wl_output *output, int32_t factor);
+    static void framePresented(void *data, wl_callback *callback, uint32_t time);
 
     wl_display *m_display = nullptr;
     wl_registry *m_registry = nullptr;
@@ -78,6 +92,9 @@ private:
     wp_viewporter *m_viewporter = nullptr;
     wp_fractional_scale_manager_v1 *m_fractionalScaleManager = nullptr;
     wp_fractional_scale_v1 *m_fractionalScale = nullptr;
+    // Frame callbacks not yet answered, destroyed with the client.
+    std::vector<wl_callback *> m_frames;
+    int m_presentedFrames = 0;
     int m_preferredScale = 0;
     wl_surface *m_surface = nullptr;
     xdg_surface *m_shellSurface = nullptr;

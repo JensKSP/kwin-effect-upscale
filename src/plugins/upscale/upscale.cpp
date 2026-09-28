@@ -282,6 +282,11 @@ bool UpscaleEffect::x11RequestsSettled() const
     return m_x11Resolution->settled();
 }
 
+int UpscaleEffect::x11Judgements() const
+{
+    return m_x11Resolution->judgements();
+}
+
 QString UpscaleEffect::records() const
 {
     return QStringList{

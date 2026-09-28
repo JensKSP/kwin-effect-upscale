@@ -9,6 +9,7 @@
 #include <QCoreApplication>
 #include <QImage>
 #include <QTemporaryFile>
+#include <QTest>
 
 #include <cstring>
 
@@ -19,6 +20,9 @@ WaylandClient::WaylandClient(uint32_t outputVersion)
 
 WaylandClient::~WaylandClient()
 {
+    for (wl_callback *frame : m_frames) {
+        wl_callback_destroy(frame);
+    }
     if (m_buffer) {
         wl_buffer_destroy(m_buffer);
     }
@@ -178,6 +182,34 @@ int WaylandClient::preferredScale() const
     return m_preferredScale;
 }
 
+int WaylandClient::presentedFrames() const
+{
+    return m_presentedFrames;
+}
+
+bool WaylandClient::presentFrames(int count)
+{
+    for (int frame = 0; frame < count; ++frame) {
+        const int presented = m_presentedFrames;
+        commit();
+        if (!QTest::qWaitFor([this, presented]() {
+            return m_presentedFrames > presented;
+        }, 5000)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void WaylandClient::framePresented(void *data, wl_callback *callback, uint32_t time)
+{
+    Q_UNUSED(time)
+    auto client = static_cast<WaylandClient *>(data);
+    std::erase(client->m_frames, callback);
+    wl_callback_destroy(callback);
+    ++client->m_presentedFrames;
+}
+
 int WaylandClient::advertisedScale(int output) const
 {
     return output >= 0 && output < int(m_outputs.size()) ? m_outputs.at(output)->scale : 0;
@@ -244,6 +276,9 @@ void WaylandClient::commit()
     wl_region_destroy(region);
     wl_surface_attach(m_surface, m_buffer, 0, 0);
     wl_surface_damage_buffer(m_surface, 0, 0, m_size.width(), m_size.height());
+    static const wl_callback_listener frameListener{framePresented};
+    m_frames.push_back(wl_surface_frame(m_surface));
+    wl_callback_add_listener(m_frames.back(), &frameListener, this);
     wl_surface_commit(m_surface);
     wl_display_flush(m_display);
 }

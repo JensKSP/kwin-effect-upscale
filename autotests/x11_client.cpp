@@ -6,15 +6,16 @@
 
 #include "x11_client.h"
 #include <QElapsedTimer>
-#include <QThread>
 
 #include <QCoreApplication>
 #include <QSocketNotifier>
 #include <QTimer>
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <memory>
+#include <poll.h>
 #include <xcb/randr.h>
 #include <xcb/shape.h>
 
@@ -445,7 +446,15 @@ bool X11Client::waitForMapping()
                 return true;
             }
         }
-        QThread::msleep(1);
+        // Blocks, as the toolkit does, until the server says something.
+        pollfd readable{xcb_get_file_descriptor(m_connection), POLLIN, 0};
+        poll(&readable, 1, int(std::max<qint64>(1, 10000 - elapsed.elapsed())));
     }
     return false;
+}
+
+void X11Client::sync()
+{
+    std::free(xcb_get_input_focus_reply(m_connection, xcb_get_input_focus(m_connection), nullptr));
+    dispatch();
 }

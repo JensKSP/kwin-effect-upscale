@@ -7,7 +7,6 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
-import time
 import unittest
 from pathlib import Path
 
@@ -139,9 +138,15 @@ class BuildInfoTest(unittest.TestCase):
         self.assertEqual(self.output.stat().st_mtime_ns, modification_time)
 
     def test_build_date_refreshes(self) -> None:
-        """A later build invocation records a new date without source changes."""
+        """A later build invocation records a new date without source changes.
+
+        Each invocation reads the clock, through the same string(TIMESTAMP)
+        that SOURCE_DATE_EPOCH overrides; two epochs stand in for two readings
+        rather than a wait for the clock's second to turn.
+        """
+        self.environment["SOURCE_DATE_EPOCH"] = "946684800"
         first = self.generate()
-        time.sleep(1.1)
+        self.environment["SOURCE_DATE_EPOCH"] = "946684801"
         self.assertNotEqual(self.generate(), first)
 
     def test_reproducible_date(self) -> None:

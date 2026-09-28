@@ -227,6 +227,10 @@ class PolicyTransportTests(unittest.TestCase):
         second = request(6 << 20, 0xA5)
         sender = threading.Thread(target=self.client.sendall, args=(first + second,))
         sender.start()
+        # Bounded, not awaited: the relay is meant to meet a full buffer while
+        # nothing reads the backend, and no portable interface says when a
+        # socket's buffer has filled. Correctness does not depend on it - the
+        # reads below check every byte - only whether that path was taken.
         time.sleep(2)
         self.assertEqual(self.read(self.backend, len(first)), first)
         self.assertEqual(self.read(self.backend, len(second)), second)

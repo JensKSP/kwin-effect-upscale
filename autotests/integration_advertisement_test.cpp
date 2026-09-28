@@ -222,10 +222,7 @@ void UpscaleIntegrationTest::anAdvertisementThatDidNotReachFallsBackToTheSurface
         QTRY_VERIFY2(status().contains(QStringLiteral("85 × 85 requested from Upscale integration test as its surface scale")),
                      qPrintable(status()));
         QVERIFY(configureSized.show(QSize(85, 85)));
-        for (int frame = 0; frame < 40; ++frame) {
-            configureSized.commit();
-            QTest::qWait(10);
-        }
+        QVERIFY(configureSized.presentFrames(40));
         // Answered, and so still asked: giving the scale back would make it
         // grow again.
         QCOMPARE(configureSized.preferredScale(), 80);
@@ -240,10 +237,7 @@ void UpscaleIntegrationTest::anAdvertisementThatDidNotReachFallsBackToTheSurface
         QVERIFY(modeList.show(QSize(85, 85)));
         QTRY_VERIFY2(status().contains(QStringLiteral("85 × 85 requested from Upscale integration test as its screen mode")),
                      qPrintable(status()));
-        for (int frame = 0; frame < 40; ++frame) {
-            modeList.commit();
-            QTest::qWait(10);
-        }
+        QVERIFY(modeList.presentFrames(40));
         QCOMPARE(modeList.preferredScale(), 120);
     }
     writeCatalogue(QString());

@@ -240,8 +240,8 @@ void UpscaleIntegrationTest::lifecycle()
         configureDisplay(true, false);
         QTRY_VERIFY(status().contains(QStringLiteral("blocksScanout: true")));
         QTRY_VERIFY(status().contains(QStringLiteral("blocksScanout: false")));
-        client.commit();
-        QTest::qWait(100);
+        // Once presented, the effect has seen the commit.
+        QVERIFY(client.presentFrames(1));
         QVERIFY(status().contains(QStringLiteral("blocksScanout: false")));
         configureDisplay(true, true);
         QTRY_VERIFY(status().contains(QStringLiteral("blocksScanout: true")));
@@ -469,10 +469,7 @@ void UpscaleIntegrationTest::autoAsksTheWindowForAFractionalScale()
         QTRY_VERIFY2(status().contains(QStringLiteral("85 × 85 requested from Upscale integration test as its surface scale")),
                      qPrintable(status()));
         QVERIFY(honouring.show(QSize(85, 85)));
-        for (int frame = 0; frame < 40; ++frame) {
-            honouring.commit();
-            QTest::qWait(10);
-        }
+        QVERIFY(honouring.presentFrames(40));
         QCOMPARE(honouring.preferredScale(), 80);
         // A window that stops presenting full screen, and no longer covers its
         // output either, is no longer asked, and gets its own scale back rather
@@ -493,10 +490,7 @@ void UpscaleIntegrationTest::autoAsksTheWindowForAFractionalScale()
         QTRY_COMPARE(ignoring.preferredScale(), 80);
         QTRY_VERIFY_WITH_TIMEOUT((ignoring.commit(), ignoring.preferredScale() == 120), 10000);
         // And it is not asked the same question again thirty frames later.
-        for (int frame = 0; frame < 60; ++frame) {
-            ignoring.commit();
-            QTest::qWait(10);
-        }
+        QVERIFY(ignoring.presentFrames(60));
         QCOMPARE(ignoring.preferredScale(), 120);
     }
     writeCatalogue(QString());

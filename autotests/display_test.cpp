@@ -174,8 +174,8 @@ void UpscaleDisplayTest::visibilityAndSampling()
     QVERIFY(display.activeFor(nullptr));
     display.update(state, nullptr);
     QVERIFY(display.activeFor(nullptr));
-    QTest::qWait(1100);
-    QVERIFY(!display.activeFor(nullptr));
+    // The notice lasts its one second on the display's own clock.
+    QTRY_VERIFY_WITH_TIMEOUT(!display.activeFor(nullptr), 3000);
     QCOMPARE(paint(display), background);
     // Repainting the same observation must not restart an expired notice.
     display.update(state, nullptr);
@@ -423,10 +423,16 @@ void UpscaleDisplayTest::displayShowsTheState()
         display.countClientUpdate(nullptr);
         display.countRepaint();
     }
-    QTest::qWait(1100);
-    QVERIFY(display.wantsSnapshot(nullptr));
-    display.update(snapshot, nullptr);
-    QVERIFY2(display.text().contains(QStringLiteral("/s")), qPrintable(display.text()));
+    // Rates appear in the first snapshot the display asks for once a sampling
+    // interval has passed on its own clock; one asked for before changes
+    // nothing.
+    const auto measured = [&]() {
+        if (display.wantsSnapshot(nullptr)) {
+            display.update(snapshot, nullptr);
+        }
+        return display.text().contains(QStringLiteral("/s"));
+    };
+    QVERIFY2(QTest::qWaitFor(measured, 3000), qPrintable(display.text()));
     QVERIFY2(display.text().contains(QStringLiteral("s sample")), qPrintable(display.text()));
 
     // Hiding it gives everything back, and asks for a fresh snapshot when it

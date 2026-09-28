@@ -84,8 +84,8 @@ void UpscaleX11IntegrationTest::withdrawnWhileHeld()
     QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 1024, 768), false));
     target.withdraw();
     QTRY_VERIFY(target.unmapNotifies() > 0);
-    // Past the hold, after which a mapping still pending would be released.
-    QTest::qWait(300);
+    // Until nothing is held: a mapping still pending would be released then.
+    UPSCALE_TRY_SETTLED();
     QVERIFY(!target.isViewable());
 }
 

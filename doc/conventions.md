@@ -70,3 +70,23 @@ upstreamed, and arm64 is not hypothetical here - packages are built for it.
   at 399 lines and still hold one function nobody can follow.
 - When a file has to exceed the limit, split it. If it truly cannot be split, say
   why in the commit message rather than raising the number.
+
+## Tests wait for what they test
+
+Laid down by Jens, 2026-09-28.
+
+- **A wait for something to happen is a wait for that condition**, bounded by a
+  generous timeout (`QTRY_*`, `QTest::qWaitFor`, a signal spy), never a fixed
+  delay that a slow runner outlasts.
+- **A wait proving that something does not happen waits for a signal that it
+  would have happened by then**, where one is cheap: a frame the compositor
+  presented, a validation the effect judged, a bus that answered a later
+  question, a round trip to the X server. `autotests/wayland_client.h`,
+  `autotests/x11_client.h` and `autotests/x11_integration_test.h` hold the
+  ones the suites use.
+- Where no such signal exists, the wait stays bounded and a comment beside it
+  says why nothing better is available.
+
+**Why:** a delay tuned on a fast machine is a race on a slow one, and one long
+enough for the slowest runner makes every run pay for it. The nightly's KWin
+6.6 runner failed a fixed-delay case at 2.5 times the local session's time.

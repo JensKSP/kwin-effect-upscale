@@ -35,6 +35,7 @@ void UpscaleX11IntegrationTest::reenteringFullscreenAtOnce()
     QTRY_VERIFY2_WITH_TIMEOUT(status().contains(scaled), qPrintable(status()), 30000);
     for (int pair = 0; pair < 4; ++pair) {
         const qsizetype before = target.configuredSizes().size();
+        const int judged = judgements();
         target.fullscreen(false);
         target.fullscreen(true);
         // The restore's configure has reached the client once KWin has read
@@ -42,9 +43,9 @@ void UpscaleX11IntegrationTest::reenteringFullscreenAtOnce()
         QTRY_VERIFY2_WITH_TIMEOUT(target.configuredSizes().sliced(before).contains(QSize(3840, 2160)),
                                   qPrintable(QDebug::toString(target.configuredSizes().sliced(before))), 30000);
         UPSCALE_TRY_SETTLED();
-        // Validation judges a request three seconds after it was made, and
-        // until then the status cannot say whether it held.
-        QTest::qWait(3500);
+        // Until validation has judged the request: before, the status cannot
+        // say whether it held.
+        UPSCALE_TRY_JUDGED(judged, 1);
         QVERIFY2(status().contains(scaled), qPrintable(status()));
         QVERIFY2(!status().contains(QStringLiteral("request failed")), qPrintable(status()));
     }

@@ -92,6 +92,7 @@ class UpscaleTestDriver : public Effect
     // What a test waits for before judging what a reconfiguration did to an
     // X11 window, rather than a delay that may or may not cover it.
     Q_PROPERTY(bool x11Settled READ x11Settled)
+    Q_PROPERTY(int x11Judgements READ x11Judgements)
     // The question the effect has put in the middle of the screen, if any,
     // and where its answers are, as x,y,width,height separated by semicolons.
     Q_PROPERTY(QString question READ question)
@@ -157,6 +158,11 @@ public:
     bool x11Settled() const
     {
         return m_effect->x11RequestsSettled();
+    }
+
+    int x11Judgements() const
+    {
+        return m_effect->x11Judgements();
     }
 
     QString records() const

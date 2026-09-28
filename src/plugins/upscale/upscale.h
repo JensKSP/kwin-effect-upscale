@@ -65,6 +65,8 @@ public:
 #endif
     /** Whether the X11 resolution control has nothing in flight; see UpscaleX11Resolution::settled(). */
     bool x11RequestsSettled() const;
+    /** How often X11 validation has judged a request; see UpscaleX11Resolution::judgements(). */
+    int x11Judgements() const;
     /**
      * How much the effect keeps per window and per program, as name=count
      * pairs. A test compares it across programs coming and going, to show
