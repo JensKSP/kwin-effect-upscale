@@ -255,6 +255,26 @@ rows above. What each check actually returned:
   Local execution through `tools/run-codeql.py` is unaffected.
 - **Auto-merge and merged-branch cleanup (section 3): enabled and read back.**
   Hook update PRs and failure notifications remain.
+- **Hook updates (section 3): proposed weekly; no pull request yet.** Recorded
+  2026-09-28 (item 89 of the open list). `tools/update-hooks.py` is the one
+  updater of `.pre-commit-config.yaml` (Dependabot has no pre-commit entry). It
+  runs `pre-commit autoupdate` for the free repositories and moves a repository
+  whose `rev` line says `# held to <prefix>` to the newest release tag of that
+  series itself; clang-format is held to `v19.`. Its first dry run against the
+  real repositories proposed moving gitleaks from v8.30.1 back to v8.30.0,
+  because autoupdate takes the newest tag on the default branch and gitleaks
+  tagged v8.30.1 off it; a pin now never moves back. The dry run then proposed
+  ruff v0.16.9 and markdownlint-cli2 v0.23.3 and nothing else.
+  `tools/test_update_hooks.py` covers the free, held, backwards and local
+  cases against fixture repositories; widening the release filter or dropping
+  the backwards rule fails it. `.github/workflows/hook-updates.yml` runs it
+  every Monday and writes the proposal to the summary. Opening the pull request
+  is not implemented: one opened with the run's `GITHUB_TOKEN` starts no
+  workflow, so the required checks would never run on it. Whether it uses a
+  GitHub App or a fine-grained token as a secret, or dispatches CI on the branch
+  itself, is Jens's decision. Failure notifications are Jens's own account
+  settings; reading his repository subscription through the API needs the
+  `notifications` scope the CLI's token lacks.
 - **Section 4: release notes, summaries and the SBOM implemented; Pages not.**
   Recorded 2026-09-28 (item 86 of the open list). `.github/release.yml` sorts
   the notes that `tools/publish-release.py` already asks GitHub to generate

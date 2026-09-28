@@ -1,0 +1,45 @@
+# SPDX-FileCopyrightText: None
+# SPDX-License-Identifier: CC0-1.0
+
+# Once a week, which pre-commit hooks have a newer version, as the run's
+# summary. tools/update-hooks.py is the one updater of .pre-commit-config.yaml,
+# and it keeps clang-format on the major version Debian Trixie ships.
+#
+# It proposes and does not open a pull request: one opened with this run's
+# token would start no workflow, so the required checks would never run on it.
+# How it gets a token that does is the maintainer's decision.
+
+name: Hook updates
+
+on:
+  schedule:
+    - cron: '23 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hook-updates
+  cancel-in-progress: true
+
+jobs:
+  propose:
+    name: Propose hook updates
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pre-commit
+        # The version the check images carry.
+        run: pipx install pre-commit==4.6.2
+      - name: Propose the newest versions
+        run: |
+          {
+            echo "### Hook updates"
+            echo
+            python3 -B tools/update-hooks.py
+          } >> "$GITHUB_STEP_SUMMARY"
+          git diff -- .pre-commit-config.yaml

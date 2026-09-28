@@ -67,9 +67,10 @@ repos:
 
   # clang-format 19 is what Debian Trixie ships, and the minimum supported
   # environment decides. A different major version formats differently, so the
-  # hook would disagree with the container and with CI.
+  # hook would disagree with the container and with CI. tools/update-hooks.py
+  # reads the hold on the rev line and moves it within 19 only.
   - repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: v19.1.7
+    rev: v19.1.7  # held to v19.
     hooks:
       - id: clang-format
         types_or: [c, c++]
