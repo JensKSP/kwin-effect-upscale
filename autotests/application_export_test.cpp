@@ -5,6 +5,7 @@
 */
 
 #include "application.h"
+#include "pattern.h"
 
 #include <QFile>
 #include <QTemporaryDir>
@@ -20,6 +21,7 @@ class ApplicationExportTest : public QObject
 
 private Q_SLOTS:
     void preservesShippedMethods();
+    void carriesAProgramToAnotherUser();
 };
 
 void ApplicationExportTest::preservesShippedMethods()
@@ -42,6 +44,28 @@ void ApplicationExportTest::preservesShippedMethods()
             QVERIFY2(entry->methods[slot] == original.methods[slot], qPrintable(original.id));
         }
     }
+}
+
+// A program as Add from Window stores it, exported from one user's list and
+// imported into another's, finds the same game in that user's library.
+void ApplicationExportTest::carriesAProgramToAnotherUser()
+{
+    UpscaleApplication game;
+    game.id = QStringLiteral("added");
+    game.name = QStringLiteral("Left 4 Dead 2");
+    game.executable = QStringLiteral(".*/Left 4 Dead 2/hl2_linux");
+    game.executableMatch = UpscaleStringMatch::RegularExpression;
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString path = directory.filePath(QStringLiteral("profiles.ini"));
+    QVERIFY(upscaleWriteApplicationFile({game}, path));
+    QFile exported(path);
+    QVERIFY(exported.open(QIODevice::ReadOnly));
+    QVERIFY(!exported.readAll().contains("/home/"));
+    const std::vector<UpscaleApplication> imported = upscaleReadApplicationFile(path);
+    QCOMPARE(imported.size(), std::size_t(1));
+    const UpscalePattern program(imported.front().executable, imported.front().executableMatch);
+    QVERIFY(program.matches(QStringLiteral("/home/kim/.steam/debian-installation/steamapps/common/Left 4 Dead 2/hl2_linux")));
 }
 
 int runApplicationExportTest(int argc, char *argv[])

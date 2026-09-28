@@ -79,12 +79,14 @@ void UpscaleApplicationEditor::addIdentified(const QVariantMap &information, con
     const QString windowClass = information.value(QStringLiteral("resourceClass")).toString();
     const QString instance = information.value(QStringLiteral("resourceName")).toString();
     UpscaleApplication application;
-    // The exact path names this copy of this program, and it is what a
-    // Wayland game is found by before its window exists. A runtime many games
-    // share names none of them, and neither does a path that did not resolve;
-    // then the window's identity is what names the game.
+    // The program is what a Wayland game is found by before its window
+    // exists, stated so that it finds the same game wherever it is installed,
+    // for another user or on another machine the list is taken to. A runtime
+    // many games share names none of them, and neither does a path that did
+    // not resolve; then the window's identity is what names the game.
     if (upscaleIdentifiesOneProgram(executable)) {
-        application.executable = executable;
+        application.executable = upscalePortableExecutable(executable);
+        application.executableMatch = UpscaleStringMatch::RegularExpression;
     } else {
         application.windowClass = windowClass;
         application.instance = instance;

@@ -91,4 +91,16 @@ private:
  */
 bool upscaleIdentifiesOneProgram(const QString &executable);
 
+/**
+ * What an entry states for the program at @p executable: a regular
+ * expression that finds the same program wherever it is installed.
+ *
+ * A game in a Steam library is its folder there and the path inside it, as
+ * the shipped entries write it; any other program is its file name in any
+ * folder. The home directory, the library's location and the prefix a package
+ * installed it under are left out, so that a list exported on one machine
+ * finds the same games on another.
+ */
+QString upscalePortableExecutable(const QString &executable);
+
 } // namespace KWin

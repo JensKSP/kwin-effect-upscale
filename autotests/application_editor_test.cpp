@@ -290,8 +290,8 @@ void UpscaleApplicationEditorTest::addsAnApplicationFromAWindow()
     QTRY_VERIFY(editor->findChildren<QDBusPendingCallWatcher *>().isEmpty());
     QTRY_COMPARE(list->count(), shipped + 1);
 
-    // With the effect answering, the entry states the exact path of this
-    // copy, which is what finds it before its window exists, and nothing else.
+    // With the effect answering, the entry states the program, which is what
+    // finds it before its window exists, in a form any installation matches.
     TestProgramLookup lookup;
     lookup.path = QStringLiteral("/usr/games/hedgewars");
     QVERIFY(bus.registerObject(QStringLiteral("/org/kde/KWin/Effect/Upscale1"), &lookup, QDBusConnection::ExportAllSlots));
@@ -301,7 +301,8 @@ void UpscaleApplicationEditorTest::addsAnApplicationFromAWindow()
     detect->click();
     QTRY_COMPARE(list->count(), shipped + 2);
     QCOMPARE(lookup.askedFor, QStringLiteral("{0b4a6c3e-8f0e-4a55-9d2c-1d1f5e3b7a90}"));
-    QCOMPARE(program->text(), QStringLiteral("/usr/games/hedgewars"));
+    QCOMPARE(program->text(), QStringLiteral(".*/hedgewars"));
+    QCOMPARE(editor->findChild<QComboBox *>(QStringLiteral("applicationProgramMatch"))->currentIndex(), int(KWin::UpscaleStringMatch::RegularExpression));
     QVERIFY(windowClass->text().isEmpty() && instance->text().isEmpty());
 
     // A runtime many games share names none of them, so the window's

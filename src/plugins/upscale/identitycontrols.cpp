@@ -171,4 +171,29 @@ bool upscaleIdentifiesOneProgram(const QString &executable)
     return !file.isEmpty() && !upscaleWineRuntime(executable) && !s_shared.match(file).hasMatch();
 }
 
+// Only what a regular expression reads as syntax is escaped, so that a stored
+// pattern reads like the shipped ones: .*/Left 4 Dead 2/hl2_linux.
+static QString escapedSyntax(const QString &text)
+{
+    static const QString s_syntax = QStringLiteral("\\.^$|?*+()[]{}");
+    QString escaped;
+    escaped.reserve(text.size());
+    for (const QChar character : text) {
+        if (s_syntax.contains(character)) {
+            escaped += QLatin1Char('\\');
+        }
+        escaped += character;
+    }
+    return escaped;
+}
+
+QString upscalePortableExecutable(const QString &executable)
+{
+    // Steam spelled it SteamApps once, and older libraries still do.
+    static const QString s_library = QStringLiteral("/steamapps/common/");
+    const qsizetype root = executable.indexOf(s_library, 0, Qt::CaseInsensitive);
+    const QString kept = root >= 0 ? executable.mid(root + s_library.size()) : executable.section(QLatin1Char('/'), -1);
+    return QStringLiteral(".*/") + escapedSyntax(kept);
+}
+
 } // namespace KWin
