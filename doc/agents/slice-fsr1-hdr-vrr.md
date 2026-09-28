@@ -5,6 +5,15 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 # Slice: FSR rendering with HDR and VRR
 
+**Status on 2026-09-28**, above the record: FSR 1 with optional RCAS, its colour
+path and the orientation fix are implemented; lifecycle and fallback are
+accepted on the OpenGL virtual backend in the VM (item 72). Open, as the open
+list numbers them: the scaled frame, active-effect state and fallback on the
+physical output and the phase-reversed A0/A1 repeats (71, 73), the B to D cost
+matrix with real games (74), which host and link to test VRR on (75, a
+decision), and aspect ratio with integer scaling, specified and not
+implemented (76).
+
 ## Start state
 
 FSR 1, optional RCAS and global resolution controls are implemented. The dated
@@ -318,7 +327,21 @@ effect now sends the profile-specific Wayland/X11 requests documented there.
 - [x] Isolate and fix the orientation refusal and extend automated coverage.
 - [ ] Close the physical-display scaler-effective gate with observed pixel
   comparison, active-effect state and fallback on the accepted candidate.
-- [ ] Complete original-buffer and lifecycle integration acceptance.
+  Needs the physical output and Jens's session (items 71 and 73 of the open
+  list, with the A0/A1 phase-reversed repeats): a nested session on the
+  desktop GPU is ruled out since parallel compositor sessions froze wzpc.
+- [x] Complete original-buffer and lifecycle integration acceptance. On the
+  OpenGL virtual backend, 2026-09-28 (item 72 of the open list): the VM
+  production test `testUpscaleProduction` (`autotests/kwin_scaling_test.cpp`)
+  passed all eight cases on KWin 6.3.6 in the conformance VM (Mesa llvmpipe on
+  vgem). `reducesAndScales`, at scales 1, 1.5 and 3, fullscreen and borderless,
+  follows the reduced buffer the client commits in answer to the request,
+  requires the effect to scale it, and requires the output to differ from
+  KWin's own enlargement of the same buffer once the effect is unloaded;
+  `unsupportedBufferFallsBack` requires the output to be pixel-identical to
+  ordinary KWin for buffers the effect refuses; the rest cover restoration
+  after an ignored request, bypass at native size, a windowed client and an
+  unplugged output. KWin master is not run there; it stays build-only.
 - [ ] Measure physical-output runs B, C and D using the now-implemented
   cooperative resolution paths; nested timing is not acceptance evidence.
 - [ ] Complete real-game, HDR/VRR, image-quality and TV acceptance. VRR is
@@ -642,6 +665,11 @@ PR #14 review follow-up: the GLES storage replacement discards prior errors
 from KWin’s shared GL context before testing its own allocation. A rendering
 regression supplies an earlier GL error and requires valid floating-point
 storage. Combined-candidate validation is pending.
+Closed 2026-09-28 (item 77 of the open list): the regression is
+`UpscaleRenderTest::allocationIgnoresEarlierErrors`, which runs in
+`upscale-render` and `upscale-render-gles`, and both passed in every full check
+run of the day, among them the one on the tree committed as `f68eab0`, with GCC
+and Clang on Trixie.
 
 ## Aspect ratio and integer scaling
 

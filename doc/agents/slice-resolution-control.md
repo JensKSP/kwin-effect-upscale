@@ -7,6 +7,23 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 ## Current status and scope decision
 
+**Status on 2026-09-28**, above the record of how it got here: the X11 request
+path with validation, retry and restoration, the Wayland mode override, Auto's
+fractional scale, the session X11 proxy with its per-connection display policy
+and the presentation of prepared windows shipped in #21, merged on 2026-09-28.
+On KWin 6.3.6, the supported target, they pass every suite; on KWin 6.6 the
+nightly now runs every test on Kubuntu 26.04, and master is built. Fixed on
+`release/0.3.0` for #23: the map hold identifies a program on 6.6 through XRes
+(item 2d), re-entering fullscreen waits for the withdrawn mode (6a),
+`xdg_output` agrees with the told mode (15), and the proxy kills an Xwayland
+that ignores SIGTERM (10). On hardware Jens reports Left 4 Dead 2 correct at 4K,
+mouse look included, and ETR's startup negotiation is accepted. Open, as the
+open list numbers them: the SuperTuxKart matrix (16), the Auto bench and plain
+windows (18, 19), the source-led investigations (20), proxy coverage of Vulkan,
+presentation sync, containers and the BSDs (23), physical acceptance (22, 24),
+Wine OpenGL's growing window (14) and the KDE report on KWin 6.6's withdrawal
+(2e). The paragraphs below keep their dates.
+
 Jens reaffirmed on 2026-09-24 that the solution must work with normal launching
 entirely through the effect, without game-specific preparation or configuration
 edits. ETR startup negotiation is now accepted. The active investigation asks

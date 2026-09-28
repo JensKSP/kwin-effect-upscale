@@ -7,6 +7,18 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 ## Status and remaining work
 
+**Status on 2026-09-28**, above the fuller record: the snapshot, refusal-specific
+diagnostics, the three passive displays and transition logging are implemented
+and tested, the last now against flooding (item 60). The build names itself
+fully: branch, tag, full commit and the date's origin, and the log gets the
+whole record when the effect starts (56). The third-party notices are installed
+with every package and checked there (55, 59); the plugin metadata carries the
+address and the exact license (57). The display follows the session's font
+(63) and a game's own display choices (65). Open, as the open list numbers
+them: reaching the notices from the settings and a shortcut for the displays,
+both decisions (56, 61); translations (68); the interactive controls (69); and
+the television checks (70).
+
 The shared snapshot, refusal-specific diagnostics and passive OSD are implemented.
 They identified the render-target orientation defect; the rendering slice records
 its fix and a nested real-GPU SuperTuxKart observation. The early diagnostics-first
@@ -306,6 +318,19 @@ Planned checks, not observed results:
   still runs but leaves identical output untouched, requiring no compilation
   or link. Verify the modules agree when installed together and report an
   already-loaded older effect honestly after an upgrade.
+
+  Observed 2026-09-28 (item 58 of the open list), Trixie, GCC, Ninja, ccache
+  off, with the generator as extended that day. A build two seconds after the
+  last, without edits or `SOURCE_DATE_EPOCH`, compiled `buildinfo.cpp` for the
+  effect and the settings module and linked the two, nothing else; Qt's
+  automatic moc step ran its check and left all 20 generated moc, resource and
+  metadata files with their timestamps. `ninja upscale` alone did the same for
+  the effect. With `SOURCE_DATE_EPOCH` fixed, the second build ran the
+  generator ("Checking which commit this build is") and compiled and linked
+  nothing. A new commit, without reconfiguring, recompiled the two
+  `buildinfo.cpp` objects, relinked the two modules, and the generated source
+  named the new full hash. What remains of this item is the installed pair and
+  the report after an upgrade, which need a session.
 - The settings use standard KDE interaction on the supported target, with
   accessible labels, focus and keyboard activation. Opening/closing About and
   following a details/license link leave unsaved configuration unchanged.
@@ -1214,6 +1239,13 @@ composition lifetime, text blocks, timeout and placement. Cover explicit
 on and off against opposing global choices and switching back to inherited
 settings. Keep ordinary desktop windows excluded. Validation is pending;
 the ETR geometry/input investigation belongs to the resolution slice.
+
+Covered since #21 (`ee6b3b2`), found 2026-09-28 (item 65 of the open list):
+`UpscaleDisplayTest::perGameDisplaySettings` in `display_settings_test.cpp`,
+part of `upscale-display` and `upscale-display-gles`, shows a game's frame-rate
+display on against every global block off, off against the global display on,
+and back to the global value once the game's own is removed, each through
+`upscaleResolveSettings()` and the drawn result.
 
 ### Transition logging requested on wzpc, 2026-09-23
 
