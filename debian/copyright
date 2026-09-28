@@ -25,6 +25,7 @@ Files: .dockerignore
        .github/release.yml
        .github/actions/*
        .github/workflows/*
+       containers/game-tests/Containerfile
        containers/vm-host/Containerfile
        containers/vm-host/user-data.in
        containers/wayland-tests/Containerfile

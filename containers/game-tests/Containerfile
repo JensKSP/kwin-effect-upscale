@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: None
+# SPDX-License-Identifier: CC0-1.0
+#
+# The game a release is checked with, on the image the conformance machine
+# already runs: SuperTuxKart in every way it presents itself, drawn by Mesa's
+# llvmpipe and lavapipe on the machine's vgem, never on a real GPU.
+# python3-dbus asks KWin for a capture of the output, which takes a file
+# descriptor that no command line tool passes; numpy and Pillow compare it.
+FROM localhost/upscale-wayland-tests:trixie
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y \
+        supertuxkart mesa-vulkan-drivers vulkan-tools python3-dbus python3-numpy python3-pil \
+    && rm -rf /var/lib/apt/lists/*

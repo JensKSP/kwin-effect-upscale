@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# The game list tools/check-supertuxkart.py brings along instead of relying on
+# the one the package ships: SuperTuxKart, as the package measures it, and
+# nothing else. Written where the settings page's import writes a list.
+
+[General]
+FormatVersion=1
+
+[Application-supertuxkart]
+Name=SuperTuxKart
+MeasuredVersion=1.4
+Executable=.*/supertuxkart
+X11ConnectionExecutable=/(?:.*/)?supertuxkart
+ExecutableMatch=RegularExpression
+MethodWaylandFullScreen=AdvertisedMode
+Order=10
