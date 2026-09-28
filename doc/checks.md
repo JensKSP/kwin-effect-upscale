@@ -103,6 +103,25 @@ at the earliest level that can carry it, and moves up only when it cannot.
 - The file size limit and its check are described with the
   [code conventions](conventions.md#how-big-a-file-may-get).
 
+### A game that crashes
+
+The sessions `upscale-integration-crash` and `upscale-x11-crash` run a real
+game that crashes at a moment each case chooses, and check that the effect
+keeps nothing for it afterwards. The game is glmark2 from Debian's source
+package, which `tools/prepare-crash-game.py` copies, teaches to crash and
+builds; its source never enters this repository. These sessions are registered
+only where that build exists, so CI does not run them. Run them before a
+release and after any change to what the effect keeps per window or program:
+
+```sh
+# In containers/wayland-tests, from the repository root:
+apt-get build-dep -y glmark2
+mkdir -p build/test-games && (cd build/test-games && apt-get source glmark2)
+python3 -B tools/prepare-crash-game.py --source build/test-games/glmark2-2023.01+dfsg
+# Then configure the build with -DUPSCALE_CRASH_GAME=$PWD/build/test-games/glmark2-crash
+# and run: ctest -R '^upscale-(integration|x11)-crash$'
+```
+
 ### What may touch the plugin folder
 
 - A formatter runs inside `src/plugins/upscale/` only if its output is what KWin

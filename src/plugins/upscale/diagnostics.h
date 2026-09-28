@@ -14,6 +14,7 @@
 #include <QHash>
 #include <QObject>
 #include <QRectF>
+#include <QString>
 
 #include <utility>
 
@@ -25,6 +26,11 @@ class UpscaleDiagnostics : public QObject
 {
 public:
     void observe(EffectWindow *window, const UpscaleSettings &settings, bool selected, UpscaleRefusal refusal);
+    /** What this keeps per window or program; see UpscaleEffect::records(). */
+    QString records() const
+    {
+        return QStringLiteral("diagnostics=%1").arg(m_states.size());
+    }
 
 private:
     // Preserve fractional input regions on newer KWin as well as Qt regions

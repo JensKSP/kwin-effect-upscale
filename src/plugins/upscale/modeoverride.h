@@ -63,6 +63,11 @@ public:
 
     /** The size last advertised to this client for this output, or invalid. */
     QSize advertised(const ClientConnection *client, const QString &output) const;
+    /** What this keeps per window or program; see UpscaleEffect::records(). */
+    QString records() const
+    {
+        return QStringLiteral("announced=%1 advertised=%2").arg(m_announced.size()).arg(m_advertised.size());
+    }
 
 private:
     // Whether the record of what each program was told goes back with the

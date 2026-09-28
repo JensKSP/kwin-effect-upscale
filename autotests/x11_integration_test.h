@@ -43,6 +43,7 @@ private Q_SLOTS:
     void repeatedFullscreenTransitions();
     void preservesModeOnFullscreenEntry_data();
     void preservesModeOnFullscreenEntry();
+    void aGameThatCrashesWhileResizedIsLetGo();
 
 private:
     // The global resolution as kwinrc stores it, spelled out rather than taken

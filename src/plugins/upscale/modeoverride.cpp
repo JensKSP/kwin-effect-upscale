@@ -263,6 +263,12 @@ void UpscaleModeOverride::remember(OutputInterface *output, ClientConnection *cl
     if (!m_advertised.contains(client)) {
         connect(client, &QObject::destroyed, this, [this, client]() {
             m_advertised.remove(client);
+            // What a program that is gone was told cannot be given back to
+            // it, and kept until the next restore it would grow with every
+            // launch. Qt clears its guard before announcing the destruction.
+            m_announced.removeIf([](const Announcement &announcement) {
+                return !announcement.client;
+            });
         });
     }
     // A later instance of the same executable may have seen a different policy.

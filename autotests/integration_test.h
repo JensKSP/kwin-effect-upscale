@@ -35,6 +35,9 @@ private Q_SLOTS:
     void anOutputThatGoesAwayWhileAdvertised();
     void aProgramThatExitsBeforeRestoration();
     void anOutputVersionWithoutScaleIsLeftAlone();
+    void aGameThatCrashesIsLetGo_data();
+    void aGameThatCrashesIsLetGo();
+    void crashingGamesLeaveNothingBehind();
 
 private:
     // The global resolution as kwinrc stores it. Spelled out here rather than
@@ -57,6 +60,7 @@ private:
     void disableOutput(int index);
     void startAdvertising(const QString &method);
     void stopAdvertising();
+    void startCrashGame();
     QDBusInterface m_effects{QStringLiteral("org.kde.KWin"), QStringLiteral("/Effects"),
                              QStringLiteral("org.kde.kwin.Effects"), QDBusConnection::sessionBus()};
 };

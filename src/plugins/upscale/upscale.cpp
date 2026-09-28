@@ -43,6 +43,7 @@
 
 #include <QLoggingCategory>
 #include <QScopedValueRollback>
+#include <QStringList>
 
 #include <array>
 
@@ -279,6 +280,22 @@ bool UpscaleEffect::isActive() const
 bool UpscaleEffect::x11RequestsSettled() const
 {
     return m_x11Resolution->settled();
+}
+
+QString UpscaleEffect::records() const
+{
+    return QStringList{
+        m_diagnostics.records(),
+        m_modeOverride->records(),
+        m_x11Resolution->records(),
+        m_waylandScale->records(),
+        m_preparation->records(),
+        QStringLiteral("unsupportedColors=%1 renderedInputs=%2 passRefusals=%3")
+            .arg(m_unsupportedColors.size())
+            .arg(m_renderedInputs.size())
+            .arg(m_passRefusals.size()),
+    }
+        .join(QLatin1Char(' '));
 }
 
 bool UpscaleEffect::blocksDirectScanout() const
