@@ -3852,7 +3852,22 @@ For a candidate tied to a specific commit, also pass `--source-digest COMMIT` an
 `SHA256SUMS` verifies the release artifacts listed in that manifest.
 `provenance.sigstore.json` contains the signing bundle and is verified separately;
 it is not included in the checksum manifest. Attestations identify the build's origin; acceptance
-tests establish its behaviour. This signs downloaded release artifacts, not an
+tests establish its behaviour.
+
+Each release also carries its software bill of materials,
+`kwin-effect-upscale-<version>.spdx.json` in SPDX 2.3, written by
+`tools/release_sbom.py` before the checksums are taken, so the manifest and the
+attestation cover it. It describes every release file by its SHA-256, as
+generated from the tagged commit, and each stable download name as a copy of
+its package. The third-party code compiled into the packages comes from
+`debian/copyright`, whose paragraphs for files under `src/` name it, and is
+recorded as contained in the source and in each installable package. Runtime
+dependencies are read from each Debian package's `Depends`, and build and test
+dependencies from each Debian source package's `Build-Depends`, where
+`<!nocheck>` marks a test dependency. The RPM, Arch and FreeBSD packages state
+their dependencies in their own formats, which are not read yet; the document
+says `NOASSERTION` for them rather than listing none. The release job checks
+the document with SPDX's own validator before it is attested. This signs downloaded release artifacts, not an
 APT repository's metadata. An APT repository would require a separate design.
 
 Do not enable repository-wide release immutability while the same repository

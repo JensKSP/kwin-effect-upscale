@@ -22,6 +22,7 @@ Files: .dockerignore
        .gitignore
        .kde-ci.yml
        .github/dependabot.yml
+       .github/release.yml
        .github/actions/*
        .github/workflows/*
        containers/wayland-tests/Containerfile

@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: None
+# SPDX-License-Identifier: CC0-1.0
+#
+# How GitHub groups the generated notes of a release, by the labels the pull
+# requests carry. A pull request falls in the first category that matches;
+# one with none of these labels is listed under "Other changes".
+changelog:
+  exclude:
+    labels:
+      - duplicate
+      - invalid
+      - wontfix
+  categories:
+    - title: Fixes
+      labels:
+        - bug
+    - title: New and changed
+      labels:
+        - enhancement
+        - accessibility
+        - area:upscaling
+        - area:osd
+        - area:logging
+        - area:kwin-api
+    - title: Documentation and licensing
+      labels:
+        - documentation
+        - area:legal
+    - title: Build, packaging and checks
+      labels:
+        - area:build
+        - area:ci
+        - area:tests
+    - title: Dependencies
+      labels:
+        - dependencies
+        - github_actions
+    - title: Other changes
+      labels:
+        - "*"

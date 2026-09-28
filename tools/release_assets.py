@@ -11,6 +11,7 @@ import subprocess
 from pathlib import Path
 
 import ci_targets
+from release_sbom import Origin, write_sbom
 
 VERSION_PATTERN = r"[0-9]+\.[0-9]+\.[0-9]+(?:\+git[0-9]{8}\.[0-9a-f]{10})?"
 # Which targets exist, and what each is built for, is ci_targets.py's to say.
@@ -269,7 +270,7 @@ def write_download_aliases(paths: list[Path], version: str) -> list[Path]:
     return created
 
 
-def write_manifest(directory: Path, version: str) -> None:
+def write_manifest(directory: Path, version: str, origin: Origin) -> None:
     """Only produce a manifest after the full release inventory is validated."""
     paths = validate_assets(directory, version)
     # GitHub replaces '~' in asset filenames with '.'. Choose those public
@@ -277,6 +278,8 @@ def write_manifest(directory: Path, version: str) -> None:
     # Package versions and Debian's original build records remain unchanged.
     paths = [path.rename(path.with_name(path.name.replace("~", "."))) for path in paths]
     paths = sorted(paths + write_download_aliases(paths, version))
+    # Described before the checksums are taken, so they cover the description.
+    paths = sorted([*paths, write_sbom(directory, version, paths, origin)])
     (directory / "SHA256SUMS").write_text(
         "".join(f"{digest(path)}  {path.name}\n" for path in paths)
     )

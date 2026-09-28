@@ -38,6 +38,7 @@ runs:
         restore-keys: |
           checks-${{ runner.arch }}-${{ inputs.environment }}-${{ inputs.mode == 'docs' && 'lint' || inputs.mode }}-${{ hashFiles('.pre-commit-config.yaml') }}-
     - name: Run checks
+      id: checks
       shell: bash
       env:
         CHECK_MODE: ${{ inputs.mode }}
@@ -66,6 +67,23 @@ runs:
         if [ -d build ]; then
           sudo chown -R "$(id -u):$(id -g)" build
         fi
+    # Said in the run's summary from the check step's own outcome, so that a
+    # check that was skipped or cancelled never reads as passed.
+    - name: Summarize the checks
+      if: always()
+      shell: bash
+      env:
+        CHECK_MODE: ${{ inputs.mode }}
+        OUTCOME: ${{ steps.checks.outcome }}
+        ENVIRONMENT: ${{ inputs.environment }}
+        BUILD_ONLY: ${{ inputs.build-only }}
+      run: |
+        arguments=(--mode "$CHECK_MODE" --outcome "$OUTCOME" --environment "$ENVIRONMENT")
+        arguments+=(--architecture "$RUNNER_ARCH")
+        if [ "$BUILD_ONLY" = true ]; then
+          arguments+=(--build-only)
+        fi
+        python3 -B tools/job-summary.py "${arguments[@]}" >> "$GITHUB_STEP_SUMMARY"
     - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       if: always()
       with:

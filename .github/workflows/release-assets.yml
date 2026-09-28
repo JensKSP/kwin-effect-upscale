@@ -37,10 +37,19 @@ jobs:
           pattern: deliverable-*
           path: build/release
           merge-multiple: true
-      - name: Validate inventory and create checksums
+      - name: Validate inventory, describe it and create checksums
         env:
           VERSION: ${{ inputs.version }}
-        run: python3 -B tools/prepare-release.py "$VERSION" build/release
+          CHANNEL: ${{ inputs.channel }}
+        run: python3 -B tools/prepare-release.py "$VERSION" "$CHANNEL" build/release
+      # SPDX's own validator, run on the document the release carries rather
+      # than on a test's fixture.
+      - name: Validate the software bill of materials
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          pipx run --spec spdx-tools==0.8.5 pyspdxtools \
+            --infile "build/release/kwin-effect-upscale-$VERSION.spdx.json"
       - name: Attest the exact deliverables and checksum manifest
         id: attest
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
