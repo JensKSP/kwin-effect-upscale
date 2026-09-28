@@ -162,8 +162,10 @@ QByteArray DisplayReplies::randr(quint32 operation, QByteArray bytes)
         if (length > static_cast<quint64>(bytes.size() - 32)) {
             throw std::runtime_error("Truncated RandR monitor list");
         }
-        if (monitors != 1) {
-            disable("Display policy requires one RandR monitor");
+        // One monitor can span several outputs, which the resources reply
+        // refuses; a client that asks for monitors first is refused the same.
+        if (monitors != 1 || outputs != 1) {
+            disable("Display policy requires one RandR monitor on one output");
             return bytes;
         }
         dimensions(bytes, 44);
@@ -171,7 +173,7 @@ QByteArray DisplayReplies::randr(quint32 operation, QByteArray bytes)
     return bytes;
 }
 
-QByteArray DisplayReplies::outputInfo(const QByteArray &bytes) const
+QByteArray DisplayReplies::outputInfo(const QByteArray &bytes)
 {
     const quint16 crtcCount = m_wire.word(bytes, 26);
     const quint16 modeCount = m_wire.word(bytes, 28);
@@ -184,6 +186,13 @@ QByteArray DisplayReplies::outputInfo(const QByteArray &bytes) const
         if (m_modes.contains(mode)) {
             modes.append(mode);
         }
+    }
+    // The backend no longer offers the requested size under any mode this
+    // connection was told about. Asked before the resources, which withdraw
+    // the policy in the same case, the output would otherwise have no mode.
+    if (modes.isEmpty()) {
+        disable("Requested size absent from output modes");
+        return bytes;
     }
     if (modes.removeOne(m_currentMode)) {
         modes.prepend(m_currentMode);
