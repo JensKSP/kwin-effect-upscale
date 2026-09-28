@@ -118,8 +118,13 @@ bool Session::watchSignals()
         char values[64];
         const ssize_t ignored = read(m_signalSockets[0], values, sizeof(values));
         (void)ignored;
-        m_server.terminate();
-        m_killTimer.start(1500);
+        // The first signal starts the grace period and later ones leave it
+        // alone: restarting it would let signals that keep arriving postpone
+        // the kill of a server that ignores them for as long as they do.
+        if (!m_killTimer.isActive()) {
+            m_server.terminate();
+            m_killTimer.start(1500);
+        }
     });
     return true;
 }

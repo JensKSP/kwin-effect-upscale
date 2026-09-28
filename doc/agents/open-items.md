@@ -222,6 +222,10 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   an Xwayland that ignores SIGTERM is killed after the grace period; 500
   connections opened and closed leave the proxy's open descriptors as they were,
   counted portably. Plus a short review of the signal path, recorded in the slice.
+  **Done 2026-09-28:** `x11proxy_shutdown_test.cpp`, three cases, each failing
+  against a session broken on purpose; the review found repeated signals
+  postponing the kill of an Xwayland that ignores SIGTERM, fixed in
+  `session.cpp`. Passes with GCC and under both sanitizers.
 - **11.** **decide, –** – Is the XTS release-conformance gate judged with the suite's
     windows kept from the window manager? (L3936-3939)
   **Decided by Jens 2026-09-28:** the XTS release gate is judged with the

@@ -54,11 +54,35 @@ target_compile_definitions(
     PRIVATE TRANSLATION_DOMAIN="kwin_effect_upscale"
 )
 kde_target_enable_exceptions(upscale_x11proxy_session_test PRIVATE)
+# How a session ends, and what it keeps while it runs: the same transport,
+# once in a process of its own that the test sends signals to.
+add_executable(
+    upscale_x11proxy_shutdown_test
+    x11proxy_shutdown_test.cpp
+    ../src/x11proxy/session.cpp
+    ../src/x11proxy/connection.cpp
+    ../src/x11proxy/startup.cpp
+    ../src/x11proxy/lifecycle.cpp
+)
+target_include_directories(upscale_x11proxy_shutdown_test PRIVATE ../src/x11proxy)
+target_link_libraries(
+    upscale_x11proxy_shutdown_test
+    PRIVATE upscale_x11_transport Qt6::DBus Qt6::Test KF6::ConfigCore KF6::I18n KF6::CoreAddons
+)
+target_compile_definitions(
+    upscale_x11proxy_shutdown_test
+    PRIVATE TRANSLATION_DOMAIN="kwin_effect_upscale"
+)
+kde_target_enable_exceptions(upscale_x11proxy_shutdown_test PRIVATE)
 find_program(UPSCALE_DBUS_RUN_SESSION dbus-run-session)
 if(UPSCALE_DBUS_RUN_SESSION)
     add_test(
         NAME upscale-x11proxy-session
         COMMAND ${UPSCALE_DBUS_RUN_SESSION} -- $<TARGET_FILE:upscale_x11proxy_session_test>
+    )
+    add_test(
+        NAME upscale-x11proxy-shutdown
+        COMMAND ${UPSCALE_DBUS_RUN_SESSION} -- $<TARGET_FILE:upscale_x11proxy_shutdown_test>
     )
 endif()
 

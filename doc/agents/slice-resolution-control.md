@@ -3668,6 +3668,32 @@ of the new implementation remain outstanding. Diagnostic connection, policy,
 and failure logs exist; production logging coverage is not complete. The
 prototype is neither complete nor ready for installation or PR acceptance.
 
+**Signals, shutdown and descriptors, 2026-09-28.** The signal path, reviewed:
+SIGTERM and SIGINT write one byte into a socket pair from an async-signal-safe
+handler that saves `errno`; the session reads it in its event loop, sends
+Xwayland SIGTERM and starts a 1.5 s timer that kills it; when Xwayland ends,
+the session leaves its event loop with Xwayland's status, closes its relays
+and descriptors, and its temporary socket directory goes with it. SIGPIPE is
+ignored for the whole process. One defect: every further signal restarted the
+timer, so signals arriving more often than every 1.5 s postponed the kill of an
+Xwayland that ignored them for as long as they kept coming. The first signal
+now starts the grace period and later ones leave it alone. SIGHUP is not
+handled; KWin stops Xwayland with SIGTERM, and a KWin that dies closes the
+Wayland connection, which ends Xwayland and with it the session.
+`autotests/x11proxy_shutdown_test.cpp` runs the production `Session` in front
+of the session test's stand-in server: SIGTERM to a session with an open
+connection ends the server and the session with a normal exit, closes the
+connection and removes the socket directory; a server that ignores SIGTERM is
+killed after the grace period while SIGTERM keeps arriving every 200 ms; and
+500 connections opened and closed leave the session's descriptors as they were,
+counted with `fcntl(F_GETFD)` below `_SC_OPEN_MAX` rather than through `/proc`.
+Each case was shown to fail against a session broken on purpose (no SIGTERM
+handler; the old timer; one `dup()` per connection). It runs in every pull
+request with GCC, Clang, coverage, AddressSanitizer and ThreadSanitizer: 23 s
+on Trixie, 24 s under AddressSanitizer, 23 s under ThreadSanitizer, where a
+server's slow start first raced the case and the stand-in now says when it
+ignores SIGTERM.
+
 ### Retire the installed Wine helper and prepare proxy testing, 2026-09-24
 
 Jens explicitly requested removing the Wine helper from the installation and
