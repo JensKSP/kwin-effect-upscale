@@ -12,7 +12,8 @@ building, before running checks or calling anything built, tested or done, and
 before touching `.pre-commit-config.yaml`, `.clang-tidy`, `containers/`,
 `tools/check-*.py` or a workflow.
 [Contributing](../CONTRIBUTING.md#building-and-checking) has the commands for
-building the container images and running each check group, and the handbook
+building the Trixie image and running the main check groups
+(`python3 -B tools/run-checks.py --help` lists all of them), and the handbook
 describes the [complete check matrix](upscaling.md#build-and-release-pipeline).
 
 ## Agents build in the containers
@@ -22,8 +23,9 @@ Laid down by Jens, 2026-09-17.
 - **Build and check in the containers under `containers/`**, not against
   whatever happens to be installed on the machine the agent runs on.
   `containers/trixie` is the minimum supported environment (KWin 6.3.6),
-  `containers/neon-unstable` tracks KWin master. CI builds Trixie on every push
-  and leaves KWin master to the nightly, because master is not this repository's
+  `containers/neon-unstable` tracks KWin master. CI builds Trixie for every pull
+  request and every push to master that changes more than documentation, and
+  leaves KWin master to the nightly, because master is not this repository's
   to keep green; an agent still has to build in both before calling a change
   built.
 - A change counts as built once it builds in both containers, with GCC and with
@@ -54,13 +56,20 @@ Laid down by Jens, 2026-09-17.
   the maintained container, `python3 -B tools/run-checks.py lint` runs both with
   one command, as CI does. Install both hooks once with
   `pre-commit install --hook-type pre-commit --hook-type pre-push`.
-- For a documentation-only change, the maintained container also supports
+- For a change that touches only Markdown files at the top level, under `doc/`
+  or under `.github/`, the maintained container also supports
   `python3 -B tools/run-checks.py docs --base <base-commit>`. It verifies the
   changed paths before using native pre-commit file filtering for both stages.
   CI uses this path for proven documentation-only PRs and master pushes; code,
   unknown inputs, nightly, release and manual full runs retain full validation.
-- `.pre-commit-config.yaml` is the only list of checks. Do not add a linter to CI
-  that is not in it, and do not add a check that CI cannot run.
+- `.pre-commit-config.yaml` is the list of checks, including the heavier ones
+  `run-checks.py` starts as manual-stage hooks (render tests, coverage, fuzzing,
+  CodeQL). Four checks sit outside it because a hook cannot carry them:
+  clang-tidy and the plugin metadata schema need a configured build and run
+  from `run-checks.py tidy`; the commit trailer check needs the branch's
+  commits and dependency review the pull request's dependency diff, so both run
+  only in their workflows. Do not add a linter to CI beyond these, and do not
+  add a check that CI cannot run.
 
 ### Which check runs when
 
@@ -71,7 +80,7 @@ at the earliest level that can carry it, and moves up only when it cannot.
 | --- | --- | --- |
 | commit | formatters and linters, on the changed files | ~1s, and they fix rather than complain |
 | push | whole-tree checks and the regression tests | they scale with the repository, not with the commit |
-| pull request | both of the above over the whole tree, plus a build with GCC and with Clang, an arm64 GCC build, clang-tidy and the plugin metadata schema | needs a toolchain and KDE Frameworks installed |
+| pull request | both of the above over the whole tree, plus builds with GCC and with Clang that run the render tests, an arm64 GCC build, clang-tidy and the plugin metadata schema, coverage, AddressSanitizer and UBSan with fuzzing, ThreadSanitizer, and a Trixie package built and installed when packaging inputs change; a Markdown-only change gets only the hooks on its changed files | needs a toolchain and KDE Frameworks installed |
 | nightly | every package: two Debian-family distributions on two architectures, Fedora, openSUSE, Arch and FreeBSD, each installed and tested afterwards, and a build against KWin master | expensive, or a moving target nobody pushing can be blamed for |
 
 - A commit hook that takes noticeable time gets skipped with `--no-verify`, and a
@@ -87,8 +96,9 @@ at the earliest level that can carry it, and moves up only when it cannot.
   Trixie ships; a different major version formats differently and would put the
   hook, the container and CI at odds.
 - clang-tidy is not in the hook. It needs a configured build for its
-  `compile_commands.json`, so it runs in the container and in CI:
-  `clang-tidy -p build src/plugins/upscale/*.cpp`. Its config is static analysis
+  `compile_commands.json`, so it runs in the container and in CI as
+  `python3 -B tools/run-checks.py tidy`, which configures `build/tidy` and runs
+  `run-clang-tidy` over everything under `src/`. Its config is static analysis
   and naming, never formatting; formatting is clang-format's alone.
 - The file size limit and its check are described with the
   [code conventions](conventions.md#how-big-a-file-may-get).

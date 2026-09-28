@@ -21,7 +21,10 @@
 template<typename Test>
 int runSettingsTest(int argc, char **argv)
 {
-    QTemporaryDir configuration(QDir::currentPath() + QStringLiteral("/settings-test-XXXXXX"));
+    // Under the temporary directory, not the current one: a test killed before
+    // its destructors run leaves this behind, and a run started from the
+    // source tree would leave it there. The checks point TMPDIR into build/.
+    QTemporaryDir configuration(QDir::tempPath() + QStringLiteral("/upscale-settings-test-XXXXXX"));
     if (!configuration.isValid()) {
         return 1;
     }

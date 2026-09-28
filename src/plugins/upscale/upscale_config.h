@@ -28,6 +28,8 @@ class QTabWidget;
 namespace KWin
 {
 
+class UpscalePreparedList;
+
 class UpscaleApplicationEditor;
 class UpscaleResolutionPreview;
 class UpscaleSliderField;
@@ -65,6 +67,8 @@ private:
     static void reconfigureEffect();
     void updateApplicationSummary();
     void addAboutControls(QFormLayout *layout);
+    void addProxyControls(QFormLayout *layout);
+    void updateProxyStatus();
     void connectControls();
     static QString installedVersion();
 
@@ -73,6 +77,8 @@ private:
     QComboBox *m_minimumPixels;
     UpscaleResolutionPreview *m_preview;
     QCheckBox *m_sharpening;
+    QCheckBox *m_x11Proxy = nullptr;
+    QLabel *m_proxyStatus = nullptr;
     QSlider *m_strength;
     UpscaleSliderField *m_scale = nullptr;
     UpscaleSliderField *m_strengthField = nullptr;
@@ -80,6 +86,7 @@ private:
     QCheckBox *m_osdSummary;
     QCheckBox *m_osdStatistics;
     QCheckBox *m_osdDeveloper;
+    QCheckBox *m_osdEveryFullScreen;
     QComboBox *m_osdAnnouncementPosition;
     QComboBox *m_osdStatisticsPosition;
     QComboBox *m_osdDeveloperPosition;
@@ -89,6 +96,8 @@ private:
     QLabel *m_applications;
     QPushButton *m_resetApplications;
     QLabel *m_build;
+    // Games an optional helper prepared, each with its undo; hidden without one.
+    UpscalePreparedList *m_prepared = nullptr;
 };
 
 } // namespace KWin

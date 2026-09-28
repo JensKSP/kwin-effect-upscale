@@ -497,6 +497,38 @@ was a build for Jens to try: the container builds, Clang, clang-tidy and both
 pre-commit stages have not been run for this change, and no native acceptance
 of the new placement has been recorded yet.
 
+Display scope, 2026-09-27: Jens found the announcement, the frame rate and the
+developer dump drawn over Brave in fullscreen. Cause: the display followed any
+active window presenting full screen whenever nothing was selected, so that a
+refusal could be explained, and `isActive()` repeated that rule, which also
+held the browser's screen in composition and cost it direct scanout. The
+frame rate was on through `OsdStatistics=true` in his `kwinrc`, and the
+developer dump through the Debug build's default. The installed build was
+`0.2.0+git20260924.72a4652764-dirty`, Debug, loaded by a KWin started after
+the install; no commit on any branch had changed this rule, so it was not an
+outdated installation. Now the display explains a refused window only when
+its application's profile is switched on or All applications is checked, and
+`isActive()` asks the display's choice (`explained()`) instead of restating
+it. **Show for every fullscreen window** (`OsdEveryFullScreen`, global, off in
+every build type) restores the wide behaviour for diagnosis. New coverage: the
+`lifecycle` integration case makes the client unlisted with the frame rate on
+and requires `blocksScanout: false`, then true with the switch and false
+without it; `displayDefaults` covers the switch's default and storage.
+Observed: clang-format 19 passed on the changed files, and the Trixie
+container built everything with GCC, warnings as errors. `upscale-integration`
+passed, including the new case. The other focused tests
+(`upscale-x11-integration`, `upscale-x11-prepared`, `upscale-x11-scaled`,
+`upscale-config`, `upscale-display`, `upscale-display-gles`,
+`upscale-application-editor`) have not completed: the first run ended when the
+machine went down hard at 19:34, during `upscale-x11-integration`, with no
+kernel trace, and the second was stopped at the same test before anything
+else was risked. Not run: Clang, `neon-unstable`, clang-tidy and both
+pre-commit stages. This was a build for Jens to try: the native Debug build
+`0.2.0+git20260927.f6afd18260-dirty` was installed at 19:45, and Jens
+confirmed in his session the same evening that Brave in fullscreen no longer
+shows the displays. Still open before this is committed: the focused tests
+above, Clang, `neon-unstable`, clang-tidy and both pre-commit stages.
+
 ### PR #8 coverage follow-up
 
 Hosted run `35338192292` failed the unchanged 90% C++ line gate: 744 of 1079
@@ -1096,3 +1128,111 @@ Planned checks, not observed results:
   speaks it.
 - [ ] Translate the plugin metadata.
 - [ ] Run and record the per-language session acceptance.
+
+### Per-game display settings on wzpc, 2026-09-23
+
+Jens reported that Extreme Tux Racer ignored its frame-rate display choice.
+The saved profile had `OsdStatistics=1`, while package defaults left the
+global frame-rate display off. Inspection found that `UpscaleDisplay` read
+only `UpscaleConfig`, bypassing the resolved per-game preferences. The
+previous global override explains why a per-game disabled display could
+appear before the package-default test. This is a code finding; the exact
+sequence of settings-page edits has not been reproduced.
+
+Fix scope: use the displayed window's resolved preferences for visibility,
+composition lifetime, text blocks, timeout and placement. Cover explicit
+on and off against opposing global choices and switching back to inherited
+settings. Keep ordinary desktop windows excluded. Validation is pending;
+the ETR geometry/input investigation belongs to the resolution slice.
+
+### Transition logging requested on wzpc, 2026-09-23
+
+Jens requested logging and installation of a diagnostic build before further
+ETR diagnosis. Record effective per-game settings once after matching and
+again on change, independent of the OSD. Record observed buffer, committed
+surface, scene destination, frame and output sizes only when they change.
+Log X11 requests, mode changes, effect presentation, acceptance, retries,
+restoration and replacement; Wayland output advertisements, scale requests
+and their outcomes; and Wine maintenance updates, reset, writes and restart.
+Detailed native configuration, helper calls and pointer mappings use debug
+logging. Information-level transitions are enabled in Release as well.
+Do not dump complete environments, registry contents or unrelated data.
+
+The proposed Xwayland handover change did not pass the new transition probe
+and is excluded from the diagnostic binary. That probe did not establish
+that Xwayland actually committed a viewport; the failed expectation alone
+is not proof of double scaling. Use the observed surface and mode logs to
+diagnose the handover before changing it. The installation and focused
+validation results follow; full finishing checks remain a separate gate.
+
+Diagnostic installation completed on wzpc: native Release build with warnings
+as errors, installed through `cmake --install`, and installed effect/helper
+compared byte-for-byte with the build outputs. The maintained Trixie GCC build
+passed display/OpenGL, display/GLES, X11 lifecycle and Wine-helper regressions
+(4/4). The added lock/confinement observations then built successfully and
+passed a focused real nested-X11 presentation/input smoke test (3 QtTest
+cases including setup/cleanup). Its output contains effective settings,
+observed geometry, input regions, requests, acceptance and restoration.
+
+KWin had begun stopping before the reload attempt and its service was gone,
+so the new native build could not be confirmed running. Installation was
+completed while it was stopped; the next Plasma login must confirm the loaded
+build and collect the ETR reproduction. This was a developer try-build, not
+completion of the four-build/full-check obligation. These changes have not
+yet been committed or pushed.
+
+The next login at 22:29:58 confirmed the diagnostic build running (build time
+20:27:25Z). ETR supplies 2560 × 1440, with committed surface 853.333 × 480 and
+scene/frame 1280 × 720 on the 4K output at 300% scale. It is presented by the
+effect and its pointer lock becomes active; no active confinement or emulated
+RandR property was observed. Jens confirms the pointer remains restricted.
+This proves neither a confinement-region defect nor double Xwayland scaling.
+The game exited at 22:37:30; later observation found the session locked.
+
+### Reload shortcut requested on wzpc, 2026-09-24
+
+Jens requested a desktop/menu launcher, kept in the repository with installation
+instructions, to try installed builds without logging out. Unload followed by
+load still reported the previous build. Loading the same master binary under
+a unique filename succeeded: runtime identity changed to the master archive's
+2026-09-24T04:35:20Z build. The temporary discovery file was removed afterwards
+to avoid automatic loading alongside the regular plugin on next login.
+
+Implement tools/reload-upscale.py with per-run filenames, serialized reloads,
+reported runtime identity, cleanup and recovery on load failure. It is a
+development tool, with no KWin restart or game/configuration edits. Document
+the temporary name's limitation for the ordinary settings page and the need
+for a fresh session for final installation acceptance. Its supported gate is
+focused utility checks and an observed wzpc reload; full game acceptance stays
+with the resolution-control slice. Launcher installation and utility validation
+are recorded below; then return to the historical ETR comparison requested by
+Jens.
+
+The launcher is installed for Jens in the desktop and application-menu
+directories. Its first live reload reports the verified master build under
+upscale_reload_1a31a37bb7e449b9ad7a3201f1d59dc7; the temporary plugin file is
+gone. Desktop-file validation passes. Four focused tests cover replacement,
+cancelled authentication, refused loading and missing runtime identity, with
+cleanup and recovery checked. They pass in maintained Trixie, as do the
+configured pre-commit checks on the utility/tests/README and strict type
+checking over tools. No full finishing matrix or push is claimed.
+
+The Neon compile check found that diagnostic input regions changed from QRegion
+to RegionF and committed pointer-constraint regions moved onto SurfaceInterface.
+The logging snapshot now retains the surface API's own region type and selects
+the available constraint accessor at compile time. Split state collection and
+settings logging from change reporting to meet the configured function-size and
+complexity checks. Both GCC and Clang compile the effect target on Trixie and
+Neon with this adaptation, and focused Clang static analysis passes. The native
+05:58:31Z human-test candidate is retained unchanged while acceptance is awaited;
+these compatibility edits are in the source tree, not that loaded binary.
+
+PR #21 review requests limiting the pointer debug record to mapping changes.
+The filter now records a changed surface, coordinate transform or client
+rectangle, retaining the triggering position without repeating the full record
+for every mouse event. Coverage claims and withdrawal retain their separate
+transition records. Both full Trixie compiler/test runs, both pre-commit stages
+and targeted static analysis pass with this correction. CI on the earlier
+checkpoint found the display's static eligibility query accessed through an
+instance; its caller now uses the class name. Targeted static analysis, both
+compilers on Trixie and Neon, and the affected display suites pass.

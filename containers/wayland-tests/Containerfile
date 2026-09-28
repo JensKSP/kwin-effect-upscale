@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: CC0-1.0
+
+# Build KDE's own integration tests against the minimum supported compositor.
+FROM localhost/upscale-conformance:trixie
+RUN apt-get update \
+    && apt-get build-dep --no-install-recommends -y kwin \
+    && apt-get install --no-install-recommends -y libei-dev \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /src

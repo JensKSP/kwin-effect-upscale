@@ -11,7 +11,6 @@
 
 #include <KLocalizedString>
 
-#include <QCheckBox>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QLabel>
@@ -60,9 +59,6 @@ void UpscaleApplicationEditor::connectControls()
     connect(m_identity, &UpscaleIdentityControls::changed, this, [this]() {
         applyToSelected();
     });
-    connect(m_enabled, &QCheckBox::clicked, this, [this]() {
-        applyToSelected();
-    });
     connect(m_methods, &UpscaleMethodControls::changed, this, [this]() {
         applyToSelected();
     });
@@ -79,7 +75,6 @@ UpscaleApplicationEditor::UpscaleApplicationEditor(QWidget *parent)
     , m_methods(new UpscaleMethodControls(this))
     , m_settings(new UpscaleSettingControls(this))
     , m_preview(new UpscaleResolutionPreview(this))
-    , m_enabled(new QCheckBox(i18nc("An application profile takes part in matching", "Enabled"), this))
     , m_note(new QLabel(this))
 {
     auto *details = new QVBoxLayout;
@@ -106,7 +101,6 @@ UpscaleApplicationEditor::UpscaleApplicationEditor(QWidget *parent)
     m_list->setObjectName(QStringLiteral("applicationList"));
     m_name->setObjectName(QStringLiteral("applicationName"));
 
-    m_enabled->setObjectName(QStringLiteral("applicationEnabled"));
     m_note->setObjectName(QStringLiteral("applicationNote"));
     add->setObjectName(QStringLiteral("applicationAdd"));
     detect->setObjectName(QStringLiteral("applicationAddFromWindow"));
@@ -327,7 +321,10 @@ int UpscaleApplicationEditor::importFrom(const QString &path)
     }
     // In matching order again, the pairs of entry and original kept together.
     std::vector<std::size_t> order(m_applications.size());
-    std::ranges::iota(order, std::size_t(0));
+    // std::iota, not std::ranges::iota: libc++ 19, which FreeBSD 15 builds
+    // with, does not have the C++23 one.
+    // NOLINTNEXTLINE(modernize-use-ranges)
+    std::iota(order.begin(), order.end(), std::size_t(0));
     std::ranges::stable_sort(order, [this](std::size_t first, std::size_t second) {
         return std::tie(m_applications[first].order, m_applications[first].id)
             < std::tie(m_applications[second].order, m_applications[second].id);

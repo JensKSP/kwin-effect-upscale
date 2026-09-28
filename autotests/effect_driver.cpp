@@ -17,12 +17,17 @@
 #include "scene/imageitem.h"
 #include "scene/surfaceitem.h"
 #include "scene/windowitem.h"
+#include "wayland/pointerconstraints_v1.h"
+#include "wayland/seat.h"
+#include "wayland/surface.h"
+#include "wayland_server.h"
 #include "window.h"
 
 #include <KConfigGroup>
 #include <KSharedConfig>
 
 #include <QFile>
+#include <QKeyEvent>
 #include <QStandardPaths>
 #include <QTimer>
 
@@ -30,6 +35,7 @@
 #include <chrono>
 #include <cmath>
 #include <functional>
+#include <optional>
 
 namespace KWin
 {
@@ -135,6 +141,18 @@ public:
         // them, act on a motion only when the frame that closes it arrives.
         Q_EMIT pointerFrame(this);
     }
+
+    // A left click there. KWin takes evdev's button codes on every platform,
+    // and BTN_LEFT is 0x110 among them.
+    void click(const QPointF &position)
+    {
+        move(position);
+        for (const PointerButtonState state : {PointerButtonState::Pressed, PointerButtonState::Released}) {
+            const auto now = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch());
+            Q_EMIT pointerButtonChanged(0x110, state, now, this);
+            Q_EMIT pointerFrame(this);
+        }
+    }
 };
 
 class UpscaleTestDriver : public Effect
@@ -147,6 +165,15 @@ class UpscaleTestDriver : public Effect
     // What a test waits for before judging what a reconfiguration did to an
     // X11 window, rather than a delay that may or may not cover it.
     Q_PROPERTY(bool x11Settled READ x11Settled)
+    // The question the effect has put in the middle of the screen, if any,
+    // and where its answers are, as x,y,width,height separated by semicolons.
+    Q_PROPERTY(QString question READ question)
+    Q_PROPERTY(QString answers READ answers)
+    // What the seat's pointer lock is doing, for the mouse look of a presented
+    // game: "engaged", "asked" while the client has one KWin has not taken, or
+    // "none".
+    Q_PROPERTY(QString pointerLock READ pointerLock)
+    Q_PROPERTY(QString inputBounds READ inputBounds)
 
 public:
     UpscaleTestDriver()
@@ -174,6 +201,9 @@ public:
         }
         auto poll = new QTimer(this);
         connect(poll, &QTimer::timeout, this, &UpscaleTestDriver::movePointer);
+        connect(poll, &QTimer::timeout, this, &UpscaleTestDriver::pressKey);
+        connect(poll, &QTimer::timeout, this, &UpscaleTestDriver::reportUnfollowed);
+        connect(poll, &QTimer::timeout, this, &UpscaleTestDriver::click);
         poll->start(50);
     }
 
@@ -267,6 +297,92 @@ public:
         }
     }
 
+    QString question() const
+    {
+        return m_effect->question();
+    }
+
+    QString inputBounds() const
+    {
+        EffectWindow *window = effects->activeWindow();
+        SurfaceInterface *surface = window ? window->window()->surface() : nullptr;
+        if (!surface) {
+            return QStringLiteral("none");
+        }
+        const QRectF bounds = surface->input().boundingRect();
+        return QStringLiteral("%1,%2,%3,%4").arg(bounds.x()).arg(bounds.y()).arg(bounds.width()).arg(bounds.height());
+    }
+
+    QString pointerLock() const
+    {
+        SurfaceInterface *surface = waylandServer() ? waylandServer()->seat()->focusedPointerSurface() : nullptr;
+        LockedPointerV1Interface *lock = surface ? surface->lockedPointer() : nullptr;
+        if (!lock) {
+            return QStringLiteral("none");
+        }
+        return lock->isLocked() ? QStringLiteral("engaged") : QStringLiteral("asked");
+    }
+
+    QString answers() const
+    {
+        QStringList areas;
+        for (const QRectF &area : m_effect->questionAnswers()) {
+            areas.append(QStringLiteral("%1,%2,%3,%4").arg(area.x()).arg(area.y()).arg(area.width()).arg(area.height()));
+        }
+        return areas.join(QLatin1Char(';'));
+    }
+
+    // "<x> <y>": a left click there, through KWin's input like the pointer
+    // motion above.
+    void click()
+    {
+        const std::optional<QByteArray> request = takeRequest(QStringLiteral("upscale-test-click"));
+        const QList<QByteArray> fields = request ? request->simplified().split(' ') : QList<QByteArray>();
+        if (fields.size() == 2) {
+            m_pointer.click(QPointF(fields.at(0).toDouble(), fields.at(1).toDouble()));
+        }
+    }
+
+    // A key for the question, by Qt key code, the way the keyboard grab
+    // delivers one. Read and removed like the pointer request.
+    void pressKey()
+    {
+        const std::optional<QByteArray> request = takeRequest(QStringLiteral("upscale-test-key"));
+        if (request) {
+            QKeyEvent event(QEvent::KeyPress, request->toInt(), Qt::NoModifier);
+            m_effect->grabbedKeyboardEvent(&event);
+        }
+    }
+
+    // "<window class> <width> <height>": that window goes on drawing another
+    // size than this, as X11 validation would find of a client that does.
+    void reportUnfollowed()
+    {
+        const std::optional<QByteArray> request = takeRequest(QStringLiteral("upscale-test-unfollowed"));
+        const QList<QByteArray> fields = request ? request->simplified().split(' ') : QList<QByteArray>();
+        if (fields.size() != 3) {
+            return;
+        }
+        for (EffectWindow *window : effects->stackingOrder()) {
+            if (window->window() && window->window()->resourceClass() == QString::fromLatin1(fields.at(0))) {
+                m_effect->unfollowed(window, QSize(fields.at(1).toInt(), fields.at(2).toInt()));
+                return;
+            }
+        }
+    }
+
+    static std::optional<QByteArray> takeRequest(const QString &name)
+    {
+        QFile request(QString::fromLocal8Bit(qgetenv("XDG_RUNTIME_DIR")) + QLatin1Char('/') + name);
+        if (!request.exists() || !request.open(QIODevice::ReadOnly)) {
+            return std::nullopt;
+        }
+        const QByteArray contents = request.readAll();
+        request.close();
+        request.remove();
+        return contents;
+    }
+
     int requestedEffectChainPosition() const override
     {
         return m_effect->requestedEffectChainPosition();
@@ -283,6 +399,12 @@ public:
         // Continue the real QPainter scene once, with a current offscreen GL
         // target for the injected scaler and the diagnostic display. Keep one
         // streaming-buffer frame around the entire screen, including the OSD.
+        // Asked here, before the effect's own paint begins, because that is
+        // where KWin asks. Asked from drawWindow instead, inside the effect's
+        // paint, it resolved the candidate for the painted output as a side
+        // effect, and that hid an effect that asked nothing unless something
+        // else resolved it: Auto with the display switched off.
+        m_active = m_effect->isActive();
         m_context->makeCurrent();
         GLFramebuffer::pushFramebuffer(m_framebuffer.get());
         GLVertexBuffer::streamingBuffer()->beginFrame();
@@ -295,7 +417,7 @@ public:
                     int mask, const UpscaleRegion &region, WindowPaintData &data) override
     {
         m_context->makeCurrent();
-        if (m_effect->isActive()) {
+        if (m_active) {
             // A zero luminance range is a colour description no transfer
             // function can be decoded from, standing in for an output whose
             // colour handling this effect does not support.
@@ -338,6 +460,7 @@ public:
 
 private:
     CaptureRenderer m_renderer;
+    bool m_active = false;
     TestPointer m_pointer;
     bool m_unsupportedColors = false;
     std::unique_ptr<EglDisplay> m_display;

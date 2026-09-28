@@ -4,13 +4,13 @@
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
+#include "x11_integration_test.h"
+
 #include "x11_client.h"
 
 #include <KConfigGroup>
 #include <KSharedConfig>
 
-#include <QDBusConnection>
-#include <QDBusInterface>
 #include <QDBusReply>
 #include <QElapsedTimer>
 #include <QFile>
@@ -68,40 +68,6 @@ static bool waitForGeometry(const X11Client &client, const QRect &expected, QStr
 #define UPSCALE_TRY_SETTLED() \
     QTRY_VERIFY2_WITH_TIMEOUT(status().contains(QStringLiteral("x11Settled: true")), qPrintable(status()), 30000)
 
-class UpscaleX11IntegrationTest : public QObject
-{
-    Q_OBJECT
-
-private Q_SLOTS:
-    void init();
-    void cleanup();
-    void lifecycle_data();
-    void lifecycle();
-    void presentsWithoutEmulation();
-    void expiresDepartedClientRefusal();
-    void refusesUnavailableMode();
-    void respectsPrimaryOutputRestriction();
-    void retriesADroppedResizeOnce();
-    void independentOutputRules();
-    void matchesTheProgramBehindTheWindow();
-    void autoResizesAnUnmeasuredX11Window();
-    void repeatedFullscreenTransitions();
-
-private:
-    // The global resolution as kwinrc stores it, spelled out rather than taken
-    // from the plugin: the stored number is the contract this test drives.
-    enum class Stored {
-        Quality = 2,
-        Balanced = 3,
-        Performance = 4,
-    };
-    QString status();
-    void configure(bool enabled, Stored resolution = Stored::Performance);
-    void movePointer(const QPoint &position);
-    QDBusInterface m_effects{QStringLiteral("org.kde.KWin"), QStringLiteral("/Effects"),
-                             QStringLiteral("org.kde.kwin.Effects"), QDBusConnection::sessionBus()};
-};
-
 QString UpscaleX11IntegrationTest::status()
 {
     const QDBusReply<QString> reply = m_effects.call(QStringLiteral("supportInformation"), QStringLiteral("upscale_test_driver"));
@@ -140,6 +106,7 @@ void UpscaleX11IntegrationTest::init()
     // no resolution of its own: a resolution here would pin this game and the
     // global value each case sets would never reach it.
     QVERIFY(catalogue.write("[Application-test]\nName=X11 test\nWindowClass=upscale-x11-test\n"
+                            "X11ConnectionExecutable=upscale-x11-test\n"
                             "MethodX11FullScreen=X11Resize\nMethodX11Borderless=X11Resize\n")
             > 0);
     catalogue.close();
@@ -282,12 +249,23 @@ void UpscaleX11IntegrationTest::presentsWithoutEmulation()
     QVERIFY2(status().contains(QStringLiteral("Supplied input: 1920 × 1080")), qPrintable(status()));
     QVERIFY2(status().contains(QStringLiteral("Destination: 3840 × 2160")), qPrintable(status()));
     QTRY_VERIFY2(status().contains(QStringLiteral("captured: upscale-x11-test")), qPrintable(status()));
+    // Moving from the area claimed by the effect back into KWin's own hit
+    // region must deliver that first motion too. Re-entering the same surface
+    // can suppress both enter and motion while changing the seat's position.
+    movePointer(QPoint(3000, 1800));
+    QTRY_COMPARE(target.lastMotion(), QPoint(1500, 900));
+    movePointer(QPoint(240, 240));
+    QTRY_COMPARE(target.lastMotion(), QPoint(120, 120));
     // Input follows the picture: a pointer at the middle of the output has to
     // arrive at the middle of the half-size window, not outside it. Nothing
     // is asserted before the compositor has answered, because a stale last
     // motion would pass the wrong assertion.
     movePointer(QPoint(1920, 1080));
     QTRY_COMPARE(target.lastMotion(), QPoint(960, 540));
+    // Also beyond the client's own window, which its input region ends at: the
+    // whole output is the window's while the effect presents it there.
+    movePointer(QPoint(3000, 1800));
+    QTRY_COMPARE(target.lastMotion(), QPoint(1500, 900));
     // Releasing the window hands KWin's own mapping back at once, without a
     // focus or geometry change to prompt it.
     configure(false);
@@ -300,6 +278,12 @@ void UpscaleX11IntegrationTest::presentsWithoutEmulation()
     target.resize(QSize(1600, 900));
     QTest::qWait(500);
     QCOMPARE(target.geometry(), native);
+}
+
+QPoint UpscaleX11IntegrationTest::logical(const QPoint &device)
+{
+    const int scale = qMax(1, qgetenv("UPSCALE_TEST_OUTPUT_SCALE").toInt());
+    return device / scale;
 }
 
 void UpscaleX11IntegrationTest::movePointer(const QPoint &position)
@@ -357,6 +341,35 @@ void UpscaleX11IntegrationTest::refusesUnavailableMode()
     QCOMPARE(target.geometry(), native);
     configure(true);
     QTRY_COMPARE(target.geometry().size(), QSize(1920, 1080));
+}
+
+// SFML recreates its window for an emulated mode before entering fullscreen.
+// Even a transient native configure reaches its event queue and can make it
+// recreate the window again; the final geometry alone misses that loop.
+void UpscaleX11IntegrationTest::preservesModeOnFullscreenEntry_data()
+{
+    QTest::addColumn<QSize>("initial");
+    QTest::newRow("already-selected-mode") << QSize(1920, 1080);
+    QTest::newRow("initial-fullscreen-request") << QSize(1024, 768);
+}
+
+void UpscaleX11IntegrationTest::preservesModeOnFullscreenEntry()
+{
+    QFETCH(QSize, initial);
+    X11Client target(false);
+    const QSize reduced(1920, 1080);
+    QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(QPoint(0, 0), initial), false));
+    QTRY_COMPARE(target.geometry().size(), initial);
+    QVERIFY(target.mode(initial));
+    configure(true);
+    const qsizetype before = target.configuredSizes().size();
+    target.fullscreen(true);
+    QTRY_VERIFY(target.isFullscreen());
+    QTRY_VERIFY2(status().contains(QStringLiteral("as its X11 window size")), qPrintable(status()));
+    QTest::qWait(500);
+    const QList<QSize> received = target.configuredSizes().sliced(before);
+    QVERIFY2(!received.contains(QSize(3840, 2160)), qPrintable(QDebug::toString(received)));
+    QCOMPARE(target.geometry().size(), reduced);
 }
 
 void UpscaleX11IntegrationTest::repeatedFullscreenTransitions()
@@ -419,6 +432,9 @@ void UpscaleX11IntegrationTest::respectsPrimaryOutputRestriction()
 
 void UpscaleX11IntegrationTest::retriesADroppedResizeOnce()
 {
+    KConfigGroup entry(KSharedConfig::openConfig(QStringLiteral("kwinupscalerc")), QStringLiteral("Application-test"));
+    entry.writeEntry("X11RequiresEmulatedMode", true);
+    entry.sync();
     X11Client target(true, 1);
     QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 3840, 2160)));
     QTRY_VERIFY_WITH_TIMEOUT(target.isFullscreen(), 10000);
@@ -428,6 +444,7 @@ void UpscaleX11IntegrationTest::retriesADroppedResizeOnce()
     QCOMPARE(target.geometry().size(), QSize(1920, 1080));
     QVERIFY2(!status().contains(QStringLiteral("request failed")), qPrintable(status()));
     QVERIFY2(status().contains(QStringLiteral("Destination: 3840 × 2160")), qPrintable(status()));
+    QVERIFY2(status().contains(QStringLiteral("presented by Xwayland's emulated mode")), qPrintable(status()));
 }
 
 void UpscaleX11IntegrationTest::independentOutputRules()
@@ -549,5 +566,3 @@ void UpscaleX11IntegrationTest::autoResizesAnUnmeasuredX11Window()
 }
 
 QTEST_GUILESS_MAIN(UpscaleX11IntegrationTest)
-
-#include "x11_integration_test.moc"

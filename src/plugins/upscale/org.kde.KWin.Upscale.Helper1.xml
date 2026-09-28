@@ -1,0 +1,104 @@
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<!--
+    SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+
+    SPDX-License-Identifier: GPL-2.0-or-later
+-->
+<node>
+  <!--
+      An optional helper, outside KWin, that can prepare a program to render at
+      a smaller size from its next start when the effect cannot make it do so
+      while it runs. The effect only asks; everything the helper does, and
+      every text the user reads about it, is the helper's.
+
+      The helper is found as the session service org.kde.KWin.Upscale.Helper,
+      object /Helper. Without one, the effect behaves as if nobody answered.
+  -->
+  <interface name="org.kde.KWin.Upscale.Helper1">
+    <!--
+        Offer preparation before attempting a live resize. Unlike offer below,
+        this reports no observed rendering failure. An existing preparation
+        must not be judged unsuccessful or removed because of this query.
+        A missing method in an older helper leaves the current run untouched.
+    -->
+    <method name="offerSetup">
+      <arg name="pid" type="u" direction="in"/>
+      <arg name="windowClass" type="s" direction="in"/>
+      <arg name="title" type="s" direction="in"/>
+      <arg name="screens" type="a(iiiii)" direction="in"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.In3" value="QList&lt;ProgramScreen&gt;"/>
+      <arg name="offer" type="s" direction="out"/>
+      <arg name="question" type="s" direction="out"/>
+    </method>
+    <!--
+        The program with this process draws at the output's size although the
+        effect wants it smaller. The screens are the ones the program should see:
+        every output of the session, as place, size and rate in hertz, in the
+        pixels X11 counts them in, the program's own screen first and at the size
+        the effect wants. A helper that describes a whole screen to the program
+        needs them all, or the program would see one screen where the session has
+        several. An empty offer means the helper has nothing to offer; otherwise
+        the question is shown to the user as it is.
+    -->
+    <method name="offer">
+      <arg name="pid" type="u" direction="in"/>
+      <arg name="windowClass" type="s" direction="in"/>
+      <arg name="title" type="s" direction="in"/>
+      <arg name="screens" type="a(iiiii)" direction="in"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.In3" value="QList&lt;ProgramScreen&gt;"/>
+      <arg name="offer" type="s" direction="out"/>
+      <arg name="question" type="s" direction="out"/>
+    </method>
+    <!--
+        The user's answer to an offer: "accept", "later" or "never". After an
+        accepted offer, restart is the text of the offer to restart the program
+        now; it is empty when the helper cannot restart it.
+    -->
+    <method name="answer">
+      <arg name="offer" type="s" direction="in"/>
+      <arg name="answer" type="s" direction="in"/>
+      <arg name="restart" type="s" direction="out"/>
+    </method>
+    <!--
+        The user chose to restart. The effect has asked the program's window to
+        close; the helper waits for the program to exit, prepares it and starts
+        it again.
+    -->
+    <method name="restart">
+      <arg name="offer" type="s" direction="in"/>
+      <arg name="started" type="b" direction="out"/>
+    </method>
+    <!--
+        Asked for a window the effect would otherwise leave alone, with the
+        screens the effect wants its program to see now, as in offer; an empty
+        list when it wants nothing smaller. A non-empty answer means the helper
+        prepared this program to render at that size in this window, and the
+        window is to be presented across its output. A helper that prepared the
+        program for other screens than the ones wanted now prepares it for these,
+        or undoes the preparation, from the program's next start.
+    -->
+    <method name="present">
+      <arg name="pid" type="u" direction="in"/>
+      <arg name="windowClass" type="s" direction="in"/>
+      <arg name="wanted" type="a(iiiii)" direction="in"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.In2" value="QList&lt;ProgramScreen&gt;"/>
+      <arg name="size" type="(ii)" direction="out"/>
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QSize"/>
+    </method>
+    <!--
+        The programs the helper has prepared, for the settings page: an
+        identifier, a name the user recognises, and the size.
+    -->
+    <method name="prepared">
+      <arg name="programs" type="a(ssii)" direction="out"/>
+    </method>
+    <!--
+        Undo a preparation, now or after the program's next exit.
+    -->
+    <method name="reset">
+      <arg name="id" type="s" direction="in"/>
+      <arg name="done" type="b" direction="out"/>
+    </method>
+  </interface>
+</node>

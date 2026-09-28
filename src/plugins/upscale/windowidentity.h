@@ -71,6 +71,18 @@ public Q_SLOTS:
     QString executablePath(const QString &window) const;
 
     /**
+     * Display policy for an authenticated X11 peer, before its first window.
+     *
+     * @p candidates names what the peer runs, most identifying first, as the
+     * transport resolved it: the program behind a runtime that many programs
+     * share, and the runtime itself. A profile matches when any of them
+     * matches, so one pattern identifies a program whether it runs natively or
+     * behind such a runtime. An empty list leaves the peer's own executable to
+     * be resolved here, which is all a platform without that resolution has.
+     */
+    QVariantMap x11ConnectionPolicy(uint pid, const QStringList &candidates) const;
+
+    /**
      * The captions of the open windows an entry with these fields would match.
      *
      * The fields are named as the configuration file names them - Executable,

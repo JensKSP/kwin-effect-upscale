@@ -10,5 +10,9 @@ leak:KWin::OutputInterface::OutputInterface
 leak:KWin::XdgOutputManagerV1Interface::offer
 leak:KWin::SeatInterface::SeatInterface
 leak:KWin::WaylandServer::init()
+# Trixie's shortcut registry retains application services at shutdown: a
+# compositor run without any test effect reports the same 67 allocations
+# (5118 bytes) from this startup stack as the instrumented effect sessions.
+leak:GlobalShortcutsRegistry::loadSettings()
 # KF6 Config 6.13 recreates watcher state during static shortcut destruction.
 leak:KStandardShortcut::StandardShortcutWatcher::~StandardShortcutWatcher

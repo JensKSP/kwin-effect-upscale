@@ -1,0 +1,242 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# The conformance environment: the suites a release is measured against.
+#
+# The effect changes what a compositor shows and what a display server tells
+# its clients, so a release is compared against the Xwayland and KWin it sits
+# on rather than against a score. That comparison needs the suites themselves,
+# which the maintained check images do not carry and should not: they are large,
+# they change on their own schedule, and a build image that grew them would be
+# rebuilt for reasons that have nothing to do with building.
+#
+# Built the same way as the others:
+#   podman build --pull --build-arg DEPENDENCY_EPOCH=$(date -u +%Y-%m-%d) \
+#       -t upscale-conformance:trixie -f containers/conformance/Containerfile .
+
+# Built on the maintained check image rather than on a bare Debian. That image
+# is where a compositor of this project's own tests demonstrably starts, and a
+# conformance run needs the same thing: measured 2026-09-27, the same copied
+# kwin_wayland that runs there fails on a bare base, unable to initialise the
+# platform plugin built into it. The suites are added on top; what makes a
+# session work is inherited rather than rediscovered.
+FROM localhost/upscale-check:trixie
+
+ARG DEPENDENCY_EPOCH=local
+ENV DEBIAN_FRONTEND=noninteractive
+WORKDIR /tmp
+
+# The X11 side: piglit drives the suites and collects their results in one
+# format, XTS is the protocol suite it runs, and rendercheck covers the Render
+# extension. They run against Xwayland, KWin and a software renderer, from one
+# image, because a run compares two arms and a comparison across two different
+# systems says nothing about either.
+#
+# waffle-utils carries wflinfo, which piglit asks for the OpenGL version a
+# platform offers. Without it every graphics case answers that version 0.0 is
+# available and skips: measured 2026-09-27, 29 of 30 sanity cases skipped and
+# the suite reported a clean run having tested nothing.
+#
+# Xwayland and no other X server. The transport this release adds sits in front
+# of Xwayland and rewrites what it tells its clients, so Xwayland is the server
+# under test; a suite run against Xvfb or an Xorg would measure a server nobody
+# here ships behind. Neither is installed, so neither can be reached for by
+# mistake later.
+RUN test -n "$DEPENDENCY_EPOCH" && apt-get update && apt-get install --no-install-recommends -y \
+        build-essential \
+        ca-certificates \
+        git \
+        piglit \
+        waffle-utils \
+        meson \
+        ninja-build \
+        python3 \
+        python3-mako \
+        python3-numpy \
+        xauth \
+        x11-utils \
+        x11-xserver-utils \
+        xwayland \
+        plasma-workspace \
+        libgl1-mesa-dri \
+        libglx-mesa0 \
+        mesa-utils \
+        qt6-tools-dev-tools \
+        autoconf \
+        automake \
+        libtool \
+        pkg-config \
+        libx11-dev \
+        libxext-dev \
+        libxi-dev \
+        libxtst-dev \
+        libxkbcommon-dev \
+        libxrender-dev \
+        libxcb-cursor0 \
+        qt6-wayland \
+        libxmu-dev \
+        libxaw7-dev \
+        libxpm-dev \
+        xutils-dev \
+        bison \
+        flex \
+        xfonts-utils \
+        xfonts-base \
+    && rm -rf /var/lib/apt/lists/*
+
+# rendercheck covers the Render extension and Trixie has no package for it, so
+# it is built from its own release. Dropping it would narrow what a release is
+# measured against below what has already been measured once.
+ARG RENDERCHECK_VERSION=1.6
+RUN git clone --depth 1 --branch "rendercheck-$RENDERCHECK_VERSION" \
+        https://gitlab.freedesktop.org/xorg/test/rendercheck.git /tmp/rendercheck \
+    && meson setup /tmp/rendercheck/build /tmp/rendercheck --prefix=/usr >/dev/null \
+    && meson install -C /tmp/rendercheck/build >/dev/null \
+    && rm -rf /tmp/rendercheck
+
+# The X Test Suite, pinned to the commit upstream Xwayland's own continuous
+# integration runs. A suite that moved between two arms would make the
+# comparison between them meaningless, which is the whole reason it is pinned
+# here rather than fetched per run.
+ARG XTS_COMMIT=12a887c2c72c4258962b56ced7b0aec782f1ffed
+RUN git clone https://gitlab.freedesktop.org/xorg/test/xts.git /opt/xts \
+    && git -C /opt/xts checkout "$XTS_COMMIT" \
+    && git -C /opt/xts rev-parse HEAD > /opt/xts-commit
+
+# Two builds of the same suite at two paths. A run tells the effect which
+# clients to act on by the path they were started from, so the arm that
+# upscales needs its own copy to name; one tree could not be told apart from
+# itself. Both are built from the same commit, so the pair still compares like
+# with like.
+# The suite is C of the early nineties and this compiler is not. GCC 14 makes
+# several of that dialect's habits errors rather than warnings, so they are
+# turned back into warnings here: the suite is the measuring instrument and is
+# taken as it is, pinned, rather than modernized underneath a comparison that
+# depends on it not changing. Naming them here is what keeps the next person
+# from rediscovering each one.
+ENV XTS_CFLAGS="-std=gnu17 -Wno-error -Wno-incompatible-pointer-types \
+-Wno-implicit-function-declaration -Wno-int-conversion -Wno-return-mismatch \
+-Wno-discarded-qualifiers -Wno-implicit-int"
+RUN cp -a /opt/xts /opt/xts-upscaled
+WORKDIR /opt/xts
+RUN CFLAGS="$XTS_CFLAGS" ./autogen.sh --prefix=/opt/xts/inst >/dev/null \
+    && make -j"$(nproc)" >/dev/null
+WORKDIR /opt/xts-upscaled
+RUN CFLAGS="$XTS_CFLAGS" ./autogen.sh --prefix=/opt/xts-upscaled/inst >/dev/null \
+    && make -j"$(nproc)" >/dev/null
+WORKDIR /tmp
+
+# XTS's own execution configuration is written per run, not here. Its cases
+# read parameters from it that a case cannot invent - a font path that is
+# valid, one that is not, the extensions and depths a server offers - and the
+# generator asks a running server for them: without a display it stops at
+# "xset q failed, giving up", measured 2026-09-27. Without the file, a case
+# needing a parameter ends UNRESOLVED, which counts as a failure while saying
+# nothing about the server: XSetFontPath-4 needs XT_FONTPATH_BAD. So the run
+# writes it against the server under test, and these directories belong to the
+# run user for it to be written into.
+RUN chown 1000:1000 /opt/xts/xts5 /opt/xts-upscaled/xts5
+
+# Fail while building the image if a suite is missing, rather than during a
+# release check that was supposed to be measuring something else.
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+# The suite is thousands of small programs rather than one runner, so what is
+# checked is that both trees actually produced them and that the two produced
+# the same number: a tree that built half its cases would otherwise be found
+# out by a comparison reporting cases missing on one side and passing on the
+# other.
+RUN piglit --help >/dev/null \
+    && command -v rendercheck >/dev/null \
+    && command -v Xwayland >/dev/null \
+    && built=$(find /opt/xts/xts5 -type f -executable | wc -l) \
+    && mirror=$(find /opt/xts-upscaled/xts5 -type f -executable | wc -l) \
+    && test "$built" -gt 2000 \
+    && test "$built" -eq "$mirror" \
+    && echo "xts: $built cases in each tree"
+
+# The transport refuses to run as root, which is a property of the release
+# rather than an inconvenience: a display server sitting in front of everything
+# a person runs has no business holding privileges. A run therefore needs an
+# ordinary user, and the image carries one so that the refusal is never
+# mistaken for the suite failing.
+# Source packages, for the Wayland half. The conformance suite for Wayland
+# tests a compositor through an integration module its authors write, and KWin
+# ships none, so the only route to a real verdict there is KWin's own test
+# suite - which is not packaged and has to be built.
+RUN sed -i "s/^Types: deb$/Types: deb deb-src/" /etc/apt/sources.list.d/debian.sources
+
+# The compositor is the session a conformance run needs: the effect is one of
+# its own and comes up with it rather than on request. It needs a screen, and
+# giving it here gives it once rather than in every caller.
+#
+# The copy keeps the name. The compositor resolves its own path to find the
+# platform plugin built into it, so the file has to be called kwin_wayland
+# however it is started: argv[0] is not enough, measured 2026-09-27. Copying
+# also leaves behind the file capabilities a container refuses to exec, which
+# is the same reason this project's own session tests run a copy.
+#
+# The exec is one line, assembled from short ones. A line continuation written
+# through printf reaches the shell as a literal backslash rather than as a
+# continuation, so the compositor was started with a backslash for an argument
+# and without any of the wrapper's own - measured 2026-09-27, which is how a
+# session came up on the DRM backend that is not there. A single line cannot
+# be broken that way again, and the count below is what says it stayed one.
+#
+# The single quotes are the point: what is written here is a script for later,
+# and the screen it asks for is whatever the session that runs it was given.
+# hadolint ignore=SC2016
+RUN install -d /usr/libexec/upscale-conformance \
+    && cp /usr/bin/kwin_wayland /usr/libexec/upscale-conformance/kwin_wayland \
+    && { printf '%s\n' \
+            '#!/bin/sh' \
+            '# Gives the session its screen; see containers/conformance/Containerfile.'; \
+        printf '%s ' \
+            'exec /usr/libexec/upscale-conformance/kwin_wayland' \
+            '--virtual --output-count "${UPSCALE_SCREEN_OUTPUTS:-1}"' \
+            '--width "${UPSCALE_SCREEN_WIDTH:-3840}"' \
+            '--height "${UPSCALE_SCREEN_HEIGHT:-2160}"' \
+            '--no-lockscreen --no-global-shortcuts --no-kactivities "$@"'; \
+        printf '\n'; } > /usr/bin/kwin_wayland \
+    && chmod 0755 /usr/bin/kwin_wayland \
+    && sh -n /usr/bin/kwin_wayland \
+    && test "$(grep -c . /usr/bin/kwin_wayland)" -eq 3
+
+# The X server accepts clients of the other byte order. The protocol cases open
+# connections in both, and an X server has refused them by default since 2023:
+# that is a security policy rather than protocol, and the suite cannot reach
+# the cases behind it - measured 2026-09-27, 91 cases ended at the server's
+# refusal of their byte order before testing anything. KWin passes Xwayland a
+# fixed argument list, so the option is given at the path every launcher
+# reaches: KWin's own for the session, a nested server's, and the stock server
+# a proxy hands over to. Every arm therefore runs the same server policy.
+# hadolint ignore=SC2016
+RUN cp /usr/bin/Xwayland /usr/libexec/upscale-conformance/Xwayland \
+    && { printf '%s\n' \
+            '#!/bin/sh' \
+            '# Accepts byte-swapped clients; see containers/conformance/Containerfile.'; \
+        printf '%s ' \
+            'exec /usr/libexec/upscale-conformance/Xwayland' \
+            '+byteswappedclients "$@"'; \
+        printf '\n'; } > /usr/bin/Xwayland \
+    && chmod 0755 /usr/bin/Xwayland \
+    && sh -n /usr/bin/Xwayland \
+    && test "$(grep -c . /usr/bin/Xwayland)" -eq 3
+
+RUN useradd --create-home --uid 1000 --shell /bin/bash conformance
+
+# A release is measured as it is installed rather than as a build directory:
+# that is how it reaches the compositor on a real machine, and pointing the
+# plugin search path at a build tree turned out not to reach the effect loader
+# here at all. The directory is handed to the run user so that no step of a
+# conformance run needs privileges it should not have.
+RUN install -d -o 1000 -g 1000 \
+        /usr/lib/x86_64-linux-gnu/qt6/plugins/kwin/effects/plugins \
+    && install -d -o 1000 -g 1000 \
+        /usr/lib/x86_64-linux-gnu/qt6/plugins/kwin/effects/configs
+
+# KWin needs the standard X11 socket directory before it can start its private
+# Xwayland integration session, and no systemd-tmpfiles runs in this image.
+RUN git config --system --add safe.directory /src/.git \
+    && install -d -m 1777 /tmp/.X11-unix
+
+WORKDIR /src

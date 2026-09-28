@@ -10,8 +10,27 @@
 #include <QString>
 #include <QStringList>
 
+#include <cstdlib>
+
 namespace KWin
 {
+
+// Within a hundred and twentieth of the output and a pixel: the fractional
+// scale travels in 120ths, so a client that honours it exactly can land that
+// far from the size computed here, and that is the game taking the request,
+// not declining it.
+bool upscaleDrawsTheChosenSize(const UpscaleSnapshot &snapshot)
+{
+    const QSize chosen(snapshot.desired.width, snapshot.desired.height);
+    if (chosen.isEmpty() || snapshot.supplied.isEmpty() || snapshot.destination.isEmpty()) {
+        return true;
+    }
+    const auto near = [](int drawn, int wished, int whole) {
+        return std::abs(drawn - wished) <= whole / 120 + 1;
+    };
+    return near(snapshot.supplied.width(), chosen.width(), snapshot.destination.width())
+        && near(snapshot.supplied.height(), chosen.height(), snapshot.destination.height());
+}
 
 // A line for programs rather than for people. Every key and every value here
 // is written with QStringLiteral and never translated, because a measurement
@@ -69,6 +88,14 @@ QString upscaleMetrics(const UpscaleSnapshot &snapshot)
     // saying so, and the difference between those is part of what is measured.
     append(QLatin1String("scanout"), QLatin1String(snapshot.blocksScanout ? "blocked" : "direct"));
     append(QLatin1String("selected"), QString::number(snapshot.selected ? 1 : 0));
+    // Which of the cells this window presents in, by a name that does not
+    // change with the session's language. A harness reading the prose above
+    // would report nothing on a machine not running in English, and what the
+    // effect decides a window is deserves to be checkable without a person
+    // reading a sentence about it. This is presentedAs, the cell the window is
+    // in; snapshot.presentation is the screen's frame mode and answers a
+    // different question entirely.
+    append(QLatin1String("presentation"), upscalePresentationName(snapshot.presentedAs));
     switch (snapshot.windowSystem) {
     case UpscaleWindowSystem::Wayland:
         append(QLatin1String("windowsystem"), QStringLiteral("wayland"));

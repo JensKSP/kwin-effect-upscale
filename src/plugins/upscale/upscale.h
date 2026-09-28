@@ -8,6 +8,7 @@
 
 #include "application.h"
 #include "compatibility.h"
+#include "diagnostics.h"
 #include "display.h"
 #include "eligibility.h"
 #include "settings.h"
@@ -22,6 +23,7 @@ namespace KWin
 {
 
 class UpscaleModeOverride;
+class UpscalePreparation;
 class UpscaleWaylandScale;
 class UpscaleX11Resolution;
 class UpscaleWaylandScale;
@@ -34,7 +36,7 @@ class UpscaleEffect : public Effect
     Q_OBJECT
     // Declared before status so that the support information KWin assembles
     // from these properties keeps the single-line identity ahead of the
-    // multi-line status, which is what the settings page parses.
+    // multi-line status, which is what the measurement tools parse.
     Q_PROPERTY(QString build READ build)
     Q_PROPERTY(QString status READ status)
 
@@ -55,8 +57,24 @@ public:
 #endif
     bool isActive() const override;
     bool blocksDirectScanout() const override;
+    void grabbedKeyboardEvent(QKeyEvent *event) override;
+#if UPSCALE_POINTER_EVENT_API
+    void pointerMotion(PointerMotionEvent *event) override;
+    void pointerButton(PointerButtonEvent *event) override;
+#else
+    void windowInputMouseEvent(QEvent *event) override;
+#endif
     /** Whether the X11 resolution control has nothing in flight; see UpscaleX11Resolution::settled(). */
     bool x11RequestsSettled() const;
+    /**
+     * @p window's client went on drawing another size than @p size, which was
+     * asked of it. X11 validation reports this; a test driver can as well.
+     */
+    void unfollowed(EffectWindow *window, const QSize &size);
+    /** The question in the middle of the screen; empty while there is none. */
+    QString question() const;
+    /** Where the question's answers are, for a pointer; empty while there is none. */
+    QList<QRectF> questionAnswers() const;
     int requestedEffectChainPosition() const override;
     UpscalePaintResult drawWindow(const RenderTarget &target, const RenderViewport &viewport, EffectWindow *window,
                                   int mask, const UpscaleRegion &region, WindowPaintData &data) override;
@@ -74,10 +92,14 @@ private:
     // refused it. Paint passes share this decision with their diagnostics.
     EffectWindow *candidate(UpscaleRefusal *refusal = nullptr, UpscaleOutput *output = nullptr) const;
     EffectWindow *findCandidate(UpscaleRefusal *refusal, UpscaleOutput *output) const;
-    // The window the on-screen display describes: the candidate, or the
-    // active fullscreen window that was refused, which is the case a
-    // developer needs to see explained.
+    // The window the on-screen display describes: the candidate, or else
+    // what explained() names.
     EffectWindow *displayed() const;
+    // The active window the display explains when nothing was selected: one
+    // presenting full screen that this effect was meant to act on and
+    // refused, or, when the person asked for it, any window presenting full
+    // screen. Null for everything else, which is most of the desktop.
+    static EffectWindow *explained();
     // The render target is the frame being painted, and null when the caller
     // is outside a paint pass and colour is therefore not observable.
     UpscaleSnapshot snapshot(EffectWindow *window, const RenderTarget *target) const;
@@ -102,6 +124,10 @@ private:
     std::unique_ptr<UpscaleModeOverride> m_modeOverride;
     std::unique_ptr<UpscaleX11Resolution> m_x11Resolution;
     std::unique_ptr<UpscaleWaylandScale> m_waylandScale;
+    // Asks a helper, and the user, about a program that cannot be made to
+    // render smaller while it runs. Declared after the X11 control it uses,
+    // so that it goes first.
+    std::unique_ptr<UpscalePreparation> m_preparation;
 
     /** Auto's Wayland half for the selected window, or giving its scale back. */
     void askForSmallerBuffer(UpscaleOutput *output, EffectWindow *candidate, const UpscaleApplication *claimed) const;
@@ -124,6 +150,7 @@ private:
     // never keeps the next frame from being scaled.
     QHash<EffectWindow *, UpscaleRefusal> m_passRefusals;
     UpscaleDisplay m_display;
+    UpscaleDiagnostics m_diagnostics;
     // The build this effect came from. Empty where the generated record is not
     // part of the build, as in a copy of this folder inside KWin.
     QString m_build;

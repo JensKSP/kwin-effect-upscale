@@ -6,7 +6,7 @@ SPDX-License-Identifier: GPL-2.0-or-later
 # Contributing
 
 The effect is experimental. Nested GPU tests have processed real-game buffers,
-but full physical-display acceptance remains open. Read the [current state](README.md#state) before testing it.
+but full physical-display acceptance remains open. Read the [current state](README.md#current-state) before testing it.
 Reports, documentation improvements and patches are welcome through
 [GitHub issues and pull requests](https://github.com/JensKSP/kwin-effect-upscale).
 Search existing issues first and link related reports rather than duplicating them.
@@ -142,6 +142,49 @@ and relevant runtime checks; hardware claims require observed native results.
 [Building and checking](doc/checks.md) explains which check runs at which level
 and why, what may touch the plugin folder, and what counts as built.
 
+### KWin's Wayland integration suite
+
+`containers/wayland-tests/Containerfile` extends the conformance image with
+KWin's test build dependencies. Run it inside the test VM with its virtual DRM
+card and render node passed through to the container. The suite creates its
+own compositors; enabling an effect on an outer desktop does not exercise it.
+The adapter selects OpenGL before KWin constructs its options and loads the
+production plugin after the compositor starts. Original upstream assertions
+remain unchanged.
+
+With the packaged KWin 6.3.6 source unpacked under `build/`, prepare and build
+inside that container:
+
+```sh
+python3 -B tools/prepare-kwin-tests.py --source build/kwin-6.3.6
+cmake -S build/wayland-conformance/source -B build/wayland-conformance/kwin -G Ninja \
+    -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_TESTING=ON \
+    -DKWIN_BUILD_KCMS=OFF -DKWIN_BUILD_X11_BACKEND=OFF -DBUILD_DOC=OFF
+cmake --build build/wayland-conformance/kwin
+cmake -S . -B build/wayland-conformance/effect -G Ninja \
+    -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
+cmake --build build/wayland-conformance/effect
+python3 -B tools/check-wayland-conformance.py --jobs 4 \
+    --out build/wayland-conformance/results
+```
+
+Use a fresh results directory for each run; omitting `--out` creates one named
+by UTC time. The manual `upscale-wayland-conformance` pre-commit hook runs the
+same checker after the builds above. `--match` selects upstream test
+names by regular expression; `--scaling-only` runs the added production-renderer
+cases. `--refresh` on the preparation command updates the adapter and added
+test in an existing private source copy; rebuild after refreshing.
+
+Each upstream executable runs with the effect absent, loaded but unselected,
+and enabled for unlisted applications. Results retain QtTest data rows, skips,
+baseline failures and changed outcomes. Active-mode differences need inspection:
+requesting smaller buffers deliberately changes some protocol observations.
+The added tests check the committed buffer, physical output size, completed
+draw and rendered pixels, plus fallback and restoration. An unloaded effect,
+incomplete run or unexercised scaling case cannot count as success. This covers
+the software-rendered native Wayland path; real games, hardware drivers,
+Xwayland/Wine/Proton and physical HDR/VRR still need their own acceptance runs.
+
 ## Submitting a patch
 
 Keep changes focused and explain the problem, resulting behavior and observed
@@ -153,8 +196,9 @@ Follow [KWin's contribution conventions](https://invent.kde.org/plasma/kwin/-/bl
 and KDE Frameworks style. Commit subjects normally use `component: Do a thing`.
 Keep `src/plugins/upscale/` suitable for copying into KWin; project-specific
 packaging and tooling belong outside it. Own files use GPL-2.0-or-later SPDX
-headers; preserve third-party notices and keep REUSE checks passing. The
-[code conventions](doc/conventions.md) spell out the style, the portability
+headers (CI and tool configuration CC0-1.0), or an entry in `REUSE.toml` where a
+file cannot carry one; preserve third-party notices and keep REUSE checks passing.
+The [code conventions](doc/conventions.md) spell out the style, the portability
 requirements and the file size limit; [versions and releases](doc/releases.md)
 describes how a build names itself and how a release is made.
 

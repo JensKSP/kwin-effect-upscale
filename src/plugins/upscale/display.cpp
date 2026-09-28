@@ -6,8 +6,6 @@
 
 #include "display.h"
 
-#include "upscaleconfig.h"
-
 #include "effect/effecthandler.h"
 
 #include <array>
@@ -33,39 +31,46 @@ UpscaleDisplay::~UpscaleDisplay() = default;
 
 void UpscaleDisplay::reconfigure()
 {
+    hide();
+}
+
+void UpscaleDisplay::applySettings(const UpscaleSettings &settings)
+{
     // On unless a configuration file says otherwise. The settings page
     // stopped offering this, so in practice it is the four choices below
     // that decide whether anything is drawn.
-    m_enabled = UpscaleConfig::osd();
-    m_detection = UpscaleConfig::osdDetection();
-    m_summary = UpscaleConfig::osdSummary();
-    m_statistics = UpscaleConfig::osdStatistics();
-    m_developer = UpscaleConfig::osdDeveloper();
+    m_enabled = settings.switchedOn(UpscaleSetting::Osd);
+    m_detection = settings.switchedOn(UpscaleSetting::OsdDetection);
+    m_summary = settings.switchedOn(UpscaleSetting::OsdSummary);
+    m_statistics = settings.switchedOn(UpscaleSetting::OsdStatistics);
+    m_developer = settings.switchedOn(UpscaleSetting::OsdDeveloper);
     // A file edited by hand can name one corner twice. Separating them here
     // means the quarter each block is confined to below belongs to it alone,
     // so nothing downstream has to cope with two blocks in one place.
     std::array<UpscaleCorner, 3> corners{
-        upscaleCorner(UpscaleConfig::osdAnnouncementPosition()),
-        upscaleCorner(UpscaleConfig::osdStatisticsPosition()),
-        upscaleCorner(UpscaleConfig::osdDeveloperPosition()),
+        settings.corner(UpscaleSetting::AnnouncementPosition),
+        settings.corner(UpscaleSetting::StatisticsPosition),
+        settings.corner(UpscaleSetting::DeveloperPosition),
     };
     upscaleSeparateCorners(corners);
     m_announcementCorner = corners[0];
     m_statisticsCorner = corners[1];
     m_developerCorner = corners[2];
-    m_timeout = UpscaleConfig::osdTimeout();
-    // New settings invalidate both the announcement and its measurements.
-    hide();
+    m_timeout = settings.value(UpscaleSetting::OsdTimeout);
 }
 
-bool UpscaleDisplay::enabled() const
+bool UpscaleDisplay::enabled(const UpscaleSettings &settings)
 {
-    return m_enabled && (m_detection || m_summary || m_statistics || m_developer);
+    return settings.switchedOn(UpscaleSetting::Osd)
+        && (settings.switchedOn(UpscaleSetting::OsdDetection) || settings.switchedOn(UpscaleSetting::OsdSummary)
+            || settings.switchedOn(UpscaleSetting::OsdStatistics) || settings.switchedOn(UpscaleSetting::OsdDeveloper));
 }
 
-bool UpscaleDisplay::activeFor(EffectWindow *window) const
+bool UpscaleDisplay::activeFor(EffectWindow *window, const UpscaleSettings &settings) const
 {
-    return enabled() && (m_statistics || m_developer || window != m_announced || !m_announcedAt.isValid() || m_announcedAt.elapsed() < qint64(m_timeout) * 1000);
+    // The next window can override a globally disabled display. Decide from
+    // its preferences before paint hooks run, not from the last window shown.
+    return enabled(settings) && (settings.switchedOn(UpscaleSetting::OsdStatistics) || settings.switchedOn(UpscaleSetting::OsdDeveloper) || window != m_announced || !m_announcedAt.isValid() || m_announcedAt.elapsed() < qint64(settings.value(UpscaleSetting::OsdTimeout)) * 1000);
 }
 
 void UpscaleDisplay::countClientUpdate(EffectWindow *window)
@@ -122,8 +127,9 @@ void UpscaleDisplay::measure(UpscaleOutput *screen)
 // window, which is what makes them worth quoting.
 constexpr double upscaleRecentWindow = 1000;
 
-void UpscaleDisplay::update(UpscaleSnapshot snapshot, EffectWindow *window)
+void UpscaleDisplay::update(UpscaleSnapshot snapshot, EffectWindow *window, const UpscaleSettings &settings)
 {
+    applySettings(settings);
     if (window != m_announced) {
         resetSampling();
     }
@@ -168,7 +174,7 @@ void UpscaleDisplay::update(UpscaleSnapshot snapshot, EffectWindow *window)
 
 void UpscaleDisplay::compose()
 {
-    if (!enabled() || !m_composed.isValid()) {
+    if (!m_enabled || !(m_detection || m_summary || m_statistics || m_developer) || !m_composed.isValid()) {
         releaseBlocks();
         return;
     }

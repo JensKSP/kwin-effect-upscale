@@ -10,6 +10,7 @@
 
 #include "application.h"
 #include "applicationeditor.h"
+#include "methodcontrols.h"
 #include "resolution.h"
 #include "resolutionchoice.h"
 #include "upscale_config.h"
@@ -30,14 +31,39 @@
 #include <QLocale>
 #include <QPushButton>
 #include <QScreen>
+#include <QSlider>
 #include <QSpinBox>
 #include <QStackedWidget>
+#include <QTabWidget>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QToolButton>
 
 #include <algorithm>
 #include <limits>
 #include <ranges>
+
+// What a game's row shows: its own value, an inherited one, or a mixture of
+// the two, which the rule forbids.
+enum State {
+    Follows,
+    States,
+    Inconsistent,
+};
+
+static State inheritance(const QWidget *editor, const QString &key)
+{
+    const QWidget *label = editor->findChild<QWidget *>(key + QStringLiteral("Name"));
+    const QWidget *number = editor->findChild<QWidget *>(key + QStringLiteral("Value"));
+    const QWidget *control = editor->findChild<QWidget *>(key);
+    const bool bold = (label ? label : control)->font().bold();
+    const bool upright = !(number ? number : control)->font().italic();
+    const bool reset = editor->findChild<QToolButton *>(key + QStringLiteral("Reset"))->isEnabled();
+    if (bold != reset || reset != upright) {
+        return Inconsistent;
+    }
+    return bold ? States : Follows;
+}
 
 class ApplicationListTest : public QObject
 {
@@ -47,6 +73,7 @@ private Q_SLOTS:
     void init();
     void showsTheGlobalSettingsAsTheFirstEntry();
     void aGameFollowsWhatAllApplicationsShows();
+    void aGameInheritsItsMethods();
     void defaultsRestoreOnlyTheGlobalSettings();
     void exportsAndImportsTheList();
 };
@@ -78,8 +105,8 @@ void ApplicationListTest::showsTheGlobalSettingsAsTheFirstEntry()
     list->setCurrentRow(0);
     QCOMPARE(details->currentWidget(), all);
     QVERIFY(!remove->isEnabled() && !up->isEnabled() && !down->isEnabled());
-    // The methods for applications not in the list can be set before the
-    // check box that uses them is.
+    // The global methods can be set before the check box that lets them reach
+    // applications not in the list is.
     auto *method = all->findChild<QComboBox *>(QStringLiteral("method0"));
     QVERIFY(method && method->isEnabled());
     list->item(0)->setCheckState(Qt::Checked);
@@ -93,9 +120,10 @@ void ApplicationListTest::showsTheGlobalSettingsAsTheFirstEntry()
     QVERIFY(details->currentWidget() != all);
 }
 
-// A game's Global choices name what "All applications" shows, applied or not,
-// and its controls behave as the global ones do, with the preview computed
-// from the values the game would use.
+// A game's page shows the values the game would use: the global ones until it
+// states its own, which follow Qt Designer's rule - a bold name and an enabled
+// reset button that makes them follow again. Its controls behave
+// as the global ones do, with the preview computed from the values it uses.
 void ApplicationListTest::aGameFollowsWhatAllApplicationsShows()
 {
     using KWin::ResolutionPreset;
@@ -106,20 +134,36 @@ void ApplicationListTest::aGameFollowsWhatAllApplicationsShows()
     auto *globalPreset = module.widget()->findChild<QComboBox *>(QStringLiteral("preset"));
     auto *globalMinimum = module.widget()->findChild<QComboBox *>(QStringLiteral("minimumPixels"));
     auto *preset = editor->findChild<QComboBox *>(QStringLiteral("Resolution"));
-    auto *scale = editor->findChild<QDoubleSpinBox *>(QStringLiteral("Percentage"));
+    auto *presetReset = editor->findChild<QToolButton *>(QStringLiteral("ResolutionReset"));
+    auto *scale = editor->findChild<QSlider *>(QStringLiteral("Percentage"));
+    auto *scaleField = editor->findChild<QDoubleSpinBox *>(QStringLiteral("PercentageValue"));
     auto *minimum = editor->findChild<QComboBox *>(QStringLiteral("MinimumPixels"));
-    auto *sharpening = editor->findChild<QComboBox *>(QStringLiteral("Sharpening"));
-    auto *strength = editor->findChild<QSpinBox *>(QStringLiteral("Strength"));
+    auto *sharpening = editor->findChild<QCheckBox *>(QStringLiteral("Sharpening"));
+    auto *strength = editor->findChild<QSlider *>(QStringLiteral("Strength"));
     auto *preview = editor->findChild<QLabel *>(QStringLiteral("applicationPreview"));
-    QVERIFY(list && globalPreset && globalMinimum && preset && scale && minimum && sharpening && strength && preview);
+    QVERIFY(list && globalPreset && globalMinimum && preset && presetReset && scale && scaleField && minimum && sharpening
+            && strength && preview);
+    // Qt Designer's rule: a value the game states has a bold name and an
+    // enabled reset button, and is shown upright; one it follows has neither
+    // and is shown in italic; never a mixture. The name is the label, or a
+    // switch's own text, and a slider's value is its number field.
+    const auto state = [editor](const QString &key) {
+        return inheritance(editor, key);
+    };
     list->setCurrentRow(0);
     globalPreset->setCurrentIndex(int(ResolutionPreset::Balanced));
     // The test screen is small, and a limit above it would say only that it
     // is not upscaled.
     globalMinimum->setCurrentIndex(0);
     editor->findChild<QPushButton *>(QStringLiteral("applicationAdd"))->click();
-    QCOMPARE(preset->currentText(), QStringLiteral("Global (Balanced)"));
-    QCOMPARE(minimum->currentText(), QStringLiteral("Global (Any screen)"));
+    // A new game states nothing, so every control shows the global value in
+    // a plain name, with nothing to reset.
+    QCOMPARE(preset->currentText(), QStringLiteral("Balanced"));
+    QCOMPARE(state(QStringLiteral("Resolution")), Follows);
+    QCOMPARE(minimum->currentText(), QStringLiteral("Any screen"));
+    // Under any preset but Custom the scale shows that preset's share, as the
+    // global page shows it.
+    QCOMPARE(scale->value(), qRound(KWin::resolutionRatio(ResolutionPreset::Balanced, 0) * 10000));
     const QScreen *screen = QGuiApplication::screens().constFirst();
     const KWin::UpscaleSize output{screen->geometry().width(), screen->geometry().height()};
     const auto rendered = [output](ResolutionPreset preset, int basisPoints) {
@@ -128,39 +172,101 @@ void ApplicationListTest::aGameFollowsWhatAllApplicationsShows()
     };
     QVERIFY2(preview->text().contains(rendered(ResolutionPreset::Balanced, 0)), qPrintable(preview->text()));
 
-    // Stepping off Global starts from the value followed, and stating a scale
-    // is choosing Custom, as moving the global slider is.
-    QCOMPARE(scale->value(), scale->minimum());
-    QTest::keyClick(scale, Qt::Key_Up);
-    QCOMPARE(scale->value(), 58.82);
-    QCOMPARE(preset->currentIndex(), int(ResolutionPreset::Custom) + 1);
-    QVERIFY2(preview->text().contains(rendered(ResolutionPreset::Custom, 5882)), qPrintable(preview->text()));
-    // Any other preset leaves no use for a scale of its own.
-    preset->setCurrentIndex(int(ResolutionPreset::Quality) + 1);
-    QCOMPARE(scale->value(), scale->minimum());
+    // Stating a scale is choosing Custom, as moving the global slider is, and
+    // both are then the game's own.
+    QTest::keyClick(scaleField, Qt::Key_Up);
+    QCOMPARE(state(QStringLiteral("Percentage")), States);
+    QCOMPARE(state(QStringLiteral("Resolution")), States);
+    QCOMPARE(preset->currentIndex(), int(ResolutionPreset::Custom));
+    QVERIFY2(preview->text().contains(rendered(ResolutionPreset::Custom, scale->value())), qPrintable(preview->text()));
+    // Any other preset leaves no use for a scale of its own, which follows
+    // again and shows that preset's share.
+    preset->setCurrentIndex(int(ResolutionPreset::Quality));
+    QCOMPARE(state(QStringLiteral("Percentage")), Follows);
+    QCOMPARE(scale->value(), qRound(KWin::resolutionRatio(ResolutionPreset::Quality, 0) * 10000));
     QVERIFY2(preview->text().contains(rendered(ResolutionPreset::Quality, 0)), qPrintable(preview->text()));
+    // The button beside the preset makes it follow the global one again.
+    presetReset->click();
+    QCOMPARE(preset->currentText(), QStringLiteral("Balanced"));
+    QCOMPARE(state(QStringLiteral("Resolution")), Follows);
 
     // Nothing is greyed out by a switch being off: the strength can be set
     // before the sharpening that uses it.
-    QCOMPARE(sharpening->currentText(), QStringLiteral("Global (Off)"));
+    QVERIFY(!sharpening->isChecked());
+    QCOMPARE(state(QStringLiteral("Sharpening")), Follows);
     QVERIFY(strength->isEnabled());
 
     // A limit above every screen leaves the game alone, and one too large to
     // count is held at the largest a limit can be rather than wrapping round.
     minimum->setCurrentText(QStringLiteral("7680x4320"));
+    QCOMPARE(state(QStringLiteral("MinimumPixels")), States);
     QVERIFY2(preview->text().contains(QStringLiteral("not upscaled")), qPrintable(preview->text()));
     minimum->setCurrentText(QStringLiteral("999999x999999"));
     QCOMPARE(KWin::upscaleResolutionPixels(minimum, -1), std::numeric_limits<int>::max());
 
-    // Defaults restore the global settings while the game is shown, and its
-    // Global choices follow at once.
-    // In the user's locale, as the field itself shows the number.
-    const auto global = [](double percentage) {
-        return QStringLiteral("Global (%1%)").arg(QLocale().toString(percentage, 'f', 2));
-    };
-    QCOMPARE(scale->specialValueText(), global(58.82));
+    // Defaults restore the global settings while the game is shown. What it
+    // follows changes at once; what it states stays its own.
     module.defaults();
-    QCOMPARE(scale->specialValueText(), global(66.67));
+    QCOMPARE(preset->currentText(), QStringLiteral("Quality"));
+    QCOMPARE(state(QStringLiteral("Resolution")), Follows);
+    QCOMPARE(state(QStringLiteral("MinimumPixels")), States);
+}
+
+// A game's method follows the package's measurement where there is one and
+// the global method otherwise, and is marked like its other settings: since
+// Auto exists there is a sensible answer to inherit.
+void ApplicationListTest::aGameInheritsItsMethods()
+{
+    QWidget host;
+    KWin::UpscaleEffectConfig module(&host, KPluginMetaData());
+    auto *editor = module.widget()->findChild<KWin::UpscaleApplicationEditor *>();
+    auto *list = editor->findChild<QListWidget *>(QStringLiteral("applicationList"));
+    auto *all = module.widget()->findChild<QTabWidget *>(QStringLiteral("allApplications"));
+    auto *game = editor->findChild<QTabWidget *>(QStringLiteral("applicationDetails"));
+    QVERIFY(list && all && game);
+    auto *globalX11 = all->findChild<QComboBox *>(QStringLiteral("method3"));
+    auto *wayland = game->findChild<QComboBox *>(QStringLiteral("method0"));
+    auto *x11 = game->findChild<QComboBox *>(QStringLiteral("method3"));
+    auto *waylandReset = game->findChild<QToolButton *>(QStringLiteral("method0Reset"));
+    QVERIFY(globalX11 && wayland && x11 && waylandReset);
+    const auto kart = [list]() {
+        for (int row = 0; row < list->count(); ++row) {
+            if (list->item(row)->text() == QStringLiteral("SuperTuxKart")) {
+                return row;
+            }
+        }
+        return -1;
+    }();
+    QVERIFY(kart > 0);
+    list->setCurrentRow(kart);
+    // The measured slot shows the package's measurement, inherited; an
+    // unmeasured one the global method, Automatic by default.
+    QCOMPARE(wayland->currentText(), KWin::upscaleMethodLabel(KWin::UpscaleMethod::AdvertisedMode));
+    QCOMPARE(inheritance(game, QStringLiteral("method0")), Follows);
+    QCOMPARE(x11->currentText(), KWin::upscaleMethodLabel(KWin::UpscaleMethod::Auto));
+    QCOMPARE(inheritance(game, QStringLiteral("method3")), Follows);
+    // The global method it follows is the one the page shows, applied or not.
+    list->setCurrentRow(0);
+    globalX11->setCurrentIndex(globalX11->findText(KWin::upscaleMethodLabel(KWin::UpscaleMethod::Off)));
+    list->setCurrentRow(kart);
+    QCOMPARE(x11->currentText(), KWin::upscaleMethodLabel(KWin::UpscaleMethod::Off));
+    QCOMPARE(inheritance(game, QStringLiteral("method3")), Follows);
+    // Choosing a method states it, and it is stored as the user's own.
+    wayland->setCurrentIndex(wayland->findText(KWin::upscaleMethodLabel(KWin::UpscaleMethod::Auto)));
+    QCOMPARE(inheritance(game, QStringLiteral("method0")), States);
+    module.save();
+    QFile stored(upscaleUserApplicationFile());
+    QVERIFY(stored.open(QIODevice::ReadOnly));
+    QVERIFY(stored.readAll().contains("MethodWaylandFullScreen=Auto"));
+    stored.close();
+    // Resetting returns to the measurement, and stores nothing of its own.
+    list->setCurrentRow(kart);
+    waylandReset->click();
+    QCOMPARE(wayland->currentText(), KWin::upscaleMethodLabel(KWin::UpscaleMethod::AdvertisedMode));
+    QCOMPARE(inheritance(game, QStringLiteral("method0")), Follows);
+    module.save();
+    QVERIFY(stored.open(QIODevice::ReadOnly));
+    QVERIFY(!stored.readAll().contains("MethodWaylandFullScreen"));
 }
 
 // System Settings' Defaults is the global profile's: it restores "All

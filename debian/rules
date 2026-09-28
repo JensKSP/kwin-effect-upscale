@@ -38,8 +38,9 @@ include /usr/share/dpkg/pkg-info.mk
 # Xwayland and drive a real client through it, and whether that client answers
 # inside the effect's three second validation window is a property of the
 # machine: beside three other builds it does not, and the failure then describes
-# the builder rather than the plugin. The test stage runs them by name, alone,
-# against the installed effect, which is the machine they need.
+# the builder rather than the plugin. They run in the pull request checks
+# against the build tree instead. The test stage only installs the package,
+# loads both plugins through the probe and removes the package again.
 # Built here, run in the test stage. See above.
 override_dh_auto_test:
 
@@ -48,6 +49,7 @@ override_dh_auto_configure:
 		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
 		-DCMAKE_COMPILE_WARNING_AS_ERROR=OFF \
 		-DUPSCALE_PACKAGE_VERSION=$(DEB_VERSION) \
+		-DUPSCALE_BUILD_WINE_HELPER=OFF \
 		-DUPSCALE_SESSION_TESTS=OFF
 
 # KWin's effect ABI is private. Its common package has the version shared by

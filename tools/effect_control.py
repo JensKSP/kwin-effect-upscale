@@ -2,10 +2,12 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Set the effect's own settings for a run, and ask it what it sees.
 
-Only the effect's settings are touched, never the session's, and only for the
-duration of a run. Separated from the script that starts games because talking
-to a running compositor is a different job from launching a process and waiting
-for it, and because this half can be read without the other.
+The effect's settings are touched, never the session's, and they are not put
+back afterwards: the last run's resolution and sharpening stay in kwinrc. The
+one game setting reset here is SuperTuxKart's stored screen size. Separated
+from the script that starts games because talking to a running compositor is a
+different job from launching a process and waiting for it, and because this
+half can be read without the other.
 """
 
 from __future__ import annotations
@@ -16,14 +18,17 @@ import subprocess
 from pathlib import Path
 
 GROUP = "Effect-upscale"
+# Values of the Resolution key: the ResolutionPreset enum in
+# src/plugins/upscale/resolution.h, in order. Not the legacy Preset key, which
+# counted from an Automatic that no longer exists and which the effect ignores
+# as soon as a Resolution key is stored.
 PRESETS = {
-    "automatic": 0,
-    "native": 1,
-    "ultra-quality": 2,
-    "quality": 3,
-    "balanced": 4,
-    "performance": 5,
-    "custom": 6,
+    "native": 0,
+    "ultra-quality": 1,
+    "quality": 2,
+    "balanced": 3,
+    "performance": 4,
+    "custom": 5,
 }
 
 # What a preset asks for, as a fraction of the output. Reported alongside the
@@ -74,7 +79,7 @@ def configure(preset: str, *, sharpening: bool) -> str:
     number rather than an error.
     """
     settings = {
-        "Preset": str(PRESETS[preset]),
+        "Resolution": str(PRESETS[preset]),
         "Sharpening": "true" if sharpening else "false",
     }
     for key, value in settings.items():
@@ -92,9 +97,11 @@ def configure(preset: str, *, sharpening: bool) -> str:
     # Written is not the same as in force. The effect re-reads on request, and
     # a request that was accepted can still leave an older value if the write
     # landed after it, so the value is read back from where the effect reads it.
-    read = run_command(["kreadconfig6", "--file", "kwinrc", "--group", GROUP, "--key", "Preset"])
+    read = run_command(
+        ["kreadconfig6", "--file", "kwinrc", "--group", GROUP, "--key", "Resolution"]
+    )
     if read.stdout.strip() != str(PRESETS[preset]):
-        return f"the preset is {read.stdout.strip() or 'unset'}, not {preset}"
+        return f"the resolution is {read.stdout.strip() or 'unset'}, not {preset}"
     return ""
 
 

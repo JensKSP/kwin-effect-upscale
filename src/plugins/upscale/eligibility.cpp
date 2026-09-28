@@ -8,11 +8,13 @@
 
 #include "application.h"
 #include "resolution.h"
+#include "runtime.h"
 #include "settings.h"
 #include "windowidentity.h"
 
 #include "effect/effecthandler.h"
 #include "effect/effectwindow.h"
+#include "main.h"
 #include "scene/surfaceitem.h"
 #include "scene/windowitem.h"
 #include "window.h"
@@ -136,11 +138,17 @@ static bool samePixel(double first, double second, double scale)
     return std::abs(first - second) * scale <= 1.0;
 }
 
-// Whether the window occupies its whole output. This is a gate, not a
-// measurement of where to draw: the scaler is given the window's own geometry
-// as its destination, so a window that passes here is one whose enlargement
-// this effect may replace.
-bool upscaleCoversOutput(EffectWindow *window)
+// Whether the window occupies the whole screen it was given. This is a gate,
+// not a measurement of where to draw: the scaler is given the window's own
+// geometry as its destination, so a window that passes here is one whose
+// enlargement this effect may replace.
+//
+// Usually that screen is the output. A program whose connection the effect
+// answered was told of a smaller one, and it fills what it was told: in
+// borderless mode it makes a window that size, and nothing about such a window
+// says fullscreen. Measuring it against the output would find a window over
+// part of the screen and leave a game the effect itself sized unscaled.
+bool upscaleCoversOutput(const EffectWindow *window)
 {
     UpscaleOutput *screen = window->screen();
     if (!screen) {
@@ -148,7 +156,16 @@ bool upscaleCoversOutput(EffectWindow *window)
     }
     const double scale = screen->scale();
     const auto frame = window->frameGeometry();
-    const auto output = screen->geometryF();
+    auto output = screen->geometryF();
+    const Window *internal = window->window();
+    const QSize given = internal ? upscaleServedScreen(internal->pid()) : QSize();
+    if (!given.isEmpty()) {
+        // The screen a program was served is counted in X11 pixels, which
+        // Xwayland maps to logical ones by its own scale: the output's while
+        // X11 programs scale themselves, one while the system scales them.
+        const qreal x11Scale = kwinApp()->xwaylandScale();
+        output.setSize(QSizeF(given.width() / x11Scale, given.height() / x11Scale));
+    }
     // The far edges, not the dimensions. Rounding each of an origin and a
     // width to the output's values still permits their sum to land a pixel
     // short or a pixel over, which is a strip left uncovered or drawn past the
@@ -156,6 +173,20 @@ bool upscaleCoversOutput(EffectWindow *window)
     return samePixel(frame.x(), output.x(), scale) && samePixel(frame.y(), output.y(), scale)
         && samePixel(frame.x() + frame.width(), output.x() + output.width(), scale)
         && samePixel(frame.y() + frame.height(), output.y() + output.height(), scale);
+}
+
+bool upscaleRequestCoversOutput(const Window *window)
+{
+    const UpscaleOutput *output = window->moveResizeOutput();
+    if (!output) {
+        return false;
+    }
+    const double scale = output->scale();
+    const QRectF requested = window->moveResizeGeometry();
+    const QRectF screen = output->geometryF();
+    return samePixel(requested.x(), screen.x(), scale) && samePixel(requested.y(), screen.y(), scale)
+        && samePixel(requested.x() + requested.width(), screen.x() + screen.width(), scale)
+        && samePixel(requested.y() + requested.height(), screen.y() + screen.height(), scale);
 }
 
 // Which of the six cells this window presents in. Answerable here and not
@@ -212,9 +243,10 @@ static UpscaleRefusal settingsRefusal(EffectWindow *window)
         // claimed one.
         return application ? UpscaleRefusal::Disabled : UpscaleRefusal::Unlisted;
     }
-    if (settings.resolution() == ResolutionPreset::Native) {
-        return UpscaleRefusal::NativeRule;
-    }
+    // Native is not a refusal. It asks the game for nothing smaller; a buffer
+    // that arrives smaller all the same - a game that kept a resolution of its
+    // own from an earlier run - is still enlarged with FSR rather than left to
+    // KWin's plain stretch. Laid down by Jens on 2026-09-21.
     const QSize pixels = window->screen()->pixelSize();
     if (!exceedsMinimumPixels({pixels.width(), pixels.height()}, settings.value(UpscaleSetting::MinimumPixels))) {
         return UpscaleRefusal::BelowMinimumPixels;

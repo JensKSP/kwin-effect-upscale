@@ -2,10 +2,14 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """The only list of package targets: CI matrix, labels, images and inventory.
 
-Every workflow matrix, every container base image and the release inventory
-read this table. A distribution is added, renamed or moved to a new release in
-one place, because a second list is how a target ends up built but not
-published, or published but never built.
+The package workflows' matrices, the base image CI hands each package-builder
+container and the release inventory read this table. A distribution is added,
+renamed or moved to a new release here, because a second list is how a target
+ends up built but not published, or published but never built. Three places
+repeat a release for builds outside that matrix and change with it: the
+default BASE_IMAGE of the package-builder Containerfiles, the Trixie check
+container's FROM, and the single Trixie target of the pull request package
+test in ci.yml.
 
 The handbook's "which release of each distribution" section explains which
 release each target names and why it is the latest stable one.

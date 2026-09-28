@@ -109,11 +109,10 @@ void UpscaleApplicationEditorTest::editsTheApplicationList()
     // Built from the settings table, so each control is named by the key it
     // stores rather than by a name chosen per field.
     auto *preset = editor->findChild<QComboBox *>(QStringLiteral("Resolution"));
-    auto *enabled = editor->findChild<QCheckBox *>(QStringLiteral("applicationEnabled"));
     auto *note = editor->findChild<QLabel *>(QStringLiteral("applicationNote"));
     auto *remove = editor->findChild<QPushButton *>(QStringLiteral("applicationRemove"));
     for (const QWidget *widget : std::initializer_list<const QWidget *>{list, name, windowClass, instance, program,
-                                                                        method, preset, enabled, note, remove}) {
+                                                                        method, preset, note, remove}) {
         QVERIFY(widget);
     }
     // The shipped catalogue, read from the file this build installs.
@@ -140,38 +139,39 @@ void UpscaleApplicationEditorTest::editsTheApplicationList()
     QVERIFY(programMatch);
     QCOMPARE(programMatch->currentIndex(), int(KWin::UpscaleStringMatch::RegularExpression));
     QCOMPARE(method->currentText(), KWin::upscaleMethodLabel(KWin::UpscaleMethod::AdvertisedMode));
-    QVERIFY(enabled->isChecked());
-    QVERIFY(!note->text().isEmpty());
+    QCOMPARE(list->item(kart)->checkState(), Qt::Checked);
+    // A shipped entry's note records what was measured, for the people who
+    // maintain the list; it is not shown beside the fields.
+    QVERIFY2(note->text().isEmpty(), qPrintable(note->text()));
     // An entry this build ships comes back with the next package, so removing
     // it would not remove anything.
     QVERIFY(!remove->isEnabled());
 
     // A combo box reports a choice only when the user makes it, so the keyboard
     // drives it here rather than setCurrentIndex.
-    // A profile that states nothing shows "use global" first, naming the value
-    // it follows, so that following it is a choice made knowingly.
-    QCOMPARE(preset->currentIndex(), 0);
-    QVERIFY2(preset->currentText().contains(QStringLiteral("Quality")), qPrintable(preset->currentText()));
+    // A profile that states nothing shows the value it follows, with its reset
+    // button disabled; one it states enables it, as Qt Designer's does.
+    const QWidget *presetReset = editor->findChild<QWidget *>(QStringLiteral("ResolutionReset"));
+    QCOMPARE(preset->currentText(), QStringLiteral("Quality"));
+    QVERIFY(!presetReset->isEnabled());
     const int inherited = preset->currentIndex();
     QTest::keyClick(preset, Qt::Key_Down);
     QVERIFY(preset->currentIndex() != inherited);
+    QVERIFY(presetReset->isEnabled());
     const QString chosen = preset->currentText();
     auto *minimum = editor->findChild<QComboBox *>(QStringLiteral("MinimumPixels"));
     QVERIFY(minimum);
-    // The limit is offered as resolutions, as on the global page, with "use
-    // global" first like every other list.
-    QCOMPARE(minimum->currentIndex(), 0);
-    QVERIFY2(minimum->currentText().startsWith(QStringLiteral("Global")), qPrintable(minimum->currentText()));
+    // The limit is offered as resolutions, as on the global page.
+    QVERIFY(!editor->findChild<QWidget *>(QStringLiteral("MinimumPixelsReset"))->isEnabled());
     minimum->setCurrentText(QStringLiteral("2560x1440"));
+    QVERIFY(editor->findChild<QWidget *>(QStringLiteral("MinimumPixelsReset"))->isEnabled());
     // Nothing is written before the page is applied.
     QVERIFY(!userConfig().contains(QStringLiteral("Application-supertuxkart")));
 
-    // The check box in the list and the one beside the details are the same
-    // state, so each has to follow the other.
+    // Whether an entry takes part is its check box in the list, and only there.
+    QVERIFY(!editor->findChild<QCheckBox *>(QStringLiteral("applicationEnabled")));
     list->item(kart)->setCheckState(Qt::Unchecked);
-    QVERIFY(!enabled->isChecked());
-    enabled->click();
-    QCOMPARE(list->item(kart)->checkState(), Qt::Checked);
+    list->item(kart)->setCheckState(Qt::Checked);
 
     module.save();
     const QString stored = userConfig();
@@ -186,6 +186,7 @@ void UpscaleApplicationEditorTest::editsTheApplicationList()
     // typed, and the choice survives the round trip.
     list->setCurrentRow(kart);
     QCOMPARE(preset->currentText(), chosen);
+    QVERIFY(presetReset->isEnabled());
     QCOMPARE(KWin::upscaleResolutionPixels(minimum, -1), 3686400);
 
     // The page says whether the list still follows the package.

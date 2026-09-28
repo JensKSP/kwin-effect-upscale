@@ -116,8 +116,9 @@ follow it as you follow this file.
 - KDE Frameworks Coding Style with KWin's `.clang-format` and KWin's own
   conventions; C++23; Qt without keywords (`QT_NO_KEYWORDS`); at most 400 code
   lines per file.
-- Own code is `GPL-2.0-or-later` with an SPDX header in every file; third-party
-  shaders keep their own licence.
+- Own code is `GPL-2.0-or-later`, CI and tool configuration `CC0-1.0`. Every
+  file carries an SPDX header, or an entry in `REUSE.toml` where it cannot;
+  third-party shaders and KWin's `.clang-format` keep their own licence.
 
 ## Read when…
 

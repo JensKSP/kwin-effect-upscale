@@ -15,6 +15,7 @@
 #include "application.h"
 #include "buildtype.h"
 #include "eligibility.h"
+#include "matching.h"
 #include "modeoverride.h"
 #include "resolution.h"
 #include "settings.h"
@@ -28,6 +29,7 @@
 #include "effect/effectwindow.h"
 #include "scene/surfaceitem.h"
 #include "scene/windowitem.h"
+#include "wayland/clientconnection.h"
 #include "wayland/surface.h"
 #include "window.h"
 
@@ -112,20 +114,26 @@ void UpscaleEffect::describeApplication(UpscaleSnapshot &state, const Window *wi
     }
     state.recognized = known->name;
     state.presentedAs = presentation;
-    state.method = known->methods[std::size_t(state.presentedAs)];
+    state.method = upscaleMethodFor(known, state.presentedAs);
     // Keyed by the connection, not the program: another connection of the same
     // executable must not overwrite what the selected window was told.
     if (m_modeOverride && window->surface() && window->output()) {
         state.advertised = m_modeOverride->advertised(window->surface()->client(), window->output()->name());
+        // Whether this program is told anything when it next starts: only the
+        // entry its path selects before it has a window can say it then.
+        const UpscaleBindAnswer answer = upscaleApplicationAtBind(window->surface()->client()->executablePath());
+        state.advertisableAtStart = answer.decided && answer.application == known;
     }
     // Auto is the resize on X11 and the surface scale on Wayland, and reports
-    // what it actually asked for, the same as a method named outright.
+    // what it actually asked for, the same as a method named outright. The
+    // surface scale is also what an advertisement falls back to where it did
+    // not reach the window, so any Wayland slot reports it.
     const bool x11 = upscaleIsX11(presentation);
     if (state.method == UpscaleMethod::X11Resize || (state.method == UpscaleMethod::Auto && x11)) {
         state.requested = m_x11Resolution->requested(window);
         state.requestFailure = m_x11Resolution->failure(window);
         state.x11Presentation = m_x11Resolution->presentation(window);
-    } else if (state.method == UpscaleMethod::Auto) {
+    } else if (!x11) {
         state.scaleRequested = m_waylandScale->requested(window);
     }
 }

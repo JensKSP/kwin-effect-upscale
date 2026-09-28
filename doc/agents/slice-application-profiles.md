@@ -701,18 +701,23 @@ pointless or harmful here. That keeps the distinction the catalogue header
 already draws, that an entry asking for nothing still records that the question
 was asked.
 
-**These are the only settings with no Use global.** Every other setting has one,
-because every other setting is a preference; a method is a measurement of one
-program and has nothing to inherit. `X11PrimaryOutputOnly` stops being a
-property of the profile and becomes a property of the X11 presentations.
+**Methods inherit too, since Auto exists.** Decided by Jens on 2026-09-21: the
+earlier rule that methods alone had no Use global predates Auto, when a method
+was only ever a measurement and there was nothing sensible to inherit. A slot
+a game states nothing for now follows the package's measurement where there is
+one and the global profile's answer otherwise, which is Auto by default; a
+slot the game states is its own, marked as its other settings are.
+`X11PrimaryOutputOnly` stops being a property of the profile and becomes a
+property of the X11 presentations.
 
-**On the global profile the same six slots default to `Off` rather than `Auto`.**
-For a game in the catalogue somebody measured it, so Auto has ground to stand
-on; for a program nobody has ever run it has none. Switching on "also upscale
-applications that are not in the list" therefore enlarges the buffers such
-programs commit by themselves and does not begin experimenting on them until a
-slot is set to Auto deliberately. This preserves the line the previous
-`UnknownApplications` setting drew.
+**On the global profile the same six slots default to `Auto` too.** Decided by
+Jens on 2026-09-21, reversing an earlier default of `Off`, which had kept
+"also upscale applications that are not in the list" from experimenting on
+programs nobody measured until a slot was set to Auto deliberately. Now ticking
+All applications also asks such programs by Auto: the X11 resize with its
+verification and revert, and the surface scale on Wayland, which is taken back
+when it does not work; nothing is said at bind. What keeps an unmeasured
+program untouched by default is the global profile's switch, which stays off.
 
 **The editor offers only what the current screen can do**, with a reason for the
 rest, as the handbook already requires. On an unscaled output the two
@@ -771,13 +776,16 @@ the next. Only an explicit method in the fullscreen slot is said at bind, and
 that is a measurement of that slot.
 
 **Auto and the measured methods reach different clients, which is why both
-exist.** The fractional hint reaches GLFW, SDL 3, Godot and Wine. It does not
-reach SDL 2, which never implemented the protocol, or Qt, which clamps the
-value to 1.0. SDL 2 is a large share of Linux games and includes SuperTuxKart,
-so a measured advertisement is the only thing that moves those - and it also
-starts the game at the right size instead of changing it after the first frame.
-Auto failing is therefore not a dead end but the case a catalogue entry exists
-for, and Auto reports it rather than falling back to something unsafe.
+exist.** The fractional hint reaches GLFW, SDL 3, Godot and Wine, and SDL 2 for
+a window created high-DPI aware and not in exclusive fullscreen: corrected on
+2026-09-21 from the source of SDL 2.32.4 and a SuperTuxKart run, where this
+document had said SDL 2 never implemented the protocol. It does not reach SDL
+2's exclusive fullscreen, whose buffer is the mode it selected, or Qt, which
+clamps the value to 1.0. A measured advertisement is the only thing that moves
+an exclusive-fullscreen SDL 2 game - and it also starts the game at the right
+size instead of changing it after the first frame. Auto failing is therefore
+not a dead end but the case a catalogue entry exists for, and Auto reports it
+rather than falling back to something unsafe.
 
 ### What a Wayland client actually reads, source review 2026-09-20
 
@@ -865,7 +873,7 @@ window then, and no ordering or binding signature predicts it: every toolkit
 binds every global it knows regardless of intent. A toolkit fingerprint is
 possible from the resources a client has bound - a client with no
 `zxdg_output_v1` is GLFW or Godot, a client with
-`wp_fractional_scale_manager_v1` is not SDL 2 - and the class, not the
+`wp_fractional_scale_manager_v1` is not an old SDL 2 - and the class, not the
 presentation, is what predicts harm. That is a refinement to consider once Auto
 works, not a prerequisite.
 
@@ -1678,3 +1686,146 @@ Planned checks, not observed results:
 - [ ] Add the application form with the GitHub workflow slice.
 - [ ] Extend the catalogue tests to the acceptance rule.
 - [ ] Walk the route once end to end and record what it produced here.
+
+### Standalone exports retain measured methods, 2026-09-24
+
+Review of PR #21 finds that standalone export retains the package-measurement
+array while writing into a file with no defaults. The sparse writer then omits
+stated methods equal to those measurements. A round-trip regression will export
+all shipped entries and compare their method slots after reimport. Export must
+clear only the measurement baseline in its copy so the standalone file preserves
+stated methods; normal layered saves must keep their existing behavior. This is
+inside the existing profile-storage supported scope; broader editor/hardware
+acceptance remains unchanged. The regression result is recorded below; broader
+profile-editor acceptance is outside this export correction.
+
+The shipped-catalogue round-trip fails on SuperTuxKart before the correction
+and passes after clearing the export copy's measurement baseline. The focused
+application suite passes in Trixie. Ordinary layered saves are unchanged.
+
+### The windowed method slots are removed, 2026-09-25
+
+Jens asked on 2026-09-25 whether a windowed presentation had ever been
+implemented or tested, having noticed that ETR and STK can both be run
+windowed. It had not, and three places in the tree already said so: the
+handbook stated that the global profile "never reaches a windowed window",
+`upscaleMethodApplies()` recorded that obtaining a smaller buffer from one
+"means holding the window's size while the client renders below it, which no
+implemented path does", and every test set the two windowed methods to Off so
+that Auto's waiting stayed out of what it measured. Underneath all of it
+`upscalePresentation()` refuses any window that is neither fullscreen nor an
+undecorated one covering its output, before a method is read at all. The two
+slots could therefore never take effect, whatever they were set to.
+
+He decided to remove them rather than keep them as reserved space. A control
+that cannot act is worse than an absent one, because a person who sets it and
+sees nothing cannot tell an unimplemented setting from a broken one.
+
+Automatic no longer applies to a windowed presentation, which is the single
+statement the removal rests on: the coercion that was already there then
+resolves both slots to Off. `MethodWaylandWindowed` and `MethodX11Windowed`
+are gone from the configuration, nothing writes them, the settings page builds
+no row for them, and the connection policy asks about fullscreen and
+borderless alone. The handbook now says four slots and states that a window
+the person sized themselves is never scaled on either protocol. Both
+presentation values stay in the enumeration, because the effect still has to
+recognize such a window in order to refuse it.
+
+The first attempt skipped building the two combo boxes as well, which left
+nulls in five loops that index every slot and segfaulted four settings suites.
+Every slot is built and only the visible row is omitted; a windowed slot
+offers Off alone and stores Off. All 27 suites pass in Trixie with GCC. The
+other three compilers are still to be run against the settled tree: the matrix
+that covered them was started before the last change and describes an earlier
+one. One assertion changed with the behaviour: the global profile's answers are no
+longer all Auto, and the test now expects Auto for the presentations that act
+and Off for the two that cannot.
+
+## The same games repackaged: Flatpak and Snap, 2026-09-27
+
+Proposed by Jens, 2026-09-27: SuperTuxKart and Extreme Tux Racer as Flatpak and
+as Snap, beside the native packages this catalogue already states, and Steam in
+both forms. Steam's two forms belong to
+[Proton smaller screen](slice-proton-smaller-screen.md#steam-as-flatpak-and-snap-2026-09-27),
+which owns the prefix and the launcher flavours. This document owns what
+repackaging does to an identity.
+
+The point is not a new game. All three packagings run the same program under a
+different path, in a different process namespace, over a different Wayland
+socket, so they test the two gates and nothing else. That is why these two
+games and not others: their native behaviour is already measured, so a
+difference has one cause.
+
+### What the archives offer, checked 2026-09-27
+
+Read from the Flathub and Snap Store APIs and from each Flathub manifest on
+`master`. Nothing was installed and nothing was run.
+
+| Game | Flatpak | Snap |
+| --- | --- | --- |
+| SuperTuxKart | `net.supertuxkart.SuperTuxKart` 1.5, x86_64 and aarch64, `--socket=wayland --socket=fallback-x11 --device=all` | `supertuxkart` 1.5, amd64 and arm64, strict, core24 |
+| Extreme Tux Racer | `net.sourceforge.ExtremeTuxRacer` 0.8.4, x86_64 and aarch64, `--socket=x11 --share=ipc --device=all`, no Wayland socket | `extreme-tux-racer` 0.8.4 amd64 and 0.8.3 arm64, strict, core20, unproven publisher |
+| Steam | `com.valvesoftware.Steam` 1.0.0.87, x86_64 only | `steam` 1.0.0.87 amd64 and 1.0.0.85 arm64, strict, core24, Canonical, verified |
+
+Three things follow before a single test runs. The Snap of Extreme Tux Racer is
+an unofficial build on `core20` by an unproven publisher, so a difference it
+alone shows is the packaging's and not the game's. Both SuperTuxKart packages
+ship 1.5 where that entry's `MeasuredVersion` is 1.4, so this work restates
+that measurement rather than confirming it; Extreme Tux Racer's Flatpak is
+0.8.4, the version already measured. And Extreme Tux Racer's Flatpak has no
+Wayland socket at all, which makes it the one case that is always Xwayland,
+with no fallback to confuse the reading.
+
+### What the shipped catalogue predicts
+
+Predictions, each one a test, none of them a result.
+
+- **SuperTuxKart should match unchanged.** `Executable=.*/supertuxkart` is a
+  regular expression anchored to the whole value, so it holds for any path
+  ending in `/supertuxkart` - which is what the editor's own tooltip promises.
+  A Flatpak's program is `/app/bin/supertuxkart` inside its sandbox and a
+  Snap's lies under `/snap/supertuxkart/`; both are expected to end that way.
+  This is the case that tests the promise.
+- **Extreme Tux Racer should match through gate 2 alone.** Its entry states
+  `Instance=etr` and deliberately no `Executable`, so no repackaging can break
+  it through a path. What has to be observed is only that the instance stays
+  `etr`. Flathub renames the icon to `etr` and builds the same binary name, so
+  it is expected to.
+- **The Flatpak app ID can be tested on the development host now.** The open
+  item under [not decided yet](#not-decided-yet) waits on seeing the ID on a
+  real Flatpak game. Both halves of the protocol are present here: the host's
+  `flatpak` 1.16.6 binary carries `wp_security_context_manager_v1` and
+  `wp_security_context_v1`, with the string it logs when a compositor offers
+  neither, and `libkwin.so.6.3.6` implements the server side. Only SuperTuxKart
+  can carry one, because a security context rides on a native Wayland
+  connection and Extreme Tux Racer's Flatpak has no Wayland socket.
+- **A Flatpak X11 window's PID is expected not to resolve on KWin 6.3.6.**
+  Flatpak runs bubblewrap with `--unshare-pid`, verified in the binary on this
+  host, and `flatpak run` offers to share a PID namespace only with a parent
+  instance. The caveat this document already records for
+  [where the path comes from](#the-design-two-gates) therefore applies in full:
+  on 6.3.6 the PID is the client's own `_NET_WM_PID`, set from inside the
+  namespace, so it names another host process and gate 1 does not match.
+  Extreme Tux Racer's Flatpak is exactly that case, and matching by instance
+  alone is what its entry was written for. On KWin 6.6.6 and master the PID
+  comes from the X-Resource extension, taken from the connection, so the path
+  is expected to resolve there; that is to be confirmed, not assumed.
+- **A Snap is expected to keep a usable PID**, because strict confinement is
+  not known to unshare the PID namespace. Expected, and to be confirmed on a
+  running game rather than reasoned about.
+
+### What this needs before it can run
+
+Neither archive is reachable from this checkout as it stands: `flatpak` 1.16.6
+is installed on the development host with no remote configured and no
+application installed, and `snapd` is not installed at all. Adding a Flathub
+remote and installing `snapd` are changes to the host, outside this repository,
+and are Jens's to make.
+
+One practical note for the run itself: SuperTuxKart's Flatpak grants
+`fallback-x11`, so in a Wayland session it takes the Wayland socket. Forcing
+its Xwayland path needs the X11 socket granted explicitly,
+`flatpak run --socket=x11 net.supertuxkart.SuperTuxKart`.
+
+This is measurement of identities, so it belongs to this slice's full
+acceptance and closes no supported scope on its own.

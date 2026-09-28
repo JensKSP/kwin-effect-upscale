@@ -166,7 +166,7 @@ void LegacySettingsTest::keepsTheProfileKeysOfThePreviousRelease()
     QCOMPARE(group.readEntry("Resolution", QString()), QStringLiteral("Performance"));
     const UpscaleApplication *saved = byInstance(QStringLiteral("old"));
     QVERIFY(saved);
-    QCOMPARE(saved->methods[std::size_t(UpscalePresentation::X11FullScreen)], UpscaleMethod::X11Resize);
+    QCOMPARE(saved->methods[std::size_t(UpscalePresentation::X11FullScreen)], std::optional(UpscaleMethod::X11Resize));
     QCOMPARE(saved->overrides[std::size_t(UpscaleSetting::Resolution)], std::optional<int>(int(ResolutionPreset::Performance)));
 }
 

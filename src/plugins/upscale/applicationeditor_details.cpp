@@ -16,7 +16,6 @@
 
 #include <KLocalizedString>
 
-#include <QCheckBox>
 #include <QFormLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -48,7 +47,7 @@ static QFormLayout *addTab(QTabWidget *tabs, const QString &title)
 }
 
 // Sectioned as the settings page is, so that a game's form reads like the
-// global one with a Global choice added to each preference.
+// global one, with what the game states for itself marked.
 void UpscaleApplicationEditor::buildDetails(QVBoxLayout *details)
 {
     m_note->setWordWrap(true);
@@ -61,13 +60,12 @@ void UpscaleApplicationEditor::buildDetails(QVBoxLayout *details)
     QFormLayout *identification = addTab(tabs, i18n("Identification"));
     identification->addRow(i18n("Name:"), m_name);
     m_identity->build(identification, this);
-    identification->addRow(QString(), m_enabled);
     identification->addRow(QString(), m_note);
     QFormLayout *requests = addTab(tabs, i18n("Resolution Request"));
-    // What to ask for, per way the game can present itself. No Global choice
-    // here: a method is a measurement of this program and has nothing to
-    // inherit from anything else.
-    m_methods->build(requests, this);
+    // What to ask for, per way the game can present itself. Each follows the
+    // package's measurement where there is one and the global answer
+    // otherwise, until the game states its own, as its other settings do.
+    m_methods->build(requests, this, true);
     // And what the user wants, every entry of which may follow the global
     // value instead.
     // Laid out as "All applications" lays out the same tab, and previewed
@@ -100,7 +98,6 @@ void UpscaleApplicationEditor::showSelected()
     // "All applications" shows its own panel; any other row a game's tabs.
     m_details->setCurrentIndex(!valid && m_details->count() > 1 ? 1 : 0);
     m_name->setEnabled(valid);
-    m_enabled->setEnabled(valid);
     m_identity->setEnabled(valid);
     // An entry this build ships comes back with the next package, so removing
     // it would not remove anything. Switching it off is what persists.
@@ -115,16 +112,16 @@ void UpscaleApplicationEditor::showSelected()
     }
     m_name->setText(application->name);
     m_identity->show(*application);
-    m_methods->show(application->methods);
+    m_methods->show(application->methods, application->measured, m_globalMethods);
     m_settings->show(application->overrides, m_global);
-    m_enabled->setChecked(application->enabled);
     showNote(*application);
     updatePreview();
 }
 
-void UpscaleApplicationEditor::setGlobalSettings(const UpscaleSettings &global)
+void UpscaleApplicationEditor::setGlobalSettings(const UpscaleSettings &global, const UpscaleMethods &methods)
 {
     m_global = global;
+    m_globalMethods = methods;
     // Only a game's tabs name the global values. While "All applications" is
     // shown they are hidden, and selecting a game shows it afresh.
     if (selected()) {
@@ -156,10 +153,13 @@ void UpscaleApplicationEditor::showNote(const UpscaleApplication &application)
     if (problem.isEmpty()) {
         problem = upscaleAdvertisementProblem(application);
     }
+    // A shipped entry's own note is not shown: it records what was measured
+    // for the people who maintain the list, and next to the fields it read as
+    // a description of what the fields do.
     if (!problem.isEmpty()) {
         m_note->setText(problem);
     } else {
-        m_note->setText(application.shipped ? application.note : i18n("Added by you."));
+        m_note->setText(application.shipped ? QString() : i18n("Added by you."));
     }
 }
 
@@ -175,14 +175,14 @@ void UpscaleApplicationEditor::applyToSelected()
     application->name = m_name->text();
     m_identity->store(*application);
     showNote(*application);
-    m_methods->store(application->methods);
+    m_methods->store(application->methods, application->measured);
     m_settings->store(application->overrides);
     updatePreview();
-    application->enabled = m_enabled->isChecked();
+    // Whether the entry takes part is its check box in the list, the only
+    // one: a second beside the details said the same thing twice.
     const QScopedValueRollback updating(m_updating, true);
     if (QListWidgetItem *item = m_list->currentItem()) {
         item->setText(application->name);
-        item->setCheckState(application->enabled ? Qt::Checked : Qt::Unchecked);
     }
     Q_EMIT changed();
 }

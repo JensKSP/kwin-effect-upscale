@@ -5,8 +5,8 @@
 */
 
 // The settings page's on-screen display section: which of the four displays
-// are shown, how long an announcement lasts, and which corner each one
-// occupies. It is a separate translation unit from the rest of the page
+// are shown, how long an announcement lasts, which corner each one occupies,
+// and which windows they describe. It is a separate translation unit from the rest of the page
 // because the page as a whole had outgrown the file-size limit, and this is
 // the part of it that stands on its own: everything here is about the blocks
 // drawn over the game, and nothing else on the page needs any of it.
@@ -34,6 +34,7 @@ void UpscaleEffectConfig::addDisplayControls(QFormLayout *layout)
     m_osdSummary->setObjectName(QStringLiteral("osdSummary"));
     m_osdStatistics->setObjectName(QStringLiteral("osdStatistics"));
     m_osdDeveloper->setObjectName(QStringLiteral("osdDeveloper"));
+    m_osdEveryFullScreen->setObjectName(QStringLiteral("osdEveryFullScreen"));
     m_osdAnnouncementPosition->setObjectName(QStringLiteral("osdAnnouncementPosition"));
     m_osdStatisticsPosition->setObjectName(QStringLiteral("osdStatisticsPosition"));
     m_osdDeveloperPosition->setObjectName(QStringLiteral("osdDeveloperPosition"));
@@ -45,12 +46,9 @@ void UpscaleEffectConfig::addDisplayControls(QFormLayout *layout)
                                   "display to the next free one."));
     }
     m_osdTimeout->setRange(1, 60);
-    // The unit is written out and follows the number, the way KWin's own
-    // effect pages write theirs, so the suffix is set again as the value moves.
-    const auto unit = [this](int seconds) {
-        m_osdTimeout->setSuffix(i18ncp("Suffix", " second", " seconds", seconds));
-    };
-    unit(m_osdTimeout->value());
+    // The unit's symbol follows the number, as KDE writes short units in
+    // narrow fields; a symbol has no plural, so it is set once.
+    m_osdTimeout->setSuffix(i18nc("Suffix: the unit symbol for seconds", " s"));
     // Three displays, each a switch and what it decides, set a little apart:
     // the switches sit in the field column like every other value, and the
     // space says where one display ends and the next begins.
@@ -68,17 +66,25 @@ void UpscaleEffectConfig::addDisplayControls(QFormLayout *layout)
     gap();
     layout->addRow(QString(), m_osdDeveloper);
     layout->addRow(i18n("Developer information position:"), m_osdDeveloperPosition);
+    gap();
+    // Not one of the displays but which windows all three describe, so it
+    // comes after them. It is global only, like All applications, and a
+    // game's own tab has no counterpart: a game the effect acts on is
+    // described whatever this says.
+    m_osdEveryFullScreen->setToolTip(i18n("Normally the displays appear only over applications this effect acts on. "
+                                          "This also shows them over any other window that fills its screen, such as "
+                                          "a browser playing a video, to find out why a game is not recognized."));
+    layout->addRow(QString(), m_osdEveryFullScreen);
     // A Debug build shows statistics and developer information unless the
     // user has said otherwise; a release build shows only the announcement.
     // The defaults live in upscaleconfig.kcfg, not here.
-    for (QCheckBox *box : {m_osdDetection, m_osdSummary, m_osdStatistics, m_osdDeveloper}) {
+    for (QCheckBox *box : {m_osdDetection, m_osdSummary, m_osdStatistics, m_osdDeveloper, m_osdEveryFullScreen}) {
         connect(box, &QCheckBox::toggled, this, [this]() {
             updatePreview();
             setNeedsSave(true);
         });
     }
-    connect(m_osdTimeout, &QSpinBox::valueChanged, this, [this, unit](int seconds) {
-        unit(seconds);
+    connect(m_osdTimeout, &QSpinBox::valueChanged, this, [this]() {
         updatePreview();
         setNeedsSave(true);
     });

@@ -31,6 +31,7 @@ private Q_SLOTS:
     void outputPixelPolicy();
     void answersWhichWindowsAnEntryMatches();
     void autoAsksTheWindowForAFractionalScale();
+    void anAdvertisementThatDidNotReachFallsBackToTheSurfaceScale();
 
 private:
     // The global resolution as kwinrc stores it. Spelled out here rather than
@@ -46,7 +47,7 @@ private:
     QString status();
     void configure(bool unlisted, bool sharpening, std::optional<Stored> resolution = {});
     void configureColors(bool unsupported);
-    void configureDisplay(bool enabled, bool statistics);
+    void configureDisplay(bool enabled, bool statistics, bool everyFullScreen = false);
     void configureResolution(bool asking, bool unlisted, std::optional<Stored> resolution);
     void writeCatalogue(const QString &contents);
     void reconfigure();

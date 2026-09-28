@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+[Unit]
+Description=Upscaler helper for Wine and Proton games
+PartOf=graphical-session.target
+
+[Service]
+Type=dbus
+BusName=org.kde.KWin.Upscale.Helper
+ExecStart=@KDE_INSTALL_FULL_LIBEXECDIR@/kwin-upscale-helper
+Slice=background.slice

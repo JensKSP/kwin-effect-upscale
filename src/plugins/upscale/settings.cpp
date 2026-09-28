@@ -286,12 +286,12 @@ UpscaleMethods upscaleGlobalMethods()
     const KConfigGroup group = globalGroup();
     for (std::size_t slot = 0; slot < upscalePresentationCount; ++slot) {
         const auto presentation = UpscalePresentation(slot);
-        // Off where nothing states one: an unmeasured program is asked for
-        // nothing until somebody says otherwise. That is the opposite of a
-        // profile, whose silence means Auto, and it is deliberate - a profile
-        // describes a game somebody looked at.
+        // Auto where nothing states one, as in a profile. What keeps an
+        // unmeasured program untouched is not this answer but the global
+        // profile's own switch, All applications, which is off by default:
+        // until someone switches it on, nothing asks such a program anything.
         methods[slot] = upscaleMethodFromKey(group.readEntry(upscalePresentationKey(presentation), QString()),
-                                             UpscaleMethod::Off);
+                                             UpscaleMethod::Auto);
         if (!upscaleMethodApplies(presentation, methods[slot])) {
             methods[slot] = UpscaleMethod::Off;
         }
@@ -310,13 +310,12 @@ void upscaleSetGlobalMethods(const UpscaleMethods &methods)
 {
     // Through the generated setters rather than the group, so that the page's
     // own save() writes these along with everything else it manages instead
-    // of writing its cached values back over them.
+    // of writing its cached values back over them. A windowed presentation has
+    // no entry: the effect refuses such a window before a method is read.
     UpscaleConfig::setMethodWaylandFullScreen(upscaleMethodKey(methods[std::size_t(UpscalePresentation::WaylandFullScreen)]));
     UpscaleConfig::setMethodWaylandBorderless(upscaleMethodKey(methods[std::size_t(UpscalePresentation::WaylandBorderless)]));
-    UpscaleConfig::setMethodWaylandWindowed(upscaleMethodKey(methods[std::size_t(UpscalePresentation::WaylandWindowed)]));
     UpscaleConfig::setMethodX11FullScreen(upscaleMethodKey(methods[std::size_t(UpscalePresentation::X11FullScreen)]));
     UpscaleConfig::setMethodX11Borderless(upscaleMethodKey(methods[std::size_t(UpscalePresentation::X11Borderless)]));
-    UpscaleConfig::setMethodX11Windowed(upscaleMethodKey(methods[std::size_t(UpscalePresentation::X11Windowed)]));
 }
 
 UpscaleSettings upscaleGlobalSettings()

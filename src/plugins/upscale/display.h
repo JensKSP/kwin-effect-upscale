@@ -9,6 +9,7 @@
 #include "framestatistics.h"
 #include "overlay.h"
 #include "placement.h"
+#include "settings.h"
 #include "snapshot.h"
 
 #include <QElapsedTimer>
@@ -48,10 +49,10 @@ public:
     void reconfigure();
 
     /** Whether any mode is enabled at all. */
-    bool enabled() const;
+    static bool enabled(const UpscaleSettings &settings = upscaleGlobalSettings());
     // A new window needs its first paint; the same window stops requiring
     // composition when only its timed announcement was enabled and expires.
-    bool activeFor(EffectWindow *window) const;
+    bool activeFor(EffectWindow *window, const UpscaleSettings &settings = upscaleGlobalSettings()) const;
 
     /** One client buffer commit for the window being displayed. */
     void countClientUpdate(EffectWindow *window);
@@ -85,7 +86,7 @@ public:
     void reportPresentation(UpscaleSnapshot &snapshot) const;
 
     /** Takes a new snapshot, completes its measurements and lays out the text. */
-    void update(UpscaleSnapshot snapshot, EffectWindow *window);
+    void update(UpscaleSnapshot snapshot, EffectWindow *window, const UpscaleSettings &settings = upscaleGlobalSettings());
 
     /**
      * Copies the measurements as they stand into another snapshot.
@@ -123,6 +124,7 @@ public:
     QString text() const;
 
 private:
+    void applySettings(const UpscaleSettings &settings);
     void compose();
     void releaseBlocks();
     void resetSampling();

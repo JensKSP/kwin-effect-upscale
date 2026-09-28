@@ -77,6 +77,7 @@ private:
     void watchOutputs();
     void watchOutput(OutputInterface *output);
     void announce(OutputInterface *output, ClientConnection *client, wl_resource *resource);
+    void remember(OutputInterface *output, ClientConnection *client, const QSize &size);
     void restore(Record record = Record::Discard);
 
     // What one client is told: the buffer it should commit, and the integer

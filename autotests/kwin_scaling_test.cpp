@@ -1,0 +1,337 @@
+/*
+    SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+
+    SPDX-License-Identifier: GPL-2.0-or-later
+*/
+
+#include "kwin_wayland_test.h"
+#include "qwayland-viewporter.h"
+
+#include "core/output.h"
+#include "core/renderloop.h"
+#include "effect/effecthandler.h"
+#include "opengl/gltexture.h"
+#include "scene/surfaceitem.h"
+#include "scene/windowitem.h"
+#include "scene/workspacescene.h"
+#include "wayland_server.h"
+#include "workspace.h"
+
+#include <KConfigGroup>
+#include <KWayland/Client/connection_thread.h>
+#include <KWayland/Client/event_queue.h>
+#include <KWayland/Client/output.h>
+#include <KWayland/Client/registry.h>
+#include <KWayland/Client/surface.h>
+
+using namespace KWin;
+
+class Viewport : public QtWayland::wp_viewport
+{
+public:
+    explicit Viewport(::wp_viewport *viewport)
+        : QtWayland::wp_viewport(viewport)
+    {
+    }
+    ~Viewport() override
+    {
+        destroy();
+    }
+};
+
+class UpscaleProductionTest : public QObject
+{
+    Q_OBJECT
+private Q_SLOTS:
+    void initTestCase();
+    void init();
+    void cleanup();
+    void reducesAndScales_data();
+    void reducesAndScales();
+    void advertisedModeProducesSmallerBuffer();
+    void unsupportedBufferFallsBack_data();
+    void unsupportedBufferFallsBack();
+    void ignoredRequestIsRestored();
+    void windowedClientIsUnchanged();
+    void nativeBufferBypassesScaling();
+
+private:
+    void configure(bool enabled, const QString &method = QStringLiteral("Auto"));
+    QString status() const;
+    QImage renderOutput() const;
+    static QImage pattern(const QSize &size);
+    std::unique_ptr<KWayland::Client::EventQueue> m_queue;
+    std::unique_ptr<KWayland::Client::Registry> m_registry;
+    QtWayland::wp_viewporter m_viewporter;
+};
+
+void UpscaleProductionTest::initTestCase()
+{
+    QVERIFY(waylandServer()->init(QStringLiteral("wayland_upscale_production")));
+    Test::setOutputConfig({QRect(0, 0, 384, 216)});
+    kwinApp()->start();
+    QVERIFY(effects->isOpenGLCompositing());
+    QVERIFY(effects->isEffectLoaded(QStringLiteral("upscale")));
+}
+
+void UpscaleProductionTest::configure(bool enabled, const QString &method)
+{
+    const auto config = KSharedConfig::openConfig(QStringLiteral("kwinrc"));
+    KConfigGroup group(config, QStringLiteral("Effect-upscale"));
+    group.writeEntry("UnlistedApplications", enabled);
+    group.writeEntry("Resolution", 2); // Quality: two thirds of each dimension.
+    group.writeEntry("MethodWaylandFullScreen", method);
+    group.writeEntry("MethodWaylandBorderless", method);
+    group.writeEntry("MinimumPixels", 0);
+    group.writeEntry("Osd", false);
+    group.sync();
+    effects->reconfigureEffect(QStringLiteral("upscale"));
+}
+
+void UpscaleProductionTest::init()
+{
+    if (!effects->isEffectLoaded(QStringLiteral("upscale"))) {
+        QVERIFY(effects->loadEffect(QStringLiteral("upscale")));
+    }
+    configure(true);
+    Test::setOutputConfig({QRect(0, 0, 384, 216)});
+    QVERIFY(Test::setupWaylandConnection(Test::AdditionalWaylandInterface::FractionalScaleManagerV1));
+    m_queue = std::make_unique<KWayland::Client::EventQueue>();
+    m_queue->setup(Test::waylandConnection());
+    m_registry = std::make_unique<KWayland::Client::Registry>();
+    m_registry->setEventQueue(m_queue.get());
+    connect(m_registry.get(), &KWayland::Client::Registry::interfaceAnnounced, this,
+            [this](const QByteArray &name, quint32 id, quint32 version) {
+        if (name == QByteArrayLiteral("wp_viewporter")) {
+            m_viewporter.init(*m_registry, id, version);
+        }
+    });
+    QSignalSpy announced(m_registry.get(), &KWayland::Client::Registry::interfacesAnnounced);
+    m_registry->create(Test::waylandConnection());
+    m_registry->setup();
+    // Like the upstream connection helper, run a blocking event loop so the
+    // compositor flushes its queued registry announcements before we bind.
+    QVERIFY(announced.wait());
+    QVERIFY(m_viewporter.isInitialized());
+}
+
+void UpscaleProductionTest::cleanup()
+{
+    if (m_viewporter.isInitialized()) {
+        m_viewporter.destroy();
+    }
+    m_registry.reset();
+    m_queue.reset();
+    Test::destroyWaylandConnection();
+    QTRY_VERIFY(workspace()->windows().isEmpty());
+}
+
+QString UpscaleProductionTest::status() const
+{
+    return effects->supportInformation(QStringLiteral("upscale"));
+}
+
+QImage UpscaleProductionTest::pattern(const QSize &size)
+{
+    QImage image(size, QImage::Format_RGB32);
+    for (int y = 0; y < size.height(); ++y) {
+        for (int x = 0; x < size.width(); ++x) {
+            image.setPixel(x, y, qRgb((x % 5) * 50, (y % 5) * 50, x > y ? 200 : 20));
+        }
+    }
+    return image;
+}
+
+QImage UpscaleProductionTest::renderOutput() const
+{
+    // A presentation already in flight can satisfy the first wait. Request
+    // another full frame so the image belongs to the state being asserted.
+    for (int frame = 0; frame < 2; ++frame) {
+        QSignalSpy presented(workspace()->outputs().first()->renderLoop(), &RenderLoop::framePresented);
+        effects->addRepaintFull();
+        if (!presented.wait()) {
+            return {};
+        }
+    }
+    effects->makeOpenGLContextCurrent();
+    const auto [texture, colors] = effects->scene()->textureForOutput(workspace()->outputs().first());
+    return texture ? texture->toImage() : QImage();
+}
+
+void UpscaleProductionTest::reducesAndScales_data()
+{
+    QTest::addColumn<double>("scale");
+    QTest::addColumn<bool>("fullscreen");
+    for (double scale : {1.0, 1.5, 3.0}) {
+        for (bool fullscreen : {false, true}) {
+            QTest::addRow("scale-%g-%s", scale, fullscreen ? "fullscreen" : "borderless") << scale << fullscreen;
+        }
+    }
+}
+
+void UpscaleProductionTest::reducesAndScales()
+{
+    QFETCH(double, scale);
+    QFETCH(bool, fullscreen);
+    const QSize logical(int(384 / scale), int(216 / scale));
+    Test::OutputInfo output;
+    output.geometry = QRect(QPoint(), logical);
+    output.scale = scale;
+    Test::setOutputConfig({output});
+    auto surface = Test::createSurface();
+    auto fractional = Test::createFractionalScaleV1(surface.get());
+    Viewport viewport(m_viewporter.get_viewport(*surface));
+    viewport.set_destination(logical.width(), logical.height());
+    auto shell = Test::createXdgToplevelSurface(surface.get(), [fullscreen](Test::XdgToplevel *toplevel) {
+        toplevel->set_app_id(QStringLiteral("org.kde.upscale.production"));
+        if (fullscreen) {
+            toplevel->set_fullscreen(nullptr);
+        }
+    });
+    Window *window = Test::renderAndWaitForShown(surface.get(), pattern(QSize(384, 216)));
+    QVERIFY(window);
+    QCOMPARE(window->isFullScreen(), fullscreen);
+    QTRY_VERIFY(Test::waylandSync() && fractional->preferredScale() == qRound(scale * 80));
+    // Derive the next buffer from the received request, as a cooperating
+    // client does. Inspect the committed buffer independently on the server.
+    const QSize reduced = logical * (fractional->preferredScale() / 120.0);
+    QCOMPARE(reduced, QSize(256, 144));
+    Test::render(surface.get(), pattern(reduced));
+    QVERIFY(Test::waylandSync());
+    QTRY_COMPARE(window->windowItem()->surfaceItem()->bufferSize(), reduced);
+    QTRY_VERIFY2(status().contains(QStringLiteral("scaling=1")), qPrintable(status()));
+    QCOMPARE(workspace()->outputs().first()->pixelSize(), QSize(384, 216));
+    QCOMPARE(window->frameGeometry().size(), QSizeF(logical));
+    const QImage scaled = renderOutput();
+    QVERIFY(!scaled.isNull());
+    qInfo().noquote() << "UPSCALE_CONFORMANCE rendered" << status();
+
+    // Render the identical smaller client buffer through ordinary KWin, then
+    // compare pixels. A status string alone cannot establish shader output.
+    effects->unloadEffect(QStringLiteral("upscale"));
+    QTRY_VERIFY(Test::waylandSync() && fractional->preferredScale() == qRound(scale * 120));
+    const QImage ordinary = renderOutput();
+    QCOMPARE(ordinary.size(), scaled.size());
+    QVERIFY2(ordinary != scaled, "FSR output must differ from ordinary KWin enlargement");
+    QCOMPARE(window->windowItem()->surfaceItem()->bufferSize(), reduced);
+    QCOMPARE(workspace()->outputs().first()->pixelSize(), QSize(384, 216));
+}
+
+void UpscaleProductionTest::ignoredRequestIsRestored()
+{
+    Test::setOutputConfig({QRect(0, 0, 384, 216)});
+    auto surface = Test::createSurface();
+    auto fractional = Test::createFractionalScaleV1(surface.get());
+    auto shell = Test::createXdgToplevelSurface(surface.get(), [](Test::XdgToplevel *toplevel) {
+        toplevel->set_fullscreen(nullptr);
+    });
+    Window *window = Test::renderAndWaitForShown(surface.get(), pattern(QSize(384, 216)));
+    QVERIFY(window);
+    QTRY_VERIFY(Test::waylandSync() && fractional->preferredScale() == 80);
+    for (int frame = 0; frame < 45; ++frame) {
+        Test::render(surface.get(), pattern(QSize(384, 216)));
+        QVERIFY(Test::waylandSync());
+        QTest::qWait(25);
+    }
+    QTRY_VERIFY(Test::waylandSync() && fractional->preferredScale() == 120);
+    QVERIFY(!status().contains(QStringLiteral("scaling=1")));
+    QCOMPARE(window->windowItem()->surfaceItem()->bufferSize(), QSize(384, 216));
+}
+
+void UpscaleProductionTest::advertisedModeProducesSmallerBuffer()
+{
+    // The client's initial output mode was received while binding the
+    // connection in init(), before any window or surface request existed.
+    QTRY_VERIFY(Test::waylandSync() && Test::waylandOutputs().first()->pixelSize() == QSize(256, 144));
+    const QSize advertised = Test::waylandOutputs().first()->pixelSize();
+    auto surface = Test::createSurface();
+    Viewport viewport(m_viewporter.get_viewport(*surface));
+    viewport.set_destination(384, 216);
+    auto shell = Test::createXdgToplevelSurface(surface.get(), [](Test::XdgToplevel *toplevel) {
+        toplevel->set_fullscreen(nullptr);
+    });
+    Window *window = Test::renderAndWaitForShown(surface.get(), pattern(advertised));
+    QVERIFY(window);
+    QTRY_VERIFY2(status().contains(QStringLiteral("scaling=1")), qPrintable(status()));
+    QCOMPARE(window->windowItem()->surfaceItem()->bufferSize(), advertised);
+    QCOMPARE(workspace()->outputs().first()->pixelSize(), QSize(384, 216));
+    qInfo().noquote() << "UPSCALE_CONFORMANCE rendered" << status();
+    configure(false);
+    QTRY_VERIFY(Test::waylandSync() && Test::waylandOutputs().first()->pixelSize() == QSize(384, 216));
+    QVERIFY(!status().contains(QStringLiteral("scaling=1")));
+}
+
+void UpscaleProductionTest::unsupportedBufferFallsBack_data()
+{
+    QTest::addColumn<QSize>("size");
+    QTest::addColumn<bool>("transparent");
+    QTest::newRow("native") << QSize(384, 216) << false;
+    QTest::newRow("below-half") << QSize(96, 54) << false;
+    QTest::newRow("aspect-ratio") << QSize(256, 150) << false;
+    QTest::newRow("transparent") << QSize(256, 144) << true;
+}
+
+void UpscaleProductionTest::unsupportedBufferFallsBack()
+{
+    QFETCH(QSize, size);
+    QFETCH(bool, transparent);
+    configure(true, QStringLiteral("Off"));
+    auto surface = Test::createSurface();
+    Viewport viewport(m_viewporter.get_viewport(*surface));
+    viewport.set_destination(384, 216);
+    auto shell = Test::createXdgToplevelSurface(surface.get(), [](Test::XdgToplevel *toplevel) {
+        toplevel->set_fullscreen(nullptr);
+    });
+    QImage image = pattern(size);
+    if (transparent) {
+        image = QImage(size, QImage::Format_ARGB32_Premultiplied);
+        image.fill(QColor(100, 20, 10, 128));
+    }
+    Window *window = Test::renderAndWaitForShown(surface.get(), image);
+    QVERIFY(window);
+    const QImage withEffect = renderOutput();
+    QVERIFY2(status().contains(QStringLiteral("scaling=0")), qPrintable(status()));
+    QVERIFY(!withEffect.isNull());
+    effects->unloadEffect(QStringLiteral("upscale"));
+    const QImage ordinary = renderOutput();
+    const QString images = qEnvironmentVariable("UPSCALE_CONFORMANCE_IMAGES");
+    if (ordinary != withEffect && !images.isEmpty()) {
+        const QString prefix = images + QLatin1Char('/') + QString::fromLatin1(QTest::currentDataTag());
+        withEffect.save(prefix + QStringLiteral("-effect.png"));
+        ordinary.save(prefix + QStringLiteral("-ordinary.png"));
+    }
+    QCOMPARE(ordinary, withEffect);
+    QCOMPARE(window->windowItem()->surfaceItem()->bufferSize(), size);
+}
+
+void UpscaleProductionTest::windowedClientIsUnchanged()
+{
+    Test::setOutputConfig({QRect(0, 0, 384, 216)});
+    auto surface = Test::createSurface();
+    auto fractional = Test::createFractionalScaleV1(surface.get());
+    auto shell = Test::createXdgToplevelSurface(surface.get());
+    Window *window = Test::renderAndWaitForShown(surface.get(), pattern(QSize(160, 90)));
+    QVERIFY(window);
+    QTest::qWait(100);
+    QCOMPARE(fractional->preferredScale(), 120);
+    QCOMPARE(window->frameGeometry().size(), QSizeF(160, 90));
+    QVERIFY(!status().contains(QStringLiteral("scaling=1")));
+}
+
+void UpscaleProductionTest::nativeBufferBypassesScaling()
+{
+    configure(true, QStringLiteral("Off"));
+    Test::setOutputConfig({QRect(0, 0, 384, 216)});
+    auto surface = Test::createSurface();
+    auto shell = Test::createXdgToplevelSurface(surface.get(), [](Test::XdgToplevel *toplevel) {
+        toplevel->set_fullscreen(nullptr);
+    });
+    Window *window = Test::renderAndWaitForShown(surface.get(), pattern(QSize(384, 216)));
+    QVERIFY(window);
+    QTest::qWait(100);
+    QVERIFY2(status().contains(QStringLiteral("scaling=0")), qPrintable(status()));
+    QCOMPARE(window->windowItem()->surfaceItem()->bufferSize(), QSize(384, 216));
+}
+
+WAYLANDTEST_MAIN(UpscaleProductionTest)
+#include "kwin_scaling_test.moc"

@@ -63,8 +63,6 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
 
-# The effect's own settings, in the group its KConfig file names. Preset values
-# are the ResolutionPreset enum in src/plugins/upscale/resolution.h, in order.
 @dataclass(frozen=True)
 class Game:
     """How one game is started so that it renders without a person present.

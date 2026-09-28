@@ -10,9 +10,11 @@ normally, including from Steam, without wrapping them in gamescope.**
 
 `kwin-effect-upscale` is an effect plugin for KWin, the compositor KDE Plasma
 already runs. It is loaded by that compositor and does its work inside it:
-there is no separate program to start, no service to run and nothing wrapped
-around the game. Installing the package is the whole of the setup, and the
-effect is enabled once it is installed.
+there is no program to start by hand and nothing wrapped around the game.
+Installing the package is the whole of the setup, and the effect is enabled
+once it is installed. For X11 games the package also adds a session proxy in
+front of Xwayland, which KWin starts from the next login on; see
+[games running through Xwayland](#games-running-through-xwayland).
 
 > [!WARNING]
 > **Working alpha — it works, it is not finished.** The effect can make a game
@@ -67,13 +69,14 @@ Eventually the normal workflow should be:
 2. Start the game normally — including directly from Steam.
 3. Play.
 
-The effect should take care of the rest. It is enabled by the package, and the
-profiles it ships decide what a recognised game is asked to render, so there is
-no preset to choose and no configuration to write before it does anything.
+The effect should take care of the rest. It is enabled by the package, the
+profiles it ships recognise a game and say how to ask it for a smaller image,
+and the global Quality default decides how much smaller, so there is no preset
+to choose and no configuration to write before it does anything.
 
 There is plenty to tune for those who want to: a global preset, your own
-profile for a game the package does not yet know, per-display rules, a pixel
-threshold that decides which outputs are worth scaling at all, and a diagnostic
+profile for a game the package does not yet know, scaling for every
+application rather than only the listed ones, a pixel threshold that decides which outputs are worth scaling at all, and a diagnostic
 display reporting what a game actually drew. These are **power-user features**
 — worth having, and never a step between installing the package and playing.
 
@@ -143,11 +146,24 @@ can upscale it.
 
 ### Games running through Xwayland
 
-X11 applications cannot be given isolated output modes in the same way because
-they share one X11 display connection.
+Xwayland serves the session's X11 applications through one Wayland connection.
+An experimental session proxy gives selected X11 clients smaller display
+information before their first window. Games still launch normally; the effect
+resizes and presents their smaller buffers across the fullscreen output.
 
-For configured Xwayland games, the effect instead resizes the game window to
-the requested rendering size and presents the result at fullscreen size.
+The proxy is installed with the effect, runs with the logged-in user's
+permissions and is switched on by default. Enable or disable it in the effect's
+settings, then log out and back in to change session routing. With either the effect or proxy disabled at
+login, stock Xwayland runs directly and no proxy process remains.
+
+Early selection currently requires an explicit executable identity in the
+application catalogue and a single display at the desktop origin. On Linux,
+the proxy names a Wine or Proton program by its prefix and Windows program
+before its first display query; no shipped profile names one yet, and no Wine
+or Proton game has been accepted this way. Elsewhere no connection is
+identified. Native
+X11 input coverage still requires further acceptance testing; proxy routing
+alone does not establish that a game renders or receives input correctly.
 
 ### The game still has the final say
 
@@ -172,8 +188,10 @@ Two consequences are worth knowing:
 - **A game may report a resolution you did not manually choose.** Its settings
   show the mode it was offered, because from the game's point of view that is
   the display mode.
-- **Applications that are not configured are left alone.** The effect ships a
-  small set of known applications and allows additional profiles to be added.
+- **Applications that are not configured are left alone**, unless the
+  **All applications** entry of the application list is checked. The effect
+  ships a small set of known applications and allows additional profiles to be
+  added.
 
 Upscaling itself remains separate from resolution control: the effect can
 enlarge a smaller fullscreen image whether that size was requested by the
@@ -221,11 +239,15 @@ Implemented today:
 - targeted native Wayland resolution requests;
 - Xwayland resolution handling;
 - requested-resolution versus supplied-buffer tracking;
-- selected borderless-window handling when content exactly covers one output;
-- per-display application rules;
+- an experimental session proxy that gives selected X11 clients a smaller
+  screen before their first window;
+- selected borderless-window handling when content covers one output, or the
+  smaller screen the proxy gave that program;
+- a profile setting, in the configuration file only, that keeps an X11 game's
+  resizing to the primary display;
 - configurable global output threshold and per-application overrides;
-- a Native application rule that bypasses upscaling when the global Native
-  preset is selected.
+- a Native resolution that asks a game for nothing smaller, while a buffer that
+  arrives smaller anyway is still upscaled with FSR.
 
 By default, outputs at or below 2,073,600 physical pixels (Full HD) bypass
 upscaling.
@@ -305,6 +327,43 @@ One additional cost is not represented in either measurement: while the effect
 is active, it blocks direct scanout, so a game that could otherwise bypass
 composition no longer does so.
 
+## System requirements
+
+The effect runs inside KWin, so what it needs is a session that has one and a
+graphics stack that can do the arithmetic. The package enforces KWin binary
+compatibility at installation; the effect checks the graphics requirements
+at runtime, on the machine it is running on. When the answer is no, the
+effect is either never loaded or leaves that frame to
+KWin's ordinary rendering — it does not guess, and it does not degrade the
+image to fit. There is no GPU vendor list either. FSR 1 is arithmetic any
+conforming implementation runs, so AMD, Intel and NVIDIA are asked the same
+questions and answer for themselves.
+
+| What has to be there | Why, and what happens without it |
+| --- | --- |
+| **A Plasma Wayland session**, KWin 6.3.6 or newer | The effect is a KWin plugin loaded by the running compositor; there is nothing else to start. Games inside that session may be native Wayland or Xwayland clients. A separate X11 desktop session is not a target and is untested. |
+| **The KWin the package was built against** | A KWin effect is a compositor plugin and follows KWin's effect ABI. Each package depends on the exact KWin it was built with and refuses to install against another, so a KWin upgrade needs the matching build. |
+| **KWin's OpenGL compositing**, which is the default | The scaling happens in shaders. Under the software renderer the effect reports itself unsupported and KWin never loads it. |
+| **OpenGL 3.1, or OpenGL ES 3.0** | That is what supplies GLSL 1.40 and GLSL ES 3.00, the languages the shaders are written in. Checked before the effect loads; below it, the effect is not offered at all. |
+| **High-precision floats in fragment shaders**, on OpenGL ES | GLSL ES makes `highp` optional in a fragment shader, and medium precision can neither address a 4K pixel grid nor sample HDR without losing detail. Where the implementation does not offer it, the effect stays unloaded rather than filtering badly. |
+| **Rendering into a 10-bit-per-channel texture**, and into a 32-bit float one for a linear destination | The filter needs somewhere to put the captured frame, and a linear destination carries values outside zero to one that only floating point holds. The texture is allocated and its framebuffer checked for completeness; a failure returns the effect to ordinary rendering until it is reconfigured. |
+| **A largest texture size covering the buffer and the output** | `GL_MAX_TEXTURE_SIZE` is read from the driver, not assumed from the screen. Anything larger fails the allocation rather than being silently cropped, and the effect returns to ordinary rendering until it is reconfigured. |
+| **Colour handling the shaders decode** | The output's transfer function has to be sRGB, gamma 2.2, PQ or linear, with finite, ordered luminances. Any other one refuses that window by name, and the window can be tried again after an output or colour change. |
+
+Nothing else is needed beside the package: no Vulkan, no particular driver, no
+gamescope and no launcher wrapper. The one process the package adds is the X11
+session proxy, which KWin starts in place of Xwayland.
+
+While the effect is scaling a window it holds one texture the size of the
+game's buffer, and with sharpening on a second the size of the output — about
+33 MB per texture at 3840 x 2160, or four times that per texture where the
+destination is linear.
+Switching sharpening off releases the larger one.
+
+The developer handbook lists
+[every limit the effect asks about](doc/upscaling.md#fitting-a-request-to-what-the-machine-can-actually-do),
+how it asks, and what it does with a refusal.
+
 ## Trying it
 
 ### Downloads
@@ -329,7 +388,11 @@ what the longer list further down describes.
 | FreeBSD | amd64 | [.pkg](https://github.com/JensKSP/kwin-effect-upscale/releases/latest/download/kwin-effect-upscale-freebsd-amd64.pkg) | [.pkg](https://github.com/JensKSP/kwin-effect-upscale/releases/download/nightly/kwin-effect-upscale-freebsd-amd64.pkg) |
 
 > [!NOTE]
-> Until the first `v0.1.0` tag is published, only the nightly column resolves.
+> The *Latest release* column resolves once the first `v0.2.0` tag is
+> published. The *Nightly* column resolves once a nightly built from the
+> current `master` is published: the stable file names above are newer than the
+> nightly on the [nightly release page](https://github.com/JensKSP/kwin-effect-upscale/releases/tag/nightly),
+> which carries its packages under their versioned names only.
 
 ### Packages
 
@@ -367,7 +430,8 @@ against the KWin version it is loaded into.
 - **Releases:** <https://github.com/JensKSP/kwin-effect-upscale/releases/latest>
 - **Nightly:** <https://github.com/JensKSP/kwin-effect-upscale/releases/tag/nightly>
 
-The nightly release is rebuilt from `master` whenever `master` moves.
+The nightly release is rebuilt once a day from `master`, when `master` has
+moved since the last nightly.
 
 Install a downloaded package with your distribution's own tool:
 
@@ -435,11 +499,11 @@ qdbus6 org.kde.KWin /Effects org.kde.kwin.Effects.loadEffect upscale
 
 ### Which build am I running?
 
-The plugin identifies itself when KWin loads it, so the journal records the
-exact build used in the current session:
+The plugin identifies itself each time KWin loads it, so the newest such line
+in the journal names the build loaded last in the current session:
 
 ```bash
-journalctl --user -b -u plasma-kwin_wayland -g upscale | head -1
+journalctl --user -b -u plasma-kwin_wayland -r -g 'upscale [0-9]+\.[0-9]+\.[0-9]+' | head -1
 # upscale 0.1.0+git20260917.ed8f450b4e (branch master), built 2026-09-17T20:50:02Z, Qt 6.8.2
 ```
 
@@ -451,7 +515,10 @@ snapshot version without Git.
 
 ## Building from source
 
-### Requirements
+### Build requirements
+
+These are what it takes to compile the effect;
+[System requirements](#system-requirements) is what it takes to run it.
 
 The effect is built against the KWin installed on the machine and loaded into
 it, so the development files must belong to the KWin version that will actually
@@ -490,7 +557,10 @@ layer that runs `apt-get`, so passing today's date picks up current packages
 from an otherwise unchanged Containerfile. CI passes the same value.
 
 Other distributions provide the same components under their own package names.
-The CMake package names to look for are `ECM`, `Qt6`, `KF6` and `KWin`.
+The CMake package names to look for are `ECM`, `Qt6`, `KF6` (Config,
+CoreAddons, I18n, and KCMUtils for the settings module), `KWin`, `Libdrm` and
+`XCB` (XCB, RANDR). The X11 session proxy also needs `Xwayland` installed in
+`/usr/bin` or `/usr/local/bin` when the build is configured.
 
 ### Get the source
 
@@ -518,14 +588,23 @@ configures a debug build, which is not what you want for playing games.
 sudo cmake --install build
 ```
 
-With `KWIN_BUILD_KCMS=ON` (the default), this installs the effect and its
-configuration module:
+With `KWIN_BUILD_KCMS=ON` (the default), this installs the effect, its
+configuration module, the X11 proxy and the Plasma session hook:
 
 ```text
 <prefix>/lib/<multiarch>/qt6/plugins/kwin/effects/plugins/upscale.so
 <prefix>/lib/<multiarch>/qt6/plugins/kwin/effects/configs/kwin_upscale_config.so
 <sysconfdir>/xdg/kwinupscalerc
+<libexecdir>/kwin-upscale-x11/Xwayland
+<sysconfdir>/xdg/plasma-workspace/env/kwin-upscale-x11.sh
 ```
+
+The legacy Wine preparation helper is excluded from normal builds and packages.
+Its sources remain available for development with
+`-DUPSCALE_BUILD_WINE_HELPER=ON`. A manual CMake install does not remove files
+installed by an older build; the old helper binary and its D-Bus and systemd
+activation files must be removed separately. Disabling the helper does not
+undo preparation already written into a Wine prefix.
 
 `kwinupscalerc` holds the effect's own defaults and lands in KDE's
 configuration directory, which is `/etc/xdg` for the default `/usr` prefix. A
@@ -541,6 +620,49 @@ session that starts `kwin_wayland` has `QT_PLUGIN_PATH` pointing at:
 ```text
 <prefix>/lib/<multiarch>/qt6/plugins
 ```
+
+The effect's defaults and the X11 session hook land in `<prefix>/etc/xdg`, which
+is read only when the session's `XDG_CONFIG_DIRS` includes it; without it the
+shipped profiles are missing and the proxy is never put in front of
+Xwayland.
+
+### Reload during development
+
+Close the game, install the new build, then run:
+
+```bash
+python3 -B tools/reload-upscale.py
+```
+
+To add **Reload Upscale** to KDE's application menu and desktop:
+
+```bash
+python3 -B tools/reload-upscale.py --install-launcher
+```
+
+Keep this checkout at the same path. KDE may ask you to trust the desktop
+launcher on its first use. Python 3, `qdbus6` (or `qdbus-qt6`), `qtpaths6`,
+`sudo`, and, for the icon, `kdialog` and `pkexec` are required. The installer
+also uses `xdg-user-dir`. For a custom installation, append
+`--plugin /path/to/kwin/effects/plugins/upscale.so` to either command.
+
+The tool reloads the installed binary and displays its running build identity;
+it does not build or install a new version. Administrative authentication may
+be requested to copy and remove a temporary plugin file. KWin and applications
+keep running. The last successful result is in `build/reload-upscale/latest.log`.
+
+This is a development shortcut: Qt can keep an unloaded library in memory, so
+the tool loads a copy under a fresh temporary effect name. The normal settings
+page may therefore report Upscale as unloaded, and its Apply button addresses
+the normal name. After saving settings, use **Reload Upscale** again; do not
+enable another instance alongside the temporary one. Temporary discovery files
+are removed after loading, so the next login uses the normal installed plugin.
+Old libraries can remain in memory until logout. A fresh session is still the
+final check for normal installation and settings-page behavior.
+
+Remove `org.kde.upscale.reload.desktop` from your desktop and
+`~/.local/share/applications/` to uninstall the launcher (use your
+`XDG_DATA_HOME/applications/` directory if customized).
 
 ### Uninstall a source build
 
@@ -570,13 +692,14 @@ system SDL2 can often be sent through either backend using `SDL_VIDEODRIVER`.
 Applications that bundle their own SDL2 — as many Steam titles do — remain
 limited by the backends in that bundled copy.
 
-Extreme Tux Racer is already used for resolution-request testing. The other
-entries below are candidates and test tools, not compatibility claims.
+Extreme Tux Racer and SuperTuxKart are used for resolution-request testing
+and ship with measured profiles. The other entries below are candidates and
+test tools, not compatibility claims.
 
 | Application | Where it comes from | Display path | Graphics API |
 | --- | --- | --- | --- |
-| Extreme Tux Racer | `extremetuxracer` | either, via `SDL_VIDEODRIVER` | OpenGL |
-| SuperTuxKart | `supertuxkart` | either | OpenGL |
+| Extreme Tux Racer | `extremetuxracer` | X11 through Xwayland only (SFML) | OpenGL |
+| SuperTuxKart | `supertuxkart` | either | OpenGL or Vulkan |
 | Taisei | `taisei` | either | OpenGL |
 | 0 A.D. | `0ad` | either | Vulkan or OpenGL |
 | OpenArena on ioquake3 | `openarena`, `ioquake3` | either | OpenGL |
@@ -599,7 +722,10 @@ an internal render scale.
 Left 4 Dead 2 is the native Source engine title this effect's X11 path was
 developed against, launched normally from Steam through pressure-vessel. Its
 window identifies itself as `hl2_linux`, which is the engine binary rather than
-the game, so the profile the package ships covers every native Source title.
+the game, so the profile the package ships recognizes it by that window
+together with the folder its program is in, `Left 4 Dead 2/hl2_linux`. Whether
+that program path resolves for a game running inside pressure-vessel has not
+yet been observed; where it does not, the profile does not match.
 Source takes its fullscreen size from the window manager and never asks
 Xwayland for a mode, which is the case the effect has to present and map
 pointer input for itself.
@@ -655,15 +781,16 @@ third-party code retains its own copyright and licence notices.
 - Warnings are errors by default. Disable that for a distribution build with
   `-DCMAKE_COMPILE_WARNING_AS_ERROR=OFF`.
 - `DESTDIR` is honoured: `DESTDIR=/tmp/stage cmake --install build`.
-- The plugin declares KWin's effect API version, so it must be **rebuilt after a
-  KWin upgrade**.
+- The plugin declares the KWin version it was built against, so it must be
+  **rebuilt after a KWin upgrade**.
 - Debian packages depend on the exact `kwin-common` version they were built
   against, so a KWin upgrade requires a matching rebuild of this package.
 - `debian/` is part of the tree and builds a single binary package with
   `dpkg-buildpackage -b`.
 - The source format is native, so no orig tarball is required.
 - Build dependencies live in `debian/control`; CI installs them from that file
-  with `mk-build-deps`.
+  with `mk-build-deps` on the Debian family, and `tools/distribution-packages.py`
+  translates it for the other distributions.
 - The build honours `SOURCE_DATE_EPOCH`, which debhelper sets from the changelog,
   so packaged builds remain reproducible. No other part of the build reads the
   wall clock.
@@ -715,9 +842,10 @@ python3 -B tools/run-checks.py lint
 
 The commit-stage checks focus on changed files. Pre-push runs whole-tree checks
 and regression tests. CI runs both over the repository and adds GCC and Clang
-builds, an arm64 build, clang-tidy, metadata-schema checks, coverage,
-sanitizers and package and source smoke tests. Nightly additionally runs the full package matrix and
-separate KWin-master compatibility builds. Documentation-only changes use the
+builds, an arm64 build, clang-tidy, metadata-schema checks, coverage and
+sanitizers, and a Trixie package smoke test when a pull request touches the
+packaging inputs. Nightly additionally runs the full package matrix, the
+source-archive test and separate KWin-master compatibility builds. Documentation-only changes use the
 reduced checked path described in the contributor guide.
 
 The checks cover KDE coding style through `clang-format` and KWin's own
@@ -749,7 +877,9 @@ Both images verify CMake, Ninja, GCC and Clang during creation. Ninja comes from
 the shared `debian/control` dependencies. An existing local image does not
 update itself, so each records the `debian/control` it installed and the checks
 stop with a rebuild instruction when it no longer matches the tree. Dependabot
-watches the base images and the pinned actions; it does not rebuild anything.
+watches the base images of the Trixie, neon unstable and package containers and
+the actions pinned in the workflows and in the repository's own composite
+actions; it does not rebuild anything.
 
 ## Releasing
 
@@ -757,28 +887,36 @@ A release is created from a tag; nothing else is performed manually:
 
 ```bash
 # the tag, project(VERSION) and debian/changelog must agree, or CI stops
-git tag -a v0.1.0 -m 'kwin-effect-upscale 0.1.0'
-git push origin v0.1.0
+git tag -a v0.2.0 -m 'kwin-effect-upscale 0.2.0'
+git push origin v0.2.0
 ```
 
 The release workflow builds every package in the table above - Debian Trixie
 and Kubuntu 26.04 on amd64 and arm64, Fedora and openSUSE Tumbleweed on x86_64
 and aarch64, and Arch on x86_64 - each with its debug symbols and the source
-package its own distribution expects. It creates the project's source tarball,
+package its own distribution expects, and FreeBSD on amd64, built in a virtual
+machine and published as the binary package alone. It creates the project's source tarball,
 checksums and attests the lot, and publishes it as a GitHub release whose notes
 name the file to download first.
 
-`nightly` is one rolling pre-release rebuilt from `master` whenever `master`
-moves. Its tag is deleted and recreated each time, so it is not a stable URL
+`nightly` is one rolling pre-release, rebuilt once a day from `master` when
+`master` has moved since the last one. Its tag is deleted and recreated each time, so it is not a stable URL
 for a fixed build.
 
 ## Repository layout
 
 ```text
 src/plugins/upscale/     the effect, laid out exactly as KWin lays out its own
+src/x11proxy/            the X11 session proxy KWin starts in place of Xwayland
+src/buildinfo/           the build identity compiled into the effect
+src/winescreen/          the legacy Wine preparation helper, off by default
+autotests/               unit, render and nested-KWin integration tests
 cmake/                   stand-ins for KWin's in-tree build macros
-containers/              build environments: Trixie minimum, KDE neon unstable
-tools/                   checks that run in pre-commit and CI
+containers/              build environments: Trixie minimum, KDE neon unstable,
+                         the package builders and the conformance suites
+debian/, packaging/      Debian, RPM, Arch and FreeBSD packaging
+tools/                   checks, test runners, measurement, packaging and release
+.github/                 CI, nightly and release workflows
 doc/                     permanent human documentation: what the effect does and why
 doc/agents/              temporary implementation documents for coding agents
 ```
@@ -789,4 +927,5 @@ KWin lives elsewhere in the repository.
 
 ## Licence
 
-`GPL-2.0-or-later`, REUSE compliant. Third-party shaders keep their own licence.
+`GPL-2.0-or-later`, REUSE compliant; CI and tool configuration is `CC0-1.0`.
+Third-party shaders and KWin's `.clang-format` keep their own licence (MIT).

@@ -59,6 +59,10 @@ int main()
     assert(upscaleSizing({1920, 1080}, output) == UpscaleSizing::Supported);
     assert(upscaleSizing(output, output) == UpscaleSizing::NotSmaller);
     assert(upscaleSizing({4000, 1080}, output) == UpscaleSizing::NotSmaller);
+    // Input intervention is only for requests smaller on both axes, never
+    // native-size or one-axis-only scaling.
+    assert(upscaleSizing({1920, 2160}, output) == UpscaleSizing::NotSmaller);
+    assert(upscaleSizing({3840, 1080}, output) == UpscaleSizing::NotSmaller);
     // One pixel below half the destination width is already too small, and
     // the size relation is checked before the aspect ratio it also fails.
     assert(upscaleSizing({1919, 1080}, output) == UpscaleSizing::BelowHalf);

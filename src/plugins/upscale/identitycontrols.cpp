@@ -7,6 +7,7 @@
 #include "identitycontrols.h"
 
 #include "application.h"
+#include "runtime.h"
 
 #include <KLocalizedString>
 
@@ -165,9 +166,9 @@ bool upscaleIdentifiesOneProgram(const QString &executable)
     // installed. Wine's loaders and preloaders, and the interpreters games
     // are commonly written for.
     static const QRegularExpression s_shared(QStringLiteral(
-        "^(wine|wine64|wine-preloader|wine64-preloader|python[0-9.]*|java|mono|dotnet|love)$"));
+        "^(python[0-9.]*|java|mono|dotnet|love)$"));
     const QString file = executable.section(QLatin1Char('/'), -1);
-    return !file.isEmpty() && !s_shared.match(file).hasMatch();
+    return !file.isEmpty() && !upscaleWineRuntime(executable) && !s_shared.match(file).hasMatch();
 }
 
 } // namespace KWin

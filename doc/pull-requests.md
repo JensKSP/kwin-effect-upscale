@@ -21,8 +21,8 @@ The repository rules on
 [artifacts](../AGENTS.md#no-ai-artifacts-in-this-repository) apply to every
 commit. `tools/check-no-ai-artifacts.py` rejects agent leftovers in the staged
 files on commit and in the whole tree on push, and CI runs
-`tools/check-commit-trailers.py` over the commits of a branch, because a commit
-hook never sees the message.
+`tools/check-commit-trailers.py` over the commits of a branch, because no hook
+here reads the commit message and any hook can be skipped.
 
 - Commit messages follow KWin's `CONTRIBUTING.md`. Read it before preparing a
   submission.

@@ -76,7 +76,8 @@ void upscaleReadLegacyProgram(const KConfigGroup &profile, UpscaleApplication &a
     if (program.isEmpty()) {
         return;
     }
-    const bool advertises = upscaleIsAdvertisement(application.methods[std::size_t(upscaleAdvertisedPresentation())]);
+    const bool advertises = upscaleIsAdvertisement(
+        application.methods[std::size_t(upscaleAdvertisedPresentation())].value_or(UpscaleMethod::Auto));
     const bool statesWindow = !application.windowClass.isEmpty() || !application.instance.isEmpty();
     if (statesWindow && !advertises) {
         return;
@@ -125,9 +126,8 @@ void upscaleRetireLegacyProfileKeys(KConfigGroup &profile, const UpscaleApplicat
     // behind it belongs to a package that is not this one; leave it to that.
     if (profile.hasKey("Method") && !profile.hasDefault("Method")) {
         for (std::size_t slot = 0; slot < upscalePresentationCount; ++slot) {
-            if (application.methods[slot] != UpscaleMethod::Auto) {
-                profile.writeEntry(upscalePresentationKey(UpscalePresentation(slot)),
-                                   upscaleMethodKey(application.methods[slot]));
+            if (const std::optional<UpscaleMethod> method = application.methods[slot]) {
+                profile.writeEntry(upscalePresentationKey(UpscalePresentation(slot)), upscaleMethodKey(*method));
             }
         }
         profile.deleteEntry("Method");

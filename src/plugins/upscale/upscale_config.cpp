@@ -16,6 +16,7 @@
 #include "application.h"
 #include "applicationeditor.h"
 #include "placement.h"
+#include "preparedlist.h"
 #include "resolution.h"
 #include "upscaleconfig.h"
 
@@ -70,6 +71,7 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     , m_osdSummary(new QCheckBox(i18n("Include details"), widget()))
     , m_osdStatistics(new QCheckBox(i18n("Show frame rate"), widget()))
     , m_osdDeveloper(new QCheckBox(i18n("Show developer information"), widget()))
+    , m_osdEveryFullScreen(new QCheckBox(i18n("Show for every fullscreen window"), widget()))
     , m_osdAnnouncementPosition(new QComboBox(widget()))
     , m_osdStatisticsPosition(new QComboBox(widget()))
     , m_osdDeveloperPosition(new QComboBox(widget()))
@@ -92,10 +94,13 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
         return new QFormLayout(box);
     };
     addApplicationControls(section(i18n("Applications")));
+    m_prepared = new UpscalePreparedList(widget());
+    page->addWidget(m_prepared);
     m_editor->setAllPanel(all);
     // One label column for "All applications" and a game's tabs alike, so
     // that moving between tabs or entries moves no field.
     alignLabels(m_editor->findChildren<QFormLayout *>());
+    addProxyControls(section(i18n("X11 Session")));
     addAboutControls(section(i18n("About")));
     page->addStretch();
     connectControls();
@@ -239,23 +244,21 @@ void UpscaleEffectConfig::connectControls()
 // so that a new package can deliver a corrected entry without touching what
 // the user changed. Its restore is therefore separate from this page's
 // Defaults, which restores the values above and leaves the list alone.
-// The global profile's six answers, which unlike every other setting do not
-// reach the games in the list: a method is a measurement of one program, so a
-// game's unset slot means Automatic rather than this. They are asked of a
-// program only while "All applications" is checked, and stay editable while it
-// is not, so that they can be set before it is.
+// The global profile's six answers. A game in the list follows them wherever
+// it states no method of its own and the package measured none, as it follows
+// every other global setting. A program not in the list is asked by them only
+// while "All applications" is checked, and they stay editable while it is not,
+// so that they can be set before it is.
 void UpscaleEffectConfig::addUnlistedControls(QFormLayout *layout)
 {
-    auto scope = new QLabel(i18n("For applications not in the list:"), widget());
-    layout->addRow(scope);
     // The global profile's own six answers, for a window no profile claimed.
-    // Off throughout by default: nothing is known about how an unmeasured
-    // program answers, so one asked anything may keep its own resolution or
-    // open at the wrong size. Setting one to Automatic is a choice a person
-    // makes, not one they inherit.
+    // Auto throughout by default, as a game's are; what keeps an unmeasured
+    // program untouched is "All applications" being unchecked, which it is
+    // until a person checks it.
     m_methods = new UpscaleMethodControls(this);
     m_methods->build(layout, widget());
     connect(m_methods, &UpscaleMethodControls::changed, this, [this]() {
+        updatePreview();
         setNeedsSave(true);
     });
 }
@@ -286,8 +289,8 @@ void UpscaleEffectConfig::alignLabels(const QList<QFormLayout *> &forms)
 }
 
 // Everything on the page that follows another control: the scale follows the
-// preset, the preview both and the limit, and every game's Global choices
-// follow the lot.
+// preset, the preview both and the limit, and every game's controls follow
+// the lot wherever the game states nothing of its own.
 //
 // Nothing here is greyed out by a switch being off. Every value on this panel
 // is a default a game takes when it switches on what the global profile
@@ -308,12 +311,14 @@ void UpscaleEffectConfig::updatePreview()
                                   "common resolutions of %1.",
                                   largest.name));
     m_preview->show(preset, m_percentage->value(), upscaleResolutionPixels(m_minimumPixels, UpscaleConfig::minimumPixels()));
-    if (m_editor) {
-        m_editor->setGlobalSettings(shownSettings());
+    if (m_editor && m_methods) {
+        UpscaleMethods methods;
+        m_methods->store(methods);
+        m_editor->setGlobalSettings(shownSettings(), methods);
     }
 }
 
-// What a game's Global choices name, which is what "All applications" shows
+// What a game's controls follow, which is what "All applications" shows
 // rather than what was last applied: a person who changes the preset there
 // and then looks at a game expects the game to follow the new one.
 UpscaleSettings UpscaleEffectConfig::shownSettings() const
@@ -345,12 +350,15 @@ void UpscaleEffectConfig::showSettings()
     m_percentage->setValue(qRound(UpscaleConfig::percentage() * 100));
     m_preset->setCurrentIndex(upscaleSettingInfo(UpscaleSetting::Resolution).global());
     upscaleSelectResolution(m_minimumPixels, UpscaleConfig::minimumPixels());
+    m_x11Proxy->setChecked(UpscaleConfig::x11Proxy());
+    updateProxyStatus();
     m_sharpening->setChecked(UpscaleConfig::sharpening());
     m_strength->setValue(UpscaleConfig::strength());
     m_osdDetection->setChecked(UpscaleConfig::osdDetection());
     m_osdSummary->setChecked(UpscaleConfig::osdSummary());
     m_osdStatistics->setChecked(UpscaleConfig::osdStatistics());
     m_osdDeveloper->setChecked(UpscaleConfig::osdDeveloper());
+    m_osdEveryFullScreen->setChecked(UpscaleConfig::osdEveryFullScreen());
     // Separated on the way in for the same reason the effect separates them:
     // a file edited by hand can name one corner twice, and the page must not
     // show two displays sharing one.
@@ -376,12 +384,14 @@ void UpscaleEffectConfig::applySettings()
     UpscaleConfig::setResolution(m_preset->currentIndex());
     UpscaleConfig::setPercentage(m_percentage->value() / 100.0);
     UpscaleConfig::setMinimumPixels(upscaleResolutionPixels(m_minimumPixels, UpscaleConfig::minimumPixels()));
+    UpscaleConfig::setX11Proxy(m_x11Proxy->isChecked());
     UpscaleConfig::setSharpening(m_sharpening->isChecked());
     UpscaleConfig::setStrength(m_strength->value());
     UpscaleConfig::setOsdDetection(m_osdDetection->isChecked());
     UpscaleConfig::setOsdSummary(m_osdSummary->isChecked());
     UpscaleConfig::setOsdStatistics(m_osdStatistics->isChecked());
     UpscaleConfig::setOsdDeveloper(m_osdDeveloper->isChecked());
+    UpscaleConfig::setOsdEveryFullScreen(m_osdEveryFullScreen->isChecked());
     UpscaleConfig::setOsdAnnouncementPosition(m_osdAnnouncementPosition->currentIndex());
     UpscaleConfig::setOsdStatisticsPosition(m_osdStatisticsPosition->currentIndex());
     UpscaleConfig::setOsdDeveloperPosition(m_osdDeveloperPosition->currentIndex());
@@ -409,6 +419,7 @@ void UpscaleEffectConfig::load()
     // would let a later Apply write changes the user had just discarded.
     m_editor->load();
     updateApplicationSummary();
+    m_prepared->refresh();
     setNeedsSave(false);
 }
 
