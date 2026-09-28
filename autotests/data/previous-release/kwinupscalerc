@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Written by the previous release, the nightly of 2026-09-20 (c88f842037),
+# through its own settings class and catalogue storage, as its settings page
+# stores them; see LegacySettingsTest::readsAConfigurationThePreviousReleaseWrote.
+[Application-extremetuxracer]
+Enabled=false
+
+[Application-mygame]
+Method=X11Resize
+Name=My Game
+Order=5
+Preset=Quality
+Program=mygame
+WindowClass=mygame
+
+[Application-supertuxkart]
+MinimumPixels=0
+Preset=Performance
