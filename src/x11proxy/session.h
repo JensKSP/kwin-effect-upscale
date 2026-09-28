@@ -29,7 +29,8 @@ private:
     void acceptClient(int listener);
     void decideClient(const std::shared_ptr<PendingClient> &client);
     bool resolveCandidates(const std::shared_ptr<PendingClient> &client);
-    void relayClient(int client, quint32 pid, const QSize &size, const QByteArray &timing = {}, bool answered = false);
+    void relayClient(int client, quint32 pid, const QSize &size, const QByteArray &timing = {}, bool answered = false,
+                     const QString &prefix = {});
     QTemporaryDir m_directory;
     QByteArray m_backendPath;
     Startup m_startup;
@@ -39,6 +40,10 @@ private:
     // The program each Wine prefix runs, found once by whichever of its
     // connections arrives while it is known and reused by all the others.
     QHash<QString, QString> m_prefixPrograms;
+    // How many connections each such prefix has open. A prefix whose last one
+    // closes has stopped running, and the next game started in it may be
+    // another one, so what it ran is forgotten with it.
+    QHash<QString, int> m_prefixConnections;
     // What KWin answered a process, kept while any of its connections is
     // open, with the number of those connections.
     struct Answer

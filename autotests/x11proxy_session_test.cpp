@@ -10,6 +10,7 @@
 #include <QDir>
 #include <QFile>
 #include <QProcess>
+#include <QScopeGuard>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QVariantMap>
@@ -19,9 +20,15 @@
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
+#include <memory>
+#include <spawn.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <sys/wait.h>
 #include <unistd.h>
+#include <vector>
+
+extern char **environ;
 
 // The whole transport as KWin starts it: listening for clients, asking the
 // effect over D-Bus how to answer each one, and relaying to the server it
@@ -127,6 +134,43 @@ int connectOnce(const QByteArray &path)
     return 0;
 }
 
+// A process as Wine starts one: its first argument is the Windows program it
+// runs, and its prefix is in its environment. What it does is this program's.
+pid_t spawnWine(const QByteArray &program, const QList<QByteArray> &arguments, const QByteArray &prefix)
+{
+    QList<QByteArray> environment;
+    for (char **entry = environ; *entry; ++entry) {
+        environment.append(*entry);
+    }
+    environment.append("WINEPREFIX=" + prefix);
+    QList<QByteArray> command{program};
+    command += arguments;
+    std::vector<char *> argv;
+    for (QByteArray &argument : command) {
+        argv.push_back(argument.data());
+    }
+    argv.push_back(nullptr);
+    std::vector<char *> envp;
+    for (QByteArray &entry : environment) {
+        envp.push_back(entry.data());
+    }
+    envp.push_back(nullptr);
+    const QByteArray self = QFile::encodeName(QCoreApplication::applicationFilePath());
+    pid_t pid = -1;
+    return posix_spawn(&pid, self.constData(), nullptr, nullptr, argv.data(), envp.data()) == 0 ? pid : -1;
+}
+
+// Whether a child ended successfully, waited for without blocking the relay,
+// which runs in this thread.
+bool succeeded(pid_t pid)
+{
+    int status = 0;
+    const auto ended = [pid, &status]() {
+        return waitpid(pid, &status, WNOHANG) == pid;
+    };
+    return pid > 0 && QTest::qWaitFor(ended, 5000) && WIFEXITED(status) && WEXITSTATUS(status) == 0;
+}
+
 } // namespace
 
 // The effect's side of the question, counting how often it is asked.
@@ -136,12 +180,13 @@ class EffectStandIn : public QObject
     Q_CLASSINFO("D-Bus Interface", "org.kde.KWin.Effect.Upscale1")
 public:
     int asked = 0;
+    QStringList lastCandidates;
 public Q_SLOTS:
     QVariantMap x11ConnectionPolicy(uint pid, const QStringList &candidates)
     {
         Q_UNUSED(pid)
-        Q_UNUSED(candidates)
         ++asked;
+        lastCandidates = candidates;
         const UpscaleX11::Wire canonical;
         QByteArray timing(32, '\0');
         canonical.integer(timing, 0, 1);
@@ -159,9 +204,14 @@ class ProxySessionTest : public QObject
     Q_OBJECT
 private Q_SLOTS:
     void initTestCase();
+    void cleanup();
     void oneProcessIsAskedOnce();
+    void forgetsWhatAPrefixRanOnceItStops();
 
 private:
+    // Starts a session listening at @p name, as KWin starts one. What KWin
+    // keeps of the descriptors it hands over stays open until cleanup.
+    std::unique_ptr<UpscaleX11::Session> startSession(const QString &name);
     // Opens a connection, sends its setup, and waits for the answer. Returns
     // the descriptor, with the root size the client was told in @p size.
     int connectClient(QSize &size);
@@ -171,6 +221,7 @@ private:
 
     QTemporaryDir m_directory;
     QByteArray m_path;
+    QList<int> m_kept;
     EffectStandIn m_effect;
 };
 
@@ -188,7 +239,38 @@ void ProxySessionTest::initTestCase()
     close(descriptor[0]);
     close(descriptor[1]);
     QVERIFY(m_directory.isValid());
-    m_path = QFile::encodeName(m_directory.filePath(QStringLiteral("X9")));
+}
+
+void ProxySessionTest::cleanup()
+{
+    for (const int descriptor : std::as_const(m_kept)) {
+        close(descriptor);
+    }
+    m_kept.clear();
+}
+
+std::unique_ptr<UpscaleX11::Session> ProxySessionTest::startSession(const QString &name)
+{
+    m_path = QFile::encodeName(m_directory.filePath(name));
+    const int listener = socket(AF_UNIX, SOCK_STREAM, 0);
+    sockaddr_un address{};
+    address.sun_family = AF_UNIX;
+    std::memcpy(address.sun_path, m_path.constData(), static_cast<std::size_t>(m_path.size() + 1));
+    int windowManager[2];
+    int wayland[2];
+    if (listener < 0 || bind(listener, reinterpret_cast<const sockaddr *>(&address), sizeof(address)) != 0
+        || ::listen(listener, 16) != 0 || socketpair(AF_UNIX, SOCK_STREAM, 0, windowManager) != 0
+        || socketpair(AF_UNIX, SOCK_STREAM, 0, wayland) != 0) {
+        return nullptr;
+    }
+    m_kept << windowManager[1] << wayland[1];
+    qputenv("WAYLAND_SOCKET", QByteArray::number(wayland[0]));
+    auto session = std::make_unique<UpscaleX11::Session>(QCoreApplication::applicationFilePath());
+    if (!session->start({QStringLiteral(":9"), QStringLiteral("-listenfd"), QString::number(listener),
+                         QStringLiteral("-wm"), QString::number(windowManager[0])})) {
+        return nullptr;
+    }
+    return session;
 }
 
 int ProxySessionTest::connectClient(QSize &size)
@@ -242,30 +324,19 @@ bool ProxySessionTest::disconnectClient(int client)
 // connections have all closed is asked again.
 void ProxySessionTest::oneProcessIsAskedOnce()
 {
-    const int listener = socket(AF_UNIX, SOCK_STREAM, 0);
-    sockaddr_un address{};
-    address.sun_family = AF_UNIX;
-    std::memcpy(address.sun_path, m_path.constData(), static_cast<std::size_t>(m_path.size() + 1));
-    QCOMPARE(bind(listener, reinterpret_cast<const sockaddr *>(&address), sizeof(address)), 0);
-    QCOMPARE(::listen(listener, 16), 0);
-    int windowManager[2];
-    int wayland[2];
-    QCOMPARE(socketpair(AF_UNIX, SOCK_STREAM, 0, windowManager), 0);
-    QCOMPARE(socketpair(AF_UNIX, SOCK_STREAM, 0, wayland), 0);
-    qputenv("WAYLAND_SOCKET", QByteArray::number(wayland[0]));
-    UpscaleX11::Session session(QCoreApplication::applicationFilePath());
-    QVERIFY(session.start({QStringLiteral(":9"), QStringLiteral("-listenfd"), QString::number(listener),
-                           QStringLiteral("-wm"), QString::number(windowManager[0])}));
+    const auto session = startSession(QStringLiteral("X9"));
+    QVERIFY(session);
+    const int before = m_effect.asked;
 
     QSize first;
     QSize second;
     const int firstClient = connectClient(first);
     QVERIFY(firstClient >= 0);
-    QCOMPARE(m_effect.asked, 1);
+    QCOMPARE(m_effect.asked, before + 1);
     QCOMPARE(first, QSize(2560, 1440));
     const int secondClient = connectClient(second);
     QVERIFY(secondClient >= 0);
-    QCOMPARE(m_effect.asked, 1);
+    QCOMPARE(m_effect.asked, before + 1);
     QCOMPARE(second, first);
 
     QProcess other;
@@ -273,24 +344,58 @@ void ProxySessionTest::oneProcessIsAskedOnce()
     QTRY_COMPARE_WITH_TIMEOUT(other.state(), QProcess::NotRunning, 5000);
     QCOMPARE(other.exitCode(), 0);
     QCOMPARE(other.readAllStandardOutput().trimmed(), QByteArrayLiteral("2560x1440"));
-    QCOMPARE(m_effect.asked, 2);
+    QCOMPARE(m_effect.asked, before + 2);
 
     QVERIFY(disconnectClient(firstClient));
     QVERIFY(disconnectClient(secondClient));
     QSize third;
     const int thirdClient = connectClient(third);
     QVERIFY(thirdClient >= 0);
-    QCOMPARE(m_effect.asked, 3);
+    QCOMPARE(m_effect.asked, before + 3);
     QCOMPARE(third, QSize(2560, 1440));
     QVERIFY(disconnectClient(thirdClient));
-    close(windowManager[1]);
-    close(wayland[1]);
+}
+
+// Wine's own components come up before the game a prefix was started for and
+// are answered for the program the prefix runs. Once every connection of the
+// prefix has closed it has stopped, and the next game started in it may be
+// another one: a component of that run is answered for that game, not for the
+// one before it.
+void ProxySessionTest::forgetsWhatAPrefixRanOnceItStops()
+{
+#if !defined(Q_OS_LINUX)
+    QSKIP("a Wine process is identified only where another process's command line can be read");
+#endif
+    const auto session = startSession(QStringLiteral("X10"));
+    QVERIFY(session);
+    const QByteArray prefix = QFile::encodeName(m_directory.filePath(QStringLiteral("prefix")));
+    QVERIFY(succeeded(spawnWine("C:\\Games\\First.exe", {"--connect", m_path}, prefix)));
+    QVERIFY(m_effect.lastCandidates.join(QLatin1Char(' ')).contains(QStringLiteral("First.exe")));
+    // Its relay is gone once both of its ends have closed.
+    QTest::qWait(500);
+
+    const pid_t second = spawnWine("C:\\Games\\Second.exe", {"--wait"}, prefix);
+    QVERIFY(second > 0);
+    const auto stop = qScopeGuard([second]() {
+        kill(second, SIGTERM);
+        waitpid(second, nullptr, 0);
+    });
+    QVERIFY(succeeded(spawnWine("C:\\windows\\system32\\explorer.exe", {"--connect", m_path}, prefix)));
+    const QString names = m_effect.lastCandidates.join(QLatin1Char(' '));
+    QVERIFY2(names.contains(QStringLiteral("Second.exe")), qPrintable(names));
+    QVERIFY2(!names.contains(QStringLiteral("First.exe")), qPrintable(names));
 }
 
 int main(int argc, char **argv)
 {
-    // The server this test starts in place of Xwayland, and a client in a
-    // process of its own.
+    // The server this test starts in place of Xwayland, a client in a process
+    // of its own, and a game that runs without connecting.
+    for (int index = 1; index < argc; ++index) {
+        if (std::strcmp(argv[index], "--wait") == 0) {
+            pause();
+            return 0;
+        }
+    }
     for (int index = 1; index + 1 < argc; ++index) {
         if (std::strcmp(argv[index], "-listenfd") == 0) {
             return serve(std::atoi(argv[index + 1]));

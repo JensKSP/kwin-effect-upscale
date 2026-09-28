@@ -141,7 +141,7 @@ void Session::decideClient(const std::shared_ptr<PendingClient> &client)
         watcher->deleteLater();
         if (reply.isError()) {
             qInfo() << "Upscale X11 connection pid=" << client->pid << "unchanged: policy unavailable" << reply.error().name();
-            relayClient(std::exchange(client->descriptor, -1), client->pid, {});
+            relayClient(std::exchange(client->descriptor, -1), client->pid, {}, {}, false, client->identity.prefix);
             return;
         }
         const QVariantMap policy = reply.value();
@@ -166,14 +166,15 @@ void Session::decideClient(const std::shared_ptr<PendingClient> &client)
         qInfo() << "Upscale X11 connection pid=" << client->pid << "profile=" << policy.value(QStringLiteral("profile"))
                 << "size=" << size << "reason=" << policy.value(QStringLiteral("reason"))
                 << "names=" << client->candidates;
-        relayClient(std::exchange(client->descriptor, -1), client->pid, size, timing, true);
+        relayClient(std::exchange(client->descriptor, -1), client->pid, size, timing, true, client->identity.prefix);
     });
     // The watcher belongs to this session, its parent, and deletes itself once
     // the reply is in. The static analyzer, entering here from a retry, does
     // not model a QObject parent and reports the watcher as leaked at this
     // brace.
 } // NOLINT(clang-analyzer-cplusplus.NewDeleteLeaks)
-void Session::relayClient(int client, quint32 pid, const QSize &size, const QByteArray &timing, bool answered)
+void Session::relayClient(int client, quint32 pid, const QSize &size, const QByteArray &timing, bool answered,
+                          const QString &prefix)
 {
     --m_pendingConnections;
     sockaddr_un address{};
@@ -197,11 +198,19 @@ void Session::relayClient(int client, quint32 pid, const QSize &size, const QByt
         answer.timing = timing;
         ++answer.connections;
     }
-    connect(relay, &QObject::destroyed, this, [this, relay, pid, answered]() {
+    if (!prefix.isEmpty()) {
+        ++m_prefixConnections[prefix];
+    }
+    connect(relay, &QObject::destroyed, this, [this, relay, pid, answered, prefix]() {
         m_relays.remove(relay);
         const auto answer = m_answers.find(pid);
         if (answered && answer != m_answers.end() && --answer->connections == 0) {
             m_answers.erase(answer);
+        }
+        const auto open = m_prefixConnections.find(prefix);
+        if (!prefix.isEmpty() && open != m_prefixConnections.end() && --*open == 0) {
+            m_prefixConnections.erase(open);
+            m_prefixPrograms.remove(prefix);
         }
     });
 }
