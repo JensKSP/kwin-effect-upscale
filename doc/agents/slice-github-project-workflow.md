@@ -253,6 +253,12 @@ rows above. What each check actually returned:
   `gh run list --workflow=codeql.yml` returns no runs at all. SARIF upload and
   Security-tab results therefore remain unverified, as the phase 2 record says.
   Local execution through `tools/run-codeql.py` is unaffected.
+  Observed since, 2026-09-28 (item 90 of the open list): the code-scanning API
+  lists analyses of master for all three languages, on 2026-09-21 (`db0009a`)
+  and 2026-09-28 (`6645e0a`): `c-cpp` with 58 rules, `python` with 43 and
+  `actions` with 17, each with no results, and the repository has no
+  code-scanning alert, open or closed. SARIF upload works and there is nothing
+  to assess; whether CodeQL may gate pull requests stays a separate question.
 - **Auto-merge and merged-branch cleanup (section 3): enabled and read back.**
   Hook update PRs and failure notifications remain.
 - **Hook updates (section 3): proposed weekly; no pull request yet.** Recorded
@@ -286,9 +292,14 @@ rows above. What each check actually returned:
   missing outcome is said to be so, the ctest count from `runtime-tests.xml`,
   the line coverage from gcovr's `summary.json`, and the artifact that holds the
   logs. A missing report is said to be missing, and a build-only platform says
-  its tests were not run. `tools/test_job_summary.py` holds those rules. Not
-  yet verified: the notes preview between real release refs, and a failing
-  hosted run's summary.
+  its tests were not run. `tools/test_job_summary.py` holds those rules. No
+  release tag exists yet, so the notes were previewed on 2026-09-29 for a
+  prospective `v0.3.0` on `release/0.3.0` against `nightly`, through the
+  read-only generate-notes API: GitHub read the configuration from that branch,
+  put Dependabot's #22 under Dependencies and #19, #20 and #21, which carry no
+  label, under Other changes. No change in that range carries an excluded
+  label, so the exclusions are unexercised. Not yet seen: a failing hosted
+  run's summary.
 
   Every release and nightly now carries `kwin-effect-upscale-<version>.spdx.json`
   (SPDX 2.3, `tools/release_sbom.py`), written before `SHA256SUMS`, so the

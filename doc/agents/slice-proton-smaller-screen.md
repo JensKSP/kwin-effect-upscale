@@ -7,6 +7,18 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 ## Status
 
+**Status on 2026-09-28**, above the record of how it got here: the companion that
+prepared a prefix's screen, which the paragraphs below describe, left the
+default build and the packages on 2026-09-24. The route now is the session X11
+proxy: the prefix is the unit, a profile matches the tail of the program's
+path through `wine://<prefix>/<path>`, a Wine component is held until its
+prefix's program is known (ten seconds at most), and each decision logs the
+names it was matched against. No shipped profile names a Wine program yet;
+Wreckfest's needs the path Proton reports, taken with the run on wzpc (item 30).
+Open, as the open list numbers them: acceptance on real games (29 to 31, 34 to
+36), Wine's Wayland driver (35), and the decisions on gates, warm prefixes and
+the legacy companion (25, 27, 32).
+
 Written down on Jens's instruction on 2026-09-22 and accepted by him the same
 day as the route for Wine and Proton games that ignore resizing, on the
 condition that the user is asked first and offered a restart. The first form of
@@ -577,6 +589,10 @@ again by the helper and not offered a second time.
   requirement and its ruling on "the private virtual desktop" have to be
   updated to say so: the consent is what allows a change that outlives
   uninstalling, and this form works through configuration, not at start.
+  Done, and followed since: the handbook states this exception beside the
+  fourth requirement, notes that the helper is out of the default build, and
+  describes the proxy route that replaced it, which writes nothing and needs no
+  consent (checked 2026-09-28).
 - Decided 2026-09-22, by the plugin-folder rule: the plugin defines a generic,
   optional interface, `org.kde.KWin.Upscale.Helper1`
   (`src/plugins/upscale/org.kde.KWin.Upscale.Helper1.xml`): "a program does
@@ -591,6 +607,9 @@ again by the helper and not offered a second time.
   carries one.
 - Open: the companion's texts use their own translation domain,
   `kwin_upscale_helper`, which the translation extraction does not cover yet.
+  Moot since the companion left the default build and the packages
+  (`UPSCALE_BUILD_WINE_HELPER` off): nothing of it is installed to translate. It
+  returns only if the companion is kept, which is item 32 of the open list.
 - Decided 2026-09-23: every output of the session is described, the game's own
   first and at the wanted size, so that a program sees the screens the session
   has. There are never more screens than monitors the prefix knows, because Wine
@@ -785,6 +804,22 @@ Decided with Jens on 2026-09-25:
   plugin gains no platform-specific reader and stays portable.
 - The resolved candidates are reported per prefix, because a profile that names
   none of them otherwise fails silently at the native size.
+
+Checked against the code on 2026-09-28 (item 28 of the open list): the prefix is
+the unit (`m_prefixPrograms` in `src/x11proxy/connection.cpp`, one answer for
+every connection of a prefix, covered by `forgetsWhatAPrefixRanOnceItStops`);
+a profile matches the program's path through the `wine://<prefix>/<path>`
+identities the proxy builds, which a pattern anchored on the path's tail
+matches from any prefix (`x11proxy_identity_test.cpp`, `matching_test.cpp`);
+a launcher is matched the same way; windowed programs are left alone since the
+windowed slots went on 2026-09-25; and every decision's log line names the
+candidates it was matched against (`names=` in `connection.cpp`), with the
+program each prefix runs logged once. What is missing is a shipped Wine entry
+that uses it: Wreckfest's entry still recognizes the game by the window class
+Proton gives it, which arrives only with the window, too late for the proxy.
+Its connection pattern needs the path Proton reports for the game's
+executable, which no measurement here has recorded; it is taken with the
+Wreckfest run on wzpc (item 30) rather than guessed.
 
 Open, in this order:
 

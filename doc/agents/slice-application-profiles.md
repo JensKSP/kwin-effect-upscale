@@ -7,6 +7,18 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 ## Current status
 
+**Status on 2026-09-28**, above the fuller description: the two-gate model, the
+four slots with Auto and the layered catalogue are implemented and shipped in
+pull request #21. Since: **Use Global Settings** clears everything a game
+states for itself
+(item 40), and the migration is exercised against a configuration the
+previous release wrote (39), with one key not carried over, the old display
+position (39a, a decision). Open, as the open list numbers them: the settings
+page decisions (41 to 47, 52), portable Add from Window and export across users
+(48), translated catalogue notes (49), the recommended values in a real session
+(50), Flatpak and Snap identities (51) and the route for submitted
+applications (53).
+
 Matching, layered catalogue storage and an editor are implemented. The shipped
 catalogue has six entries: SuperTuxKart, Extreme Tux Racer, Left 4 Dead 2,
 Wreckfest, glmark2 and vkmark.
