@@ -365,8 +365,17 @@ Planned checks, not observed results:
 - [x] Inspect KWin settings conventions and current build/license metadata.
 - [x] Make diagnostics infrastructure the next slice and specify developer
   fields, build-type defaults and shared state/logging responsibilities.
-- [ ] Verify minimum-version dialog APIs; the upstreamable data seam is chosen
-  and implemented (see the implementation findings above).
+- [x] Verify minimum-version dialog APIs; the upstreamable data seam is chosen
+  and implemented (see the implementation findings above). Verified 2026-09-28
+  against Trixie, the oldest supported environment: `KAboutPluginDialog`
+  (`KF6/KXmlGui/kaboutplugindialog.h`, "@since 5.65", constructed from a
+  `KPluginMetaData`) is in `libkf6xmlgui-dev` 6.13.0-1, the project's
+  `KF_MIN_VERSION`. It shows only what the plugin metadata holds. The full hash,
+  the tag and the notices need `KAboutApplicationDialog` (KXmlGui as well) over
+  a `KAboutData` the settings module builds for itself, with components and
+  license texts, which leaves the host's own About data alone. Either way
+  KXmlGui becomes a build dependency of the settings module on every
+  distribution; the check image does not install it yet.
 - [ ] Audit exact dependency/component notices and delivery obligations.
 - [ ] Implement generation, metadata and About/details access. The
   initialization log and a settings version line exist: the identity is logged
@@ -442,6 +451,12 @@ timings as dashes. Cover these cases and the larger text, then run the required
 container/compiler, hook and static checks. These are planned checks. The
 reported developer-display ordering problem still needs reproduction in the
 real session; drawing last in one screen pass alone does not explain it.
+
+Done since #17 (`35b6a53`), found 2026-09-28: the display says native only when
+the supplied size equals the output's, names 4K, 1440p, 1080p and 720p only at
+their exact sizes, and shows any other bypass as FSR off with both sizes.
+`UpscaleHeadsUpTest::distinguishesBypassFromNative` and
+`keepsUnusualDimensions` cover it.
 
 Documentation validation, 2026-09-18: `pre-commit run --all-files` and the full
 pre-push stage passed in the Trixie container on an isolated copy under
@@ -528,6 +543,14 @@ pre-commit stages. This was a build for Jens to try: the native Debug build
 confirmed in his session the same evening that Brave in fullscreen no longer
 shows the displays. Still open before this is committed: the focused tests
 above, Clang, `neon-unstable`, clang-tidy and both pre-commit stages.
+
+All of them ran on a later tree, with this change in it, in
+the full check run of 2026-09-28 on the tree committed as `f68eab0`: Trixie
+with GCC and with Clang, every suite; clang-tidy; both pre-commit stages;
+`neon-unstable` with GCC and with Clang, built; Kubuntu 26.04 (KWin 6.6.6)
+with GCC, every suite. All passed. The regression-test hook failed only in
+the check's copy of the tree, which has no Git history for four of its
+cases; on the checkout they passed with the other 182.
 
 ### PR #8 coverage follow-up
 
@@ -927,6 +950,13 @@ different revisions. The Debug build is installed on wzpc.
 Open: the website field, and reading the result on the television — that the
 settings list shows the author and the new description is still unconfirmed by
 eye, because KWin has to be restarted before the settings read the new module.
+
+The website field is left out, 2026-09-28: none of KWin 6.3.6's effects
+declares `KPlugin.Website`, and a link to this repository would be the one
+project-specific value in a folder that has to copy into KWin unchanged
+([repository rules](../../AGENTS.md#the-plugin-folder-stays-upstreamable)).
+Where this project's address belongs is outside that folder: the README and
+the packages' metadata.
 The full check list above covers this work as well; it was gated together with
 the placement change.
 
@@ -1207,6 +1237,12 @@ focused utility checks and an observed wzpc reload; full game acceptance stays
 with the resolution-control slice. Launcher installation and utility validation
 are recorded below; then return to the historical ETR comparison requested by
 Jens.
+
+Both limitations are documented in the README's "Reload during development"
+(checked 2026-09-28): the settings page can report Upscale as unloaded while
+the temporary copy runs, and its Apply addresses the normal name, so settings
+are reloaded with the tool again; and a fresh session remains the final check
+for a normal installation and the settings page.
 
 The launcher is installed for Jens in the desktop and application-menu
 directories. Its first live reload reports the verified master build under

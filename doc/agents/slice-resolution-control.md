@@ -1315,6 +1315,18 @@ stay small, and after Performance it would stay at 1920 × 1080 under Quality,
 because SDL offers that size among its emulated modes. The effect never writes
 to a game, so this has to be answered from the compositor side.
 
+Answered from the compositor side, 2026-09-28, with what the effect already
+does. At Native it asks for nothing smaller, and a smaller buffer the game
+kept from an earlier run is still enlarged with FSR rather than left to KWin's
+plain stretch (`eligibility.cpp`, decided by Jens on 2026-09-21). Under any
+other preset the game gets what it saved, which SDL offers among its emulated
+modes and the effect cannot take out of that list; what it can do is say so.
+The on-screen display draws a supplied size that is not the chosen one in the
+warning colour (`upscaleDrawsTheChosenSize()`), and the status names the
+requested size beside the supplied one. What is left is wording that tells the
+player to choose the size in the game, which belongs with the text review
+(items 43 and 44 of the open list).
+
 These runs used the production plugin with the shipped catalogue, the display
 switched off, SuperTuxKart's own settings at fullscreen 3840 × 2160 and only
 the renderer and `vulkan_fullscreen_desktop` changed per cell, in a nested KWin
@@ -3629,6 +3641,27 @@ Still open: the systemd-managed Plasma login path, real-session GPU forwarding
 with this C++ implementation, BSD/runtime portability, package install/remove
 and persistent settings, application identity, resolution policy and game
 acceptance. The normal Linux user's login configuration remains untouched.
+
+**The systemd-managed login path, 2026-09-28.** Jens: what the packages need
+is a route through each system's default login, not anything particular to
+wzpc. Read at plasma-workspace 6.3.6 (Trixie) and 6.6.6 (Kubuntu 26.04),
+`startkde/startplasma-wayland.cpp` and `startplasma.cpp`: both versions source
+`<config dirs>/plasma-workspace/env/*.sh` first (`runEnvironmentScripts()`,
+called at line 56 in 6.3.6 and 66 in 6.6.6), then hand the whole environment
+to the D-Bus activation environment and to the systemd user manager
+(`syncDBusEnvironment()`, line 67 and 77, through
+`KUpdateLaunchEnvironmentJob`, which in kdbusaddons 6.13 sends
+`org.freedesktop.systemd1.Manager.SetEnvironment` and passes any variable with
+a POSIX name and no control characters, `PATH` and
+`UPSCALE_X11_SESSION_ROUTED` included), and only then start the session, whose
+`plasma-kwin_wayland.service` inherits that environment. Without systemd, as on
+the BSDs, KWin is started by startplasma itself and inherits it directly. The
+installed hook, `KDE_INSTALL_CONFDIR/plasma-workspace/env/`, is therefore on
+the default path of both. Observed on wzpc, a Trixie system logging in through
+SDDM with the systemd boot: the journal of `plasma-kwin_wayland.service` shows
+"Upscale X11 backend started" at each of three logins on 2026-09-27. Not yet
+observed on another distribution; the package installation VMs (item 2f of the
+open list) test it on each.
 
 ### Isolated C++ resolution policy and quality status, 2026-09-24
 

@@ -271,6 +271,12 @@ action update activation, and in the
 has to claim it; verifying it twice is the failure the one-owning-slice rule
 exists to prevent.
 
+Claimed here, 2026-09-28: the scheduled run is GitHub's service acting on the
+default branch, which is this slice's subject, and the pipeline slice owns
+only the configuration it reads. Observed: Dependabot's scheduled run opened
+pull request #22, "build(deps): Bump the actions group with 2 updates", which
+merged on 2026-09-28 at 04:50 UTC.
+
 ### Phase 1: contribution entry points (preparation history)
 
 Reinspection after master `2979b60` found no issues or milestones. Existing
