@@ -8,6 +8,7 @@
 
 #include "compatibility.h"
 
+#include <QFont>
 #include <QImage>
 #include <QSizeF>
 #include <QString>
@@ -50,6 +51,13 @@ public:
      * caller with no output to place against still gets a sized block.
      */
     void setText(const QString &text, double scale, double emphasis = 1);
+    /**
+     * The font the text is drawn in, at its own size before the scale: the
+     * session's fixed-width font. Its owner passes it with every update, so a
+     * change in the session's settings is followed at the next one; the text
+     * is laid out again only when the font differs.
+     */
+    void setFont(const QFont &font);
 
     /**
      * Lays the text out to fit within @p budget logical pixels.
@@ -91,6 +99,7 @@ public:
 
 private:
     QString m_text;
+    QFont m_font;
     double m_scale = 1;
     double m_emphasis = 1;
     // The budget the current image was laid out for, so that a repeated frame

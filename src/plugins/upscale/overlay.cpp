@@ -22,7 +22,10 @@
 namespace KWin
 {
 
-UpscaleOverlay::UpscaleOverlay() = default;
+UpscaleOverlay::UpscaleOverlay()
+    : m_font(QFontDatabase::systemFont(QFontDatabase::FixedFont))
+{
+}
 UpscaleOverlay::~UpscaleOverlay() = default;
 
 // The session states a font and a size; the screen states how many pixels a
@@ -33,9 +36,9 @@ UpscaleOverlay::~UpscaleOverlay() = default;
 // A point is a seventy-second of an inch and Qt's device-independent pixel a
 // ninety-sixth, which is the reference every KDE scale factor is stated
 // against. A font that states its size in pixels already speaks in those.
-static QFont displayFont(double scale)
+static QFont displayFont(const QFont &base, double scale)
 {
-    QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+    QFont font = base;
     const double points = font.pointSizeF();
     const double pixels = points > 0 ? points * (96.0 / 72.0) : double(font.pixelSize());
     // A size nothing could be read at is not worth drawing; below this the
@@ -90,9 +93,9 @@ static void drawLine(QPainter &painter, const QFontMetricsF &metrics, QPointF or
 // Text is measured and drawn at destination pixels rather than drawn small and
 // enlarged, because the whole point of this overlay is to stay readable beside
 // a game that is being enlarged.
-static QImage renderText(const QString &text, double scale)
+static QImage renderText(const QString &text, const QFont &base, double scale)
 {
-    const QFont font = displayFont(scale);
+    const QFont font = displayFont(base, scale);
     const QFontMetricsF metrics(font);
     const QStringList lines = text.split(QLatin1Char('\n'));
     const double padding = std::round(8 * scale);
@@ -134,16 +137,16 @@ static QImage renderText(const QString &text, double scale)
 // The smallest readable font size is a floor inside renderText(), so a block
 // on an output with almost no room stops shrinking while it can still be read
 // and is cropped instead. Losing the end of a line beats losing the line.
-static QImage renderFitted(const QString &text, double factor, double scale, const QSizeF &budget)
+static QImage renderFitted(const QString &text, const QFont &base, double factor, double scale, const QSizeF &budget)
 {
-    QImage image = renderText(text, factor);
+    QImage image = renderText(text, base, factor);
     if (image.isNull() || !budget.isValid()) {
         return image;
     }
     const QSizeF logical = QSizeF(image.size()) / scale;
     if (logical.width() > budget.width() || logical.height() > budget.height()) {
         const double fit = std::min(budget.width() / logical.width(), budget.height() / logical.height());
-        image = renderText(text, factor * fit);
+        image = renderText(text, base, factor * fit);
     }
     // The budget is in the output's coordinates and the image in destination
     // pixels, which is what the block is measured and drawn in.
@@ -176,6 +179,17 @@ void UpscaleOverlay::setText(const QString &text, double scale, double emphasis)
     m_texture.reset();
 }
 
+void UpscaleOverlay::setFont(const QFont &font)
+{
+    if (m_font == font) {
+        return;
+    }
+    m_font = font;
+    m_fitted = false;
+    m_image = QImage();
+    m_texture.reset();
+}
+
 void UpscaleOverlay::fit(const QSizeF &budget)
 {
     if (m_fitted && m_budget == budget) {
@@ -197,7 +211,7 @@ void UpscaleOverlay::layOut() const
     // The emphasis enlarges what is drawn; the logical size this reports still
     // divides by the screen's own scale, so placement stays in the output's
     // coordinates and a larger block simply occupies more of them.
-    m_image = m_text.isEmpty() ? QImage() : renderFitted(m_text, m_scale * m_emphasis, m_scale, m_budget);
+    m_image = m_text.isEmpty() ? QImage() : renderFitted(m_text, m_font, m_scale * m_emphasis, m_scale, m_budget);
 }
 
 QSizeF UpscaleOverlay::size() const
