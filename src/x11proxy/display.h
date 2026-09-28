@@ -26,7 +26,7 @@ private:
     void dimensions(QByteArray &bytes, qsizetype offset, bool wide = false) const;
     QByteArray randr(quint32 operation, QByteArray bytes);
     QByteArray resources(const QByteArray &bytes);
-    QByteArray outputInfo(const QByteArray &bytes) const;
+    QByteArray outputInfo(const QByteArray &bytes);
     QByteArray screenInfo(const QByteArray &bytes);
     QByteArray vidmode(quint32 operation, QByteArray bytes);
     Wire &m_wire;

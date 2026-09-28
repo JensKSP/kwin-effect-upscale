@@ -39,6 +39,53 @@ QByteArray screenInfo(const Wire &wire, bool requestedMode)
     return reply;
 }
 
+// One RandR monitor listing the given number of outputs, at the native size.
+QByteArray monitors(const Wire &wire, quint16 outputs)
+{
+    QByteArray reply(32 + 24 + (outputs * 4), '\0');
+    reply[0] = 1;
+    wire.integer(reply, 4, static_cast<quint32>((reply.size() - 32) / 4));
+    wire.integer(reply, 12, 1);
+    wire.integer(reply, 16, outputs);
+    wire.word(reply, 38, outputs);
+    wire.word(reply, 44, 3840);
+    wire.word(reply, 46, 2160);
+    return reply;
+}
+
+// One output on one CRTC, offering the given modes.
+QByteArray outputInfo(const Wire &wire, const QList<quint32> &modes)
+{
+    QByteArray reply(40 + (modes.size() * 4), '\0');
+    reply[0] = 1;
+    wire.integer(reply, 4, static_cast<quint32>((reply.size() - 32) / 4));
+    wire.word(reply, 26, 1);
+    wire.word(reply, 28, static_cast<quint16>(modes.size()));
+    wire.word(reply, 30, 1);
+    wire.integer(reply, 36, 7);
+    for (qsizetype index = 0; index < modes.size(); ++index) {
+        wire.integer(reply, 40 + (index * 4), modes.at(index));
+    }
+    return reply;
+}
+
+QByteArray rootGeometry(const Wire &wire)
+{
+    QByteArray geometry(32, '\0');
+    geometry[0] = 1;
+    wire.word(geometry, 16, 3840);
+    wire.word(geometry, 18, 2160);
+    return geometry;
+}
+
+void setUpRoot(DisplayReplies &display, const Wire &wire)
+{
+    QByteArray setupReply(80, '\0');
+    setupReply[28] = 1;
+    wire.integer(setupReply, 40, 42);
+    display.setup(setupReply);
+}
+
 void nativeAfterChange(bool little, bool hotplug)
 {
     Wire wire;
@@ -156,6 +203,41 @@ void legacyModeDisappears(bool little)
     check(rejected, "truncated topology reply mistaken for supported fallback");
 }
 
+// A monitor spanning two outputs is refused as the resources refuse two
+// outputs, for a client that asks for the monitors first.
+void monitorOnSeveralOutputs(bool little)
+{
+    Wire wire;
+    wire.little = little;
+    DisplayReplies single(wire, QSize(2560, 1440));
+    setUpRoot(single, wire);
+    const QByteArray one = single.reply("RANDR", 42, monitors(wire, 1));
+    check(wire.word(one, 44) == 2560 && wire.word(one, 46) == 1440, "monitor on one output not rewritten");
+
+    DisplayReplies spanning(wire, QSize(2560, 1440));
+    setUpRoot(spanning, wire);
+    const QByteArray two = monitors(wire, 2);
+    check(spanning.reply("RANDR", 42, two) == two, "monitor spanning two outputs rewritten");
+    check(spanning.reply("geometry", 42, rootGeometry(wire)) == rootGeometry(wire), "policy kept after a monitor spanning two outputs");
+}
+
+// The backend replaced the requested mode and the client reads the output
+// before the resources: the output keeps its native modes and the policy ends.
+void outputModeDisappears(bool little)
+{
+    Wire wire;
+    wire.little = little;
+    DisplayReplies display(wire, QSize(2560, 1440));
+    setUpRoot(display, wire);
+    display.reply("RANDR", 25, resources(wire, 1, true));
+    const QByteArray offered = display.reply("RANDR", 9, outputInfo(wire, {456, 123}));
+    check(wire.word(offered, 28) == 1 && wire.integer(offered, 40) == 123, "output modes not narrowed to the requested one");
+
+    const QByteArray replaced = outputInfo(wire, {456});
+    check(display.reply("RANDR", 9, replaced) == replaced, "output left without its native modes");
+    check(display.reply("geometry", 42, rootGeometry(wire)) == rootGeometry(wire), "policy kept after its mode disappeared");
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -167,6 +249,8 @@ int main(int argc, char **argv)
             nativeAfterChange(little, false);
             identityAfterChange(little);
             legacyModeDisappears(little);
+            monitorOnSeveralOutputs(little);
+            outputModeDisappears(little);
         }
     } catch (const std::exception &error) {
         qCritical() << error.what();
