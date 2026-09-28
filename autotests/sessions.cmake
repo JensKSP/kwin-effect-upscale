@@ -156,6 +156,7 @@ if(KWin_VERSION VERSION_LESS 6.7)
                     x11_startup_test.cpp
                     x11_input_test.cpp
                     x11_crash_test.cpp
+                    x11_fullscreen_test.cpp
                     crash_game.h
                     x11_standin_game.h
             )

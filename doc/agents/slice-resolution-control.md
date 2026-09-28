@@ -2544,6 +2544,25 @@ which the session proxy answers with the program's own PID. The new case
 change in three runs of three, and at 1920 × 1080 after it in three of three.
 It skips on 6.3, which cannot tell whose such a window is at all.
 
+The first hosted run of the job, the verify-only nightly 36456685843 at
+`7eac56e`, passed on arm64 and failed on amd64 in one case,
+`repeatedFullscreenTransitions`, with "The application supplied a 3840 x 2160
+buffer where 1920 x 1080 was requested"; the session took 154 s. Its log showed
+a restore, the wait for the client to withdraw its emulated mode, and a new
+request at once, with the withdrawal arriving only after it. The request came
+from `fullscreenRequest()`, which begins one for the client's own fullscreen
+message and did not look at that wait, unlike `ask()`. On KWin 6.6 the late
+withdrawal sizes the window to its whole frame, validation fails the request,
+and the one retry a program gets was spent on the first such transition, so
+the third was refused. It needs only a client that re-enters fullscreen before
+it has answered leaving it, which the runner's pace made of the test's own
+transitions. `fullscreenRequest()` now leaves such a window to KWin, and
+`apply()` asks once the withdrawal has arrived. The new case
+`reenteringFullscreenAtOnce` (`x11_fullscreen_test.cpp`) sends both messages
+back to back four times: on KWin 6.6.6 it failed eight runs of eight before the
+change, with the runner's message and its order of events, and passed eight of
+eight after it, with no validation failure and no retry in any log.
+
 ### The Kubuntu package job still fails, and could not be reproduced here
 
 The hosted `resolute` package job fails on both architectures on `4ec65c3`,
