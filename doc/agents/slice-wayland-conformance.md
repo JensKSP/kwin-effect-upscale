@@ -128,3 +128,17 @@ tests fail in the baseline; input capture aborts in every arm including the
 baseline, which the checker now records as the system's rather than holding
 it against the effect. Two reruns of the Xwayland input and colour
 management cases that had flipped in `full-4` showed no difference.
+
+2026-09-28, found while running a new production case for
+[resolution control](slice-resolution-control.md): the harness does not build
+from the committed tree. `autotests/kwin_conformance.h` connects to
+`EffectsHandler::effectsChanged`, which KWin 6.3.6 declares as a protected
+member function, not a signal, so `kwin_wayland_test.cpp` fails to compile.
+That run removed the connection in its disposable prepared copy only; the
+committed file is unchanged, and without the connection a case cannot report
+that the effect was unloaded under it. Not fixed. Two more notes for the next
+build: `build/kwin-6.3.6` is the bare upstream source, which asks for
+KDecoration and Plasma 6.3.6 and does not configure on Trixie; Debian's
+packaged source, whose `relax-interplasma-versioned-deps.patch` lowers that to
+6.3.4, does. And the earlier builds under `build/wayland-conformance/` were
+gone and had to be made again.

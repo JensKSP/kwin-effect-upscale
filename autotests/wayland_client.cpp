@@ -12,7 +12,10 @@
 
 #include <cstring>
 
-WaylandClient::WaylandClient() = default;
+WaylandClient::WaylandClient(uint32_t outputVersion)
+    : m_outputVersion(outputVersion)
+{
+}
 
 WaylandClient::~WaylandClient()
 {
@@ -40,8 +43,8 @@ WaylandClient::~WaylandClient()
     if (m_sharedMemory) {
         wl_shm_destroy(m_sharedMemory);
     }
-    if (m_output) {
-        wl_output_destroy(m_output);
+    for (const auto &output : m_outputs) {
+        wl_output_destroy(output->proxy);
     }
     if (m_compositor) {
         wl_compositor_destroy(m_compositor);
@@ -65,9 +68,11 @@ void WaylandClient::global(void *data, wl_registry *registry, uint32_t name, con
         client->m_sharedMemory = static_cast<wl_shm *>(wl_registry_bind(registry, name, &wl_shm_interface, 1));
     } else if (std::strcmp(interface, "wl_output") == 0) {
         // A game enumerates displays to decide what to render, and that is the
-        // moment the effect makes its request. Binding the output here is what
-        // lets this client observe what it was told.
-        client->m_output = static_cast<wl_output *>(wl_registry_bind(registry, name, &wl_output_interface, 2));
+        // moment the effect makes its request. Binding every output here is
+        // what lets this client observe what it was told about each.
+        auto output = std::make_unique<Output>();
+        output->name = name;
+        output->proxy = static_cast<wl_output *>(wl_registry_bind(registry, name, &wl_output_interface, client->m_outputVersion));
         static const wl_output_listener listener{
             [](void *, wl_output *, int32_t, int32_t, int32_t, int32_t, int32_t, const char *, const char *, int32_t) { },
             outputMode,
@@ -76,7 +81,8 @@ void WaylandClient::global(void *data, wl_registry *registry, uint32_t name, con
             nullptr,
             nullptr,
         };
-        wl_output_add_listener(client->m_output, &listener, client);
+        wl_output_add_listener(output->proxy, &listener, output.get());
+        client->m_outputs.push_back(std::move(output));
     } else if (std::strcmp(interface, "wp_fractional_scale_manager_v1") == 0) {
         client->m_fractionalScaleManager = static_cast<wp_fractional_scale_manager_v1 *>(
             wl_registry_bind(registry, name, &wp_fractional_scale_manager_v1_interface, 1));
@@ -98,7 +104,7 @@ bool WaylandClient::initialize(bool fullscreen)
         return false;
     }
     m_registry = wl_display_get_registry(m_display);
-    static const wl_registry_listener listener{global, [](void *, wl_registry *, uint32_t) { }};
+    static const wl_registry_listener listener{global, globalRemoved};
     wl_registry_add_listener(m_registry, &listener, this);
     if (wl_display_roundtrip(m_display) < 0 || !m_compositor || !m_sharedMemory || !m_shell || !m_viewporter) {
         return false;
@@ -139,18 +145,32 @@ void WaylandClient::outputMode(void *data, wl_output *, uint32_t flags, int32_t 
     // Only the mode the screen is said to be in now. A client picking a size
     // reads that one, and the effect replaces exactly it.
     if (flags & WL_OUTPUT_MODE_CURRENT) {
-        static_cast<WaylandClient *>(data)->m_advertisedMode = QSize(width, height);
+        static_cast<Output *>(data)->mode = QSize(width, height);
     }
 }
 
 void WaylandClient::outputScale(void *data, wl_output *, int32_t factor)
 {
-    static_cast<WaylandClient *>(data)->m_advertisedScale = factor;
+    static_cast<Output *>(data)->scale = factor;
 }
 
-QSize WaylandClient::advertisedMode() const
+void WaylandClient::globalRemoved(void *data, wl_registry *, uint32_t name)
 {
-    return m_advertisedMode;
+    for (const auto &output : static_cast<WaylandClient *>(data)->m_outputs) {
+        if (output->name == name) {
+            output->offered = false;
+        }
+    }
+}
+
+QSize WaylandClient::advertisedMode(int output) const
+{
+    return output >= 0 && output < int(m_outputs.size()) ? m_outputs.at(output)->mode : QSize();
+}
+
+bool WaylandClient::offered(int output) const
+{
+    return output >= 0 && output < int(m_outputs.size()) && m_outputs.at(output)->offered;
 }
 
 int WaylandClient::preferredScale() const
@@ -158,9 +178,9 @@ int WaylandClient::preferredScale() const
     return m_preferredScale;
 }
 
-int WaylandClient::advertisedScale() const
+int WaylandClient::advertisedScale(int output) const
 {
-    return m_advertisedScale;
+    return output >= 0 && output < int(m_outputs.size()) ? m_outputs.at(output)->scale : 0;
 }
 
 void WaylandClient::configure(void *data, xdg_surface *surface, uint32_t serial)

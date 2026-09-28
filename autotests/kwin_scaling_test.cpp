@@ -49,6 +49,7 @@ private Q_SLOTS:
     void reducesAndScales_data();
     void reducesAndScales();
     void advertisedModeProducesSmallerBuffer();
+    void unpluggedOutputIsPassedOver();
     void unsupportedBufferFallsBack_data();
     void unsupportedBufferFallsBack();
     void ignoredRequestIsRestored();
@@ -259,6 +260,26 @@ void UpscaleProductionTest::advertisedModeProducesSmallerBuffer()
     configure(false);
     QTRY_VERIFY(Test::waylandSync() && Test::waylandOutputs().first()->pixelSize() == QSize(384, 216));
     QVERIFY(!status().contains(QStringLiteral("scaling=1")));
+}
+
+// An output unplugged while its program is recorded as told a smaller mode on
+// it. Test::setOutputConfig recreates every output, so the call below unplugs
+// the one the client was told about at connection and destroys KWin's backend
+// output with it, which switching an output off, as the nested session does,
+// never does. Giving the mode back must pass over it, and the outputs plugged
+// in meanwhile are told about like any other.
+void UpscaleProductionTest::unpluggedOutputIsPassedOver()
+{
+    QTRY_VERIFY(Test::waylandSync() && Test::waylandOutputs().first()->pixelSize() == QSize(256, 144));
+    Test::setOutputConfig({QRect(0, 0, 384, 216), QRect(384, 0, 384, 216)});
+    const auto told = [](const QSize &size) {
+        const auto outputs = Test::waylandOutputs();
+        return outputs.size() == 2 && outputs.at(0)->pixelSize() == size && outputs.at(1)->pixelSize() == size;
+    };
+    QTRY_VERIFY(Test::waylandSync() && told(QSize(256, 144)));
+    configure(false);
+    QTRY_VERIFY(Test::waylandSync() && told(QSize(384, 216)));
+    QVERIFY(effects->isEffectLoaded(QStringLiteral("upscale")));
 }
 
 void UpscaleProductionTest::unsupportedBufferFallsBack_data()
