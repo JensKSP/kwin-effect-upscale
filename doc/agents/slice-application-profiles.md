@@ -1387,14 +1387,25 @@ Planned checks, not observed results:
       reads the decimal scale wrongly.
 - [ ] Apply the text review of 2026-09-21: sixty strings proposed to Jens in
       a table, awaiting his answer by number.
-- [ ] Make Add from Window portable, per the handbook's
+- [x] Make Add from Window portable, per the handbook's
       [portable lists and settings](../upscaling.md#portable-lists-and-settings),
-      required by Jens on 2026-09-21. It stores the full executable path as an
-      exact match today. It should store what stays the same wherever the game
+      required by Jens on 2026-09-21. It stored the full executable path as an
+      exact match. It should store what stays the same wherever the game
       is installed: the part after a library root such as `steamapps/common/`,
       or the file name in any folder where there is no such root, as a
       regular expression like the shipped entries. Then check an export from
       one user's home imported under another's.
+      Done 2026-09-29 (item 48 of the open list): `upscalePortableExecutable()`
+      keeps what follows `steamapps/common/`, in either spelling Steam has
+      used, and otherwise the file name, escaping only regular expression
+      syntax, and Add from Window stores it as a regular expression.
+      `storesAProgramPortably` requires the stored form to match the program it
+      was found at and the same game under another user and in another
+      library, never a program whose name only begins the same, and to keep
+      neither the home nor the library; `carriesAProgramToAnotherUser` exports
+      such an entry, finds no home in the file, and has the imported entry match
+      another user's copy. The editor test fails when the match type is left
+      Exact. Not checked with two real accounts.
 - [ ] Review every user-facing text with Jens against KDE's naming, one batch
       at a time. Batch 1, the settings page, agreed and applied on 2026-09-21:
       group boxes like KWin's own effect pages, the status block and its

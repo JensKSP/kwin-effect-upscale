@@ -1272,11 +1272,12 @@ keeps its files or which screens it has:
 - What the settings page shows for one screen only - the preview and the
   screen it is computed for - is not stored at all.
 
-Status on 2026-09-21: the shipped list, the export format and every preference
-meet this. **Add from Window does not yet**: it stores the program's full path
-as an exact match, which names this user's home directory and this machine's
-library location, so an exported entry would not match the same game
-elsewhere. It has to store a portable pattern instead.
+The shipped list, the export format, every preference and **Add from Window**
+meet this. Add from Window stores the program it finds as a regular expression
+of what stays the same: a game in a Steam library is its folder there and the
+path inside it, `.*/Left 4 Dead 2/hl2_linux`, whichever library and whichever
+home it is in, and any other program is its file name in any folder, as the
+shipped entries write it.
 
 ### Game detection OSD
 

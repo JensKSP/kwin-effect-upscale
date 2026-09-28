@@ -11,6 +11,7 @@
 
 #include "application.h"
 #include "identitycontrols.h"
+#include "pattern.h"
 
 #include "editor_stand_ins.h"
 #include "settings_fixture.h"
@@ -30,6 +31,8 @@ class IdentityControlsTest : public QObject
 
 private Q_SLOTS:
     void saysWhichOpenWindowsAnEntryMatches();
+    void storesAProgramPortably_data();
+    void storesAProgramPortably();
 };
 
 void IdentityControlsTest::saysWhichOpenWindowsAnEntryMatches()
@@ -80,6 +83,39 @@ void IdentityControlsTest::saysWhichOpenWindowsAnEntryMatches()
 
     bus.unregisterObject(QStringLiteral("/org/kde/KWin/Effect/Upscale1"));
     QVERIFY(bus.unregisterService(QStringLiteral("org.kde.KWin")));
+}
+
+// What Add from Window stores for a program: the same game wherever it is
+// installed, for another user and in another library, and never the home or the
+// library it was found in.
+void IdentityControlsTest::storesAProgramPortably_data()
+{
+    QTest::addColumn<QString>("found");
+    QTest::addColumn<QString>("stored");
+    QTest::addColumn<QString>("elsewhere");
+    QTest::newRow("steam") << QStringLiteral("/home/jens/.local/share/Steam/steamapps/common/Left 4 Dead 2/hl2_linux")
+                           << QStringLiteral(".*/Left 4 Dead 2/hl2_linux")
+                           << QStringLiteral("/home/kim/.steam/debian-installation/steamapps/common/Left 4 Dead 2/hl2_linux");
+    QTest::newRow("older steam library") << QStringLiteral("/mnt/games/SteamLibrary/SteamApps/common/Half-Life 2/hl2_linux")
+                                         << QStringLiteral(".*/Half-Life 2/hl2_linux")
+                                         << QStringLiteral("/data/SteamLibrary/steamapps/common/Half-Life 2/hl2_linux");
+    QTest::newRow("installed") << QStringLiteral("/usr/games/supertuxkart") << QStringLiteral(".*/supertuxkart")
+                               << QStringLiteral("/usr/local/bin/supertuxkart");
+    QTest::newRow("in a home") << QStringLiteral("/home/jens/Games/Foo (Linux)/bin/foo.x86_64") << QStringLiteral(".*/foo\\.x86_64")
+                               << QStringLiteral("/opt/foo/foo.x86_64");
+}
+
+void IdentityControlsTest::storesAProgramPortably()
+{
+    QFETCH(QString, found);
+    QFETCH(QString, stored);
+    QFETCH(QString, elsewhere);
+    QCOMPARE(KWin::upscalePortableExecutable(found), stored);
+    const KWin::UpscalePattern pattern(stored, KWin::UpscaleStringMatch::RegularExpression);
+    QVERIFY(pattern.matches(found));
+    QVERIFY(pattern.matches(elsewhere));
+    QVERIFY(!pattern.matches(found + QStringLiteral("_old")));
+    QVERIFY(!stored.contains(QStringLiteral("jens")) && !stored.contains(QStringLiteral("Steam")));
 }
 
 int main(int argc, char **argv)
