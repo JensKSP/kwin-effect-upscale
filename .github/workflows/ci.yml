@@ -57,7 +57,11 @@ jobs:
     name: Run Trixie Checks (${{ matrix.mode }})
     needs: commits
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    # clang-tidy analyses every source under src/ in turn, and on a four-core
+    # runner that took from 36 to more than 40 minutes by 2026-09-28, when two
+    # runs of the same revision were cancelled at 40. The other groups finish
+    # well inside 40 and keep that limit.
+    timeout-minutes: ${{ matrix.mode == 'tidy' && 75 || 40 }}
     strategy:
       fail-fast: false
       matrix:
