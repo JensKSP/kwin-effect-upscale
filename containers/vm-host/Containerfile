@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: None
+# SPDX-License-Identifier: CC0-1.0
+#
+# The host of the conformance virtual machine: QEMU under KVM, and what it
+# takes to seed a cloud image and to reach the guest. tools/conformance-vm.py
+# builds and runs it; nothing else of the machine it runs on reaches the guest
+# but /dev/kvm and the repository, which the guest mounts at /src.
+#
+# The guest exists because a compositor under test needs a DRM render device,
+# and the only one on a developer's machine is the desktop's own GPU. The guest
+# brings its own: vgem, with Mesa's llvmpipe drawing on it.
+FROM docker.io/library/debian:trixie
+
+ARG DEPENDENCY_EPOCH=local
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y \
+        qemu-system-x86 qemu-utils cloud-image-utils openssh-client ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
