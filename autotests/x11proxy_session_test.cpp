@@ -116,21 +116,39 @@ int serve(int listener)
     }
 }
 
-// A client in another process, which prints the root size it was given.
+// The address of a socket at @p path, or false where the path does not fit.
+bool socketAddress(const QByteArray &path, sockaddr_un &address)
+{
+    address = {};
+    address.sun_family = AF_UNIX;
+    if (path.isEmpty() || static_cast<std::size_t>(path.size()) >= sizeof(address.sun_path)) {
+        return false;
+    }
+    std::memcpy(address.sun_path, path.constData(), static_cast<std::size_t>(path.size() + 1));
+    return true;
+}
+
+// A client in another process, which prints the root size it was given. It
+// ends its side and reads until the relay has ended the other, which the relay
+// does in the same step in which it finishes, so its exit means the relay is
+// gone.
 int connectOnce(const QByteArray &path)
 {
     const int client = socket(AF_UNIX, SOCK_STREAM, 0);
     sockaddr_un address{};
-    address.sun_family = AF_UNIX;
-    std::memcpy(address.sun_path, path.constData(), static_cast<std::size_t>(path.size() + 1));
     const QByteArray request = setupRequest();
     QByteArray reply(80, '\0');
-    if (::connect(client, reinterpret_cast<const sockaddr *>(&address), sizeof(address)) != 0
+    if (client < 0 || !socketAddress(path, address)
+        || ::connect(client, reinterpret_cast<const sockaddr *>(&address), sizeof(address)) != 0
         || write(client, request.constData(), request.size()) != request.size() || !readFully(client, reply.data(), 80)) {
         return 1;
     }
     const UpscaleX11::Wire wire;
     std::printf("%ux%u\n", static_cast<unsigned>(wire.word(reply, 60)), static_cast<unsigned>(wire.word(reply, 62)));
+    std::fflush(stdout);
+    shutdown(client, SHUT_WR);
+    char byte;
+    while (read(client, &byte, 1) > 0) { }
     return 0;
 }
 
@@ -254,11 +272,9 @@ std::unique_ptr<UpscaleX11::Session> ProxySessionTest::startSession(const QStrin
     m_path = QFile::encodeName(m_directory.filePath(name));
     const int listener = socket(AF_UNIX, SOCK_STREAM, 0);
     sockaddr_un address{};
-    address.sun_family = AF_UNIX;
-    std::memcpy(address.sun_path, m_path.constData(), static_cast<std::size_t>(m_path.size() + 1));
     int windowManager[2];
     int wayland[2];
-    if (listener < 0 || bind(listener, reinterpret_cast<const sockaddr *>(&address), sizeof(address)) != 0
+    if (listener < 0 || !socketAddress(m_path, address) || bind(listener, reinterpret_cast<const sockaddr *>(&address), sizeof(address)) != 0
         || ::listen(listener, 16) != 0 || socketpair(AF_UNIX, SOCK_STREAM, 0, windowManager) != 0
         || socketpair(AF_UNIX, SOCK_STREAM, 0, wayland) != 0) {
         return nullptr;
@@ -277,12 +293,10 @@ int ProxySessionTest::connectClient(QSize &size)
 {
     const int client = socket(AF_UNIX, SOCK_STREAM, 0);
     sockaddr_un address{};
-    address.sun_family = AF_UNIX;
-    std::memcpy(address.sun_path, m_path.constData(), static_cast<std::size_t>(m_path.size() + 1));
     const QByteArray request = setupRequest();
     // Kept from the other process this test starts, whose end would otherwise
     // hold the connection open after this one closes it.
-    if (fcntl(client, F_SETFD, FD_CLOEXEC) != 0 || ::connect(client, reinterpret_cast<const sockaddr *>(&address), sizeof(address)) != 0
+    if (client < 0 || !socketAddress(m_path, address) || fcntl(client, F_SETFD, FD_CLOEXEC) != 0 || ::connect(client, reinterpret_cast<const sockaddr *>(&address), sizeof(address)) != 0
         || write(client, request.constData(), request.size()) != request.size()) {
         close(client);
         return -1;
@@ -371,8 +385,6 @@ void ProxySessionTest::forgetsWhatAPrefixRanOnceItStops()
     const QByteArray prefix = QFile::encodeName(m_directory.filePath(QStringLiteral("prefix")));
     QVERIFY(succeeded(spawnWine("C:\\Games\\First.exe", {"--connect", m_path}, prefix)));
     QVERIFY(m_effect.lastCandidates.join(QLatin1Char(' ')).contains(QStringLiteral("First.exe")));
-    // Its relay is gone once both of its ends have closed.
-    QTest::qWait(500);
 
     const pid_t second = spawnWine("C:\\Games\\Second.exe", {"--wait"}, prefix);
     QVERIFY(second > 0);
