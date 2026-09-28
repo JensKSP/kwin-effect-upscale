@@ -72,14 +72,16 @@ public Q_SLOTS:
     Q_SCRIPTABLE QString offerSetup(uint pid, const QString &windowClass, const QString &title, const QList<TestScreen> &screens, QString &question)
     {
         ++setupOffers;
-        if (const auto beforeReply = std::exchange(onOffer, {})) {
-            beforeReply();
-        }
         return offer(pid, windowClass, title, screens, question);
     }
+    // An early offer and one after a failed resize alike: onOffer runs before
+    // either is answered.
     Q_SCRIPTABLE QString offer(uint pid, const QString &windowClass, const QString &title, const QList<TestScreen> &screens, QString &question)
     {
         Q_UNUSED(title)
+        if (const auto beforeReply = std::exchange(onOffer, {})) {
+            beforeReply();
+        }
         const TestScreen own = screens.value(0);
         offers.append(QStringLiteral("%1 %2 %3 %4 %5").arg(pid).arg(windowClass).arg(own.width).arg(own.height).arg(own.rate));
         offered = screens;
@@ -131,6 +133,7 @@ private Q_SLOTS:
     void leavesAWindowNobodyPrepared();
     void asksTheUserAndRestartsTheGame();
     void postponesWithEscape();
+    void dropsAStaleQuestionAfterAFailure();
     void answersWithAClick();
 
 private:

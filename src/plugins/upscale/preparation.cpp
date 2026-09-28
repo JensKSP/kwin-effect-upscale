@@ -77,14 +77,15 @@ void UpscalePreparation::offerSetup(EffectWindow *window, const QSize &size, boo
     }
     m_asked.append(window);
     const QPointer<EffectWindow> guarded = window;
-    m_helper.offer(window, size, [this, guarded, size, afterFailure](const QString &offer, const QString &question) {
+    m_helper.offer(window, size, [this, guarded, size](const QString &offer, const QString &question) {
         if (!guarded || offer.isEmpty()) {
             return;
         }
 #if KWIN_BUILD_X11
-        if (!afterFailure && preparationSize(guarded->window()) != size) {
+        if (preparationSize(guarded->window()) != size) {
             // The setup offer is another asynchronous reply. A settings change
-            // during this call must not leave a stale question to accept.
+            // during this call must not leave a stale question to accept,
+            // whether the offer came early or after the game did not follow.
             m_helper.answer(offer, laterAnswer, [](const QString &) { });
             m_asked.removeAll(guarded);
             ask(guarded);
@@ -92,7 +93,6 @@ void UpscalePreparation::offerSetup(EffectWindow *window, const QSize &size, boo
         }
 #else
         Q_UNUSED(size)
-        Q_UNUSED(afterFailure)
 #endif
         askToSetUp(guarded, offer, question);
     }, afterFailure);

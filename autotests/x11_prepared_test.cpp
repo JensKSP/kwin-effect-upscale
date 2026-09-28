@@ -260,12 +260,13 @@ void UpscaleX11PreparedTest::asksTheUserAndRestartsTheGame()
     QTRY_VERIFY_WITH_TIMEOUT(game.isFullscreen(), 10000);
 
     // The game goes on drawing at the output's size, as validation would find
-    // of a Wine game in exclusive fullscreen: the helper is asked.
-    request(QStringLiteral("upscale-test-unfollowed"), QByteArrayLiteral("upscale-x11-test 1920 1080"));
+    // of a Wine game in exclusive fullscreen, after it was asked for the size
+    // the settings want: the helper is asked.
+    request(QStringLiteral("upscale-test-unfollowed"), QByteArrayLiteral("upscale-x11-test 2560 1440"));
     QTRY_COMPARE(helper.offers.size(), 1);
     // The rate the virtual output runs at, which the helper needs for the modes
     // it describes.
-    QCOMPARE(helper.offers.first(), QStringLiteral("%1 upscale-x11-test 1920 1080 60").arg(QCoreApplication::applicationPid()));
+    QCOMPARE(helper.offers.first(), QStringLiteral("%1 upscale-x11-test 2560 1440 60").arg(QCoreApplication::applicationPid()));
     QTRY_VERIFY2(status().contains(QStringLiteral("Set this game up?")), qPrintable(status()));
 
     // The first answer is selected; moving away and back leaves it selected.
@@ -290,7 +291,7 @@ void UpscaleX11PreparedTest::postponesWithEscape()
     X11Client game(false);
     QVERIFY(game.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 3840, 2160), true));
     QTRY_VERIFY_WITH_TIMEOUT(game.isFullscreen(), 10000);
-    request(QStringLiteral("upscale-test-unfollowed"), QByteArrayLiteral("upscale-x11-test 1920 1080"));
+    request(QStringLiteral("upscale-test-unfollowed"), QByteArrayLiteral("upscale-x11-test 2560 1440"));
     QTRY_VERIFY2(status().contains(QStringLiteral("Set this game up?")), qPrintable(status()));
     press(Qt::Key_Escape);
     QTRY_COMPARE(helper.answers, QStringList{QStringLiteral("offer-1 later")});
@@ -300,9 +301,34 @@ void UpscaleX11PreparedTest::postponesWithEscape()
     QCOMPARE(game.closeRequests(), 0);
 
     // The same window is not asked about again.
-    request(QStringLiteral("upscale-test-unfollowed"), QByteArrayLiteral("upscale-x11-test 1920 1080"));
+    request(QStringLiteral("upscale-test-unfollowed"), QByteArrayLiteral("upscale-x11-test 2560 1440"));
     QTest::qWait(500);
     QCOMPARE(helper.offers.size(), 1);
+    unregisterHelper();
+}
+
+// A question prepared for a size nobody wants any more is not shown: a
+// profile switched off while the helper prepares it takes it away, and the
+// helper is answered Later and told the current preference.
+void UpscaleX11PreparedTest::dropsAStaleQuestionAfterAFailure()
+{
+    TestHelper helper;
+    helper.onOffer = [this]() {
+        KConfigGroup entry(KSharedConfig::openConfig(QStringLiteral("kwinupscalerc")), QStringLiteral("Application-test"));
+        entry.writeEntry("Enabled", false);
+        entry.sync();
+        m_effects.call(QStringLiteral("reconfigureEffect"), QStringLiteral("upscale_test_driver"));
+    };
+    registerHelper(&helper);
+    X11Client game(false);
+    game.reportProcess();
+    QVERIFY(game.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 3840, 2160), true));
+    QTRY_VERIFY_WITH_TIMEOUT(game.isFullscreen(), 10000);
+    request(QStringLiteral("upscale-test-unfollowed"), QByteArrayLiteral("upscale-x11-test 2560 1440"));
+    QTRY_COMPARE(helper.answers, QStringList{QStringLiteral("offer-1 later")});
+    QTRY_VERIFY(!helper.wanted.isEmpty() && helper.wanted.last().isEmpty());
+    QTest::qWait(500);
+    QVERIFY2(!status().contains(QStringLiteral("Set this game up?")), qPrintable(status()));
     unregisterHelper();
 }
 
@@ -313,7 +339,7 @@ void UpscaleX11PreparedTest::answersWithAClick()
     X11Client game(false);
     QVERIFY(game.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 3840, 2160), true));
     QTRY_VERIFY_WITH_TIMEOUT(game.isFullscreen(), 10000);
-    request(QStringLiteral("upscale-test-unfollowed"), QByteArrayLiteral("upscale-x11-test 1920 1080"));
+    request(QStringLiteral("upscale-test-unfollowed"), QByteArrayLiteral("upscale-x11-test 2560 1440"));
     QTRY_VERIFY2(status().contains(QStringLiteral("Set this game up?")), qPrintable(status()));
     // The three answers side by side, once they have been drawn; the third is
     // "Never for this game".
