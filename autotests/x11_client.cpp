@@ -344,6 +344,11 @@ void X11Client::paint(const QSize &size)
     xcb_flush(m_connection);
 }
 
+QSize X11Client::sizeAtMapping() const
+{
+    return m_sizeAtMapping;
+}
+
 QList<QSize> X11Client::configuredSizes() const
 {
     return m_configuredSizes;
@@ -375,6 +380,10 @@ void X11Client::dispatch()
                     mode(size);
                     paint(size);
                 }
+            }
+        } else if (type == XCB_MAP_NOTIFY) {
+            if (!m_sizeAtMapping.isValid()) {
+                m_sizeAtMapping = geometry().size();
             }
         } else if (type == XCB_UNMAP_NOTIFY) {
             ++m_unmapNotifies;

@@ -26,7 +26,10 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 #include <optional>
+
+#include <xcb/res.h>
 
 Q_DECLARE_LOGGING_CATEGORY(KWIN_UPSCALE)
 
@@ -35,6 +38,32 @@ namespace KWin
 
 namespace
 {
+
+// The process behind a window KWin has not managed yet. A program names itself
+// in _NET_WM_PID, which is what KWin 6.3 reads and what nearly every program
+// sets. Where it is unset, the connection that made the window says: XRes
+// names its client, the session proxy restores that to the program's own, and
+// it is where KWin 6.6 takes the process from once it manages the window, so
+// the hold and the effect's later view of the window agree.
+pid_t mappingProcess(xcb_window_t window, const NETWinInfo &info)
+{
+    if (info.pid() > 0) {
+        return info.pid();
+    }
+    xcb_connection_t *connection = kwinApp()->x11Connection();
+    const xcb_res_client_id_spec_t spec{window, XCB_RES_CLIENT_ID_MASK_LOCAL_CLIENT_PID};
+    const std::unique_ptr<xcb_res_query_client_ids_reply_t, decltype(&std::free)> reply(
+        xcb_res_query_client_ids_reply(connection, xcb_res_query_client_ids(connection, 1, &spec), nullptr), &std::free);
+    if (!reply) {
+        return 0;
+    }
+    for (auto ids = xcb_res_query_client_ids_ids_iterator(reply.get()); ids.rem; xcb_res_client_id_value_next(&ids)) {
+        if ((ids.data->spec.mask & XCB_RES_CLIENT_ID_MASK_LOCAL_CLIENT_PID) && xcb_res_client_id_value_value_length(ids.data) > 0) {
+            return pid_t(*xcb_res_client_id_value_value(ids.data));
+        }
+    }
+    return 0;
+}
 
 // What KWin's own X11 event loop does before it waits again: hand on the
 // events XCB has already read (Xwayland::dispatchEvents with EventQueue).
@@ -70,12 +99,13 @@ bool UpscaleX11Resolution::holdMap(xcb_generic_event_t *generic)
     }
     const NETWinInfo info(kwinApp()->x11Connection(), event.window, kwinApp()->x11RootWindow(),
                           NET::WMPid | NET::WMState | NET::WMWindowType, NET::WM2WindowClass);
-    const QString executable = info.pid() > 0 ? executablePathFromPid(info.pid()) : QString();
+    const pid_t pid = mappingProcess(event.window, info);
+    const QString executable = pid > 0 ? executablePathFromPid(pid) : QString();
     // Wine obtains its screen from its prefix at startup. Resizing its running
     // window fights that screen and flickers, so one whose connection was not
     // answered with a smaller screen is left alone. One whose was already
     // renders at the size wanted and maps like any other program.
-    if (upscaleWineRuntime(executable) && !upscaleServed(info.pid())) {
+    if (upscaleWineRuntime(executable) && !upscaleServed(pid)) {
         return false;
     }
     const UpscaleApplication *application = upscaleApplicationFor({executable,

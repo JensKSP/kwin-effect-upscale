@@ -2532,6 +2532,18 @@ Observed after the changes, locally: `run-checks.py gcc` in the Kubuntu 26.04
 image passed with every session, `upscale-x11-integration` in 62 s, the usual
 time; Trixie GCC and Clang passed. Hosted: pending the first nightly with it.
 
+The same change of source split the effect's own view of a window's process
+on 6.6: its hold of a first mapping read `_NET_WM_PID`, everything after it
+`window->pid()`, which 6.6 takes from XRes. A program that leaves
+`_NET_WM_PID` unset was therefore recognized once KWin managed its window, but
+not while its mapping could still be held. The hold now asks XRes itself where
+`_NET_WM_PID` is unset (`mappingProcess()` in `x11resolution_startup.cpp`),
+which the session proxy answers with the program's own PID. The new case
+`anUnnamedProgramIsHeldAtItsFirstMapping` starts the X11 stand-in without
+`_NET_WM_PID`: on KWin 6.6 its window was visible at 1024 × 768 before the
+change in three runs of three, and at 1920 × 1080 after it in three of three.
+It skips on 6.3, which cannot tell whose such a window is at all.
+
 ### The Kubuntu package job still fails, and could not be reproduced here
 
 The hosted `resolute` package job fails on both architectures on `4ec65c3`,

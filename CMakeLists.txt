@@ -83,7 +83,7 @@ find_package(
 find_package(KF6 ${KF_MIN_VERSION} REQUIRED COMPONENTS Config CoreAddons I18n)
 find_package(KWin REQUIRED COMPONENTS kwineffects)
 find_package(Libdrm REQUIRED)
-find_package(XCB REQUIRED COMPONENTS XCB RANDR)
+find_package(XCB REQUIRED COMPONENTS XCB RANDR RES)
 
 # Which generation of KWin's effect API this KWin has, asked of KWin rather
 # than guessed from a file name.

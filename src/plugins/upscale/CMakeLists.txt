@@ -58,6 +58,7 @@ target_link_libraries(upscale PRIVATE
     Libdrm::Libdrm
     XCB::XCB
     XCB::RANDR
+    XCB::RES
 )
 
 #######################################

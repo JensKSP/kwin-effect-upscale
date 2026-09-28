@@ -6,12 +6,14 @@
 
 #include "x11_client.h"
 #include "x11_integration_test.h"
+#include "x11_standin_game.h"
 
 #include <KConfigGroup>
 #include <KSharedConfig>
 #include <QCoreApplication>
 #include <QDBusInterface>
 #include <QDBusReply>
+#include <QFile>
 #include <QTest>
 #include <QVersionNumber>
 
@@ -183,4 +185,31 @@ void UpscaleX11IntegrationTest::winePrefixEligibility()
         expected = false;
     }
     QCOMPARE(answer.value(), expected);
+}
+
+// A program that leaves _NET_WM_PID unset is known only by the connection that
+// made its window. KWin 6.6 takes its process from there once it manages the
+// window, and the effect's hold of its first mapping has to find it the same
+// way beforehand: held, the fullscreen request made right after mapping is
+// answered with the smaller size inside the mapping, so that the window is
+// already that size when it becomes visible, which is what SFML needs. KWin 6.3 reads _NET_WM_PID alone and
+// cannot tell whose such a window is at all, so the case runs from 6.6.
+void UpscaleX11IntegrationTest::anUnnamedProgramIsHeldAtItsFirstMapping()
+{
+    if (QVersionNumber::fromString(QStringLiteral(UPSCALE_TEST_KWIN_VERSION)) < QVersionNumber(6, 6)) {
+        QSKIP("KWin 6.3 cannot tell whose an X11 window without _NET_WM_PID is");
+    }
+    QFile catalogue(QString::fromLocal8Bit(qgetenv("XDG_CONFIG_HOME")) + QStringLiteral("/kwinupscalerc"));
+    QVERIFY(catalogue.open(QIODevice::Append));
+    QVERIFY(catalogue.write("[Application-unnamed]\nName=Unnamed game\nExecutable=.*/upscale_test_x11_game\n"
+                            "ExecutableMatch=RegularExpression\nMethodX11FullScreen=X11Resize\n")
+            > 0);
+    catalogue.close();
+    KSharedConfig::openConfig(QStringLiteral("kwinupscalerc"))->reparseConfiguration();
+    configure(false);
+    StandInGame game(QStringLiteral(UPSCALE_TEST_X11_GAME), QStringLiteral("after-map"), QSize(1024, 768), true,
+                     QStringLiteral("unnamed-x11-game"));
+    QVERIFY(game.started());
+    QTRY_VERIFY_WITH_TIMEOUT(game.sizeAtMapping().isValid(), 15000);
+    QCOMPARE(game.sizeAtMapping(), QSize(1920, 1080));
 }

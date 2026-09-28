@@ -5,6 +5,7 @@
 */
 
 #include "x11_prepared_test.h"
+#include "x11_standin_game.h"
 
 #include <KConfigGroup>
 #include <KSharedConfig>
@@ -14,83 +15,6 @@
 #include <QScopeGuard>
 #include <QTemporaryDir>
 #include <QTest>
-
-namespace
-{
-
-// A game window made by a process of its own under a Wine loader's name, as
-// x11_game_standin.cpp reports it. That process owns the X11 connection, which
-// is how KWin 6.6 tells whose window it is, and names itself in _NET_WM_PID,
-// which is how 6.3 did.
-class StandInGame
-{
-public:
-    StandInGame(const QString &program, const QString &when, const QSize &size)
-    {
-        m_process.start(program, {QStringLiteral("upscale-x11-test"), QString::number(size.width()), QString::number(size.height()), when});
-    }
-    ~StandInGame()
-    {
-        m_process.closeWriteChannel();
-        if (!m_process.waitForFinished(5000)) {
-            m_process.kill();
-            m_process.waitForFinished();
-        }
-    }
-    bool started()
-    {
-        return m_process.waitForStarted();
-    }
-    qint64 processId() const
-    {
-        return m_process.processId();
-    }
-    bool isFullscreen()
-    {
-        read();
-        return m_fullscreen;
-    }
-    QRect geometry()
-    {
-        read();
-        return m_geometry;
-    }
-    QList<QSize> configuredSizes()
-    {
-        read();
-        return m_configured;
-    }
-    int closeRequests()
-    {
-        read();
-        return m_closes;
-    }
-
-private:
-    void read()
-    {
-        while (m_process.canReadLine()) {
-            const QList<QByteArray> fields = m_process.readLine().simplified().split(' ');
-            if (fields.size() == 2 && fields.first() == "fullscreen") {
-                m_fullscreen = fields.at(1) == "1";
-            } else if (fields.size() == 5 && fields.first() == "geometry") {
-                m_geometry = QRect(fields.at(1).toInt(), fields.at(2).toInt(), fields.at(3).toInt(), fields.at(4).toInt());
-            } else if (fields.size() == 3 && fields.first() == "configured") {
-                m_configured.append(QSize(fields.at(1).toInt(), fields.at(2).toInt()));
-            } else if (fields.first() == "close") {
-                ++m_closes;
-            }
-        }
-    }
-
-    QProcess m_process;
-    bool m_fullscreen = false;
-    QRect m_geometry;
-    QList<QSize> m_configured;
-    int m_closes = 0;
-};
-
-} // namespace
 
 void UpscaleX11PreparedTest::defersWineUntilPrepared_data()
 {
