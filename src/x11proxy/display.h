@@ -22,9 +22,11 @@ public:
     int randrEvent = -1;
 
 private:
+    void disable(const char *reason);
     void dimensions(QByteArray &bytes, qsizetype offset, bool wide = false) const;
     QByteArray randr(quint32 operation, QByteArray bytes);
     QByteArray resources(const QByteArray &bytes);
+    QByteArray outputInfo(const QByteArray &bytes) const;
     QByteArray screenInfo(const QByteArray &bytes);
     QByteArray vidmode(quint32 operation, QByteArray bytes);
     Wire &m_wire;
@@ -36,6 +38,7 @@ private:
     QByteArray m_initialTiming;
     QHash<quint16, quint16> m_sizes;
     QSet<QByteArray> m_reported;
+    bool m_enabled = true;
 };
 
 } // namespace UpscaleX11

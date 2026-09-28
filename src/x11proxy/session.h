@@ -28,6 +28,7 @@ private:
     bool watchSignals();
     void acceptClient(int listener);
     void decideClient(const std::shared_ptr<PendingClient> &client);
+    void checkPrefix(const std::shared_ptr<PendingClient> &client);
     bool resolveCandidates(const std::shared_ptr<PendingClient> &client);
     void relayClient(int client, quint32 pid, const QSize &size, const QByteArray &timing = {}, bool answered = false,
                      const QString &prefix = {});

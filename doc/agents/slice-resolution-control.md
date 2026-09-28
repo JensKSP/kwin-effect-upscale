@@ -3937,3 +3937,49 @@ bare passed in all four of its runs; the Xt popdown cases pass. What remains
 is the window-manager race above, which any relay widens a little because
 it adds latency to every round trip; whether the gate is judged with the
 suite's windows kept from the window manager is Jens's decision.
+
+## Proxy review corrections, 2026-09-28
+
+The review reproduced three failures: a read completing a frame near the
+8 MiB limit could lose bytes or end the connection; a changed output list or
+missing advertised mode ended a selected connection; and an unselected Wine
+component waited nearly ten seconds for a game that did not exist.
+
+The transport now drains bounded input between frames and preserves the unread
+tail when it falls back. Unsupported display replies permanently withdraw that
+connection's display rewriting, while framing and XRes process attribution
+continue. Legacy indices remain mapped until a native size table replaces the
+advertised one. Borderless coverage accepts the current output as well as a
+historical smaller screen. Wine components first ask whether resolving their
+prefix could select an eligible profile. The shipped native connection patterns
+explicitly match absolute native paths, retaining every installation directory
+and root-level paths. Custom broad expressions retain their matching semantics
+and may still require the bounded wait.
+
+Observed validation in the maintained `trixie-a0` and `neon-unstable-a0`
+containers, whose dependency stamps match this checkout:
+
+- Trixie GCC and Clang built with warnings as errors; all 29 runtime CTests
+  passed with each compiler, followed by installation into each build's staging
+  directory. The new regressions cover both byte orders, frame boundaries,
+  output/mode changes, retained XRes identity, legacy index transitions,
+  unselected and delayed selected Wine startup, and production policy decisions
+  in one-output and two-output KWin sessions.
+- Neon GCC and Clang built with warnings as errors against KWin master, using
+  separate build trees. These were the maintained build-only jobs.
+- The full clang-tidy scan found four diagnostics in `display.cpp`: an inhibited
+  move, the RandR dispatcher's statement count and two arithmetic parentheses.
+  The existing output-info filtering was extracted unchanged into a helper;
+  the corrected file passed its clang-tidy recheck and the metadata check
+  passed. Both Trixie compiler trees then rebuilt and all seven proxy CTests
+  passed with each compiler. The unchanged full runtime suites passed before
+  these tidy corrections.
+- Both Neon compiler trees also rebuilt successfully after the tidy corrections.
+- Both pre-commit stages passed; the final documentation record is included in
+  the concluding lint run.
+
+Physical output hotplug and real Wine/Proton acceptance were not run. The
+historical per-process served-screen cache remains; consolidating its ownership
+with live connection state belongs to the later maintainability work, not these
+protocol fixes. No branch, commit, push, pull request or native installation was
+created for this review correction.

@@ -64,6 +64,8 @@
 # measured about the application, never what somebody would prefer: a
 # Resolution here would pin that game and stop the user's own global setting
 # ever reaching it. So no entry states one, the benchmarks included.
+# Native connection patterns start with `/`, keeping them distinct from Wine
+# identities while a prefix is still starting and its program is not known.
 
 [General]
 FormatVersion=1
@@ -73,7 +75,7 @@ Name=SuperTuxKart
 MeasuredVersion=1.4
 # Its window: class supertuxkart, instance supertuxkart.
 Executable=.*/supertuxkart
-X11ConnectionExecutable=.*/supertuxkart
+X11ConnectionExecutable=/(?:.*/)?supertuxkart
 ExecutableMatch=RegularExpression
 MethodWaylandFullScreen=AdvertisedMode
 Order=10
@@ -88,7 +90,7 @@ MeasuredVersion=0.8.4
 # from the PID the client reports, which has not been observed for this game,
 # and a path that does not resolve would stop the entry matching at all.
 Instance=etr
-X11ConnectionExecutable=.*/etr
+X11ConnectionExecutable=/(?:.*/)?etr
 MethodX11FullScreen=X11Resize
 X11PrimaryOutputOnly=true
 X11RequiresEmulatedMode=true
@@ -109,7 +111,7 @@ MeasuredVersion=Steam build 23990068
 # Steam's pressure-vessel runtime has not been observed. Where it does not, the
 # path does not resolve and this entry does not match.
 Executable=.*/Left 4 Dead 2/hl2_linux
-X11ConnectionExecutable=.*/Left 4 Dead 2/hl2_linux
+X11ConnectionExecutable=/(?:.*/)?Left 4 Dead 2/hl2_linux
 ExecutableMatch=RegularExpression
 WindowClass=hl2_linux
 Instance=hl2_linux

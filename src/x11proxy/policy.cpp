@@ -113,12 +113,17 @@ QByteArray Policy::feed(std::size_t side, const QByteArray &bytes)
         return output;
     }
     QByteArray output;
+    qsizetype consumed = 0;
     try {
-        if (bytes.size() > s_bufferLimit - buffer.size()) {
-            throw std::runtime_error("Protocol buffer limit");
+        while (consumed < bytes.size()) {
+            const qsizetype count = std::min(bytes.size() - consumed, s_bufferLimit - buffer.size());
+            if (!count) {
+                throw std::runtime_error("Protocol buffer limit");
+            }
+            buffer.append(bytes.constData() + consumed, count);
+            consumed += count;
+            output += frames(side, buffer);
         }
-        buffer += bytes;
-        output = frames(side, buffer);
     } catch (const std::exception &error) {
         // The server is trusted to speak the protocol, so a stream from it
         // that cannot be read is a broken connection. A client's bytes are
@@ -131,7 +136,7 @@ QByteArray Policy::feed(std::size_t side, const QByteArray &bytes)
         }
         qInfo() << "Upscale X11 relaying this connection unchanged:" << error.what();
         m_transparent = true;
-        output = std::exchange(m_partial, {}) + buffer;
+        output += std::exchange(m_partial, {}) + buffer + bytes.sliced(consumed);
         buffer.clear();
     }
     return output;

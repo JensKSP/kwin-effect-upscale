@@ -40,6 +40,7 @@ private Q_SLOTS:
     void requiresEveryStatedGate();
     void comparesByEachMatchType();
     void refusesPatternsThatCannotBeUsed();
+    void nativeConnectionPatterns();
 
 private:
     static void writeUserConfig(const QString &contents);
@@ -54,6 +55,22 @@ void MatchingTest::init()
 {
     QFile::remove(userFile());
     upscaleReloadApplications();
+}
+
+void MatchingTest::nativeConnectionPatterns()
+{
+    const QStringList programs{QStringLiteral("supertuxkart"), QStringLiteral("etr"), QStringLiteral("Left 4 Dead 2/hl2_linux")};
+    for (const QString &program : programs) {
+        const auto &applications = upscaleApplications();
+        const auto found = std::ranges::find_if(applications, [&program](const UpscaleApplication &entry) {
+            return entry.x11ConnectionExecutable.endsWith(program);
+        });
+        QVERIFY(found != applications.end());
+        const UpscalePattern pattern(found->x11ConnectionExecutable, UpscaleStringMatch::RegularExpression);
+        QVERIFY(pattern.matches(QLatin1Char('/') + program));
+        QVERIFY(pattern.matches(QStringLiteral("/usr/games/") + program));
+        QVERIFY(!pattern.matches(QStringLiteral("wine:///test/prefix/C:/") + program));
+    }
 }
 
 void MatchingTest::writeUserConfig(const QString &contents)

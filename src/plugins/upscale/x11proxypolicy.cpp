@@ -11,6 +11,7 @@
 #include "utils/executable_path.h"
 #include "windowidentity.h"
 #include "x11geometry.h"
+#include <QRegularExpression>
 #include <algorithm>
 #include <limits>
 namespace KWin
@@ -71,6 +72,62 @@ static const UpscaleApplication *connectionApplication(const QStringList &candid
     return nullptr;
 }
 
+static QSize connectionSize(const UpscaleApplication *selected, EffectsHandler *handler, QVariantMap &answer)
+{
+    // Display queries precede the first window. Refuse a conflicting Off slot
+    // rather than promise that a connection-wide advertisement is per-window.
+    for (const UpscalePresentation presentation : {UpscalePresentation::X11FullScreen, UpscalePresentation::X11Borderless}) {
+        const UpscaleMethod method = upscaleMethodFor(selected, presentation);
+        if (method != UpscaleMethod::Auto && method != UpscaleMethod::X11Resize) {
+            answer[QStringLiteral("reason")] = QStringLiteral("X11 presentation settings prevent early advertisement");
+            return {};
+        }
+    }
+    const UpscaleSettings settings = upscaleResolveSettings(selected);
+    const auto screens = handler->screens();
+    if (!settings.acts() || screens.size() != 1 || screens.first()->geometry().topLeft() != QPointF(0, 0)) {
+        answer[QStringLiteral("reason")] = QStringLiteral("requires one enabled output at the desktop origin");
+        return {};
+    }
+    const QSize pixels = screens.first()->pixelSize();
+    const UpscaleSize output{pixels.width(), pixels.height()};
+    const UpscaleSize desired = desiredResolution(output, settings.resolution(), settings.value(UpscaleSetting::Percentage));
+    if (!exceedsMinimumPixels(output, settings.value(UpscaleSetting::MinimumPixels)) || !canUpscale(desired, output)) {
+        answer[QStringLiteral("reason")] = QStringLiteral("native resolution or output below threshold");
+        return {};
+    }
+    return QSize(desired.width, desired.height);
+}
+
+bool UpscaleIdentityService::x11PrefixMayMatch(const QString &prefix, const QStringList &candidates) const
+{
+    if (!UpscaleConfig::x11Proxy() || !m_handler || prefix.isEmpty()) {
+        return false;
+    }
+    const QString identity = QStringLiteral("wine://") + prefix + QLatin1Char('/');
+    for (const UpscaleApplication &application : upscaleApplications()) {
+        if (!application.enabled || application.x11ConnectionExecutable.isEmpty()) {
+            continue;
+        }
+        QVariantMap answer;
+        if (!connectionSize(&application, m_handler, answer).isValid()) {
+            continue;
+        }
+        const QRegularExpression expression(QRegularExpression::anchoredPattern(application.x11ConnectionExecutable));
+        if (!expression.isValid() || expression.match(QString()).hasMatch()) {
+            continue;
+        }
+        const QRegularExpressionMatch match = expression.match(identity, 0, QRegularExpression::PartialPreferCompleteMatch);
+        const auto matches = [&expression](const QString &candidate) {
+            return expression.match(candidate).hasMatch();
+        };
+        if (match.hasMatch() || match.hasPartialMatch() || std::ranges::any_of(candidates, matches)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 QVariantMap UpscaleIdentityService::x11ConnectionPolicy(uint pid, const QStringList &candidates) const
 {
     QVariantMap answer{{QStringLiteral("reason"), QStringLiteral("unidentified client")}};
@@ -91,30 +148,12 @@ QVariantMap UpscaleIdentityService::x11ConnectionPolicy(uint pid, const QStringL
         return answer;
     }
     answer[QStringLiteral("profile")] = selected->id;
-    // Display queries precede the first window. Refuse a conflicting Off slot
-    // rather than promise that a connection-wide advertisement is per-window.
-    for (const UpscalePresentation presentation : {UpscalePresentation::X11FullScreen, UpscalePresentation::X11Borderless}) {
-        const UpscaleMethod method = upscaleMethodFor(selected, presentation);
-        if (method != UpscaleMethod::Auto && method != UpscaleMethod::X11Resize) {
-            answer[QStringLiteral("reason")] = QStringLiteral("X11 presentation settings prevent early advertisement");
-            return answer;
-        }
-    }
-    const UpscaleSettings settings = upscaleResolveSettings(selected);
-    const auto screens = m_handler->screens();
-    if (!settings.acts() || screens.size() != 1 || screens.first()->geometry().topLeft() != QPointF(0, 0)) {
-        answer[QStringLiteral("reason")] = QStringLiteral("requires one enabled output at the desktop origin");
-        return answer;
-    }
-    const QSize pixels = screens.first()->pixelSize();
-    const UpscaleSize output{pixels.width(), pixels.height()};
-    const UpscaleSize desired = desiredResolution(output, settings.resolution(), settings.value(UpscaleSetting::Percentage));
-    if (!exceedsMinimumPixels(output, settings.value(UpscaleSetting::MinimumPixels)) || !canUpscale(desired, output)) {
-        answer[QStringLiteral("reason")] = QStringLiteral("native resolution or output below threshold");
+    const QSize desired = connectionSize(selected, m_handler, answer);
+    if (!desired.isValid()) {
         return answer;
     }
 #if KWIN_BUILD_X11
-    const QByteArray timing = upscaleX11ModeTiming(QPoint(0, 0), QSize(desired.width, desired.height));
+    const QByteArray timing = upscaleX11ModeTiming(QPoint(0, 0), desired);
     if (timing.isEmpty()) {
         answer[QStringLiteral("reason")] = QStringLiteral("requested size absent from Xwayland modes");
         // The first X11 connection may arrive while KWin is still setting up
@@ -128,12 +167,12 @@ QVariantMap UpscaleIdentityService::x11ConnectionPolicy(uint pid, const QStringL
     answer[QStringLiteral("reason")] = QStringLiteral("X11 support unavailable");
     return answer;
 #endif
-    answer[QStringLiteral("width")] = desired.width;
-    answer[QStringLiteral("height")] = desired.height;
+    answer[QStringLiteral("width")] = desired.width();
+    answer[QStringLiteral("height")] = desired.height();
     answer[QStringLiteral("reason")] = QStringLiteral("connection display advertisement");
     // This process now renders at the size wanted, so its window is presented
     // across the output instead of being asked to resize itself.
-    upscaleRecordServed(pid, QSize(desired.width, desired.height));
+    upscaleRecordServed(pid, desired);
     return answer;
 }
 }

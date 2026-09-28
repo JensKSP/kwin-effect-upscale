@@ -79,14 +79,37 @@ void Session::acceptClient(int listener)
     if (pending->identity.isWine()) {
         pending->deadline = QDeadlineTimer(prefixDecisionMilliseconds);
     }
+    if (pending->identity.isWine() && pending->identity.component) {
+        checkPrefix(pending);
+        return;
+    }
     decideClient(pending);
+}
+
+void Session::checkPrefix(const std::shared_ptr<PendingClient> &client)
+{
+    QDBusMessage message = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
+                                                          QStringLiteral("/org/kde/KWin/Effect/Upscale1"), QStringLiteral("org.kde.KWin.Effect.Upscale1"),
+                                                          QStringLiteral("x11PrefixMayMatch"));
+    message << client->identity.prefix << client->identity.candidates();
+    auto *watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(message, 500), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this, [this, watcher, client]() {
+        const QDBusPendingReply<bool> reply = *watcher;
+        watcher->deleteLater();
+        if (reply.isError() || !reply.value()) {
+            relayClient(std::exchange(client->descriptor, -1), client->pid, {}, {}, !reply.isError(), client->identity.prefix);
+            return;
+        }
+        client->deadline = QDeadlineTimer(prefixDecisionMilliseconds);
+        decideClient(client);
+    });
 }
 
 bool Session::resolveCandidates(const std::shared_ptr<PendingClient> &client)
 {
     const ProgramIdentity &identity = client->identity;
+    client->candidates = identity.candidates();
     if (!identity.isWine()) {
-        client->candidates = identity.candidates();
         return true;
     }
     // One prefix is one Wine server, one registry and one Windows desktop, so
