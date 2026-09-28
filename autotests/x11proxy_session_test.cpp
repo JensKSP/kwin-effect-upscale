@@ -62,6 +62,7 @@ private Q_SLOTS:
     void forgetsWhatAPrefixRanOnceItStops();
     void unselectedWineComponentConnectsPromptly();
     void selectedWineComponentWaitsForProgram();
+    void effectSwitchedOffMidSession();
 
 private:
     // Starts a session listening at @p name, as KWin starts one. What KWin
@@ -70,6 +71,9 @@ private:
     // Opens a connection, sends its setup, and waits for the answer. Returns
     // the descriptor, with the root size the client was told in @p size.
     int connectClient(QSize &size);
+    // The root size another program is told, from a process of its own, or
+    // "failed" where it could not connect.
+    QByteArray screenOfAnotherProgram();
     // Closes a connection once its relay has finished: the relay passes the
     // end of the stream back in the same step in which it finishes.
     bool disconnectClient(int client);
@@ -157,6 +161,19 @@ int ProxySessionTest::connectClient(QSize &size)
     const UpscaleX11::Wire wire;
     size = QSize(wire.word(reply, 60), wire.word(reply, 62));
     return client;
+}
+
+QByteArray ProxySessionTest::screenOfAnotherProgram()
+{
+    QProcess other;
+    other.start(QCoreApplication::applicationFilePath(), {QStringLiteral("--connect"), QString::fromLocal8Bit(m_path)});
+    const auto ended = [&other]() {
+        return other.state() == QProcess::NotRunning;
+    };
+    if (!QTest::qWaitFor(ended, 5000) || other.exitStatus() != QProcess::NormalExit || other.exitCode() != 0) {
+        return QByteArrayLiteral("failed");
+    }
+    return other.readAllStandardOutput().trimmed();
 }
 
 bool ProxySessionTest::disconnectClient(int client)
@@ -274,6 +291,36 @@ void ProxySessionTest::selectedWineComponentWaitsForProgram()
     QVERIFY(succeeded(component));
     QCOMPARE(m_effect.asked, before + 1);
     QVERIFY(m_effect.lastCandidates.join(QLatin1Char(' ')).contains(QStringLiteral("Delayed.exe")));
+}
+
+// The effect switched off while the proxy runs, which goes on relaying until
+// the next login: KWin is still on the bus, the effect's object is not. A
+// program connecting then is told its screen unchanged, a connection made
+// before goes on being relayed, and once the effect is back, the next program
+// is asked and answered again.
+void ProxySessionTest::effectSwitchedOffMidSession()
+{
+    const auto session = startSession(QStringLiteral("X13"));
+    QVERIFY(session);
+    QSize first;
+    const int firstClient = connectClient(first);
+    QVERIFY(firstClient >= 0);
+    QCOMPARE(first, QSize(2560, 1440));
+
+    QDBusConnection bus = QDBusConnection::sessionBus();
+    const QString path = QStringLiteral("/org/kde/KWin/Effect/Upscale1");
+    bus.unregisterObject(path);
+    const auto restore = qScopeGuard([this, &bus, &path]() {
+        bus.registerObject(path, &m_effect, QDBusConnection::ExportAllSlots);
+    });
+    QCOMPARE(screenOfAnotherProgram(), QByteArrayLiteral("3840x2160"));
+    char byte;
+    QCOMPARE(recv(firstClient, &byte, 1, MSG_DONTWAIT), ssize_t(-1));
+    QVERIFY(errno == EAGAIN || errno == EWOULDBLOCK);
+
+    QVERIFY(bus.registerObject(path, &m_effect, QDBusConnection::ExportAllSlots));
+    QCOMPARE(screenOfAnotherProgram(), QByteArrayLiteral("2560x1440"));
+    QVERIFY(disconnectClient(firstClient));
 }
 
 int main(int argc, char **argv)
