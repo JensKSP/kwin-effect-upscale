@@ -3933,6 +3933,12 @@ focused human-test candidate, not completed PR validation. Live L4D2 acceptance
 at 4K, early Wine/Proton identity, full current-revision matrix and review remain
 open.
 
+2026-09-28: Jens ran L4D2 live at 4K with the fix and reports it correct,
+mouse look included. That is his report, not a recorded measurement. Early
+Wine/Proton identity is no longer pursued through `SteamAppId`: the Proton
+slice's route of 2026-09-25 recognizes the game by the program path Wine names,
+with the prefix as the unit and no new `/proc` exception.
+
 The reload utility loaded the installed effect in the existing session without
 restarting KWin: upscale_reload_c22f265b76c74ff8a8c6e32c306e777a reports build
 2026-09-24T21:52:08Z. The display still reports 1920x1080, so live acceptance is
@@ -4296,6 +4302,11 @@ consistently new failure was established by these controls. The ordinary XTS
 gate remains unresolved, rather than being marked passed from diagnostic or
 variable results. Physical-display acceptance and the existing decision about
 the XTS window-manager assumptions remain open.
+
+Decided by Jens, 2026-09-28: the XTS release gate is judged with the suite's
+windows kept from the window manager, override redirect in every arm. The run
+with KWin managing them is reported beside it for information, with its known
+window-manager races named; a failure there beyond those is still looked at.
 
 ### XTS runner correctness, 2026-09-28
 
