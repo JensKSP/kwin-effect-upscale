@@ -147,9 +147,16 @@ int connectOnce(const QByteArray &path)
     std::printf("%ux%u\n", static_cast<unsigned>(wire.word(reply, 60)), static_cast<unsigned>(wire.word(reply, 62)));
     std::fflush(stdout);
     shutdown(client, SHUT_WR);
-    char byte;
-    while (read(client, &byte, 1) > 0) { }
-    return 0;
+    for (;;) {
+        char byte;
+        const ssize_t count = read(client, &byte, 1);
+        if (count == 0) {
+            return 0;
+        }
+        if (count < 0 && errno != EINTR) {
+            return 1;
+        }
+    }
 }
 
 // A process as Wine starts one: its first argument is the Windows program it
