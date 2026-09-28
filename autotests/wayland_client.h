@@ -8,6 +8,7 @@
 
 #include "fractional-scale-v1-client.h"
 #include "viewporter-client.h"
+#include "xdg-output-unstable-v1-client.h"
 #include "xdg-shell-client.h"
 
 #include <QSize>
@@ -43,6 +44,8 @@ public:
     // direct evidence of what the effect asked it for.
     QSize advertisedMode(int output = 0) const;
     int advertisedScale(int output = 0) const;
+    /** The logical size that output's xdg_output reported last. */
+    QSize advertisedLogicalSize(int output = 0) const;
     // Whether the compositor still offers that output. One that goes away is
     // withdrawn from the registry, and the client keeps what it bound.
     bool offered(int output) const;
@@ -68,9 +71,11 @@ private:
     struct Output
     {
         wl_output *proxy = nullptr;
+        zxdg_output_v1 *logical = nullptr;
         uint32_t name = 0;
         QSize mode;
         int scale = 0;
+        QSize logicalSize;
         bool offered = true;
     };
 
@@ -92,6 +97,7 @@ private:
     wp_viewporter *m_viewporter = nullptr;
     wp_fractional_scale_manager_v1 *m_fractionalScaleManager = nullptr;
     wp_fractional_scale_v1 *m_fractionalScale = nullptr;
+    zxdg_output_manager_v1 *m_outputManager = nullptr;
     // Frame callbacks not yet answered, destroyed with the client.
     std::vector<wl_callback *> m_frames;
     int m_presentedFrames = 0;

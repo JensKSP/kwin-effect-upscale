@@ -247,6 +247,12 @@ void UpscaleModeOverride::announce(OutputInterface *output, ClientConnection *cl
         return;
     }
     remember(output, client, advertisement.size);
+    // A mode alone leaves the output's logical size from its xdg_output
+    // disagreeing with it; with a scale, the two already agree.
+    if (advertisement.scale == 0) {
+        const qreal scale = output->handle()->scale();
+        m_logicalSizes.tell(client, output, QSize(qRound(advertisement.size.width() / scale), qRound(advertisement.size.height() / scale)));
+    }
     qCInfo(KWIN_UPSCALE) << "Wayland output advertised: pid" << client->processId()
                          << "program" << client->executablePath().section(QLatin1Char('/'), -1)
                          << "output" << output->handle()->name() << "native" << output->handle()->pixelSize()
@@ -309,6 +315,9 @@ void UpscaleModeOverride::restore(Record record)
         }
     }
     m_announced.clear();
+    // The logical sizes the told programs' xdg_output objects reported go
+    // back with the modes.
+    m_logicalSizes.restore();
     if (record == Record::Discard) {
         // Keep the connection keys until destruction, so a later bind does not
         // install a second lifetime connection after every reconfiguration.

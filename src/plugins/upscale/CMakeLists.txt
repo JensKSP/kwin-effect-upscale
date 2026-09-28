@@ -12,6 +12,7 @@ set(upscale_SOURCES
     helper.cpp
     main.cpp
     matching.cpp
+    logicalsize.cpp
     modeoverride.cpp
     legacysettings.cpp
     pattern.cpp
