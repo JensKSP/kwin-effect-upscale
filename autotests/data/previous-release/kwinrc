@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Written by the previous release, the nightly of 2026-09-20 (c88f842037),
+# through its own settings class and catalogue storage, as its settings page
+# stores them; see LegacySettingsTest::readsAConfigurationThePreviousReleaseWrote.
+[Effect-upscale]
+MinimumPixels=3686400
+OsdDeveloper=false
+OsdPosition=2
+OsdTimeout=5
+Percentage=58
+Preset=6
+Sharpening=true
+Strength=30
+UnknownApplications=true

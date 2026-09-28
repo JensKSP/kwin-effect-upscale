@@ -917,6 +917,23 @@ chosen resolution. Each value is now written under its current key before the
 old one goes. `LegacySettingsTest` asserts the exact stored and resolved result
 for every row, including that a profile saved unchanged keeps both.
 
+**Exercised against a configuration the previous release wrote**, 2026-09-28
+(item 39 of the open list). There was one release before this one, the nightly
+of 2026-09-20 (`c88f842037`). Its sources, taken out of Git into `build/`,
+wrote a configuration through its own `UpscaleConfig` and
+`upscaleSaveApplication()`, as its settings page stores one: Custom at 58 %,
+a minimum of 3686400 pixels, sharpening at 30, the developer view off, a five
+second notice, unlisted applications on, SuperTuxKart changed to Performance
+with no minimum, Extreme Tux Racer switched off and a new profile for an X11
+game. It stores only what differs from its defaults. The two files are
+`autotests/data/previous-release/`, and
+`LegacySettingsTest::readsAConfigurationThePreviousReleaseWrote` reads them
+through the current code: every value arrives under its current meaning except
+`OsdPosition`. The old display was one block in one corner; the current one has
+three blocks with a position each, and nothing reads the old key, so a person's
+chosen corner falls back to the defaults. Which block, or blocks, the old
+corner belongs to is a decision (item 39a).
+
 **All of this is read, never written.** Implemented on 2026-09-21 in
 `legacysettings.cpp`: an old key is translated each time it is read, for as
 long as no new key has replaced it, so the compositor never rewrites a person's

@@ -14,11 +14,14 @@
 #include "legacysettings.h"
 #include "matching.h"
 #include "settings.h"
+#include "upscaleconfig.h"
 
 #include <KConfig>
 #include <KConfigGroup>
+#include <KSharedConfig>
 
 #include <QFile>
+#include <QScopeGuard>
 #include <QTest>
 
 #include <algorithm>
@@ -52,6 +55,7 @@ private Q_SLOTS:
     void readsTheGlobalKeysOfThePreviousRelease();
     void keepsTheProfileKeysOfThePreviousRelease();
     void readsTheOldProgramKeyAsItWorked();
+    void readsAConfigurationThePreviousReleaseWrote();
 
 private:
     static void writeUserConfig(const QString &contents);
@@ -226,6 +230,69 @@ void LegacySettingsTest::readsTheOldProgramKeyAsItWorked()
     QVERIFY(!KConfigGroup(&file, QStringLiteral("Application-resized")).hasKey("Executable"));
     QCOMPARE(upscaleApplicationAtBind(QStringLiteral("/usr/bin/adv+plus")).application->id, QStringLiteral("advertised"));
     QCOMPARE(byInstance(QStringLiteral("resized"))->id, QStringLiteral("resized"));
+}
+
+// Not rows written for a test but the files the previous release wrote: the
+// nightly of 2026-09-20, the only release before this one, stored them through
+// its own settings class and catalogue storage (autotests/data/previous-release).
+// Every value comes through under its current meaning, except the one noted.
+void LegacySettingsTest::readsAConfigurationThePreviousReleaseWrote()
+{
+    using KWin::UpscaleMethod;
+    using KWin::UpscalePresentation;
+    using KWin::UpscaleSetting;
+
+    const QString directory = QString::fromLocal8Bit(qgetenv("XDG_CONFIG_HOME"));
+    for (const QString &name : {QStringLiteral("kwinrc"), QStringLiteral("kwinupscalerc")}) {
+        const QString written = QFINDTESTDATA(QStringLiteral("data/previous-release/") + name);
+        QVERIFY(!written.isEmpty());
+        QFile::remove(directory + QLatin1Char('/') + name);
+        QVERIFY(QFile::copy(written, directory + QLatin1Char('/') + name));
+        QVERIFY(QFile::setPermissions(directory + QLatin1Char('/') + name, QFile::ReadOwner | QFile::WriteOwner));
+    }
+    const auto cleanUp = qScopeGuard([&directory]() {
+        QFile::remove(directory + QStringLiteral("/kwinrc"));
+        KSharedConfig::openConfig(QStringLiteral("kwinrc"))->reparseConfiguration();
+        UpscaleConfig::self()->load();
+    });
+    KSharedConfig::openConfig(QStringLiteral("kwinrc"))->reparseConfiguration();
+    UpscaleConfig::self()->load();
+    upscaleReloadApplications();
+
+    // The global group: Preset=6 was Custom in the old enumeration, and
+    // UnknownApplications switched the global profile on.
+    const UpscaleSettings global = upscaleGlobalSettings();
+    QCOMPARE(global.resolution(), ResolutionPreset::Custom);
+    QCOMPARE(global.value(UpscaleSetting::Percentage), 5800);
+    QCOMPARE(global.value(UpscaleSetting::MinimumPixels), 3686400);
+    QVERIFY(global.switchedOn(UpscaleSetting::Sharpening));
+    QCOMPARE(global.value(UpscaleSetting::Strength), 30);
+    QVERIFY(!global.switchedOn(UpscaleSetting::OsdDeveloper));
+    QCOMPARE(global.value(UpscaleSetting::OsdTimeout), 5);
+    QVERIFY(global.acts());
+    // Not carried over: OsdPosition placed the one block the old display had,
+    // and the display has three now, each with a position of its own. Which of
+    // them the old corner belongs to is not decided yet.
+    const KConfigGroup stored(KSharedConfig::openConfig(QStringLiteral("kwinrc")), QStringLiteral("Effect-upscale"));
+    QCOMPARE(stored.readEntry("OsdPosition", 0), 2);
+    QVERIFY(!stored.hasKey("OsdStatisticsPosition"));
+    QCOMPARE(global.value(UpscaleSetting::StatisticsPosition), 1); // upscaleconfig.kcfg's default
+
+    // A shipped profile the person changed keeps the change, a profile they
+    // switched off stays off, and one they added is found by its window.
+    const UpscaleApplication *kart = byId(QStringLiteral("supertuxkart"));
+    QVERIFY(kart);
+    QCOMPARE(kart->overrides[std::size_t(UpscaleSetting::Resolution)], std::optional<int>(int(ResolutionPreset::Performance)));
+    QCOMPARE(kart->overrides[std::size_t(UpscaleSetting::MinimumPixels)], std::optional<int>(0));
+    const UpscaleApplication *racer = byId(QStringLiteral("extremetuxracer"));
+    QVERIFY(racer && !racer->enabled);
+    const UpscaleApplication *mine = byId(QStringLiteral("mygame"));
+    QVERIFY(mine);
+    QCOMPARE(mine->name, QStringLiteral("My Game"));
+    QCOMPARE(mine->windowClass, QStringLiteral("mygame"));
+    QCOMPARE(mine->methods[std::size_t(UpscalePresentation::X11FullScreen)], std::optional(UpscaleMethod::X11Resize));
+    QCOMPARE(mine->overrides[std::size_t(UpscaleSetting::Resolution)], std::optional<int>(int(ResolutionPreset::Quality)));
+    QCOMPARE(upscaleApplicationFor({QString(), QStringLiteral("mygame"), QString()}), mine);
 }
 
 int runLegacySettingsTest(int argc, char *argv[])
