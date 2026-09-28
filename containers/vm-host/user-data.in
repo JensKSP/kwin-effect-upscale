@@ -1,0 +1,42 @@
+#cloud-config
+# SPDX-FileCopyrightText: None
+# SPDX-License-Identifier: CC0-1.0
+#
+# The conformance guest's first boot. tools/conformance-vm.py fills in the
+# @...@ fields from keys it makes for each new machine: the key that may log
+# in, and the guest's own host key, so that the first connection already knows
+# whom it talks to. No key is kept in this file.
+hostname: upscale-conformance
+users:
+  - name: tester
+    uid: 1000
+    groups: [sudo, video, render]
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - @AUTHORIZED_KEY@
+ssh_deletekeys: true
+ssh_genkeytypes: [ed25519]
+ssh_keys:
+  ed25519_private: |
+@HOST_KEY_PRIVATE@
+  ed25519_public: @HOST_KEY_PUBLIC@
+packages: [podman]
+write_files:
+  # vgem is the guest's render device: a DRM driver without hardware, on which
+  # Mesa's llvmpipe draws. Loaded now and at every later boot.
+  - path: /etc/modules-load.d/vgem.conf
+    content: "vgem\n"
+  # The repository, shared by QEMU, at the path the host containers use for it.
+  # Written as a line of its own: Trixie's cloud-init 25.1 looks a mount source
+  # that is no path up as a block device and, finding none, skips the entry.
+  - path: /etc/fstab
+    append: true
+    content: "src /src 9p trans=virtio,version=9p2000.L,msize=1048576,nofail 0 0\n"
+runcmd:
+  - modprobe vgem
+  # Podman in the guest runs its containers under the tester's own systemd,
+  # which runs only while a session is open unless it lingers.
+  - loginctl enable-linger tester
+  - mkdir -p /src
+  - mount /src

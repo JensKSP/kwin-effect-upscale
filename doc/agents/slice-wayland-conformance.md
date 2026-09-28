@@ -157,3 +157,31 @@ KDecoration and Plasma 6.3.6 and does not configure on Trixie; Debian's
 packaged source, whose `relax-interplasma-versioned-deps.patch` lowers that to
 6.3.4, does. And the earlier builds under `build/wayland-conformance/` were
 gone and had to be made again.
+
+### The machine, made from the repository, 2026-09-29
+
+Item 2b of the open list, agreed with Jens on 2026-09-28: the VM existed only
+as files under the ignored `build/release-conformance/vm/` and a host image
+without a recipe. `tools/conformance-vm.py` now makes it from the tree:
+`containers/vm-host` (QEMU under KVM), `containers/vm-host/user-data.in` (no
+key in it; each machine gets a login key and a host key of its own, so
+`known_hosts` is written before the first boot), Debian's current generic
+cloud image checked against `SHA512SUMS`, and commands to start, stop, run in
+the guest, load the test image, build KWin's production test from Debian's
+source package at the version the test image runs, and run it with the tree's
+effect. How and when is in [building and checking](../checks.md#the-conformance-machine).
+
+Found while making it, each by booting: the container needs the user's `kvm`
+group (`--group-add keep-groups`); the genericcloud image's kernel has no 9p,
+which the share needs, so the generic image is used; with `-vga none` that
+kernel reset the machine before printing a line, so the standard display
+device stays and the test container is given vgem's nodes alone, found through
+sysfs; the `-la57` of the old start script is not needed on this host;
+cloud-init 25.1 drops a mount whose source is no path, so the share is an
+fstab line, and it rejects an empty `ssh_genkeytypes`.
+
+Acceptance, 2026-09-29: `stop`, then `create --replace` brought a fresh machine
+up in 44 seconds with cloud-init done and no error; `load`, `prepare-kwin` and
+`production` followed, and `testUpscaleProduction` passed all 17 outcomes with
+the effect built from the working tree (`7471d46`, with the day's changes) and
+loaded, on KWin 4:6.3.6-1 built from Debian's source package.

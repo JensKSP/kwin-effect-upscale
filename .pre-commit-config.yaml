@@ -118,7 +118,9 @@ repos:
         name: strict type checking
         entry: mypy --strict --python-version=3.11 tools
         language: python
-        additional_dependencies: [mypy==2.3.1]
+        # The stubs of the one third-party module a tool's test reads,
+        # PyYAML, which the check images carry as Debian's python3-yaml.
+        additional_dependencies: [mypy==2.3.1, types-PyYAML==6.0.12.20260906]
         files: ^tools/.*\.py$
         pass_filenames: false
         stages: [pre-push]

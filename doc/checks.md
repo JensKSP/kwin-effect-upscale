@@ -122,6 +122,64 @@ python3 -B tools/prepare-crash-game.py --source build/test-games/glmark2-2023.01
 # and run: ctest -R '^upscale-(integration|x11)-crash$'
 ```
 
+### The conformance machine
+
+A compositor under test needs a DRM render device. On a developer's machine the
+only one is the desktop's own GPU, and test compositors on it froze the desktop
+on 2026-09-27. So the tests that need KWin's real renderer run in a virtual
+machine: KDE's own integration tests with this effect loaded, and the
+production test this project adds to them. `tools/conformance-vm.py` makes the
+machine from the repository alone:
+
+- Debian's current cloud image, checked against Debian's `SHA512SUMS`, with a
+  disk of the machine's own on top of it;
+- a seed from `containers/vm-host/user-data.in`, with keys made for this
+  machine and no other, so that the first connection already knows the guest's
+  host key;
+- QEMU under KVM in `containers/vm-host`, which is given `/dev/kvm` and the
+  repository and nothing else of the host. The guest loads vgem, on which
+  Mesa's llvmpipe draws, and mounts the repository at `/src`.
+
+Everything lives under `build/conformance-vm`. Make a fresh machine for each
+release, and run the production test against the tree's effect in it:
+
+```sh
+python3 -B tools/conformance-vm.py create        # create --replace for a new one
+python3 -B tools/conformance-vm.py load          # the test image into the guest
+python3 -B tools/conformance-vm.py prepare-kwin  # KWin's packaged source, its test built
+python3 -B tools/conformance-vm.py production    # every case, or the ones named
+python3 -B tools/conformance-vm.py stop
+```
+
+It needs rootless podman and membership of the `kvm` group, and `load` needs
+the images `containers/conformance` and `containers/wayland-tests` build.
+`guest` runs a command in the guest, and `test` one in the test image there,
+given vgem's nodes and nothing else; `tools/check-wayland-conformance.py`
+runs that way for the full comparison of KDE's tests.
+
+### SuperTuxKart in every presentation
+
+The handbook's [hard requirement](upscaling.md#supertuxkart-in-every-presentation-it-offers)
+has its command: `tools/check-supertuxkart.py` runs SuperTuxKart in all six
+cells, native Wayland and Xwayland, each with OpenGL fullscreen, Vulkan
+borderless and Vulkan exclusive, and fails when a cell fails or did not run.
+It runs in the conformance machine, in `containers/game-tests`, which adds the
+game, Mesa's lavapipe and what compares the pictures to the Wayland test
+image; the game draws with llvmpipe or lavapipe on the guest's vgem, at about
+two frames a second, which is enough. Run it before every release and after
+any change to how the effect asks for a smaller buffer or draws one:
+
+```sh
+podman build -t upscale-game-tests:trixie containers/game-tests
+python3 -B tools/conformance-vm.py load localhost/upscale-game-tests:trixie
+python3 -B tools/conformance-vm.py production     # builds the tree's effect
+python3 -B tools/conformance-vm.py test --image localhost/upscale-game-tests:trixie \
+    python3 -B tools/check-supertuxkart.py --build build/conformance-vm/effect
+```
+
+Each cell's session, its pictures and a report are kept under
+`build/conformance-vm/effect/supertuxkart-*`.
+
 ### What may touch the plugin folder
 
 - A formatter runs inside `src/plugins/upscale/` only if its output is what KWin
