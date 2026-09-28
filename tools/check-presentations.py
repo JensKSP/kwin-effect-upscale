@@ -241,7 +241,11 @@ def run_case(case: Case, root: Path, build: Path, screen: Screen) -> dict[str, o
 
 
 def report(rows: list[dict[str, object]]) -> int:
-    """One line per case, and a failure if any case disagreed with its case."""
+    """One line per case, and a failure if any case did not run or disagreed.
+
+    Every case here was asked for by name, so one whose game or compositor is
+    not installed is a failure too, not a case to pass over.
+    """
     width = max((len(f"{row['game']} {row['presentation']}") for row in rows), default=0)
     for row in rows:
         name = f"{row['game']} {row['presentation']}".ljust(width)
@@ -253,9 +257,9 @@ def report(rows: list[dict[str, object]]) -> int:
             f" acted {row['acted']} (wanted {row['expected']}, acted {row['wanted_acted']})"
             f" supplied {row['supplied']}"
         )
-    failed = [row for row in rows if row["outcome"] in ("fail", "unseen")]
+    failed = [row for row in rows if row["outcome"] in ("fail", "unseen", "absent")]
     if failed:
-        print(f"\n{len(failed)} of {len(rows)} cases did not present as expected")
+        print(f"\n{len(failed)} of {len(rows)} cases did not run or did not present as expected")
     return 1 if failed else 0
 
 
@@ -272,7 +276,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--presentation", required=True, choices=["fullscreen", "borderless", "windowed"]
     )
-    parser.add_argument("--acted", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument(
+        "--acted",
+        action=argparse.BooleanOptionalAction,
+        help="whether the effect should act on the window; by default it should unless windowed",
+    )
     parser.add_argument("command", nargs=argparse.REMAINDER, help="-- program [arguments]")
     arguments = parser.parse_args(argv)
     command = arguments.command[1:] if arguments.command[:1] == ["--"] else arguments.command
@@ -291,7 +299,7 @@ def main(argv: list[str] | None = None) -> int:
         program=command[0],
         arguments=tuple(command[1:]),
         expected=arguments.presentation,
-        acted=arguments.acted,
+        acted=arguments.presentation != "windowed" if arguments.acted is None else arguments.acted,
         window=arguments.window,
     )
     # Kept rather than removed: a case that did not present as expected is

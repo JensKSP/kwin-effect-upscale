@@ -450,6 +450,10 @@ def parse_arguments(argv: list[str] | None) -> tuple[argparse.Namespace, list[st
     command = options.command[1:] if options.command[:1] == ["--"] else options.command
     if not command or not options.window.strip():
         parser.error("supply a command after -- and a nonempty --window")
+    # Checked before anything changes: a program found missing only at its
+    # launch would leave kwinrc on the first preset and write no report.
+    if not shutil.which(command[0]):
+        parser.error(f"{command[0]!r} is not an executable program")
     if not re.fullmatch(r"[A-Za-z0-9_-]+", options.name):
         parser.error("--name must contain only letters, digits, underscores and hyphens")
     if options.repeats < 1:

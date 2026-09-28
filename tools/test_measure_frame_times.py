@@ -265,10 +265,20 @@ class CommandTest(unittest.TestCase):
                 if renderer:
                     arguments += ["--renderer-pattern", renderer]
                 with self.subTest(rate=rate, renderer=renderer):
-                    options, _ = HARNESS["parse_arguments"]([*arguments, "--", "program"])
+                    options, _ = HARNESS["parse_arguments"]([*arguments, "--", sys.executable])
                     self.assertEqual(options.rate_pattern, rate)
                     self.assertEqual(options.renderer_pattern, renderer)
-                    self.assertEqual(options.command, ["program"])
+                    self.assertEqual(options.command, [sys.executable])
+
+    def test_a_missing_program_is_refused_before_anything_changes(self) -> None:
+        """The command is found before a preset is written, not at its launch."""
+        missing = str(Path(tempfile.gettempdir()) / "no-such-program")
+        with (
+            mock.patch("sys.stderr", io.StringIO()) as error,
+            self.assertRaises(SystemExit),
+        ):
+            HARNESS["parse_arguments"](["--window", "target", "--", missing])
+        self.assertIn("is not an executable program", error.getvalue())
 
     def test_launch_preserves_arguments_and_only_expands_duration(self) -> None:
         """Spaces, shell syntax and unrelated braces remain literal arguments."""
