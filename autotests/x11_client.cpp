@@ -443,6 +443,11 @@ bool X11Client::waitForMapping()
             const bool mapped = (event->response_type & ~0x80) == XCB_MAP_NOTIFY;
             std::free(event);
             if (mapped) {
+                // Recorded as dispatch() records it, which never sees this
+                // MapNotify.
+                if (!m_sizeAtMapping.isValid()) {
+                    m_sizeAtMapping = geometry().size();
+                }
                 return true;
             }
         }
