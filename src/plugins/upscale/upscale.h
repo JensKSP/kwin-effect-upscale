@@ -66,6 +66,12 @@ public:
     /** Whether the X11 resolution control has nothing in flight; see UpscaleX11Resolution::settled(). */
     bool x11RequestsSettled() const;
     /**
+     * How much the effect keeps per window and per program, as name=count
+     * pairs. A test compares it across programs coming and going, to show
+     * that nothing piles up for the ones that are gone.
+     */
+    QString records() const;
+    /**
      * @p window's client went on drawing another size than @p size, which was
      * asked of it. X11 validation reports this; a test driver can as well.
      */

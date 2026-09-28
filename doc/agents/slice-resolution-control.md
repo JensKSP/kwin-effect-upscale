@@ -1432,6 +1432,39 @@ being resized on X11, and repeated kill-and-relaunch cycles with process and
 video memory watched across them. The display's own side of this is in the
 [development infrastructure slice](slice-development-infrastructure.md).
 
+2026-09-28: the first sentence above was not true. Restoring skipped such
+announcements, but nothing removed them: each launch of a program the effect
+told a smaller mode added one to `UpscaleModeOverride::m_announced`, and only
+the next reconfiguration or unload emptied it. Found by the tests below, which
+showed one record left after a crashed game and fifty after fifty; fixed by
+dropping them when the client is destroyed.
+
+The tests use a real game: `tools/prepare-crash-game.py` copies Debian's
+glmark2 source and builds it to crash where `UPSCALE_TEST_CRASH` says
+(`autotests/glmark2_crash.h`), and to name its process on its X11 window, as
+SDL and most toolkits do and glmark2 does not. Two sessions run it, registered
+only where `UPSCALE_CRASH_GAME` points at that build; CI does not build it. The
+effect now reports its per-window and per-program records
+(`UpscaleEffect::records()`), which the cases compare with the state before the
+first game.
+
+- `aGameThatCrashesIsLetGo`: told 85 × 85, crashing after binding its outputs,
+  and after its window is configured but before its first frame. Twice each;
+  the records return to where they were, and restoring passes over both.
+- `crashingGamesLeaveNothingBehind`: fifty games under Auto, each crashing after
+  three frames. The records return to where they were.
+- `aGameThatCrashesWhileResizedIsLetGo` (X11, one output): crashing on the
+  configure that tells its fullscreen window 1920 × 1080, twice. Nothing is left
+  in flight, and once the three seconds a departed program's negotiation is kept
+  for have passed, the records return to where they were.
+
+Observed in containers/trixie with GCC: all pass with the fix. Without it, the
+Wayland cases failed with one and fifty announcements left; without removing a
+closed X11 window's request, the X11 case failed with that request left.
+
+Still open: process and video memory across many launches on wzpc, where they
+mean something; a container composites with QPainter and has no video memory.
+
 ### Presenting a resized X11 window without Xwayland's emulation
 
 Asked for by Jens on 2026-09-19, after the analysis above: force the game to

@@ -16,3 +16,9 @@ leak:KWin::WaylandServer::init()
 leak:GlobalShortcutsRegistry::loadSettings()
 # KF6 Config 6.13 recreates watcher state during static shortcut destruction.
 leak:KStandardShortcut::StandardShortcutWatcher::~StandardShortcutWatcher
+# Each X11 client that crashes leaves Debian's KWin 6.3.6 holding a quick view
+# and the pointing device made for it: a crashing glmark2 in a compositor run
+# without any test effect reports the same 2152 and 16 bytes from these stacks
+# per crash as the crash sessions (sessions.cmake, 2026-09-28).
+leak:KWin::OffscreenQuickView::OffscreenQuickView
+leak:QPointingDevice::QPointingDevice

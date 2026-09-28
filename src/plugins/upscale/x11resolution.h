@@ -18,6 +18,7 @@
 #include <QRectF>
 #include <QSet>
 #include <QSize>
+#include <QString>
 #include <QTimer>
 
 #include <functional>
@@ -92,6 +93,22 @@ public:
      * reconfiguration did, rather than a delay that may or may not cover it.
      */
     bool settled() const;
+    /** What this keeps per window or program; see UpscaleEffect::records(). */
+    QString records() const
+    {
+        return QStringLiteral("x11PendingMaps=%1 x11Negotiations=%2 x11Requests=%3 x11Watched=%4 x11Scheduled=%5 ")
+                   .arg(m_pendingMaps.size())
+                   .arg(m_negotiations.size())
+                   .arg(m_requests.size())
+                   .arg(m_watched.size())
+                   .arg(m_scheduled.size())
+            + QStringLiteral("x11WaitingForBuffer=%1 x11Withdrawals=%2 x11Overdue=%3 x11Releases=%4 x11Prepared=%5")
+                  .arg(m_waitingForBuffer.size())
+                  .arg(m_withdrawals.size())
+                  .arg(m_overdue.size())
+                  .arg(m_releases.size())
+                  .arg(m_prepared.size());
+    }
     QString failure(const Window *window) const;
     /** Who is enlarging this window's buffer to the output right now. */
     UpscaleX11Presentation presentation(const Window *window) const;

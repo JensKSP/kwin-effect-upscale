@@ -10,6 +10,7 @@
 
 #include <QHash>
 #include <QObject>
+#include <QString>
 
 namespace KWin
 {
@@ -92,6 +93,11 @@ public:
      * and the status must never present one as the other.
      */
     bool answered(const Window *window) const;
+    /** What this keeps per window or program; see UpscaleEffect::records(). */
+    QString records() const
+    {
+        return QStringLiteral("scaleRequests=%1").arg(m_requests.size());
+    }
 
 private:
     struct Request

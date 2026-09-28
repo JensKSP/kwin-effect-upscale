@@ -38,6 +38,8 @@ add_executable(
     integration_test.h
     integration_advertisement_test.cpp
     integration_output_test.cpp
+    integration_crash_test.cpp
+    crash_game.h
     wayland_client.cpp
     ${protocol_sources}
 )
@@ -145,7 +147,12 @@ if(KWin_VERSION VERSION_LESS 6.7)
             )
             target_sources(
                 upscale_x11_${session}_test
-                PRIVATE x11_integration_test.h x11_startup_test.cpp x11_input_test.cpp
+                PRIVATE
+                    x11_integration_test.h
+                    x11_startup_test.cpp
+                    x11_input_test.cpp
+                    x11_crash_test.cpp
+                    crash_game.h
             )
         else()
             target_sources(
@@ -190,6 +197,36 @@ if(KWin_VERSION VERSION_LESS 6.7)
         upscale-x11-prepared
         upscale-x11-scaled
     )
+    # A real game that crashes where a case says, for the cases about a game
+    # that disappears without warning: glmark2 as tools/prepare-crash-game.py
+    # prepares it. Only where that build exists; point UPSCALE_CRASH_GAME at
+    # the directory it prepared. The X11 session has one output, so that the
+    # root window glmark2 sizes itself by is the screen it fills.
+    if(UPSCALE_CRASH_GAME)
+        add_test(
+            NAME upscale-integration-crash
+            COMMAND
+                ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-integration-test.py
+                $<TARGET_FILE:upscale_integration_test> aGameThatCrashesIsLetGo
+                crashingGamesLeaveNothingBehind
+        )
+        add_test(
+            NAME upscale-x11-crash
+            COMMAND
+                ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-integration-test.py
+                $<TARGET_FILE:upscale_x11_integration_test> --x11 --outputs=1
+                aGameThatCrashesWhileResizedIsLetGo
+        )
+        set(crash_sessions upscale-integration-crash upscale-x11-crash)
+        set_tests_properties(
+            ${crash_sessions}
+            PROPERTIES
+                TIMEOUT 900
+                RUN_SERIAL TRUE
+                ENVIRONMENT_MODIFICATION "UPSCALE_TEST_CRASH_GAME=set:${UPSCALE_CRASH_GAME}"
+        )
+        list(APPEND sessions ${crash_sessions})
+    endif()
     if(NOT UPSCALE_SESSION_TESTS)
         # Disabled rather than unregistered, so the test binaries are still
         # compiled and linked by a package build and only the sessions are

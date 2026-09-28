@@ -13,6 +13,7 @@
 #include <QObject>
 #include <QPointer>
 #include <QSize>
+#include <QString>
 
 namespace KWin
 {
@@ -47,6 +48,11 @@ public:
     /** A new window, which may be one a helper prepared its program for. */
     void windowAdded(EffectWindow *window);
     UpscaleQuestion &question();
+    /** What this keeps per window or program; see UpscaleEffect::records(). */
+    QString records() const
+    {
+        return QStringLiteral("asked=%1").arg(m_asked.size());
+    }
 
 private:
     void offerSetup(EffectWindow *window, const QSize &size, bool afterFailure);
