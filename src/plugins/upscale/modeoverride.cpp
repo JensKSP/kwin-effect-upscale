@@ -272,11 +272,14 @@ void UpscaleModeOverride::remember(OutputInterface *output, ClientConnection *cl
 void UpscaleModeOverride::restore(Record record)
 {
     for (const Announcement &announcement : std::as_const(m_announced)) {
-        // A game that exited and an output that was unplugged both leave one
-        // of these null. There is nothing to restore for either.
+        // A game that exited leaves its client null, and an output whose
+        // Wayland object KWin destroyed leaves that null. Nothing to restore.
         if (!announcement.output || !announcement.client) {
             continue;
         }
+        // An unplugged output can keep its withdrawn Wayland object, but not
+        // the output behind it. One that was only switched off keeps both, and
+        // a program still bound to it is told the real mode like any other.
         UpscaleOutput *handle = announcement.output->handle();
         if (!handle) {
             continue;

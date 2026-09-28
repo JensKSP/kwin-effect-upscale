@@ -32,6 +32,9 @@ private Q_SLOTS:
     void answersWhichWindowsAnEntryMatches();
     void autoAsksTheWindowForAFractionalScale();
     void anAdvertisementThatDidNotReachFallsBackToTheSurfaceScale();
+    void anOutputThatGoesAwayWhileAdvertised();
+    void aProgramThatExitsBeforeRestoration();
+    void anOutputVersionWithoutScaleIsLeftAlone();
 
 private:
     // The global resolution as kwinrc stores it. Spelled out here rather than
@@ -51,6 +54,9 @@ private:
     void configureResolution(bool asking, bool unlisted, std::optional<Stored> resolution);
     void writeCatalogue(const QString &contents);
     void reconfigure();
+    void disableOutput(int index);
+    void startAdvertising(const QString &method);
+    void stopAdvertising();
     QDBusInterface m_effects{QStringLiteral("org.kde.KWin"), QStringLiteral("/Effects"),
                              QStringLiteral("org.kde.kwin.Effects"), QDBusConnection::sessionBus()};
 };

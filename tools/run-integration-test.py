@@ -48,16 +48,18 @@ def main() -> int:
     # windows by pixel and need a screen large enough to ask for a smaller one
     # inside it; the Wayland tests need no room at all.
     mode = (3840, 2160) if x11 else (128, 128)
-    # How many outputs the session has. Two is what the placement cases need;
-    # a connection answered before its first window needs one, because the
-    # screen an answer names is a screen and not an arrangement of them.
+    # How many outputs the session has. Two is what the X11 placement cases
+    # need; a connection answered before its first window needs one, because
+    # the screen an answer names is a screen and not an arrangement of them.
+    # A Wayland session has one unless it asks, as its cases about an output
+    # going away do.
     outputs = next(
         (
             int(argument.removeprefix("--outputs="))
             for argument in sys.argv[2:]
             if argument.startswith("--outputs=")
         ),
-        2,
+        2 if x11 else 1,
     )
     with tempfile.TemporaryDirectory(prefix="integration-", dir=build) as directory:
         runtime = Path(directory)
@@ -142,6 +144,8 @@ def main() -> int:
             str(mode[0]),
             "--height",
             str(mode[1]),
+            "--output-count",
+            str(outputs),
             "--no-lockscreen",
             "--no-global-shortcuts",
             "--no-kactivities",
@@ -161,7 +165,7 @@ def main() -> int:
             ),
         ]
         if x11:
-            command[1:1] = ["--xwayland", "--output-count", str(outputs)]
+            command[1:1] = ["--xwayland"]
         preload = environment.pop("UPSCALE_SANITIZER_RUNTIME", "")
         if preload:
             if x11:

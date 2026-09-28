@@ -648,7 +648,9 @@ distinction between a request and a result that this package rests on.
 `modeoverride.cpp` is now 87.6% of lines. What is left is an output unplugged
 while an override is in force and a client that exits before restoration, both
 of which need hardware or a second compositor process, and both of which are
-already in the acceptance list above.
+already in the acceptance list above. Neither needed either after all: both are
+tested in the nested session since 2026-09-28, see
+[below](#an-output-that-goes-away-a-program-that-leaves-and-wl_output-version-1-2026-09-28).
 
 Two defects in the request itself came out of reviewing it beside those tests:
 
@@ -666,7 +668,7 @@ Two defects in the request itself came out of reviewing it beside those tests:
   alone. This is not covered by a test: the virtual output in the nested
   session has no scale above one, so no advertisement reaches the scale path
   there at all. It belongs with the output and scale acceptance already listed
-  above.
+  above. Covered since 2026-09-28 by a session at scale 2, see below.
 
 Measuring the frames also had a defect the statistics view would have shown:
 the slow-tail figure was written `1%% low`, which is printf's escape and not
@@ -680,6 +682,56 @@ without clearing the mode, made it report a rate of minus one per second. The
 developer view also claimed variable refresh was unobserved, which stopped
 being true when the presentation mode became a measurement; it now reports the
 frames and the mode the screen presented them in.
+
+#### An output that goes away, a program that leaves, and wl_output version 1, 2026-09-28
+
+The three paths above that had no test now have one in the nested session, so
+every pull request runs them. None needed hardware or a second compositor: the
+test driver runs inside KWin and switches an output off through KWin's own
+output configuration, and the harness starts a Wayland session with two outputs
+at scale 2, `upscale-integration-outputs`. What each case asserts is what the
+client received on the wire.
+
+- `anOutputThatGoesAwayWhileAdvertised`: a client is told 85 × 85 on both
+  outputs; the second is switched off and its global withdrawn; giving the mode
+  back still reaches the first (128 × 128 at scale 2); and once the second
+  output is back, a client starting then is told 85 × 85 on it again.
+- `aProgramThatExitsBeforeRestoration`: a client told 85 × 85 exits; giving the
+  mode back passes over it and reaches a client that is still connected; the
+  next client is told as before. Runs in both Wayland sessions.
+- `anOutputVersionWithoutScaleIsLeftAlone`: at scale 2, `AdvertisedModeAndScale`
+  tells a client binding `wl_output` version 2 64 × 64 at scale 1, and a client
+  binding version 1 nothing; it keeps KWin's 128 × 128.
+
+Observed in containers/trixie with GCC: `upscale-integration` passed 10 cases
+and skipped the 2 that need a second output or a scale;
+`upscale-integration-outputs` passed all 3. Each case was then run against an
+effect broken on purpose, and failed: without the version check, the version 1
+client is told 64 × 64; without watching for outputs added later, a client
+starting after the output returns is told nothing on it; without skipping a
+program that has gone, KWin crashes (exit 139) as soon as the mode is given
+back, in both sessions. The first draft also found an order dependence in the
+test itself: an earlier case in the default session leaves the global pixel
+threshold at the size of its screen, so these cases state `MinimumPixels=0`.
+
+Switching an output off differs from unplugging it in one respect: KWin keeps
+the backend output, so `OutputInterface::handle()` stays valid and `restore()`
+sends the real mode to the withdrawn output as well. A real unplug destroys the
+backend output, `handle()` becomes null, and `restore()` skips the record by its
+own check. The VM production test already takes that path without naming it:
+`Test::setOutputConfig` recreates every output, so `reducesAndScales` replaces
+the output its client was told about at connection, and unloading the effect
+then gives the mode back past an output whose backend object is gone.
+`unpluggedOutputIsPassedOver` now names that path: its client is told
+256 × 144 on the one output, two new outputs replace it and are both told
+256 × 144, and switching the request off gives both back 384 × 216.
+
+Observed in the VM, in containers/wayland-tests against Debian's packaged
+KWin 6.3.6: the production test passed all 17 outcomes, engaged and scaling.
+Against an effect built without the `handle()` check, KWin crashed with SIGSEGV
+in `restore()`, in `reducesAndScales` first, which confirms that case takes this
+path, and in the new case run on its own. The harness itself did not build from
+the committed tree; see [Wayland conformance](slice-wayland-conformance.md).
 
 ### Per-application X11 buffer control investigation, 2026-09-19
 

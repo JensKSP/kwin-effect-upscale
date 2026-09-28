@@ -7,9 +7,12 @@
 #include "upscale.h"
 
 #include "core/inputdevice.h"
+#include "core/outputbackend.h"
+#include "core/outputconfiguration.h"
 #include "effect/effecthandler.h"
 #include "effect/effectwindow.h"
 #include "input.h"
+#include "main.h"
 #include "opengl/eglcontext.h"
 #include "opengl/egldisplay.h"
 #include "opengl/glframebuffer.h"
@@ -22,6 +25,7 @@
 #include "wayland/surface.h"
 #include "wayland_server.h"
 #include "window.h"
+#include "workspace.h"
 
 #include <KConfigGroup>
 #include <KSharedConfig>
@@ -266,6 +270,21 @@ public:
         const KSharedConfig::Ptr config = KSharedConfig::openConfig(QStringLiteral("kwinrc"));
         const KConfigGroup group(config, QStringLiteral("Effect-upscale-test"));
         m_unsupportedColors = group.readEntry("UnsupportedColors", false);
+        if (group.hasKey("DisabledOutput")) {
+            // Switches one output off, or every output back on with -1, the
+            // way System Settings does. To a client that is its screen going
+            // away: KWin withdraws the output's global, and only the output
+            // object outlives it, which an unplug would take as well. The
+            // effect is not reconfigured, so it meets the output change alone.
+            const int disabled = group.readEntry("DisabledOutput", -1);
+            OutputConfiguration configuration;
+            const auto outputs = kwinApp()->outputBackend()->outputs();
+            for (int index = 0; index < outputs.size(); ++index) {
+                configuration.changeSet(outputs.at(index))->enabled = index != disabled;
+            }
+            workspace()->applyOutputConfiguration(configuration);
+            return;
+        }
         if (group.readEntry("ColorsOnly", false)) {
             // Model an output colour change without reconfiguring the effect;
             // otherwise its unconditional reset would hide stale refusals.

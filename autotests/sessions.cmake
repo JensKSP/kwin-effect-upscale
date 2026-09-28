@@ -37,6 +37,7 @@ add_executable(
     integration_test.cpp
     integration_test.h
     integration_advertisement_test.cpp
+    integration_output_test.cpp
     wayland_client.cpp
     ${protocol_sources}
 )
@@ -121,6 +122,18 @@ if(KWin_VERSION VERSION_LESS 6.7)
     # confusion that cost most of a night. run-integration-test.py allows a
     # session 600 s, and 900 s under instrumentation; these sit above both.
     set_tests_properties(upscale-integration PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
+    # The same client in a session with an output to take away and a scale to
+    # step down from: two outputs at scale 2. Only the cases about outputs,
+    # scale and a program leaving run here; the rest would buy nothing twice.
+    add_test(
+        NAME upscale-integration-outputs
+        COMMAND
+            ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-integration-test.py
+            $<TARGET_FILE:upscale_integration_test> --scale=2 --outputs=2
+            anOutputThatGoesAwayWhileAdvertised aProgramThatExitsBeforeRestoration
+            anOutputVersionWithoutScaleIsLeftAlone
+    )
+    set_tests_properties(upscale-integration-outputs PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
     # The X11 sessions: the request path, and a window a helper prepared.
     foreach(session IN ITEMS integration prepared)
         add_executable(upscale_x11_${session}_test x11_${session}_test.cpp x11_client.cpp)
@@ -172,6 +185,7 @@ if(KWin_VERSION VERSION_LESS 6.7)
     set_tests_properties(upscale-x11-scaled PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
     set(sessions
         upscale-integration
+        upscale-integration-outputs
         upscale-x11-integration
         upscale-x11-prepared
         upscale-x11-scaled
