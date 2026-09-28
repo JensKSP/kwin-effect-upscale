@@ -3742,6 +3742,16 @@ ordinary runtime credentials, truthful reporting of a pending transition, and
 re-enabling from a session that started directly. Disabling the effect must still
 stop upscaling immediately even while transport removal awaits the next login.
 
+2026-09-28, these two covered: re-enabling from a session that started without
+the proxy is `config_test.cpp`'s `proxyRestartStatus`, which reports "without
+the proxy" and then "Restart required", while the effect's X11 paths without
+the proxy are what every X11 session runs. Switching the effect off while the
+proxy runs is `x11proxy_session_test.cpp`'s `effectSwitchedOffMidSession`: with
+the effect's object gone from KWin's bus name, a program connecting is told its
+screen unchanged ("policy unavailable"), a connection made before goes on being
+relayed, and once the object is back the next program is answered again. A
+proxy that closed such a connection instead fails it.
+
 Production integration is now under src/x11proxy, with a CMake-installed Plasma
 environment hook and an Xwayland-named launcher in a private libexec directory.
 The hook snapshots routing at login. Disabled routing execs stock Xwayland;
