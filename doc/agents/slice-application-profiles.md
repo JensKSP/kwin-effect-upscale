@@ -8,7 +8,8 @@ SPDX-License-Identifier: GPL-2.0-or-later
 ## Current status
 
 Matching, layered catalogue storage and an editor are implemented. The shipped
-catalogue has four entries: SuperTuxKart, Extreme Tux Racer, glmark2 and vkmark.
+catalogue has six entries: SuperTuxKart, Extreme Tux Racer, Left 4 Dead 2,
+Wreckfest, glmark2 and vkmark.
 The editor supports manual/window-based addition, field editing, disabling
 shipped entries, deleting user entries and restoring defaults. Native is a
 scaling opt-out; Enabled controls matching participation. MinimumPixels can
@@ -105,7 +106,8 @@ each consumer a different matcher or a different idea of what the setting says.
 Own `Auto` as a stored value and as the X11 mechanism. Do **not** own what a
 method can achieve: whether `Auto` can work on native Wayland, and the lever it
 would use, belong to [resolution control](slice-resolution-control.md), and
-this package ships the six slots whichever way that measurement goes.
+this package ships the slots whichever way that measurement goes: four since
+the two windowed ones were removed on 2026-09-25.
 
 The [development infrastructure](slice-development-infrastructure.md) owns the
 passive OSD and detection-message lifecycle. This profile package supplies real
@@ -583,7 +585,7 @@ happens when each item's shape is written into every place that reads it.
 | --- | --- | --- |
 | Kind | identity, fact, participation, preference | whether it can be inherited at all |
 | Scope | profile only, global only, both | where it can be stored |
-| Split | one value, one per presentation | whether it has the six slots below |
+| Split | one value, one per presentation | whether it has the slots below, four since 2026-09-25 |
 
 | Item | Kind | Scope | Split |
 | --- | --- | --- | --- |
@@ -710,7 +712,7 @@ slot the game states is its own, marked as its other settings are.
 `X11PrimaryOutputOnly` stops being a property of the profile and becomes a
 property of the X11 presentations.
 
-**On the global profile the same six slots default to `Auto` too.** Decided by
+**On the global profile the same slots default to `Auto` too.** Decided by
 Jens on 2026-09-21, reversing an earlier default of `Off`, which had kept
 "also upscale applications that are not in the list" from experimenting on
 programs nobody measured until a slot was set to Auto deliberately. Now ticking
@@ -1740,6 +1742,14 @@ that covered them was started before the last change and describes an earlier
 one. One assertion changed with the behaviour: the global profile's answers are no
 longer all Auto, and the test now expects Auto for the presentations that act
 and Off for the two that cannot.
+
+The other three compilers ran against a settled tree later than this one in
+the full check run of 2026-09-28 on the tree committed as `f68eab0`: Trixie
+with GCC and with Clang, every suite; clang-tidy; both pre-commit stages;
+`neon-unstable` with GCC and with Clang, built; Kubuntu 26.04 (KWin 6.6.6)
+with GCC, every suite. All passed. The regression-test hook failed only in
+the check's copy of the tree, which has no Git history for four of its
+cases; on the checkout they passed with the other 182.
 
 ## The same games repackaged: Flatpak and Snap, 2026-09-27
 

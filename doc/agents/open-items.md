@@ -217,6 +217,10 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   startplasma in Plasma 6.3 and 6.6 for where `plasma-workspace/env` runs and
   how its environment reaches the service; any gap is fixed with a standard
   mechanism. Tested for real by 2f.
+  **Done 2026-09-28:** plasma-workspace 6.3.6 and 6.6.6 source the env scripts,
+  then hand the environment to systemd before the session starts; wzpc's
+  `plasma-kwin_wayland.service` journal shows the proxy starting at three
+  logins. Written up in the slice; other distributions with 2f.
 - **9.** **test, S** – Neon runtime session, needs a render device (L3479).
   **Closed with Jens 2026-09-28, superseded:** KWin master stays build-only by
   design (`doc/checks.md`); the nightly runs every test on KWin 6.6 (item 6), and
@@ -280,6 +284,9 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   release. Release gate (hard requirement).
 - **17.** **investigate, –** – SuperTuxKart writes the reduced mode into its own
     configuration; to be answered from the compositor side (L1256-1264).
+  **Answered 2026-09-28, no code change:** Native enlarges a kept smaller
+  buffer with FSR; under other presets the display marks a kept size in the
+  warning colour. Wording asking the player to change it goes with 43/44.
 - **18.** **impl, –** – A program that sizes a plain window from the mode it was told
     has to be presented over its screen (L1345-1347).
 - **19.** **test, –** – The seven-item Auto bench was never run (L1853-1886).
@@ -325,6 +332,8 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
 
 - **38.** **test, S** – Trixie Clang and neon GCC/Clang on the tree after the windowed
     slots were removed; only Trixie GCC recorded (L1737-1739).
+  **Closed 2026-09-28:** the full check run on `f68eab0`'s tree covered Trixie
+  Clang and neon GCC/Clang. Recorded in the slice.
 - **39.** **test, S** – Migration from a real configuration written by the previous
     release (L81-82, L915-934).
 - **40.** **impl, S** – "Clear a profile's overrides" in the editor: required, not in
@@ -355,10 +364,16 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
 ## E. What the effect says – `slice-development-infrastructure.md`
 
 - **54.** **investigate** – Minimum KDE version with the About dialog APIs (L368).
+  **Done 2026-09-28:** `KAboutPluginDialog` since KF 5.65, present in Trixie's
+  6.13; notices need `KAboutApplicationDialog`. Both need KXmlGui as a new
+  build dependency of the settings module. Recorded in the slice.
 - **55.** **impl** – Notices audit; AMD shader entry in `debian/copyright` (L370).
 - **56.** **impl** – About access in settings: dialog, full hash, tag, offline
     notices (L371-375).
 - **57.** **impl, S** – `website` metadata field (L927).
+  **Closed 2026-09-28, not added:** no KWin effect declares a website, and a
+  link to this repository would be project-specific in the plugin folder.
+  Jens may overrule.
 - **58.** **test, S** – Incremental build-identity checks (L298-308).
 - **59.** **test** – Package and source archive with and without the KCM (L352-355).
 - **60.** **test, S** – Transition-logging acceptance: no flooding, separate debug
@@ -366,6 +381,8 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
 - **61.** **impl** – Shortcut to toggle the displays (L385).
 - **62.** **impl, S** – Heads-up wording: "native" only when sizes are equal, named
     resolutions only at exact sizes (L436-444).
+  **Closed 2026-09-28:** done since #17 (`35b6a53`) and covered by two
+  heads-up tests; the slice's note was stale.
 - **63.** **impl** – Lay the text out again when fonts change (L430-432).
 - **64.** **test, S/F** – `kill -9` a game repeatedly, watch memory (L418-424).
 - **65.** **test, S** – Per-game display settings against the opposite global
@@ -373,7 +390,11 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
 - **66.** **test, S** – 2026-09-27 display change: seven suites, Clang, neon, tidy
     and both pre-commit stages never finished; the machine went down during
     `upscale-x11-integration` (L522-530).
+  **Closed 2026-09-28:** every check named ran in the full run on `f68eab0`'s
+  tree. Recorded in the slice.
 - **67.** **doc** – Reload tool: temporary-name limitation, fresh session (L1203-1205).
+  **Closed 2026-09-28:** both limitations are in the README's "Reload during
+  development". Recorded in the slice.
 - **68.** **impl, S** – Translations: `Messages.sh`, `po/`, `ki18n_install`, `i18nc`,
     de/fr/es, metadata, incomplete-catalogue check (L1099-1130).
 - **69.** **doc/decide** – Interactive controls: not started; only a hardware gate,
@@ -398,6 +419,8 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
 
 - **78.** **test, S** – Second pre-commit stage, Clang and neon after the output
     lifecycle fix; not recorded as run.
+  **Closed 2026-09-28:** the second stage, Clang and neon ran in the full
+  run on `f68eab0`'s tree; the full comparison stays with the release gate.
 
 ## H. Pipeline modules – `slice-pipeline-modules.md`
 
@@ -414,6 +437,8 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
 - **84.** **test** – Outside-author pull request; live CodeRabbit approval revocation.
 - **85.** **doc** – Dependabot scheduled run is now observed (#22 today); claimed by
     both this slice and the GitHub one; pick one owner.
+  **Done 2026-09-28:** the GitHub workflow slice owns the observation (#22,
+  merged 2026-09-28); the pipeline slice owns the configuration.
 
 ## J. GitHub project workflow – `slice-github-project-workflow.md`
 
@@ -433,6 +458,7 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
     pending.
 - **93.** **doc** – Application profiles: "four entries" (six ship), "six slots"
     (four since 2026-09-25).
+  **Done 2026-09-28:** six shipped entries and four slots, corrected.
 - **94.** **doc** – Contradictions to settle: global slot defaults and method
     inheritance (profiles); physical input in S or F (resolution control);
     sampling while hidden (what the effect says).

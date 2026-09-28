@@ -272,6 +272,9 @@ supersede earlier pending statuses.
 - PRs #1 and #5 merged through owner-enabled GitHub auto-merge. Dependabot opened
   updates for all three configured locations; the owner merged those updates.
   Default-branch scheduled execution still needs observation.
+  That observation belongs to the
+  [GitHub project workflow](slice-github-project-workflow.md) slice, which
+  records it; this slice owns the configuration.
 - Observe the first authorized rolling-nightly publication and stable-tag
   release, including downloaded-asset and provenance verification. Do not
   create a stable version solely to test publication or count the existing

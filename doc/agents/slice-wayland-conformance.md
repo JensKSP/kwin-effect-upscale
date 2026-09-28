@@ -90,6 +90,15 @@ warnings treated as errors. The second stage, Clang and Neon checks and a full
 comparison after the output lifecycle fix are in progress. Full hardware and
 real-application acceptance remains open.
 
+The second stage, Clang and Neon ran on a later tree, with the output lifecycle
+fix in it, in the full check run of 2026-09-28 on the tree committed as `f68eab0`: Trixie
+with GCC and with Clang, every suite; clang-tidy; both pre-commit stages;
+`neon-unstable` with GCC and with Clang, built; Kubuntu 26.04 (KWin 6.6.6)
+with GCC, every suite. All passed. The regression-test hook failed only in
+the check's copy of the tree, which has no Git history for four of its
+cases; on the checkout they passed with the other 182. The full comparison is the release gate's, and
+stays with it.
+
 2026-09-28: the idle differences are all tests asserting that exactly one
 effect is loaded; they cannot pass with any second effect. The X11 activation
 and stacking differences were the effect's held X11 mapping, proven by a
