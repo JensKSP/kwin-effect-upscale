@@ -244,9 +244,13 @@ bool WineScreenHelper::advance(Job &job)
                                      << "screens" << wineScreensText(job.screens);
     const WineWriteResult result = writeScreen(job, *record);
     qCDebug(KWIN_UPSCALE_WINESCREEN) << "Registry write result: prefix" << job.id << static_cast<int>(result);
-    if (result == WineWriteResult::WrittenMeanwhile) {
-        record->written = job.clear ? std::nullopt : std::optional<QSize>(job.screens.value(0).rect.size());
-        record->described = job.clear ? QString() : wineScreensText(job.screens);
+    // A write the prefix changed around may be undone by Wine's own copy of
+    // the registry. A preparation that went in is recorded at once, so Reset
+    // knows of it; a removal is recorded only once it has held, in settle(),
+    // or a description Wine wrote back would be left for nothing to remove.
+    if (result == WineWriteResult::WrittenMeanwhile && !job.clear) {
+        record->written = job.screens.value(0).rect.size();
+        record->described = wineScreensText(job.screens);
         m_records->store(*record);
     }
     if (result == WineWriteResult::Busy || result == WineWriteResult::WrittenMeanwhile) {
