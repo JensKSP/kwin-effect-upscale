@@ -14,7 +14,7 @@ pkgdesc='KWin effect that upscales fullscreen windows rendering below their outp
 # Arch itself is x86_64; aarch64 is Arch Linux ARM, which shares this recipe.
 arch=('x86_64' 'aarch64')
 url='https://github.com/JensKSP/kwin-effect-upscale'
-license=('GPL-2.0-or-later')
+license=('GPL-2.0-or-later' 'MIT')
 @MAKEDEPENDS@
 # KWin's effect ABI is private, so the package is loadable only by the exact
 # KWin it was built against. On a rolling distribution that pin is doing more
@@ -40,4 +40,6 @@ build() {
 package() {
     cd "$pkgname-$pkgver"
     DESTDIR="$pkgdir" cmake --install build
+    # MIT asks for the notice to go with every copy, and Arch looks for it here.
+    install -Dm644 doc/third-party-notices.md "$pkgdir/usr/share/licenses/$pkgname/third-party-notices.md"
 }

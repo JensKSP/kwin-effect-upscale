@@ -3,6 +3,7 @@
 """Check version identity using real Git and the build-time CMake generator."""
 
 import os
+import re
 import shutil
 import subprocess
 import tarfile
@@ -40,7 +41,9 @@ class BuildInfoTest(unittest.TestCase):
         for name in (
             "GITHUB_HEAD_REF",
             "GITHUB_REF_NAME",
+            "GITHUB_REF_TYPE",
             "CI_COMMIT_REF_NAME",
+            "CI_COMMIT_TAG",
             "SOURCE_DATE_EPOCH",
         ):
             self.environment.pop(name, None)
@@ -74,6 +77,42 @@ class BuildInfoTest(unittest.TestCase):
         )
         return self.output.read_text()
 
+    @staticmethod
+    def field(generated: str, name: str) -> str:
+        """Read the value one generated accessor returns."""
+        found = re.search(name + r"\(\)\n\{\n    return (.*?);\n\}", generated)
+        if found is None:
+            message = f"no accessor {name}() in the generated source"
+            raise AssertionError(message)
+        literal = re.fullmatch(r'QStringLiteral\("(.*)"\)', found.group(1))
+        return literal.group(1) if literal else found.group(1)
+
+    def test_commit_branch_and_tag_apart(self) -> None:
+        """The full commit, the branch and a tag on it are separate fields."""
+        generated = self.generate()
+        self.assertEqual(self.field(generated, "commit"), self.git("rev-parse", "HEAD"))
+        branch = self.git("rev-parse", "--abbrev-ref", "HEAD")
+        self.assertEqual(self.field(generated, "branch"), branch)
+        self.assertEqual(self.field(generated, "tag"), "")
+        self.git("tag", "v0.1.0")
+        generated = self.generate()
+        self.assertEqual(self.field(generated, "branch"), branch)
+        self.assertEqual(self.field(generated, "tag"), "v0.1.0")
+
+    def test_forge_tag_is_no_branch(self) -> None:
+        """A forge's build for a tag names the tag, and no branch."""
+        self.environment["GITHUB_REF_NAME"] = "v0.1.0"
+        self.environment["GITHUB_REF_TYPE"] = "tag"
+        generated = self.generate()
+        self.assertEqual(self.field(generated, "tag"), "v0.1.0")
+        self.assertEqual(self.field(generated, "branch"), "")
+
+    def test_reproducible_date_is_said(self) -> None:
+        """A date from SOURCE_DATE_EPOCH is marked as one."""
+        self.assertEqual(self.field(self.generate(), "reproducibleBuildDate"), "false")
+        self.environment["SOURCE_DATE_EPOCH"] = "946684800"
+        self.assertEqual(self.field(self.generate(), "reproducibleBuildDate"), "true")
+
     def test_tags(self) -> None:
         """Only the matching release tag suppresses the Git suffix."""
         self.assertIn("0.1.0+git", self.generate())
@@ -91,10 +130,12 @@ class BuildInfoTest(unittest.TestCase):
         self.assertIn("-dirty", self.generate())
 
     def test_detached_tag(self) -> None:
-        """A detached release checkout reports its tag as the source ref."""
+        """A detached release checkout reports its tag, and no branch."""
         self.git("tag", "v0.1.0")
         self.git("checkout", "--detach", "v0.1.0")
-        self.assertIn('QStringLiteral("v0.1.0")', self.generate())
+        generated = self.generate()
+        self.assertEqual(self.field(generated, "tag"), "v0.1.0")
+        self.assertEqual(self.field(generated, "branch"), "")
 
     def test_package_version(self) -> None:
         """The package's explicit version wins over tracked packaging edits."""
@@ -107,7 +148,11 @@ class BuildInfoTest(unittest.TestCase):
     def test_archive_version(self) -> None:
         """An extracted archive retains the snapshot version without Git."""
         metadata = self.root / "source-version"
-        metadata.write_text("# archive metadata\n0.1.0+git20260917.0123456789\n")
+        commit = "0123456789" + "a" * 30
+        metadata.write_text(
+            "# archive metadata\n0.1.0+git20260917.0123456789\n"
+            f"commit={commit}\nbranch=release/0.1.0\ntag=v0.1.0\n"
+        )
         archive = self.root / "source.tar.gz"
         self.git(
             "archive",
@@ -127,6 +172,9 @@ class BuildInfoTest(unittest.TestCase):
         generated = self.generate()
         self.assertIn('QStringLiteral("0.1.0+git20260917.0123456789")', generated)
         self.assertIn('QStringLiteral("0123456789")', generated)
+        self.assertEqual(self.field(generated, "commit"), commit)
+        self.assertEqual(self.field(generated, "branch"), "release/0.1.0")
+        self.assertEqual(self.field(generated, "tag"), "v0.1.0")
 
     def test_unchanged_build(self) -> None:
         """Reproducible builds retain the generated source mtime when unchanged."""

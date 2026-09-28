@@ -862,22 +862,35 @@ packaging.
 ### About, build identity and third-party notices
 
 Implemented so far: a build names itself in one line,
-`upscale <version> (branch <branch>), built <date>, Qt <version>`. On its
-release tag the version is the base project version alone; any other build from
-Git appends `+git`, the commit date and an abbreviated revision, with `-dirty`
-for local changes; a source archive takes the version recorded in its
-`source-version` file, and a package build the package version it passes in.
-The branch comes from the forge's environment or from Git, falling back to an
-exact tag, and the part in parentheses is left out when neither is known rather
-than stated as unknown. The date is an ISO 8601 UTC timestamp refreshed on each
-build invocation; `SOURCE_DATE_EPOCH` controls reproducible builds. A separate
-revision and base version are generated but shown nowhere. The settings page
-shows only the version and the author, in its **About** group. The same line is
-the **Build** line of the developer information, and the effect writes it to
-the log once, when it initializes, rather than when its library is loaded, so a
-process that only reads the identity does not claim to have loaded the effect.
-The complete identity record below, the full About dialog, the complete plugin
-metadata and the component notices remain unimplemented.
+`upscale <version> (branch <branch>, tag <tag>), commit <revision>, built <date>,
+Qt <version>`. On its release tag the version is the base project version
+alone; any other build from Git appends `+git`, the commit date and an
+abbreviated revision, with `-dirty` for local changes; a source archive takes
+the version recorded in its `source-version` file, and a package build the
+package version it passes in. Branch and tag are separate fields: the branch
+comes from the forge's environment or from Git and is left empty for a detached
+checkout or a build for a tag, and the tag is the one on the commit; whichever
+is not known is left out rather than stated as unknown. The commit is the full
+hash, also on a release tag, and the line shows its first ten characters. A
+source archive records the commit, branch and tag it was made from beside its
+version, where it knows them, and states nothing for a tree that is no commit.
+The date is an ISO 8601 UTC timestamp refreshed on each build invocation;
+`SOURCE_DATE_EPOCH` controls reproducible builds, and a date it set says so.
+The settings page shows only the version and the author, in its **About**
+group. The line is the **Build** line of the developer information. When the
+effect initializes, rather than when its library is loaded, it writes the whole
+record to the log, one labelled field per line: version, branch, tag, full
+commit, build date, the Qt it was built with and the one it runs with, the
+project and license addresses, and where the third-party notices are installed.
+A process that only reads the identity therefore does not claim to have loaded
+the effect.
+The component notices are installed with every package as
+`share/kwin-effect-upscale/third-party-notices.md`, from
+[doc/third-party-notices.md](third-party-notices.md): AMD's notice for the FSR 1
+shaders in full, and the system libraries the binaries link, each pointed to its
+own package's terms. Every package's metadata names the MIT license beside
+`GPL-2.0-or-later`. The full About dialog and a viewer for the notices in the
+settings remain unimplemented.
 
 Required extension, not yet implemented: provide **About Upscale** from the
 effect's settings using KDE's standard About presentation. Prefer the host's
@@ -916,9 +929,10 @@ shows the **version** and the **author** and nothing else; the full record
 above is written to the startup log and shown in the developer information on
 screen; and the license, project address and authors are also in the About
 that System Settings builds for every effect from its plugin metadata, which is
-where KDE users look for them. So far the metadata carries the author with an
-e-mail address and a `License` of `GPL`; the project address and the exact
-licence expression are not in it yet. Use one consistent identity record for
+where KDE users look for them. The metadata carries the author with an e-mail
+address, the `License` as `GPL-2.0-or-later`, which KDE's About reads as
+version 2 or later, and the project address as `Website`. Use one consistent
+identity record for
 all of these. Run the generator on **every build invocation**, including
 builds without source changes and direct builds of the effect or settings
 target. Recompute revision, ref and the complete timestamp then, not only during

@@ -15,8 +15,9 @@ comment: "KWin effect that upscales fullscreen windows"
 maintainer: kwin-effect-upscale@koehler-speyer.de
 www: https://github.com/JensKSP/kwin-effect-upscale
 prefix: /usr/local
-licenselogic: single
-licenses: [GPLv2+]
+# Both apply: the effect is GPL, the FSR 1 shaders it carries are MIT.
+licenselogic: multi
+licenses: [GPLv2+, MIT]
 desc: <<EOD
 A KWin effect for windows that render below the resolution of the output they
 cover, for example a game or a video player running at a lower resolution on a

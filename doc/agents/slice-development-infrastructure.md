@@ -376,7 +376,21 @@ Planned checks, not observed results:
   license texts, which leaves the host's own About data alone. Either way
   KXmlGui becomes a build dependency of the settings module on every
   distribution; the check image does not install it yet.
-- [ ] Audit exact dependency/component notices and delivery obligations.
+- [x] Audit exact dependency/component notices and delivery obligations.
+  Done 2026-09-28. The tree's only third-party code in the binaries is AMD's
+  FSR 1 EASU and RCAS (MIT); besides it, `.clang-format` (MIT) and the CI and
+  tool configuration under CC0-1.0, neither installed. `debian/copyright` now
+  names the AMD shaders and the CC0 files, and parses as DEP-5 again: its
+  licence paragraphs had no blank line between them, which python-debian
+  rejects. `doc/third-party-notices.md` carries AMD's notice in full and lists
+  the system libraries the three binaries link (`readelf -d` on Debian 13),
+  each pointed to its package's own terms rather than given one assumed
+  licence; it is installed with every package as
+  `share/kwin-effect-upscale/third-party-notices.md`. The RPM `License` is
+  `GPL-2.0-or-later AND MIT`, Arch declares both and installs the notices under
+  `/usr/share/licenses`, FreeBSD declares both. Observed: the Trixie package
+  builds, passes lintian, rebuilds identically, and contains the notices; the
+  other distributions' packages are the nightly's to build.
 - [ ] Implement generation, metadata and About/details access. The
   initialization log and a settings version line exist: the identity is logged
   when the effect initializes instead of when its library loads, the settings
@@ -956,12 +970,14 @@ Open: the website field, and reading the result on the television — that the
 settings list shows the author and the new description is still unconfirmed by
 eye, because KWin has to be restarted before the settings read the new module.
 
-The website field is left out, 2026-09-28: none of KWin 6.3.6's effects
-declares `KPlugin.Website`, and a link to this repository would be the one
-project-specific value in a folder that has to copy into KWin unchanged
-([repository rules](../../AGENTS.md#the-plugin-folder-stays-upstreamable)).
-Where this project's address belongs is outside that folder: the README and
-the packages' metadata.
+The website field is added after all, 2026-09-28, correcting a closure made the
+same day: Jens decided on 2026-09-21, as the handbook records, that the license,
+the project address and the authors are shown in the About System Settings
+builds for every effect from its plugin metadata, which had the address
+missing and the license as a bare `GPL`. `metadata.json` now declares
+`Website` and `GPL-2.0-or-later`, which `KAboutLicense::byKeyword()` in
+KCoreAddons 6.13 reads as GPL v2 or later. None of KWin's own effects declares a
+website; upstream, the value would be KDE's to replace.
 The full check list above covers this work as well; it was gated together with
 the placement change.
 

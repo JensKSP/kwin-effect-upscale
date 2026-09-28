@@ -4,3 +4,9 @@
 # Every invocation describes this build, even when the sources are unchanged.
 # CMake honours SOURCE_DATE_EPOCH for reproducible package timestamps.
 string(TIMESTAMP UPSCALE_BUILD_DATE "%Y-%m-%dT%H:%M:%SZ" UTC)
+# Said as such, since a date a packager chose is not when the build ran.
+if(DEFINED ENV{SOURCE_DATE_EPOCH} AND NOT "$ENV{SOURCE_DATE_EPOCH}" STREQUAL "")
+    set(UPSCALE_BUILD_DATE_REPRODUCIBLE true)
+else()
+    set(UPSCALE_BUILD_DATE_REPRODUCIBLE false)
+endif()

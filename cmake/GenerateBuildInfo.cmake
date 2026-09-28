@@ -35,30 +35,44 @@ endfunction()
 # version then is the one CMake was told, with no git detail claimed.
 find_package(Git QUIET)
 set(UPSCALE_GIT_HASH "")
+set(UPSCALE_GIT_COMMIT "")
 set(UPSCALE_GIT_BRANCH "")
+set(UPSCALE_GIT_TAG "")
 set(UPSCALE_GIT_DIRTY "")
 set(UPSCALE_GIT_DATE "")
 
 if(GIT_EXECUTABLE AND EXISTS "${SOURCE_DIR}/.git")
     run_git(UPSCALE_GIT_HASH rev-parse --short=10 HEAD)
+    run_git(UPSCALE_GIT_COMMIT rev-parse HEAD)
     run_git(UPSCALE_GIT_DATE show -s --format=%cs HEAD)
+    # A tag is not a branch: the commit can carry one and sit on the other,
+    # and a detached release checkout has the tag alone.
+    run_git(UPSCALE_GIT_TAG describe --tags --exact-match HEAD)
     run_git(git_status status --porcelain --untracked-files=no)
     if(NOT git_status STREQUAL "")
         set(UPSCALE_GIT_DIRTY "-dirty")
     endif()
 
     # CI checks out a detached HEAD, where git knows no branch name. The forge
-    # does, and says so in the environment.
+    # does, and says so in the environment - where a build for a tag names the
+    # tag in the same variable, and says that it is one.
     if(DEFINED ENV{GITHUB_HEAD_REF} AND NOT "$ENV{GITHUB_HEAD_REF}" STREQUAL "")
         set(UPSCALE_GIT_BRANCH "$ENV{GITHUB_HEAD_REF}")
     elseif(DEFINED ENV{GITHUB_REF_NAME} AND NOT "$ENV{GITHUB_REF_NAME}" STREQUAL "")
-        set(UPSCALE_GIT_BRANCH "$ENV{GITHUB_REF_NAME}")
+        if("$ENV{GITHUB_REF_TYPE}" STREQUAL "tag")
+            set(UPSCALE_GIT_TAG "$ENV{GITHUB_REF_NAME}")
+        else()
+            set(UPSCALE_GIT_BRANCH "$ENV{GITHUB_REF_NAME}")
+        endif()
+    elseif(DEFINED ENV{CI_COMMIT_TAG} AND NOT "$ENV{CI_COMMIT_TAG}" STREQUAL "")
+        set(UPSCALE_GIT_TAG "$ENV{CI_COMMIT_TAG}")
     elseif(DEFINED ENV{CI_COMMIT_REF_NAME} AND NOT "$ENV{CI_COMMIT_REF_NAME}" STREQUAL "")
         set(UPSCALE_GIT_BRANCH "$ENV{CI_COMMIT_REF_NAME}")
     else()
         run_git(UPSCALE_GIT_BRANCH rev-parse --abbrev-ref HEAD)
+        # Detached: no branch, whatever tag the commit carries.
         if(UPSCALE_GIT_BRANCH STREQUAL "HEAD")
-            run_git(UPSCALE_GIT_BRANCH describe --tags --exact-match HEAD)
+            set(UPSCALE_GIT_BRANCH "")
         endif()
     endif()
 endif()
@@ -84,6 +98,17 @@ elseif(EXISTS "${SOURCE_DIR}/source-version")
     if(archive_version MATCHES "\\+git[0-9]+\\.([0-9a-f]+)$")
         set(UPSCALE_GIT_HASH "${CMAKE_MATCH_1}")
     endif()
+    # What the archive recorded of where it came from, where it recorded it.
+    # An archive made some other way says nothing, and nothing is inferred.
+    foreach(field commit branch tag)
+        file(STRINGS "${SOURCE_DIR}/source-version" line REGEX "^${field}=")
+        string(REGEX REPLACE "^${field}=" "" line "${line}")
+        string(TOUPPER "${field}" upper)
+        set(UPSCALE_GIT_${upper} "${line}")
+    endforeach()
+    if(NOT UPSCALE_GIT_COMMIT MATCHES "^[0-9a-f]+$")
+        set(UPSCALE_GIT_COMMIT "")
+    endif()
 endif()
 
 # debian/rules passes the changelog version explicitly. Packaging changes the
@@ -97,7 +122,7 @@ endif()
 include("${CMAKE_CURRENT_LIST_DIR}/BuildInfoDate.cmake")
 
 # Git permits quotes in branch names. Preserve them as data in C++ literals.
-foreach(variable UPSCALE_VERSION UPSCALE_GIT_BRANCH)
+foreach(variable UPSCALE_VERSION UPSCALE_GIT_BRANCH UPSCALE_GIT_TAG)
     string(REPLACE "\\" "\\\\" ${variable} "${${variable}}")
     string(REPLACE "\"" "\\\"" ${variable} "${${variable}}")
     string(REPLACE "\n" "\\n" ${variable} "${${variable}}")
