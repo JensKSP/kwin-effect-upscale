@@ -36,7 +36,9 @@
 #include <QTimer>
 
 #include <array>
+#include <atomic>
 #include <cmath>
+#include <cstring>
 #include <functional>
 #include <optional>
 
@@ -82,6 +84,20 @@ public:
     int captures = 0;
 };
 
+// The messages the effect logged, counted inside the compositor, whose log a
+// test cannot read: a case checks that frames which change nothing log
+// nothing. Everything is passed on to the handler before this one.
+static std::atomic<int> s_effectMessages{0};
+static QtMessageHandler s_passOn = nullptr;
+
+static void countEffectMessage(QtMsgType type, const QMessageLogContext &context, const QString &message)
+{
+    if (context.category && std::strcmp(context.category, "kwin_effect_upscale") == 0) {
+        ++s_effectMessages;
+    }
+    s_passOn(type, context, message);
+}
+
 class UpscaleTestDriver : public Effect
 {
     Q_OBJECT
@@ -104,6 +120,7 @@ class UpscaleTestDriver : public Effect
     Q_PROPERTY(QString inputBounds READ inputBounds)
     // How much the effect keeps per window and per program; see UpscaleEffect::records().
     Q_PROPERTY(QString records READ records)
+    Q_PROPERTY(int effectMessages READ effectMessages)
 
 public:
     UpscaleTestDriver()
@@ -117,6 +134,7 @@ public:
         if (!m_context) {
             qFatal("Cannot create test EGL context");
         }
+        s_passOn = qInstallMessageHandler(countEffectMessage);
         m_effect = std::make_unique<UpscaleEffect>(&m_renderer);
         m_texture = allocateFloatTexture(QSize(128, 128));
         if (!m_texture) {
@@ -139,6 +157,7 @@ public:
 
     ~UpscaleTestDriver() override
     {
+        qInstallMessageHandler(s_passOn);
         if (input()) {
             input()->removeInputDevice(&m_pointer);
         }
@@ -163,6 +182,11 @@ public:
     int x11Judgements() const
     {
         return m_effect->x11Judgements();
+    }
+
+    int effectMessages() const
+    {
+        return s_effectMessages;
     }
 
     QString records() const

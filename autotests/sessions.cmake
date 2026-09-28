@@ -41,6 +41,7 @@ add_executable(
     integration_advertisement_test.cpp
     integration_output_test.cpp
     integration_crash_test.cpp
+    integration_logging_test.cpp
     crash_game.h
     wayland_client.cpp
     ${protocol_sources}

@@ -38,6 +38,7 @@ private Q_SLOTS:
     void aGameThatCrashesIsLetGo_data();
     void aGameThatCrashesIsLetGo();
     void crashingGamesLeaveNothingBehind();
+    void logsTransitionsNotFrames();
 
 private:
     // The global resolution as kwinrc stores it. Spelled out here rather than

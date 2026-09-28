@@ -413,7 +413,16 @@ Planned checks, not observed results:
 - [x] Implement the state snapshot and settings diagnostics. One snapshot per
   pass feeds both the settings status and the display. Transition logging
   remains open.
-- [ ] Implement transition logging on the effect's logging category.
+- [x] Implement transition logging on the effect's logging category.
+  Found implemented and accepted 2026-09-28 (item 60 of the open list):
+  `UpscaleDiagnostics::observe()` logs a window's state only when it differs
+  from the last one it logged, its settings only when they changed, and names
+  a window by its internal ID, PID, class and profile - never its environment
+  or arguments; finer tracing is `qCDebug` on the same category, off unless
+  asked for. `logsTransitionsNotFrames` in the Wayland session presents sixty
+  unchanged frames of a scaled game and requires the effect's message count,
+  kept by the test driver inside the compositor, not to move; without the
+  unchanged-state check it rose by one a frame, 405 to 465.
 - [x] Implement the passive OSD, the statistics and developer view and the
   build-type preference defaults. A shortcut to toggle the view, profile
   overrides and per-profile visibility remain open.
