@@ -372,6 +372,11 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
 - **34.** **test/investigate, F** – Steam as Flatpak and Snap; the 09-27 analysis
     still reasons with the companion (L870-927).
 - **35.** **impl, F** – Present Wine's Wayland driver (L313-319).
+  **Reproduced 2026-09-29, not implemented:** under Wine 10.0's Wayland driver the
+  window stays at the told 2560 × 1440 and the effect refuses it as not
+  covering its output. Needs a Wayland presentation of a smaller fullscreen
+  surface with pointer mapping, which shares the confinement gap of 29a.
+  Recorded in the Proton slice.
 - **36.** **test, F** – Every flavour × D3D9/11/12/OpenGL/Vulkan × exclusive/borderless
     (L169-174, L335-339).
 - **37.** **doc** – Close the moot helper translation-domain question; owe the
