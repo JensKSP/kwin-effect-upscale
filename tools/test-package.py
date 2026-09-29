@@ -17,6 +17,7 @@ import argparse
 import ctypes
 import subprocess
 import sys
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -38,6 +39,11 @@ class Manager:
     purge: tuple[str, ...] = ()
     # pacman prints "<package> <path>" and lists directories as well.
     prefixed_contents: bool = field(default=False)
+    # How often a download is tried. openSUSE fetches from one host,
+    # download.opensuse.org, and libzypp takes an HTTP error from it as final:
+    # on 2026-09-20 it refused a request with 403 once, and a rerun passed. apt
+    # and dnf try again themselves, and pacman moves on to the next mirror.
+    attempts: int = 1
 
 
 APT = Manager(
@@ -59,6 +65,7 @@ MANAGERS = {
         install=("zypper", "--non-interactive", "install", "--allow-unsigned-rpm"),
         contents=("rpm", "-ql", NAME),
         remove=("zypper", "--non-interactive", "remove", NAME),
+        attempts=4,
     ),
     "arch": Manager(
         install=("pacman", "-U", "--noconfirm"),
@@ -106,6 +113,20 @@ def run(*command: str) -> None:
     """Fail the check on any unsuccessful lifecycle operation."""
     print("+ " + " ".join(command), flush=True)
     subprocess.run(command, check=True)
+
+
+def fetch(manager: Manager, *command: str, pause: float = 30) -> None:
+    """Run a step that downloads, again after a growing pause where the manager does not retry."""
+    for attempt in range(1, manager.attempts + 1):
+        try:
+            run(*command)
+        except subprocess.CalledProcessError:
+            if attempt == manager.attempts:
+                raise
+            print(f"Trying again in {pause * attempt:g} seconds", flush=True)
+            time.sleep(pause * attempt)
+        else:
+            return
 
 
 def installed_files(manager: Manager) -> list[str]:
@@ -184,9 +205,10 @@ def main() -> int:
     package = str(chosen.resolve())
     label = entry.label
 
+    # Only the first installation downloads: it brings the dependencies.
     if manager.refresh:
-        run(*manager.refresh)
-    run(*manager.install, package)
+        fetch(manager, *manager.refresh)
+    fetch(manager, *manager.install, package)
     effect, config = plugins(manager)
     libraries = [effect, config]
     verify(effect, config, arguments.probe)

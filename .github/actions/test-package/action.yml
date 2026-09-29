@@ -67,7 +67,16 @@ runs:
         docker run --rm --mount "type=bind,src=$GITHUB_WORKSPACE,dst=/src,readonly" -w /src \
           -e DEBIAN_FRONTEND=noninteractive -e TARGET -e BOOTSTRAP -e PACKAGE -e PROBE \
           "$IMAGE" sh -ec '
-            eval "$BOOTSTRAP" >/dev/null
+            # A distribution'"'"'s server refuses a request now and then:
+            # openSUSE'"'"'s one download host answered 403 on 2026-09-20.
+            for pause in 30 60 120 -; do
+              if eval "$BOOTSTRAP" >/dev/null; then
+                break
+              fi
+              [ "$pause" != - ] || exit 1
+              echo "Trying the bootstrap again in $pause seconds" >&2
+              sleep "$pause"
+            done
             set -- "$TARGET" "$PACKAGE"
             if [ -n "$PROBE" ]; then
               set -- "$@" --probe "$PROBE"
