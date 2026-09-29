@@ -2501,11 +2501,13 @@ through that window's input region and finds whatever lies under the game
 instead — the desktop, a panel, or nothing at all — so the filter focuses the
 presented surface on the seat itself there, and withdraws that focus when the
 pointer leaves the frame or KWin finds a window stacked above the presented one,
-a dialog or this effect's own display. Where the pointer is the filter's rather
-than KWin's, the click and the wheel are delivered by the filter as well, ahead
-of KWin's own click handling, which would otherwise raise and activate the
-window under the game; a press there activates the presented window instead.
-Motion stays KWin's to forward, to the surface on the seat. The window under a
+a dialog or this effect's own display, its decoration included. Where the
+pointer is the filter's rather than KWin's, its motion, the click and the wheel
+are delivered by the filter as well, ahead of KWin's decoration and click
+handling, which would otherwise take the motion over the decoration of a
+window the picture hides and raise and activate the window under the game; a
+press there activates the presented window instead. Where the pointer is
+KWin's, motion stays KWin's to forward, to the surface on the seat. The window under a
 presented one still sees the pointer enter it, because KWin focuses it before any
 filter runs, and never sees a button; the keyboard stays with the presented
 window, which KWin's own protection of a fullscreen window keeps even under a

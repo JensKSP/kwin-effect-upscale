@@ -254,3 +254,57 @@ void UpscaleX11IntegrationTest::letsAPresentedGameLockThePointer()
     movePointer(logical(QPoint(2884, 1624)));
     QTRY_VERIFY2_WITH_TIMEOUT(status().contains(QStringLiteral("pointerLock: engaged")), qPrintable(status()), 5000);
 }
+
+// Over a decoration KWin's pointer focus goes to no window at all, and its
+// decoration filter takes the motion. The title bar of a window the picture
+// hides lies under the game there, and the game has to see the pointer move
+// over it as anywhere else in the picture: the first motion onto it arrives
+// with the filter's own re-entry, the ones along it only as motion. The
+// session draws no decoration of its own, so this case switches one on.
+void UpscaleX11IntegrationTest::movesThePointerOverAHiddenTitleBar()
+{
+    const KSharedConfig::Ptr config = KSharedConfig::openConfig(QStringLiteral("kwinrc"));
+    KConfigGroup decoration(config, QStringLiteral("org.kde.kdecoration2"));
+    decoration.writeEntry("library", "org.kde.kwin.aurorae");
+    decoration.writeEntry("theme", "kwin4_decoration_qml_plastik");
+    config->sync();
+    QDBusInterface kwin(QStringLiteral("org.kde.KWin"), QStringLiteral("/KWin"), QStringLiteral("org.kde.KWin"),
+                        QDBusConnection::sessionBus());
+    const auto restore = qScopeGuard([&] {
+        decoration.deleteGroup();
+        config->sync();
+        kwin.call(QStringLiteral("reconfigure"));
+    });
+    kwin.call(QStringLiteral("reconfigure"));
+
+    X11Client below(false);
+    below.keepDecoration();
+    QVERIFY(below.show(QByteArrayLiteral("upscale-x11-below"), QRect(2400, 1200, 800, 400), false));
+    QVERIFY(below.waitForMapping());
+    // The decoration moves the window's own rectangle down from where it was
+    // placed, and its title bar lies just above that rectangle. Kubuntu 26.04's
+    // KWin comes without Aurorae, and so without any decoration to switch on;
+    // the wait is bounded because nothing signals that none is coming.
+    if (!QTest::qWaitFor([&below]() {
+        return below.geometry().top() > 1200;
+    }, 2000)) {
+        QSKIP("this session has no window decoration to draw");
+    }
+    const QPoint titleBar((below.geometry().left() + 200) & ~1, (below.geometry().top() - 6) & ~1);
+
+    configure(true);
+    X11Client target(false);
+    QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 1920, 1080), false));
+    QVERIFY(target.waitForMapping());
+    target.fullscreen(true);
+    QTRY_VERIFY(target.isFullscreen());
+    QTRY_VERIFY2(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()));
+    movePointer(QPoint(100, 100));
+    QTRY_COMPARE(target.lastMotion(), QPoint(50, 50));
+    movePointer(titleBar);
+    QTRY_COMPARE(target.lastMotion(), titleBar / 2);
+    // Along the title bar, where KWin's focus stays where it was and only the
+    // motion itself can reach the game.
+    movePointer(titleBar + QPoint(40, 0));
+    QTRY_COMPARE(target.lastMotion(), (titleBar + QPoint(40, 0)) / 2);
+}

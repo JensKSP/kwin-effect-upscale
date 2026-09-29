@@ -125,7 +125,10 @@ QPointF UpscaleX11Input::apply(const QPointF &position)
     }
     SurfaceInterface *focused = seat->focusedPointerSurface();
     const UpscalePresentedPointer presented = m_control ? m_control->presentedUnder(position) : UpscalePresentedPointer{};
-    if (presented.isEmpty() || isAbove(input()->pointer()->focus(), presented.window)) {
+    // Asked of the window KWin found, decoration included: over a decoration
+    // KWin's focus goes to no window at all, and a dialog's title bar would be
+    // taken for the part of the output the presented window covers.
+    if (presented.isEmpty() || isAbove(input()->pointer()->hover(), presented.window)) {
         // Nothing presented here, or something of KWin's own is on top of what
         // is. Either way the seat is KWin's.
         withdraw(seat);
@@ -218,9 +221,20 @@ bool UpscaleX11Input::pointerMotion(PointerMotionEvent *event)
     event->delta = QPointF(event->delta.x() * scale.x(), event->delta.y() * scale.y());
     event->deltaUnaccelerated = QPointF(event->deltaUnaccelerated.x() * scale.x(),
                                         event->deltaUnaccelerated.y() * scale.y());
-    // Motion is left to KWin: it forwards it to the surface on the seat, which
-    // is the presented one, and nothing between here and there moves a window
-    // because the pointer passed over it.
+    // Where the pointer is KWin's, KWin forwards the motion to the surface on
+    // the seat, the presented one. Where it is this filter's, so is the motion:
+    // over the decoration of a window the picture hides, KWin's decoration
+    // filter would take it, and the game would not see the pointer move. A
+    // warp, which KWin's versions forward differently, stays KWin's.
+    if (m_claimed && !event->warp) {
+        return deliver([event](SeatInterface *seat) {
+            seat->setTimestamp(event->timestamp);
+            seat->notifyPointerMotion(event->position);
+            if (!event->delta.isNull()) {
+                seat->relativePointerMotion(event->delta, event->deltaUnaccelerated, event->timestamp);
+            }
+        });
+    }
     return false;
 }
 

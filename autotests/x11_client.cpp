@@ -85,8 +85,10 @@ bool X11Client::show(const QByteArray &identity, const QRect &geometry, bool ful
     }
     // An explicit position makes the two-output case independent of placement
     // policy. Motif decorations=0 models a normal managed borderless window.
-    const uint32_t hints[] = {1U << 1, 0, 0, 0, 0};
-    xcb_change_property(m_connection, XCB_PROP_MODE_REPLACE, m_window, motif, motif, 32, 5, hints);
+    if (!m_decorated) {
+        const uint32_t hints[] = {1U << 1, 0, 0, 0, 0};
+        xcb_change_property(m_connection, XCB_PROP_MODE_REPLACE, m_window, motif, motif, 32, 5, hints);
+    }
     // USPosition and PPosition together. ICCCM lets a window manager honour
     // either, and the obsolete x and y fields are filled in as well, so no
     // reading of this structure has to fall back on placement policy.
@@ -172,6 +174,11 @@ void X11Client::resize(const QSize &size)
 void X11Client::reportProcess(qint64 pid)
 {
     m_reportedProcess = pid ? pid : QCoreApplication::applicationPid();
+}
+
+void X11Client::keepDecoration()
+{
+    m_decorated = true;
 }
 
 bool X11Client::isFocused() const

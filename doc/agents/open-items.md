@@ -425,6 +425,25 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   output and saw the pointer at two thirds of its position everywhere, in the
   conformance machine; `drawsAWindowOfTheToldSizeOverItsOutput` covers it in
   the Wayland session. Recorded in the slice.
+- **18b.** **impl, –** – Found while building 18, 2026-09-29: over a
+    decoration KWin's pointer focus is empty and its decoration filter takes
+    the motion. So UpscaleX11Input, which asks whether KWin's focus is above
+    the presented window, claims the pointer over a visible dialog's title bar,
+    which then cannot be dragged or closed; and over a hidden window's title
+    bar beneath a presented game the game gets no motion, and the cursor can
+    take that hidden border's shape. The Wayland filter now asks KWin's hover
+    window and delivers claimed motion itself; the X11 filter needs the same,
+    with a test in a session that has a decoration plugin (the check image has
+    only Aurorae, unconfigured).
+  **Done 2026-09-29:** the X11 filter asks KWin's hover window whether a
+  window lies above the presented one, and delivers a claimed pointer's motion
+  itself. `movesThePointerOverAHiddenTitleBar` switches on Aurorae's Plastik
+  theme and moves the pointer onto a hidden window's title bar and along it:
+  without the change the game stayed at 1302,611 for the move to 1322,611,
+  because only the first motion arrives, with the filter's re-entry; with it
+  both arrive. On Kubuntu 26.04, whose KWin comes without Aurorae, the case
+  skips. The half about a visible dialog's title bar has no test: no session
+  here can present a game with a decorated window stacked above it.
 - **19.** **test, –** – The seven-item Auto bench was never run (L1853-1886).
   **Done 2026-09-29, in the conformance machine:** the surface scale reaches
   GLFW 3.4, Godot 4.7 and SDL 3 with high pixel density, pointer landing where
