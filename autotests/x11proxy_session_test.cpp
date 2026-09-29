@@ -44,7 +44,14 @@ public:
     // Programs whose names contain this are not in the list.
     QString unselected;
     QStringList lastCandidates;
+    // The processes the proxy reported shown the screen of another: its pid.
+    QList<uint> shown;
 public Q_SLOTS:
+    void x11ProcessShown(uint game, uint pid)
+    {
+        Q_UNUSED(game)
+        shown.append(pid);
+    }
     bool x11PrefixMayMatch(const QString &prefix, const QStringList &candidates)
     {
         Q_UNUSED(prefix)
@@ -380,9 +387,20 @@ void ProxySessionTest::aWarmPrefixIsShownTheLaterScreen()
     });
     // Both launchers answered, at the size they have, before the game starts.
     QTRY_COMPARE(s_logged.filter(QStringLiteral("not in the list")).size(), 2);
+    m_effect.shown.clear();
     QVERIFY(succeeded(spawnWine("C:\\Games\\Game.exe", {"--connect", m_path}, prefix)));
-    const QString log = s_logged.join(QLatin1Char('\n'));
-    QVERIFY2(log.contains(QStringLiteral("now shows 2 earlier connections QSize(2560, 1440)")), qPrintable(log));
+    // Once the effect has taken its report of the launcher, as it has to
+    // before Wine hears of the smaller screen.
+    QTRY_VERIFY2(s_logged.join(QLatin1Char('\n')).contains(QStringLiteral("now shows 2 earlier connections QSize(2560, 1440)")),
+                 qPrintable(s_logged.join(QLatin1Char('\n'))));
+    // The effect is told, so that it presents the launcher's windows as the
+    // game's; and a program the prefix starts later is shown the game's screen
+    // too, although not in the list: one prefix is one screen (item 14a).
+    QTRY_VERIFY(m_effect.shown.contains(uint(launcher)));
+    QVERIFY(!m_effect.shown.contains(uint(elsewhere)));
+    const pid_t later = spawnWine("C:\\Games\\Launcher.exe", {"--connect", m_path}, prefix);
+    QVERIFY(succeeded(later));
+    QTRY_VERIFY(m_effect.shown.contains(uint(later)));
 }
 
 // The effect switched off while the proxy runs, which goes on relaying until

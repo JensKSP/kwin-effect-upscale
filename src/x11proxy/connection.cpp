@@ -196,10 +196,23 @@ void Session::decideClient(const std::shared_ptr<PendingClient> &client)
     // not model a QObject parent and reports the watcher as leaked at this
     // brace.
 } // NOLINT(clang-analyzer-cplusplus.NewDeleteLeaks)
-void Session::relayClient(int client, quint32 pid, const QSize &size, const QByteArray &timing, bool answered,
+void Session::relayClient(int client, quint32 pid, const QSize &answeredSize, const QByteArray &answeredTiming, bool answered,
                           const QString &prefix)
 {
     --m_pendingConnections;
+    // A connection of a prefix that shows its game's screen is shown that,
+    // whatever it was answered itself: one prefix is one screen, and a program
+    // of it at the full size would disagree with the rest (item 14a, decided
+    // by Jens on 2026-09-29).
+    QSize size = answeredSize;
+    QByteArray timing = answeredTiming;
+    quint32 game = 0;
+    if (const auto shown = m_prefixShown.constFind(prefix); !prefix.isEmpty() && !answeredSize.isValid() && shown != m_prefixShown.cend()) {
+        size = shown->size;
+        timing = shown->timing;
+        game = shown->game;
+        answered = true;
+    }
     sockaddr_un address{};
     address.sun_family = AF_UNIX;
     std::memcpy(address.sun_path, m_backendPath.constData(), static_cast<std::size_t>(m_backendPath.size() + 1));
@@ -224,8 +237,13 @@ void Session::relayClient(int client, quint32 pid, const QSize &size, const QByt
     }
     if (!prefix.isEmpty()) {
         ++m_prefixConnections[prefix];
-        showPrefix(prefix, size, timing);
+        if (!game) {
+            showPrefix(prefix, size, timing, pid);
+        }
         m_prefixRelays[prefix].insert(relay);
+    }
+    if (game && pid && pid != game) {
+        tellShown(game, pid);
     }
     connect(relay, &QObject::destroyed, this, [this, relay, pid, answered, prefix]() {
         forgetRelay(relay, pid, answered, prefix);
@@ -238,11 +256,48 @@ void Session::relayClient(int client, quint32 pid, const QSize &size, const QByt
 // that Wine reads its displays again (decided by Jens on 2026-09-29).
 // Otherwise the program is answered while Wine already knows the screen at
 // full size.
-void Session::showPrefix(const QString &prefix, const QSize &size, const QByteArray &timing)
+void Session::showPrefix(const QString &prefix, const QSize &size, const QByteArray &timing, quint32 game)
 {
     if (!size.isValid()) {
         return;
     }
+    m_prefixShown.insert(prefix, {size, timing, game});
+    QSet<quint32> processes;
+    const QSet<Relay *> earlier = m_prefixRelays.value(prefix);
+    for (const Relay *other : earlier) {
+        if (other->pid() && other->pid() != game) {
+            processes.insert(other->pid());
+        }
+    }
+    if (processes.isEmpty()) {
+        switchPrefix(prefix, size, timing);
+        return;
+    }
+    // The effect first: it makes a fullscreen window of these processes the
+    // game's size and presents it, and has to have done so before Wine hears
+    // of the smaller screen, or KWin answers Wine's request for that size with
+    // the output's and Wine grows the window by the difference (item 14a).
+    // Each answer, or its half second, counts; the switch follows the last.
+    auto remaining = std::make_shared<qsizetype>(processes.size());
+    const auto proceed = [this, prefix, size, timing, remaining]() {
+        if (--*remaining == 0) {
+            switchPrefix(prefix, size, timing);
+        }
+    };
+    // The watchers belong to this session and delete themselves. The static
+    // analyzer, which does not know a parent owns them, sees each one leak at
+    // the next turn of the loop and at the end; see decideClient().
+    for (const quint32 process : std::as_const(processes)) { // NOLINT(clang-analyzer-cplusplus.NewDeleteLeaks)
+        auto *watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(shownMessage(game, process), 500), this);
+        connect(watcher, &QDBusPendingCallWatcher::finished, this, [watcher, proceed]() {
+            watcher->deleteLater();
+            proceed();
+        });
+    }
+} // NOLINT(clang-analyzer-cplusplus.NewDeleteLeaks)
+
+void Session::switchPrefix(const QString &prefix, const QSize &size, const QByteArray &timing)
+{
     int changed = 0;
     const QSet<Relay *> earlier = m_prefixRelays.value(prefix);
     for (Relay *other : earlier) {
@@ -277,6 +332,20 @@ void Session::forgetRelay(Relay *relay, quint32 pid, bool answered, const QStrin
     if (!prefix.isEmpty() && open != m_prefixConnections.end() && --*open == 0) {
         m_prefixConnections.erase(open);
         m_prefixPrograms.remove(prefix);
+        m_prefixShown.remove(prefix);
     }
+}
+
+QDBusMessage Session::shownMessage(quint32 game, quint32 pid)
+{
+    QDBusMessage message = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"), QStringLiteral("/org/kde/KWin/Effect/Upscale1"),
+                                                          QStringLiteral("org.kde.KWin.Effect.Upscale1"), QStringLiteral("x11ProcessShown"));
+    message << game << pid;
+    return message;
+}
+
+void Session::tellShown(quint32 game, quint32 pid)
+{
+    QDBusConnection::sessionBus().call(shownMessage(game, pid), QDBus::NoBlock);
 }
 }

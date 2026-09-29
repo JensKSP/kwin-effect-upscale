@@ -17,6 +17,7 @@
 #include "x11geometry.h"
 #include "x11input.h"
 
+#include "effect/effecthandler.h"
 #include "effect/effectwindow.h"
 #include "main.h"
 #include "scene/surfaceitem.h"
@@ -141,6 +142,24 @@ static std::optional<QPointF> presentationScale(const UpscaleX11Resolution::Requ
     return QPointF(request.size.width() / shown.width(), request.size.height() / shown.height());
 }
 #endif
+
+void UpscaleX11Resolution::reconsider(uint pid)
+{
+#if KWIN_BUILD_X11
+    // Through the effects' stacking order: KWin's workspace header needs
+    // std::expected, which not every compiler here offers yet.
+    const QList<EffectWindow *> windows = effects->stackingOrder();
+    for (EffectWindow *window : windows) {
+        auto *x11 = qobject_cast<X11Window *>(window->window());
+        if (x11 && !x11->isDeleted() && x11->pid() == pid_t(pid)) {
+            watch(window);
+            apply(x11);
+        }
+    }
+#else
+    Q_UNUSED(pid)
+#endif
+}
 
 UpscaleX11Presentation UpscaleX11Resolution::presentation(const Window *window) const
 {

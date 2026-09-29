@@ -122,6 +122,13 @@ public Q_SLOTS:
     bool x11PrefixMayMatch(const QString &prefix, const QStringList &candidates) const;
 
     /**
+     * The transport showed process @p pid the screen it answered process
+     * @p game with, as a process of the same Wine prefix; see
+     * upscaleRecordShown().
+     */
+    void x11ProcessShown(uint game, uint pid);
+
+    /**
      * The captions of the open windows an entry with these fields would match.
      *
      * The fields are named as the configuration file names them - Executable,
@@ -146,11 +153,14 @@ public Q_SLOTS:
 public:
     /** How the effect answers reportFacts(). */
     void setReporter(std::function<QVariantMap(EffectWindow *window)> reporter);
+    /** What the effect does once x11ProcessShown() recorded a process. */
+    void setShownHandler(std::function<void(uint pid)> handler);
 
 private:
     // The compositor the effect was loaded into, which knows the windows.
     EffectsHandler *m_handler;
     std::function<QVariantMap(EffectWindow *)> m_reporter;
+    std::function<void(uint)> m_shown;
 };
 
 } // namespace KWin

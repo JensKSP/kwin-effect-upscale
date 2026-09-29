@@ -3,6 +3,7 @@
 #pragma once
 #include "registry.h"
 #include "startup.h"
+#include <QDBusMessage>
 #include <QHash>
 #include <QObject>
 #include <QProcess>
@@ -32,7 +33,12 @@ private:
     bool resolveCandidates(const std::shared_ptr<PendingClient> &client);
     void relayClient(int client, quint32 pid, const QSize &size, const QByteArray &timing = {}, bool answered = false,
                      const QString &prefix = {});
-    void showPrefix(const QString &prefix, const QSize &size, const QByteArray &timing);
+    void showPrefix(const QString &prefix, const QSize &size, const QByteArray &timing, quint32 game);
+    void switchPrefix(const QString &prefix, const QSize &size, const QByteArray &timing);
+    // The effect's record that process @p pid was shown the screen process
+    // @p game was answered with, and that record sent without waiting.
+    static QDBusMessage shownMessage(quint32 game, quint32 pid);
+    static void tellShown(quint32 game, quint32 pid);
     void forgetRelay(Relay *relay, quint32 pid, bool answered, const QString &prefix);
     QTemporaryDir m_directory;
     QByteArray m_backendPath;
@@ -50,6 +56,16 @@ private:
     // The connections each prefix has open, to be shown another screen when
     // a program of it is selected after they were answered.
     QHash<QString, QSet<Relay *>> m_prefixRelays;
+    // The screen a prefix shows since a program of it was selected, and that
+    // program's process: every connection of the prefix is shown it, those
+    // opened later too, while the prefix runs.
+    struct Shown
+    {
+        QSize size;
+        QByteArray timing;
+        quint32 game = 0;
+    };
+    QHash<QString, Shown> m_prefixShown;
     // What KWin answered a process, kept while any of its connections is
     // open, with the number of those connections.
     struct Answer

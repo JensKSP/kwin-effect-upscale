@@ -78,6 +78,9 @@ UpscaleEffect::UpscaleEffect(ItemRenderer *renderer)
     identity->setReporter([this](EffectWindow *window) {
         return reportFacts(window);
     });
+    identity->setShownHandler([this](uint pid) {
+        m_x11Resolution->reconsider(pid);
+    });
 #if !UPSCALE_RENDER_DEVICE_API
     if (!m_renderer) {
         m_renderer = effects->scene()->renderer();

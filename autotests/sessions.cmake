@@ -198,7 +198,7 @@ if(KWin_VERSION VERSION_LESS 6.7)
             $<TARGET_FILE:upscale_x11_integration_test> --x11 --scale=3 --outputs=1
             coversPointerWithoutEmulatedMode aConfinedPointerReachesTheWholeWindow
             refreshesStartupInputShape coversTheScreenItWasGiven winePrefixEligibility
-            answersUnlistedProgramsUnderAllApplications
+            answersUnlistedProgramsUnderAllApplications presentsAProcessShownItsGamesScreen
     )
     set_tests_properties(upscale-x11-scaled PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
     set(sessions

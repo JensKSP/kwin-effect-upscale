@@ -129,6 +129,12 @@ public:
      * pointer agreed.
      */
     UpscalePresentedPointer presentedUnder(const QPointF &position) const;
+    /**
+     * Looks at the windows of process @p pid at once, rather than at their
+     * next change: the process was just shown a smaller screen with another's
+     * game, and its fullscreen windows are now that game's to present.
+     */
+    void reconsider(uint pid);
 
 #if KWIN_BUILD_X11
     /** One live request: the window it went to and what it asked for. */

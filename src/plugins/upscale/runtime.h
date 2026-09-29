@@ -14,6 +14,7 @@
 
 namespace KWin
 {
+struct UpscaleApplication;
 
 // KWin reports the Unix loader behind a Wine/Proton window, not the Windows
 // game's executable. Wine takes its screen from its prefix when it starts, so
@@ -28,12 +29,31 @@ inline bool upscaleWineRuntime(const QString &executable)
 
 /**
  * Remember that @p pid was told its screen is @p screen, smaller than the
- * output it is shown on.
+ * output it is shown on, by the entry with the id @p profile, or by the global
+ * profile where that is empty.
  *
  * Recorded when the transport's connection policy answers with a size, and
  * asked about again once that process has a window.
  */
-void upscaleRecordServed(uint pid, const QSize &screen);
+void upscaleRecordServed(uint pid, const QSize &screen, const QString &profile = QString());
+
+/**
+ * Remember that @p pid was shown the screen @p game was served, as one of the
+ * processes of the Wine prefix that game runs in: one prefix is one screen.
+ * Nothing is recorded where @p game was not served.
+ */
+void upscaleRecordShown(uint game, uint pid);
+
+/**
+ * The entry that answered for @p pid's screen, where it is still enabled.
+ *
+ * A window no entry names of a process answered for one, a Wine prefix's
+ * launcher beside its game for instance, is claimed by that entry: it renders
+ * at the screen that entry wanted, so it is presented as that entry's windows
+ * are (item 14a, decided by Jens on 2026-09-29). Null for a process the global
+ * profile answered for, or none did.
+ */
+const UpscaleApplication *upscaleServedApplication(pid_t pid);
 
 /**
  * Whether @p pid renders small because its connection was answered that way.
