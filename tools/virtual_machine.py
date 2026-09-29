@@ -7,8 +7,9 @@ sums file the distribution publishes beside it, with a disk of its own on top;
 a seed from a cloud-init template under containers/vm-host, filled with a login
 key and a host key made for that machine alone, so that known_hosts is written
 before the first boot; and QEMU
-under KVM in containers/vm-host, given /dev/kvm and the repository, which the
-guest mounts at /src, and nothing else of the host. Everything of a machine
+in containers/vm-host, under KVM for amd64 and emulating the whole system for
+arm64, given the repository, which the guest mounts at /src, and nothing else
+of the host but /dev/kvm. Everything of a machine
 lives under build/<name>. tools/conformance-vm.py and tools/package-vm.py are
 the commands; this is what they share.
 """
@@ -29,6 +30,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 HOST_IMAGE = "localhost/upscale-vm-host:trixie"
 DEBIAN = "https://cloud.debian.org/images/cloud/trixie/latest/"
+# The UEFI firmware an arm64 cloud image boots from, from Debian's
+# qemu-efi-aarch64 in the host image.
+ARM64_FIRMWARE = "/usr/share/qemu-efi-aarch64/QEMU_EFI.fd"
 SSH_PORT = 2222
 # cloud-init's exit code for a boot that finished with recoverable errors.
 CLOUD_INIT_RECOVERABLE = 2
@@ -80,6 +84,9 @@ class Machine:
     # kernel it replaces has to. QEMU otherwise ends at a restart, so that a
     # guest that resets on its own is seen rather than looping.
     restarts: bool = False
+    # amd64 runs under KVM. arm64 is emulated whole, which is what boots its
+    # own kernel on an amd64 host; binfmt runs programs, not a system.
+    architecture: str = "amd64"
 
     @property
     def directory(self) -> Path:
@@ -311,6 +318,18 @@ def wait_for_first_boot(machine: Machine, deadline: float) -> None:
         sys.exit(f"The machine is not ready; see {log}.")
 
 
+def emulator(machine: Machine) -> tuple[str, ...]:
+    """Name the QEMU that runs a machine of its architecture, and how."""
+    if machine.architecture == "arm64":
+        # Every host core translates at once, and the newest interrupt
+        # controller takes more than eight of them.
+        return (
+            *("qemu-system-aarch64", "-machine", "virt,gic-version=max"),
+            *("-accel", "tcg,thread=multi", "-cpu", "max", "-bios", ARM64_FIRMWARE),
+        )
+    return ("qemu-system-x86_64", "-enable-kvm", "-cpu", "host")
+
+
 def start(machine: Machine) -> None:
     """Boot a machine and wait until its first boot has finished."""
     current = state(machine)
@@ -324,10 +343,11 @@ def start(machine: Machine) -> None:
     # unless it keeps the groups of the user who starts it. QEMU runs as that
     # user too: the share tells the guest the owners QEMU sees, and the guest's
     # tester, uid 1000, can then write where its host counterpart can.
+    kvm = ("--device", "/dev/kvm") if machine.architecture == "amd64" else ()
     run(
-        *("podman", "run", "-d", "--name", machine.container, "--device", "/dev/kvm"),
+        *("podman", "run", "-d", "--name", machine.container, *kvm),
         *("--group-add", "keep-groups", "--userns", "keep-id"),
-        *("-v", f"{ROOT}:/src", HOST_IMAGE, "qemu-system-x86_64", "-enable-kvm", "-cpu", "host"),
+        *("-v", f"{ROOT}:/src", HOST_IMAGE, *emulator(machine)),
         *("-smp", str(machine.cpus), "-m", f"{machine.memory}G", *machine.display),
         *(() if machine.restarts else ("-no-reboot",)),
         *("-serial", f"file:{shared}/console.log"),

@@ -22,6 +22,7 @@ machine is made is tools/virtual_machine.py's.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import shutil
 import subprocess
 import sys
@@ -93,6 +94,45 @@ SYSTEMS = {
         ready="pgrep -u tester -x kwin_wayland >/dev/null",
         display=SCREEN,
         boot_seconds=7200,
+    ),
+}
+# arm64's virt machine has no VGA; virtio-gpu, which every arm64 kernel here
+# drives, is its screen.
+ARM64_SCREEN = ("-display", "none", "-device", "virtio-gpu-pci,xres=3840,yres=2160")
+
+
+def arm64(system: str, base: str, cloud: str = "", sums: str = "") -> vm.Machine:
+    """Derive a system's arm64 machine from its amd64 profile, with the arm64 image, emulated."""
+    amd64 = SYSTEMS[f"{system}-amd64"]
+    return dataclasses.replace(
+        amd64,
+        name=f"package-{system}-arm64",
+        architecture="arm64",
+        display=ARM64_SCREEN,
+        cpus=8,
+        # Emulated, installing the desktop takes hours rather than minutes.
+        boot_seconds=6 * 3600,
+        base=base,
+        cloud=cloud or amd64.cloud,
+        sums=sums or amd64.sums,
+    )
+
+
+# Arch publishes no arm64 image: Arch Linux ARM is a distribution of its own.
+SYSTEMS |= {
+    "debian-13-arm64": arm64("debian-13", base="debian-13-generic-arm64.qcow2"),
+    "kubuntu-26.04-arm64": arm64("kubuntu-26.04", base="resolute-server-cloudimg-arm64.img"),
+    "fedora-43-arm64": arm64(
+        "fedora-43",
+        cloud="https://download.fedoraproject.org/pub/fedora/linux/releases/43/Cloud/aarch64/images/",
+        base="Fedora-Cloud-Base-Generic-43-1.6.aarch64.qcow2",
+        sums="Fedora-Cloud-43-1.6-aarch64-CHECKSUM",
+    ),
+    "opensuse-tumbleweed-arm64": arm64(
+        "opensuse-tumbleweed",
+        cloud="https://download.opensuse.org/ports/aarch64/tumbleweed/appliances/",
+        base="openSUSE-Tumbleweed-Minimal-VM.aarch64-Cloud.qcow2",
+        sums="openSUSE-Tumbleweed-Minimal-VM.aarch64-Cloud.qcow2.sha256",
     ),
 }
 

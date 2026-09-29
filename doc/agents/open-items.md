@@ -168,6 +168,20 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   passed. Found on the way: the tests do not build with GCC 14 at -O2
   (`-Warray-bounds` in the proxy session test), fixed. Fedora, openSUSE, Arch,
   FreeBSD and arm64 remain.
+  **Fedora, openSUSE and Arch machines made 2026-09-29;** their checks wait for
+  a nightly package of the current tree. **arm64 profiles added the same day**
+  for Debian, Kubuntu, Fedora and openSUSE (Arch publishes no arm64 image),
+  emulated whole with virtio-gpu for the screen; not yet booted.
+  **FreeBSD blocked, for Jens to decide (found 2026-09-29):** a Plasma Wayland
+  session needs a DRM/KMS driver, and FreeBSD's drm-kmod drives Intel, AMD and
+  NVIDIA hardware only. No QEMU display device has one: virtio-gpu KMS for
+  FreeBSD exists only as an open pull request (freebsd/drm-kmod#499, opened
+  2026-08-26, aimed at FreeBSD 15.1, still in review). A standard FreeBSD
+  installation in a machine can therefore not start KWin's Wayland session.
+  Options: (a) FreeBSD keeps the nightly's install, load and removal test until
+  the driver ships, and its session check waits for it; (b) the session check
+  runs on real hardware with an AMD or Intel GPU, by hand; (c) build that pull
+  request's module in the machine, which is no longer a standard installation.
 
 - **2g.** **fix, S** – CodeRabbit asked for changes on #23 (review 5342421790
   at `74de7c8`), found 2026-09-28: five comments, each checked against the

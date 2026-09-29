@@ -54,12 +54,14 @@ runcmd:
   - systemctl set-default graphical.target
   # The image's minimal kernel has no driver for QEMU's display, only the
   # firmware's 800 x 600 framebuffer; the full kernel replaces it, and its
-  # driver is loaded before Plasma starts on the display.
+  # driver is loaded before Plasma starts on the display: bochs for the VGA of
+  # an amd64 machine, virtio_gpu for the screen of an arm64 one.
   - zypper --non-interactive install --force-resolution kernel-default
-  - modprobe bochs || true
+  - if [ "$(uname -m)" = aarch64 ]; then modprobe virtio_gpu; else modprobe bochs; fi || true
   - systemctl restart display-manager
 # Where the full kernel is newer than the one running, its driver cannot be
 # loaded, and the machine restarts into it once everything else is in place.
+# Neither driver loads by itself without its device.
 power_state:
   mode: reboot
-  condition: "! grep -q '^bochs ' /proc/modules"
+  condition: "! grep -qE '^(bochs|virtio_gpu) ' /proc/modules"
