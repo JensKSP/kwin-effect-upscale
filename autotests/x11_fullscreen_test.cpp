@@ -30,9 +30,13 @@ void UpscaleX11IntegrationTest::reenteringFullscreenAtOnce()
     QTRY_COMPARE_WITH_TIMEOUT(target.geometry().size(), reduced, 30000);
     QVERIFY(target.mode(reduced));
     configure(true);
+    const int initial = judgements();
     target.fullscreen(true);
     const QString scaled = QStringLiteral("QSize(1920, 1080) QSizeF(3840, 2160)");
     QTRY_VERIFY2_WITH_TIMEOUT(status().contains(scaled), qPrintable(status()), 30000);
+    // The first request judged as well, which the status can show scaled
+    // before: its judgement would otherwise count for the first pair's below.
+    UPSCALE_TRY_JUDGED(initial, 1);
     for (int pair = 0; pair < 4; ++pair) {
         const qsizetype before = target.configuredSizes().size();
         const int judged = judgements();
