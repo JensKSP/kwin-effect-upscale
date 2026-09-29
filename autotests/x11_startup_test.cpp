@@ -240,7 +240,11 @@ void UpscaleX11IntegrationTest::answersUnlistedProgramsUnderAllApplications()
         group.sync();
         configure(true);
     };
-    const auto restore = qScopeGuard([&allApplications]() {
+    // The entry goes with the case, or every later case of the session would
+    // run with it enabled.
+    const auto restore = qScopeGuard([&allApplications, &other]() {
+        other.deleteGroup();
+        other.sync();
         allApplications(false);
     });
     QDBusInterface policy(QStringLiteral("org.kde.KWin"), QStringLiteral("/org/kde/KWin/Effect/Upscale1"),
