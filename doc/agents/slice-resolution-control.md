@@ -4169,6 +4169,21 @@ whether the legacy Wine guards prevent correct generic presentation. Production
 Wine guards and the installed physical-session effect are unchanged; metadata
 integration still awaits the requested exception.
 
+**No longer grows, 2026-09-29** (item 14 of the open list; Jens: reproduce with
+the current code first, and close if it no longer grows). The probe was gone
+with its temporary directories, so it was written again: a Windows program in C,
+built with MinGW, that asks `ChangeDisplaySettings` for 2560 × 1440, opens a
+popup of that size with an OpenGL context and logs every `WM_SIZE`,
+`WM_DISPLAYCHANGE` and client size while it draws for 60 seconds. Run with
+Debian's Wine 10.0 in the conformance machine, in a fresh prefix, in a session
+at 3840 × 2160 and scale 3 with X11 through the session proxy and an entry
+naming the probe. Wine was told a 2560 × 1440 screen, the mode change succeeded,
+and the window was 2560 × 1440 once and stayed so for 1,148 frames at a DPI of
+96. The effect presented it over the whole output all the while (a 2560 × 1440
+buffer to 3840 × 2160, a 1280 × 720 logical frame, pointer scale 0.667). Input
+landing is not checked here; it stays with real Wine input at scale 3 (item 29).
+The probe and its runner are scratch under `build/wine-probe/`.
+
 ### Release conformance through the installed package, 2026-09-27
 
 The X11 pair ran against the installed package, not a build tree: a Debian 13
