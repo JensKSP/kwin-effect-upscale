@@ -28,15 +28,15 @@ static QString describeEffectRefusal(UpscaleRefusal refusal)
         // The one line that tells being left alone apart from being broken. It
         // names both halves of the rule, so that the person reading it knows
         // there are two ways to change the answer.
-        return i18n("the application is not in the list, and unlisted applications are switched off.");
+        return i18n("the application is not in the list, and “All applications” is switched off.");
     case UpscaleRefusal::BelowMinimumPixels:
-        return i18n("the output pixel count is at or below the configured minimum.");
+        return i18n("the screen is at or below the resolution limit.");
     case UpscaleRefusal::ResourceFailure:
-        return i18n("graphics resource failure; apply settings to retry.");
+        return i18n("a graphics resource could not be created; apply the settings to try again.");
     case UpscaleRefusal::ScreenLocked:
         return i18n("the screen is locked.");
     case UpscaleRefusal::OtherFullScreenEffect:
-        return i18n("another full-screen effect is active.");
+        return i18n("another fullscreen effect is active.");
     default:
         return QString();
     }
@@ -109,7 +109,7 @@ QString describeRefusal(UpscaleRefusal refusal)
     case UpscaleRefusal::SeveralCandidates:
         return i18n("more than one fullscreen window is eligible on this output.");
     case UpscaleRefusal::UnsupportedColors:
-        return i18n("this output's colour handling is not supported.");
+        return i18n("this output's color handling is not supported.");
     case UpscaleRefusal::NoWindow:
         return i18n("there is no window to scale.");
     case UpscaleRefusal::NotFullScreen:

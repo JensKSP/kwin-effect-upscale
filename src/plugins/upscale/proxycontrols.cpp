@@ -16,8 +16,8 @@ void UpscaleEffectConfig::addProxyControls(QFormLayout *layout)
 {
     m_x11Proxy = new QCheckBox(i18n("Enable the X11 proxy at login"), widget());
     m_x11Proxy->setObjectName(QStringLiteral("x11Proxy"));
-    m_x11Proxy->setToolTip(i18n("Give recognized X11 games a smaller display before they create a window. "
-                                "Changing session routing requires logging out and back in."));
+    m_x11Proxy->setToolTip(i18n("Tell recognized X11 games the smaller screen before they create a window. "
+                                "Switching this takes effect at the next login."));
     m_proxyStatus = new QLabel(widget());
     m_proxyStatus->setWordWrap(true);
     m_proxyStatus->setObjectName(QStringLiteral("x11ProxyStatus"));
@@ -42,15 +42,15 @@ void UpscaleEffectConfig::updateProxyStatus()
     const bool desired = effectEnabled && m_x11Proxy->isChecked();
     const QString session = qEnvironmentVariable("UPSCALE_X11_SESSION_ROUTED");
     if (session.isEmpty()) {
-        m_proxyStatus->setText(desired ? i18n("Restart required: apply, then log out and back in to enable X11 routing.")
+        m_proxyStatus->setText(desired ? i18n("Log out required: apply, then log out and back in to use the X11 proxy.")
                                        : i18n("X11 routing is disabled for the next login."));
     } else if ((session == QLatin1String("1")) != desired) {
-        m_proxyStatus->setText(desired ? i18n("Restart required: apply, then log out and back in to enable X11 routing.")
-                                       : i18n("Restart required: apply, then log out and back in to remove the proxy. "
-                                              "Existing X11 connections still use it until logout."));
+        m_proxyStatus->setText(desired ? i18n("Log out required: apply, then log out and back in to use the X11 proxy.")
+                                       : i18n("Log out required: apply, then log out and back in to stop using the X11 proxy. "
+                                              "X11 programs already running keep using it until then."));
     } else {
         m_proxyStatus->setText(desired ? i18n("This session was configured to use the X11 proxy.")
-                                       : i18n("This session uses stock Xwayland directly, without the proxy."));
+                                       : i18n("This session uses Xwayland directly, without the proxy."));
     }
 }
 }

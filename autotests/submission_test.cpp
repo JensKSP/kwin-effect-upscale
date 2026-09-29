@@ -116,11 +116,11 @@ void SubmissionTest::describesAnX11Request()
     facts.insert(QStringLiteral("method"), QStringLiteral("X11Resize"));
     facts.remove(QStringLiteral("advertised"));
     facts.insert(QStringLiteral("requested"), QStringLiteral("1920x1080"));
-    facts.insert(QStringLiteral("requestFailure"), QStringLiteral("The requested X11 mode is unavailable on this output."));
+    facts.insert(QStringLiteral("requestFailure"), QStringLiteral("the requested X11 mode is unavailable on this output"));
     const QString report = upscaleSubmissionReport(facts, QStringLiteral("Debian"));
     QVERIFY(report.contains(QLatin1String("MethodX11FullScreen=X11Resize\n")));
     QVERIFY(report.contains(QLatin1String("# Window system: X11, through Xwayland\n")));
-    QVERIFY(report.contains(QLatin1String("# Method: X11Resize; asked for 1920 x 1080; failed: The requested X11 mode is unavailable on this output.\n")));
+    QVERIFY(report.contains(QLatin1String("# Method: X11Resize; asked for 1920 x 1080; failed: the requested X11 mode is unavailable on this output\n")));
 }
 
 QTEST_MAIN(SubmissionTest)

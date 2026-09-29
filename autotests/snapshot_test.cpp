@@ -130,7 +130,7 @@ void UpscaleSnapshotTest::reportsThePathActuallyTaken()
     // The announcement names the application without claiming it was matched
     // against anything, because nothing identifies games yet.
     const QString announcement = upscaleAnnouncement(snapshot);
-    QVERIFY2(announcement.contains(QStringLiteral("Detected Tux Racer")), qPrintable(announcement));
+    QVERIFY2(announcement.contains(QStringLiteral("detected Tux Racer")), qPrintable(announcement));
     QVERIFY(!announcement.contains(QStringLiteral("recognized")));
     QVERIFY(upscaleBasicSummary(snapshot).contains(QStringLiteral("1280 × 720 → 3840 × 2160")));
 
@@ -188,7 +188,7 @@ void UpscaleSnapshotTest::doesNotInventUnknownValues()
     // left alone - and says so, naming both ways the answer could change.
     UpscaleSnapshot unlisted;
     unlisted.refusal = UpscaleRefusal::Unlisted;
-    QVERIFY2(upscaleStatusText(unlisted).contains(QStringLiteral("not in the list, and unlisted applications are switched off")),
+    QVERIFY2(upscaleStatusText(unlisted).contains(QStringLiteral("not in the list, and “All applications” is switched off")),
              qPrintable(upscaleStatusText(unlisted)));
 }
 
@@ -214,7 +214,7 @@ void UpscaleSnapshotTest::developerInformationCoversTheState()
     const QString developer = upscaleDeveloperInformation(snapshot);
     for (const QString &group : {QStringLiteral("Build:"), QStringLiteral("Runtime:"), QStringLiteral("Window:"),
                                  QStringLiteral("Selection:"), QStringLiteral("Configuration:"), QStringLiteral("Geometry:"),
-                                 QStringLiteral("Processing:"), QStringLiteral("Colour:")}) {
+                                 QStringLiteral("Processing:"), QStringLiteral("Color:")}) {
         QVERIFY2(developer.contains(group), qPrintable(group + QStringLiteral(" missing from:\n") + developer));
     }
     QVERIFY(developer.contains(QStringLiteral("active, fullscreen, selected")));
@@ -271,7 +271,7 @@ void UpscaleSnapshotTest::namesEveryPresetAndTransferFunction()
     for (const int transfer : {int(TransferFunction::sRGB), int(TransferFunction::linear),
                                int(TransferFunction::PerceptualQuantizer), int(TransferFunction::gamma22)}) {
         snapshot.transferFunction = transfer;
-        const QString colour = group(upscaleDeveloperInformation(snapshot), QStringLiteral("Colour:"));
+        const QString colour = group(upscaleDeveloperInformation(snapshot), QStringLiteral("Color:"));
         QVERIFY2(!colour.isEmpty() && !colour.contains(QStringLiteral("transfer unknown")), qPrintable(colour));
         transfers.insert(colour);
     }

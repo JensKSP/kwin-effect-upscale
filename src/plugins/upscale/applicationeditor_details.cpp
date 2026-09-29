@@ -74,7 +74,7 @@ void UpscaleApplicationEditor::buildDetails(QVBoxLayout *details)
     gameLayout->addWidget(tabs);
     m_clear = new QPushButton(QIcon::fromTheme(QStringLiteral("edit-clear-all")), i18nc("@action:button", "Use Global Settings"), game);
     m_clear->setObjectName(QStringLiteral("applicationClear"));
-    m_clear->setToolTip(i18nc("@info:tooltip", "Forget every value this game sets for itself, so that it follows the global settings again"));
+    m_clear->setToolTip(i18nc("@info:tooltip", "Forget every value this application sets for itself, so that it follows the global settings again."));
     connect(m_clear, &QPushButton::clicked, this, &UpscaleApplicationEditor::clearOverrides);
     gameLayout->addWidget(m_clear, 0, Qt::AlignRight);
     m_details = new QStackedWidget(this);

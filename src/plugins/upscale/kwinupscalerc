@@ -70,7 +70,7 @@
 # is Native, UltraQuality, Quality, Balanced, Performance or Custom; Geometry is
 # Fit, which enlarges the picture as far as the filter allows without
 # stretching it, or Integer, the largest whole factor that fits; Filter is FSR,
-# which enlarges by up to twice, or Nearest, which repeats each pixel exactly.
+# which enlarges at most two times, or Nearest, which repeats each pixel exactly.
 # Native connection patterns start with `/`, keeping them distinct from Wine
 # identities while a prefix is still starting and its program is not known.
 
@@ -86,7 +86,7 @@ X11ConnectionExecutable=/(?:.*/)?supertuxkart
 ExecutableMatch=RegularExpression
 MethodWaylandFullScreen=AdvertisedMode
 Order=10
-Note=Follows the advertised screen mode in exclusive fullscreen, which its OpenGL renderer always uses. In the borderless fullscreen its Vulkan renderer uses by default it follows the surface scale instead.
+Note=Follows the advertised screen mode in exclusive fullscreen, which its OpenGL renderer always uses. In borderless fullscreen, which its Vulkan renderer uses by default, it follows the surface scale instead.
 
 [Application-extremetuxracer]
 Name=Extreme Tux Racer

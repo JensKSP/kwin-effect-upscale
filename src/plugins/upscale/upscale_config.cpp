@@ -70,7 +70,7 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     , m_filter(new QComboBox(widget()))
     , m_sharpening(new QCheckBox(i18n("Sharpen the image"), widget()))
     , m_strength(new QSlider(Qt::Horizontal, widget()))
-    , m_osdDetection(new QCheckBox(i18n("Show info at startup"), widget()))
+    , m_osdDetection(new QCheckBox(i18n("Show information at startup"), widget()))
     , m_osdSummary(new QCheckBox(i18n("Include details"), widget()))
     , m_osdStatistics(new QCheckBox(i18n("Show frame rate"), widget()))
     , m_osdDeveloper(new QCheckBox(i18n("Show developer information"), widget()))

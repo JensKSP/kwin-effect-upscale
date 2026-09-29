@@ -159,7 +159,7 @@ void UpscaleApplicationEditor::rebuildList()
     all->setFlags(all->flags() | Qt::ItemIsUserCheckable);
     all->setCheckState(m_allEnabled ? Qt::Checked : Qt::Unchecked);
     all->setToolTip(i18n("Every application follows these settings unless its own entry sets them. "
-                         "Checked, applications that are not in the list are upscaled as well."));
+                         "When checked, applications that are not in the list are upscaled as well."));
     QFont emphasis = all->font();
     emphasis.setBold(true);
     all->setFont(emphasis);

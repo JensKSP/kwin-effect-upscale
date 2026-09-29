@@ -76,17 +76,17 @@ void UpscaleConfigTest::proxyRestartStatus()
     QVERIFY(control);
     QVERIFY(status);
     control->setChecked(false);
-    QVERIFY(status->text().contains(QStringLiteral("Restart required")));
-    QVERIFY(status->text().contains(QStringLiteral("until logout")));
+    QVERIFY(status->text().contains(QStringLiteral("Log out required")));
+    QVERIFY(status->text().contains(QStringLiteral("keep using it until then")));
     module.save();
     module.load();
     QVERIFY(!control->isChecked());
-    QVERIFY(status->text().contains(QStringLiteral("Restart required")));
+    QVERIFY(status->text().contains(QStringLiteral("Log out required")));
     qputenv("UPSCALE_X11_SESSION_ROUTED", "0");
     module.load();
     QVERIFY(status->text().contains(QStringLiteral("without the proxy")));
     control->setChecked(true);
-    QVERIFY(status->text().contains(QStringLiteral("Restart required")));
+    QVERIFY(status->text().contains(QStringLiteral("Log out required")));
     module.save();
     if (previous.isNull()) {
         qunsetenv("UPSCALE_X11_SESSION_ROUTED");

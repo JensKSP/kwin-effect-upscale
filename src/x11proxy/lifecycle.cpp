@@ -31,8 +31,8 @@ void Lifecycle::check()
     QDBusMessage message = QDBusMessage::createMethodCall(QStringLiteral("org.freedesktop.Notifications"),
                                                           QStringLiteral("/org/freedesktop/Notifications"), QStringLiteral("org.freedesktop.Notifications"), QStringLiteral("Notify"));
     message << i18n("Upscale") << uint(0) << QStringLiteral("preferences-system-windows")
-            << i18n("Restart required")
-            << i18n("Log out and back in to remove the X11 proxy. Existing X11 connections still use it until logout.")
+            << i18n("Log out required")
+            << i18n("Log out and back in to remove the X11 proxy. X11 programs already running keep using it until then.")
             << QStringList{} << QVariantMap{} << -1;
     QDBusConnection::sessionBus().asyncCall(message);
 }

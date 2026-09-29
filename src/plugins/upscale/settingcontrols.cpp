@@ -56,7 +56,7 @@ static QString upscaleSwitchText(UpscaleSetting setting)
     case UpscaleSetting::Osd:
         return i18n("On-screen display");
     case UpscaleSetting::OsdDetection:
-        return i18n("Show info at startup");
+        return i18n("Show information at startup");
     case UpscaleSetting::OsdSummary:
         return i18n("Include details");
     case UpscaleSetting::OsdStatistics:
@@ -205,7 +205,7 @@ void UpscaleSettingControls::build(QFormLayout *form, QWidget *parent, const std
         control.reset->setObjectName(QLatin1String(info.key) + QLatin1String("Reset"));
         control.reset->setIcon(QIcon::fromTheme(QStringLiteral("edit-undo")));
         control.reset->setAutoRaise(true);
-        control.reset->setToolTip(i18n("Use the value of All applications"));
+        control.reset->setToolTip(i18n("Use the value of “All applications”"));
         control.reset->setAccessibleName(control.reset->toolTip());
         control.reset->setEnabled(false);
         connect(control.reset, &QToolButton::clicked, this, [this, setting]() {
