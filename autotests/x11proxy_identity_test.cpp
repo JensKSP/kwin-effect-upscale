@@ -28,6 +28,28 @@ void windowsPaths()
     check(!upscaleWindowsPath(QString()), "empty");
 }
 
+// Wine started with a program's Unix path names it on the drive whose
+// directory holds it most closely: C: inside the prefix's own drive, Z:, which
+// stands for /, anywhere else, and nothing where no drive holds it.
+void unixPaths()
+{
+    const QList<WineDrive> drives{{QLatin1Char('c'), QStringLiteral("/home/me/.wine/drive_c")},
+                                  {QLatin1Char('z'), QStringLiteral("/")}};
+    check(upscaleWindowsPathFor(QStringLiteral("/home/me/Games/Game One/game.exe"), drives)
+              == QStringLiteral("Z:\\home\\me\\Games\\Game One\\game.exe"),
+          "anywhere is on Z:");
+    check(upscaleWindowsPathFor(QStringLiteral("/home/me/.wine/drive_c/Program Files/game.exe"), drives)
+              == QStringLiteral("C:\\Program Files\\game.exe"),
+          "the closer drive wins");
+    check(upscaleWindowsPathFor(QStringLiteral("/home/me/.wine/drive_cc/game.exe"), drives)
+              == QStringLiteral("Z:\\home\\me\\.wine\\drive_cc\\game.exe"),
+          "a directory that only begins with a drive's name is not in it");
+    check(upscaleWindowsPathFor(QStringLiteral("/home/me/game.exe"), {{QLatin1Char('c'), QStringLiteral("/home/me/.wine/drive_c")}})
+              .isEmpty(),
+          "no drive holds it");
+    check(upscaleWindowsPath(upscaleWindowsPathFor(QStringLiteral("/games/x.exe"), drives)), "the result is a Windows path");
+}
+
 // A pattern is a regular expression, so separators are turned around; the
 // case on disk is what a person writes a pattern against, so it is kept.
 void programPaths()
@@ -95,6 +117,7 @@ int main(int argc, char **argv)
     QCoreApplication application(argc, argv);
     try {
         windowsPaths();
+        unixPaths();
         programPaths();
         components();
         runtimeIdentities();
@@ -103,6 +126,6 @@ int main(int argc, char **argv)
         qCritical() << error.what();
         return 1;
     }
-    qInfo() << "PASS windows paths, separators, components, runtime names, candidate order";
+    qInfo() << "PASS windows paths, unix paths, separators, components, runtime names, candidate order";
     return 0;
 }

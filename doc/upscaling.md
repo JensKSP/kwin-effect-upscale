@@ -416,8 +416,12 @@ Proton game acceptance has been established through it.
   as an absolute path, in the command line of the process that runs it, and
   names its own components below `C:\windows\system32` and
   `C:\windows\syswow64`, which is how the prefix's own programs are told from
-  Wine's. Matching a game's launcher works as well as matching the game,
-  because both reach the same desktop.
+  Wine's. A program started by its Unix path, `wine /path/game.exe`, keeps
+  that path there instead, and is named as Wine names it: on the drive whose
+  directory holds it most closely among the prefix's `dosdevices`, which is
+  `Z:` for a program anywhere and `C:` for one inside the prefix's own drive.
+  Matching a game's launcher works as well as matching the game, because both
+  reach the same desktop.
 - **A program is named for where it runs as well as for what it is**, in the
   shape of a URI, so that one pattern reaches a program whether it runs on the
   host or inside a runtime. A program of the host keeps its plain path. One

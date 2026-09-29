@@ -12,6 +12,25 @@ bool upscaleWindowsPath(const QString &program)
         && program.at(2) == QLatin1Char('\\');
 }
 
+QString upscaleWindowsPathFor(const QString &unixPath, const QList<WineDrive> &drives)
+{
+    const WineDrive *closest = nullptr;
+    QString closestRoot;
+    for (const WineDrive &drive : drives) {
+        const QString root = drive.root.endsWith(QLatin1Char('/')) ? drive.root : drive.root + QLatin1Char('/');
+        if (unixPath.startsWith(root) && (!closest || root.size() > closestRoot.size())) {
+            closest = &drive;
+            closestRoot = root;
+        }
+    }
+    if (!closest) {
+        return {};
+    }
+    QString rest = unixPath.mid(closestRoot.size());
+    rest.replace(QLatin1Char('/'), QLatin1Char('\\'));
+    return closest->letter.toUpper() + QStringLiteral(":\\") + rest;
+}
+
 QString upscaleProgramPath(const QString &program)
 {
     QString path = program;

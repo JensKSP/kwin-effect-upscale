@@ -9,6 +9,7 @@
 #include <QDBusConnection>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QProcess>
 #include <QScopeGuard>
 #include <QTemporaryDir>
@@ -75,6 +76,7 @@ private Q_SLOTS:
     void forgetsWhatAPrefixRanOnceItStops();
     void unselectedWineComponentConnectsPromptly();
     void selectedWineComponentWaitsForProgram();
+    void identifiesAProgramStartedByItsUnixPath();
     void effectSwitchedOffMidSession();
 
 private:
@@ -310,6 +312,35 @@ void ProxySessionTest::selectedWineComponentWaitsForProgram()
     QVERIFY(succeeded(component));
     QCOMPARE(m_effect.asked, before + 1);
     QVERIFY(m_effect.lastCandidates.join(QLatin1Char(' ')).contains(QStringLiteral("Delayed.exe")));
+}
+
+// Wine started with a program's Unix path keeps that path in the command line
+// rather than a Windows one, and names the program on the drive whose
+// directory holds it most closely: Z:, which a prefix maps to /, for a game
+// anywhere, and C: for one inside the prefix's own drive. Found 2026-09-29:
+// such a program was never identified, and its prefix's connections were
+// held for their ten seconds.
+void ProxySessionTest::identifiesAProgramStartedByItsUnixPath()
+{
+#if !defined(Q_OS_LINUX)
+    QSKIP("a Wine process is identified only where another process's command line can be read");
+#endif
+    const auto session = startSession(QStringLiteral("X14"));
+    QVERIFY(session);
+    const QString prefix = m_directory.filePath(QStringLiteral("unix"));
+    QVERIFY(QDir().mkpath(prefix + QStringLiteral("/dosdevices")));
+    QVERIFY(QDir().mkpath(prefix + QStringLiteral("/drive_c/Games")));
+    QVERIFY(QDir().mkpath(m_directory.filePath(QStringLiteral("Games"))));
+    QVERIFY(QFile::link(QStringLiteral("../drive_c"), prefix + QStringLiteral("/dosdevices/c:")));
+    QVERIFY(QFile::link(QStringLiteral("/"), prefix + QStringLiteral("/dosdevices/z:")));
+    const QString canonical = QFileInfo(prefix).canonicalFilePath();
+    const QString elsewhere = QFileInfo(m_directory.filePath(QStringLiteral("Games"))).canonicalFilePath();
+    QVERIFY(succeeded(spawnWine(QFile::encodeName(elsewhere + QStringLiteral("/Elsewhere.exe")), {"--connect", m_path}, QFile::encodeName(canonical))));
+    QVERIFY2(m_effect.lastCandidates.contains(QStringLiteral("wine://") + canonical + QStringLiteral("/Z:") + elsewhere + QStringLiteral("/Elsewhere.exe")),
+             qPrintable(m_effect.lastCandidates.join(QLatin1Char(' '))));
+    QVERIFY(succeeded(spawnWine(QFile::encodeName(canonical + QStringLiteral("/drive_c/Games/Inside.exe")), {"--connect", m_path}, QFile::encodeName(canonical))));
+    QVERIFY2(m_effect.lastCandidates.contains(QStringLiteral("wine://") + canonical + QStringLiteral("/C:/Games/Inside.exe")),
+             qPrintable(m_effect.lastCandidates.join(QLatin1Char(' '))));
 }
 
 // The effect switched off while the proxy runs, which goes on relaying until
