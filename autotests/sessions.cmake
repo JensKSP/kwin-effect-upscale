@@ -141,11 +141,16 @@ if(KWin_VERSION VERSION_LESS 6.7)
     )
     set_tests_properties(upscale-integration-outputs PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
     # A game's X11 window in a process of its own; see x11_game_standin.cpp.
-    add_executable(upscale_test_x11_game x11_game_standin.cpp x11_client.cpp)
+    add_executable(upscale_test_x11_game x11_game_standin.cpp x11_client.cpp x11_client_pointer.cpp)
     target_link_libraries(upscale_test_x11_game PRIVATE Qt6::Core XCB::XCB XCB::RANDR XCB::SHAPE)
     # The X11 sessions: the request path, and a window a helper prepared.
     foreach(session IN ITEMS integration prepared)
-        add_executable(upscale_x11_${session}_test x11_${session}_test.cpp x11_client.cpp)
+        add_executable(
+            upscale_x11_${session}_test
+            x11_${session}_test.cpp
+            x11_client.cpp
+            x11_client_pointer.cpp
+        )
         if(session STREQUAL "integration")
             target_compile_definitions(
                 upscale_x11_${session}_test
@@ -208,8 +213,8 @@ if(KWin_VERSION VERSION_LESS 6.7)
         COMMAND
             ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-integration-test.py
             $<TARGET_FILE:upscale_x11_integration_test> --x11 --scale=3 --outputs=1
-            coversPointerWithoutEmulatedMode refreshesStartupInputShape coversTheScreenItWasGiven
-            winePrefixEligibility
+            coversPointerWithoutEmulatedMode aConfinedPointerReachesTheWholeWindow
+            refreshesStartupInputShape coversTheScreenItWasGiven winePrefixEligibility
     )
     set_tests_properties(upscale-x11-scaled PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
     set(sessions

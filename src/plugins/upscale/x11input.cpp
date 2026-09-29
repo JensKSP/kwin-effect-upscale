@@ -132,12 +132,22 @@ QPointF UpscaleX11Input::apply(const QPointF &position)
         m_claimed = nullptr;
         return QPointF(1, 1);
     }
+    // While the program confines the pointer, as Wine does for a fullscreen
+    // game, KWin checks the confinement in the surface's own coordinates
+    // (Window::mapToLocal() in 6.3.6), before any filter and without the
+    // presentation, and keeps the pointer in the surface's unscaled part: two
+    // thirds of each side at Quality. Until KWin honours a presentation
+    // transform there, the pointer passes one to one while confined, as
+    // decided on 2026-09-29: the program reaches all of its window, and a
+    // system cursor, where one is shown, is drawn where KWin keeps it.
+    ConfinedPointerV1Interface *confinement = presented.surface->confinedPointer();
+    const QPointF scale = confinement && confinement->isConfined() ? QPointF(1, 1) : presented.scale;
     // Translate first, then scale: a point on the output becomes an offset
     // from the window's origin, and that offset is shrunk by the ratio of the
     // surface to the frame. QMatrix4x4 applies the operation added last
     // first, so the order here is the reverse of the order applied.
     QMatrix4x4 transformation;
-    transformation.scale(float(presented.scale.x()), float(presented.scale.y()));
+    transformation.scale(float(scale.x()), float(scale.y()));
     transformation.translate(float(-presented.origin.x()), float(-presented.origin.y()));
     if (focused != presented.surface) {
         // KWin's hit test ended beside the surface, in the part of the output
@@ -164,7 +174,7 @@ QPointF UpscaleX11Input::apply(const QPointF &position)
     if (m_claimed) {
         engageLock(presented, position);
     }
-    return presented.scale;
+    return scale;
 }
 
 void UpscaleX11Input::recordMapping(const UpscalePresentedPointer &presented, const QPointF &position, const QMatrix4x4 &transformation)

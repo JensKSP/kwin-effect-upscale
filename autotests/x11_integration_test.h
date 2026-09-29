@@ -43,6 +43,7 @@ private Q_SLOTS:
     void presentsWithoutEmulation();
     void refreshesStartupInputShape();
     void coversPointerWithoutEmulatedMode();
+    void aConfinedPointerReachesTheWholeWindow();
     void coversTheScreenItWasGiven();
     void winePrefixEligibility_data();
     void winePrefixEligibility();
