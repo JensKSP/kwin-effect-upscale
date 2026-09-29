@@ -328,6 +328,11 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
     movement, input and confinement, TV (L2116-2125).
 - **23.** **impl/test, F** – Proxy: Vulkan and presentation sync, overhead, container
     identity (Flatpak, Snap, Docker), BSD (L3308-3310, L3360-3363, L3487-3489).
+  **Partly done 2026-09-29:** the overhead is measured (about 30 microseconds a
+  round trip, bulk image data at a third of the rate, drawing unchanged) and
+  Vulkan and presentation went through the proxy with lavapipe in the
+  SuperTuxKart check. A GPU driver's DRI3 path stays with the hardware checks;
+  containers and the BSDs go with 2f and 51. Recorded in the slice.
 - **24.** **test, –** – SuperTuxKart on X11 through the proxy never recorded; source
     of Jens's Auto report; ~1 s stalls on 6.6 (L1918-1920, L1950, L3687-3690).
 

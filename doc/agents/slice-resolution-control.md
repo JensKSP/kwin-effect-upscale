@@ -3885,6 +3885,40 @@ session-start launcher was not included in that static-analysis run and still
 belongs to the unfinished normal-launch integration. No production proxy or
 session hook was installed by preparing the native diagnostic binary.
 
+### What the proxy costs, and what goes through it, 2026-09-29
+
+Item 23 of the open list. Measured in the conformance machine: two KWin
+sessions at 1920 × 1080 with the effect loaded, identical but for X11 routed
+through the session proxy, each running `x11perf` with three repeats of three
+seconds; the proxy relayed every connection as an unidentified client, which
+is what it does for a program no profile names. Twice each with every request
+synchronous, once each without:
+
+| Per request | Stock Xwayland | Through the proxy |
+| --- | --- | --- |
+| Round trip, synchronous `NoOperation` | 0.024 ms | 0.053 ms |
+| `GetProperty`, asynchronous | 40,000 per second | 18,600 per second |
+| `GetImage` 100 × 100, asynchronous | 34,600 per second | 15,900 per second |
+| `PutImage` 100 × 100, asynchronous | 189,000 per second | 55,700 per second |
+| `NoOperation`, asynchronous | 101 million per second | 35.3 million per second |
+| 10 × 10 rectangles, asynchronous | 29.9 million per second | 33.0 million per second |
+
+The proxy adds about 30 microseconds to each round trip here and passes bulk
+image data through the core protocol at about a third of the rate; drawing
+requests cost nothing measurable. A game presents through DRI3 and Present,
+whose buffers travel as descriptors rather than as data, and waits for the
+server a few times a frame, so its cost is a fraction of a millisecond per
+frame; a program that moves pictures through `PutImage` pays the most. These
+are figures from a virtual machine with six cores and no GPU, not from wzpc.
+
+Vulkan and presentation through the proxy: the SuperTuxKart check's Xwayland
+Vulkan cells, borderless and exclusive, ran through it with lavapipe on
+2026-09-29 and passed, as did its OpenGL cell. A GPU driver's DRI3 path, with
+buffers from the GPU, is not covered by that; it stays with the hardware
+checks. Container identity (Flatpak, Snap, Docker) needs those runtimes in a
+machine and belongs with the package machines (item 2f) and the Flatpak and
+Snap identities (51); the BSDs need a FreeBSD session, likewise item 2f.
+
 ### Normal-launch routing implementation, 2026-09-24
 
 Jens explicitly requires completing normal launching now. The supported
