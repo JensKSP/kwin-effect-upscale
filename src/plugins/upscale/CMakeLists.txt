@@ -9,7 +9,6 @@ set(upscale_SOURCES
     eligibility.cpp
     refusaltext.cpp
     framestatistics.cpp
-    helper.cpp
     main.cpp
     matching.cpp
     logicalsize.cpp
@@ -21,8 +20,6 @@ set(upscale_SOURCES
     observation.cpp
     overlay.cpp
     placement.cpp
-    preparation.cpp
-    question.cpp
     scaler.cpp
     snapshot.cpp
     snapshot_metrics.cpp
@@ -36,7 +33,6 @@ set(upscale_SOURCES
     x11resolution.cpp
     x11resolution_events.cpp
     x11resolution_startup.cpp
-    x11resolution_prepared.cpp
     x11resolution_present.cpp
     x11resolution_validate.cpp
     upscale.qrc
@@ -70,7 +66,6 @@ if (KWIN_BUILD_KCMS)
         upscale_config.cpp
         proxycontrols.cpp
         displaycontrols.cpp
-        preparedlist.cpp
         applicationcontrols.cpp
         resolutionchoice.cpp
         resolutionpreview.cpp

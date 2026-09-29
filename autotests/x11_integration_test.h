@@ -44,9 +44,13 @@ private Q_SLOTS:
     void refreshesStartupInputShape();
     void coversPointerWithoutEmulatedMode();
     void aConfinedPointerReachesTheWholeWindow();
+    void keepsTheKeyboardWhereThePointerIs();
+    void letsAPresentedGameLockThePointer();
     void coversTheScreenItWasGiven();
     void winePrefixEligibility_data();
     void winePrefixEligibility();
+    void leavesWineToTheProxy_data();
+    void leavesWineToTheProxy();
     void keepsEmulatedPointerCoverage_data();
     void keepsEmulatedPointerCoverage();
     void expiresDepartedClientRefusal();

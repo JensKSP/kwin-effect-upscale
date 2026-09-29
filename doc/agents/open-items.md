@@ -58,7 +58,9 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   waits with no signal (commented), the 300 ms in `x11proxy_session_test.cpp`
   that belongs to item 26, and the 13 in the Wine helper, prepared-list and
   prepared-session tests, which wait for item 32. Committed as `c24ca56`; the
-  300 ms went with item 26 (`d068860`).
+  300 ms went with item 26 (`d068860`). The 13 went with the companion's tests
+  on 2026-09-29 (item 32); the Wine guard's own case that replaced them waits
+  for the status reason instead of 3.5 seconds.
 - **2.** **test, S** – Nightly has published nothing since 2026-09-20 (`c88f842`):
   red 23–27 Sep on `Build / FreeBSD amd64 Package` at `94d93e0` (fixed by
   `ee6b3b2`), then item 1. The release carries none of the stable download
@@ -445,6 +447,19 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   interface, its preparation flow and its tests; keep one rule of the guards, a
   Wine window acted on only through the proxy route, never resized blindly.
   Now an implementation item, with 1b's remaining waits.
+  **Done 2026-09-29:** `src/winescreen/`, the effect's helper client,
+  preparation, question and prepared-window path, the settings page's Prepared
+  Games, the build switch and 14 test files are gone, and with them the
+  pointer-event probe and the highlight colour only the question used. The
+  guard stays in both places it was (first mapping and every resize request)
+  and is now reported in the status: "Wine programs are told a smaller screen
+  only by the X11 session proxy, which did not answer this one."
+  `leavesWineToTheProxy` in the X11 session covers four Wine loader names and a
+  native control, and all four Wine rows failed 3 of 3 with the guard disabled.
+  The prepared session's keyboard-focus and pointer-lock cases moved to the X11
+  session on the request path; its pointer case duplicated
+  `coversPointerWithoutEmulatedMode` and went. The handbook says what a
+  development build that enabled the companion leaves behind.
 - **33.** **wzpc** – Restore global `OsdStatistics=true` from
     `build/wzpc-clean-start-94a6804/` (L632-636).
 - **34.** **test/investigate, F** – Steam as Flatpak and Snap; the 09-27 analysis

@@ -15,8 +15,6 @@ kwin-effect-upscale (0.3.0) unstable; urgency=medium
   * The pointer, clicks and mouse look reach an X11 game across the whole
     upscaled picture, and an X11 fullscreen game is given its size before
     its first window is shown.
-  * A game that stays at full size can be handed to an optional helper on
-    the session bus. This package does not install one.
   * The catalogue recognizes Left 4 Dead 2 by its game folder, adds
     Wreckfest, and no longer pins the benchmarks to Native.
 

@@ -137,9 +137,8 @@ a game the way they always have, and it works.
    outputs at or below the Full HD pixel threshold
    bypass the effect entirely; and the effect blocks direct scanout only while
    it is active - while it has eligible content, while Auto waits for a
-   Wayland window to answer its request for a smaller buffer, while a question
-   of its own is open, or while one of its displays is shown - never merely by
-   being loaded. Nothing else: no configuration file to write, no environment
+   Wayland window to answer its request for a smaller buffer, or while one of
+   its displays is shown - never merely by being loaded. Nothing else: no configuration file to write, no environment
    variable to set, no external tool to install, no per-game preparation. The
    application profiles ship inside the package and are updated by it; a
    user's own entries are an option they may take, never a step they must take.
@@ -167,18 +166,13 @@ the private virtual desktop started with the game and the per-profile launch
 helper go with them. Those results stay recorded as mechanisms that exist; they
 are not routes this effect may take.
 
-**One exception, laid down by Jens on 2026-09-22.** A game that cannot be made
-to render smaller while it runs may be prepared for its next start by a helper
-that ships in the same package, when the user agrees to it in a question the
-effect puts on the screen. Nothing is changed without that agreement, the user
-is told that the change outlives the package until it is reset, and resetting
-it is one click on the settings page. The game is still started the way it
-always is; the helper changes configuration the game reads, never how it is
-started. For Wine and
-Proton games this is [a smaller screen in their prefix](#games-that-ignore-resizing-a-smaller-screen-in-their-prefix).
-The legacy helper is now excluded from normal builds and packages while the
-X11 proxy replacement is being validated; this exception is not an installed
-capability of the default build.
+**No exception for preparing a game.** From 2026-09-22 a game that could not be
+made to render smaller while it ran could be prepared for its next start by a
+companion service, with the user's agreement in a question the effect put on the
+screen. The X11 session proxy tells a Wine program a smaller screen before its
+first window exists, which is what the preparation was for, without changing
+anything the program keeps; Jens removed the companion on 2026-09-29. See
+[a smaller screen for Wine](#games-that-ignore-resizing-a-smaller-screen-in-their-prefix).
 
 **Sommelier is still worth reading, as a source of technique rather than a
 route.** It solves, in a proxy, several of the problems this effect has from
@@ -381,13 +375,15 @@ live no longer than its server, reached through a key that is only a link
 (`dlls/win32u/sysparams.c`, `update_display_cache_from_registry`,
 `lock_display_devices` and `write_source_to_registry`). A description of our own
 where that link would go is read instead, at every start and after every refresh
-Wine makes.
+Wine makes. Measured on 2026-09-23 with Proton Experimental's Wine, a Windows
+program took such a description as its screen and current mode. The effect does
+not take this route: it writes into a prefix the user owns, needs the program
+restarted, and outlives the package.
 
-A second route reaches the same place without writing anything into the prefix.
-Wine asks the display server once per prefix, so the X11 forwarding proxy can
-answer that question with a smaller screen for every connection the prefix
-makes. This is the route the effect is being built for. It is implemented and
-experimental: on Linux the session X11 proxy names a Wine connection as below,
+The route it takes reaches the same place without writing anything into the
+prefix. Wine asks the display server once per prefix, so the X11 forwarding
+proxy can answer that question with a smaller screen for every connection the
+prefix makes. It is implemented and experimental: on Linux the session X11 proxy names a Wine connection as below,
 reading the connecting process's command line and environment, and elsewhere it
 identifies no connection and forwards every one unchanged; the effect matches
 that name against a profile's `X11ConnectionExecutable`; the proxy reports the
@@ -455,109 +451,29 @@ Proton game acceptance has been established through it.
   KWin's process identity API, and it tells Wine's loader from other programs
   by that executable's name.
 
-The legacy helper's implementation remains in the source tree. Normal builds
-and packages exclude its binary and activation services; an explicit
-`UPSCALE_BUILD_WINE_HELPER=ON` development build enables them and their tests.
-Removing the helper leaves existing prefix preparation intact. The retained
-helper works as follows:
+**A Wine program the proxy did not answer is left alone.** The effect recognizes
+Wine and Proton by the process's standard loader or preloader name, `wine`,
+`wine64`, `wine-preloader` or `wine64-preloader`, through KWin's process
+identity API; a loader renamed away from these is not recognized, and a game's
+name, Steam ID or prefix plays no part. Wine takes its screen from its prefix
+when it starts, and resizing its running window fights that screen and
+flickers. So unless the X11 session proxy answered the process's connection with
+a smaller screen, the effect neither holds the window's first mapping nor asks
+it to resize, whether it is fullscreen already or becomes so later, and the
+status names the reason: "Wine programs are told a smaller screen only by the
+X11 session proxy, which did not answer this one." A process the proxy did
+answer already renders at that size and is presented like any other X11
+program.
 
-- The effect recognizes Wine and Proton by the process's standard Wine loader
-  or preloader name, using KWin's process identity API. It skips the early
-  mapping transaction and live resize experiments for these X11 windows,
-  including those already fullscreen, unless the session X11 proxy answered the
-  process's connection with a smaller screen; such a process already renders at
-  that size and is handled like any other X11 program. It asks the optional
-  helper (`org.kde.KWin.Upscale.Helper1`, defined in the plugin folder) about
-  preparation directly. Without a helper, a recognized Wine window whose
-  connection the proxy did not answer is left alone. Runtime
-  detection does not depend on a game's name, Steam ID or preparation record;
-  custom loaders renamed away from Wine's standard names are not recognized.
-  Other X11 applications retain resize negotiation and may ask the helper after
-  an unsuccessful request. The plugin knows no Wine-prefix layout or write logic.
-  The early `offerSetup` query reports no rendering failure, so it cannot mark
-  an existing preparation unsupported. Older helpers without this query leave
-  the current run alone; update the effect and its packaged helper together.
-- The helper proves which prefix the running game uses: from the game's own
-  environment, reached through the game's view of the file system, and
-  confirmed by the lock its Wine server holds, which is named after the prefix
-  directory. It works with every Wine and Proton flavour that runs through
-  winex11, and it is built on Linux, where Steam and Proton run.
-- The helper's question appears in the middle of the screen. After **Set up**
-  the effect offers **Restart game and apply**, with the warning that unsaved
-  progress may be lost; **Not now** asks again next time and **Never for this
-  game** does not.
-- After the game and its Wine server have exited, the helper adds two keys to
-  the prefix's `system.reg` and nothing else: one screen per output of the
-  session, the game's own at the chosen size and every other at its own, with
-  the modes each offers, and the value that names them. Describing only the
-  game's screen would let a program see one screen where the session has two,
-  which is a change wider than the size it is there for. Which graphics card and
-  monitors they belong to the prefix has described itself, since the first time
-  it ran; a screen without a monitor of its own would have no size at all, so
-  there are never more screens than monitors the prefix knows. A prefix whose
-  programs run in a virtual desktop of the user's is not prepared. Reset can
-  still remove an earlier preparation, without changing that virtual desktop.
-- The description is what a Wine build reads before it asks the display server,
-  and it was tested against Wine 11. A build the helper has not seen is written
-  for all the same, because refusing would take the feature from every build
-  released after this one, and the log names it, so that a report about such a
-  build says which it was. A build that reads the description differently leaves
-  the game at full size rather than wrong.
-- From the next start every program in that prefix sees a monitor of the chosen
-  size and one size in its mode list: that size, in the colour depths Wine
-  offers, at 60 Hz and, where the output runs faster, at the output's rate as
-  well. Wine refuses a mode that is not in the list, so a game can neither ask
-  for a larger size nor pick a smaller one out of a menu. The mode change itself
-  stays inside the prefix, so the X screen never changes and no other program
-  notices.
-- **Why one size and not a list.** A game offered several sizes chooses one of
-  them by its own rules: Wreckfest, measured on 2026-09-23, threw away the 4K in
-  its settings and came up asking for a resolution, with the smallest of the
-  offered ones preselected. The size a program renders at is the effect's to
-  decide, so the prefix offers exactly that size. The game's own resolution list
-  then holds one entry, and **Reset** on the settings page gives it back.
-- The game's own window is then a window of the chosen size, which the effect
-  holds at that size and upscales like any other smaller buffer. A saved
-  preparation record or acceptance of setup for a later launch cannot trigger
-  a resize of the current run. Presentation waits until the window actually
-  supplies the helper's prepared buffer size. Helper replies superseded by a
-  settings change are rechecked before any presentation or setup offer.
-- **Measured on 2026-09-23** in a prefix of its own, on a 3840×2160 X screen,
-  with Proton Experimental's Wine: a Windows program reported a 2560×1440 screen
-  and current mode, its fullscreen window was a 2560×1440 X11 window, a mode
-  change to 1920×1080 succeeded without touching the X server, and the
-  description was still read after the program had changed the mode and after
-  the prefix's server had been restarted.
-- The question holds the keyboard and the pointer until it is answered: arrow
-  keys, Tab, Return and Escape, or hovering and a click.
-- Each time a prepared game's window appears, the effect tells the helper the
-  size it wants now. A changed resolution is written after that run; a game
-  the effect no longer acts on, or whose fullscreen method is Off, has the
-  description taken away after that run instead of being presented.
-- **It does not hold every game.** A game that renders at a size of its own
-  whatever the screen offers is beyond it: Wine refuses a mode that is not in
-  the list, and what a game does then is the game's own business. For those the
-  display shows the size the game draws at in red, because it is not the size
-  chosen, and the helper's log names the game as keeping a resolution of its
-  own.
-- **A preparation that did not help is taken back.** Where a game is asked for
-  the size its prefix was already prepared for and still draws at the output's
-  size, the helper takes the description away after that run and does not offer
-  it for that game again; a reset on the settings page asks anew. The same holds
-  for a game that will not start with the screen it was described, which draws
-  nothing to judge: the run the helper started itself is watched, and a game
-  whose Wine server comes and goes without the effect ever asking about a window
-  of it has the description taken back too.
-  A record alone does not establish failure: if the prefix has lost the screen
-  description, the helper restores it after the run and does not mark the game
-  unsupported. A repair already waiting for the game to exit is allowed to
-  complete before its effect is judged.
-- **Prepared Games** on the settings page lists what the helper set up, with a
-  Reset for each. Uninstalling the package cannot undo a preparation, because
-  nothing runs as the user afterwards. The question says only that the setting
-  stays with the game until it is undone in the upscaler's settings; it does
-  not yet say that the change outlives the package, as the exception above
-  requires.
+**The companion that prepared a prefix is gone.** From 2026-09-22 to 2026-09-29
+a companion service could write the description above into a game's prefix for
+its next start, after the user agreed in a question on the screen, and reset it
+from the settings page. It was never built by default and no package installed
+it. A development build that enabled it leaves the service's binary and its
+D-Bus and systemd activation files in place until they are removed by hand, and
+a preparation it wrote stays in the prefix's `system.reg`: the `\Device\Video0`
+value under `HARDWARE\DEVICEMAP\VIDEO` and the key it names, to be removed while
+no Wine server runs in that prefix.
 
 Keep the physical output at its native mode. In-game, compositor, runtime and
 driver upscalers other than this effect must be disabled for the baseline
@@ -807,8 +723,7 @@ unknown destination transfer functions use normal rendering. There is no frame
 timer: client damage expands to a full-window repaint because both filters
 sample neighbouring pixels. The effect blocks scanout while it is active: while
 it has an eligible candidate, while Auto waits for a Wayland window to answer
-its request for a smaller buffer, while a question of its own is open, or while
-a diagnostic display is shown; this effect API exposes a session-wide scanout
+its request for a smaller buffer, or while a diagnostic display is shown; this effect API exposes a session-wide scanout
 veto. Window selection and resolution policy still apply independently per
 output. KWin retains ownership of refresh and presentation timing.
 
@@ -1057,15 +972,14 @@ settings is not implemented, and neither is About.
 The `kwin_effect_upscale` category logs effective per-game settings and observed
 buffer, surface, presentation, frame and output changes at information level.
 It also records X11 resize negotiation and presentation, Wayland advertisements
-and scale requests, their outcomes and restoration. The companion category
-`kwin.upscale.winescreen` records preparation jobs, reset, writes and restart.
-A third category, `kwin_effect_upscale.matching`, warns about a profile pattern
+and scale requests, their outcomes and restoration. A second category,
+`kwin_effect_upscale.matching`, warns about a profile pattern
 that can never match. The build identity line and the session X11 proxy's
 connection decisions use Qt's default category at information level.
-Repeated identical observations are suppressed. Detailed native configuration,
-pointer mapping and helper calls use debug level; enable them for a diagnostic
-session with `QT_LOGGING_RULES="kwin_effect_upscale.debug=true;kwin.upscale.winescreen.debug=true"`
-in the environment of KWin and the companion. Enabling the OSD does not enable
+Repeated identical observations are suppressed. Detailed native configuration
+and pointer mapping use debug level; enable them for a diagnostic session with
+`QT_LOGGING_RULES="kwin_effect_upscale.debug=true"` in the environment of KWin.
+Enabling the OSD does not enable
 this tracing. Logs describe compositor-visible buffers, not an application's
 internal rendering viewport.
 
@@ -1107,8 +1021,7 @@ what the application committed, and neither a saved preference nor a made
 request is ever presented as a successfully applied client resolution.
 
 The page has its boxes the way KWin's own effect pages group theirs: the
-application list; **Prepared Games**, shown only while a helper has prepared a
-game; **X11 Session**, with **Enable the X11 proxy at login**, stored as
+application list; **X11 Session**, with **Enable the X11 proxy at login**, stored as
 `X11Proxy` and on by default, and a line, rechecked every two seconds, saying
 whether this session uses the proxy and whether a change waits for the next
 login; and About. The global settings are not a section of their own but the
@@ -1154,8 +1067,7 @@ string appears in English.
 
 - Every user-visible string goes through KI18n with the project's translation
   domain, `kwin_effect_upscale`, which the build defines for the effect, the
-  settings module and the X11 proxy; the legacy helper's strings use a second
-  domain, `kwin_upscale_helper`. That includes the status text, the on-screen
+  settings module and the X11 proxy. That includes the status text, the on-screen
   display, the settings labels and the messages that name a refused condition.
 - Do not assemble a sentence from translated fragments into new grammar. Where
   a fragment is unavoidable, as with a refusal reason that appears inside the
@@ -1345,9 +1257,7 @@ choosing where the session already states one.
 
 Implemented so far: the surface exists and is drawn after the screen pass, at
 destination resolution, outside the captured image, taking no focus and no
-input. The one drawing that does take input is the question a helper's
-preparation is offered in: it is drawn in the middle of the output and holds
-the keyboard and the pointer until it is answered. The surface takes the family
+input. The surface takes the family
 and the size from the session's fixed-width font setting and multiplies that
 size by the scale factor of the output the text is drawn on, so the text is the
 same physical size as the rest of that desktop. A size the session states in
@@ -1426,9 +1336,6 @@ read than it was alone:
 | [Heads-up display](#the-heads-up-display) | The few figures a player watches while playing: frames per second, frame time, 1% low, and what the picture is being drawn at. Large text. | The corner the user chooses, top right by default. |
 | Developer information | The diagnostic dump: build, selection, configuration, geometry, processing, colour. | The corner the user chooses, bottom right by default. |
 | Interactive panel | Settings changed during play, opened and closed by a configurable key combination. Not implemented; specified in [in-game controls](#in-game-controls-and-applying-settings). | The corner the three passive displays leave free. |
-
-The question a helper's preparation is offered in is drawn apart from these,
-in the middle of the output, and holds no corner.
 
 Each display is switched on and off on its own, and switching one on never
 moves, extends or replaces another. Each has a corner of its own to choose,
@@ -2257,10 +2164,7 @@ Managed launch configuration and launch-time method discovery are outside the
 for executable arguments, environments, runtime wrappers and trial relaunches
 were superseded by the requirement to start games normally. No launcher adapter
 or discovery controller is implemented, and no launch helper is required or
-built by default. The legacy Wine preparation helper, which restarts a Steam
-game through `steam://rungameid/` when the person asks it to, remains in the
-source tree behind `UPSCALE_BUILD_WINE_HELPER`, off in normal builds and
-packages.
+built.
 
 The profile’s Program field is an executable path, or a pattern for one, that
 recognizes a program before and after its windows exist; it is not a command
@@ -2276,15 +2180,11 @@ starts. Live X11 requests use the existing window and validate its response.
 Changing a setting must never be represented as proof that an application
 changed its buffer.
 
-Later extension, laid down by Jens on 2026-09-21, implemented only for the
-legacy Wine preparation helper: after the helper sets up a prefix, the question
-in the middle of the screen offers **Restart game and apply**, which asks the
-window to close and has the helper start the game again through
-`steam://rungameid/`. Normal builds and packages do not include that helper, so
-they offer no restart, and the in-game settings offer none. The extension: when
-the [in-game settings](#in-game-controls-and-applying-settings) change something
-the running game can only take at its next start, they offer to restart the
-game for the user, beside applying the change at the next launch. The restart
+Later extension, laid down by Jens on 2026-09-21 and not implemented; nothing
+offers a restart today. The extension: when the
+[in-game settings](#in-game-controls-and-applying-settings) change something the
+running game can only take at its next start, they offer to restart the game for
+the user, beside applying the change at the next launch. The restart
 happens only when the user chooses it, after being told that closing the game
 may lose unsaved progress, and it starts the game again the way it was started.
 It is not a way of starting games: a game the user never asks to restart is

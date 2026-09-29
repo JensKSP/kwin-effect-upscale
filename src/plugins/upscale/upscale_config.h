@@ -28,8 +28,6 @@ class QTabWidget;
 namespace KWin
 {
 
-class UpscalePreparedList;
-
 class UpscaleApplicationEditor;
 class UpscaleResolutionPreview;
 class UpscaleSliderField;
@@ -96,8 +94,6 @@ private:
     QLabel *m_applications;
     QPushButton *m_resetApplications;
     QLabel *m_build;
-    // Games an optional helper prepared, each with its undo; hidden without one.
-    UpscalePreparedList *m_prepared = nullptr;
 };
 
 } // namespace KWin

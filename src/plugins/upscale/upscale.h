@@ -23,7 +23,6 @@ namespace KWin
 {
 
 class UpscaleModeOverride;
-class UpscalePreparation;
 class UpscaleWaylandScale;
 class UpscaleX11Resolution;
 class UpscaleScaler;
@@ -56,13 +55,6 @@ public:
 #endif
     bool isActive() const override;
     bool blocksDirectScanout() const override;
-    void grabbedKeyboardEvent(QKeyEvent *event) override;
-#if UPSCALE_POINTER_EVENT_API
-    void pointerMotion(PointerMotionEvent *event) override;
-    void pointerButton(PointerButtonEvent *event) override;
-#else
-    void windowInputMouseEvent(QEvent *event) override;
-#endif
     /** Whether the X11 resolution control has nothing in flight; see UpscaleX11Resolution::settled(). */
     bool x11RequestsSettled() const;
     /** How often X11 validation has judged a request; see UpscaleX11Resolution::judgements(). */
@@ -73,15 +65,6 @@ public:
      * that nothing piles up for the ones that are gone.
      */
     QString records() const;
-    /**
-     * @p window's client went on drawing another size than @p size, which was
-     * asked of it. X11 validation reports this; a test driver can as well.
-     */
-    void unfollowed(EffectWindow *window, const QSize &size);
-    /** The question in the middle of the screen; empty while there is none. */
-    QString question() const;
-    /** Where the question's answers are, for a pointer; empty while there is none. */
-    QList<QRectF> questionAnswers() const;
     int requestedEffectChainPosition() const override;
     UpscalePaintResult drawWindow(const RenderTarget &target, const RenderViewport &viewport, EffectWindow *window,
                                   int mask, const UpscaleRegion &region, WindowPaintData &data) override;
@@ -139,10 +122,6 @@ private:
     std::unique_ptr<UpscaleModeOverride> m_modeOverride;
     std::unique_ptr<UpscaleX11Resolution> m_x11Resolution;
     std::unique_ptr<UpscaleWaylandScale> m_waylandScale;
-    // Asks a helper, and the user, about a program that cannot be made to
-    // render smaller while it runs. Declared after the X11 control it uses,
-    // so that it goes first.
-    std::unique_ptr<UpscalePreparation> m_preparation;
 
     /** Auto's Wayland half for the selected window, or giving its scale back. */
     void askForSmallerBuffer(UpscaleOutput *output, EffectWindow *candidate, const UpscaleApplication *claimed);

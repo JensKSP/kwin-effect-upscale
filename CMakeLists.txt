@@ -158,25 +158,8 @@ check_cxx_source_compiles(
     int main() { return 0; }"
     UPSCALE_KWIN_PAINT_RETURNS_BOOL
 )
-# Later KWin hands an effect that intercepts the pointer KWin's own pointer
-# events rather than Qt mouse events.
-unset(UPSCALE_KWIN_POINTER_EVENTS CACHE)
-check_cxx_source_compiles(
-    "#include \"effect/effect.h\"
-    struct Probe : KWin::Effect
-    {
-        void pointerButton(KWin::PointerButtonEvent *) override {}
-    };
-    int main() { return 0; }"
-    UPSCALE_KWIN_POINTER_EVENTS
-)
 unset(CMAKE_REQUIRED_LIBRARIES)
 unset(CMAKE_REQUIRED_QUIET)
-if(UPSCALE_KWIN_POINTER_EVENTS)
-    add_definitions(-DUPSCALE_POINTER_EVENT_API=1)
-else()
-    add_definitions(-DUPSCALE_POINTER_EVENT_API=0)
-endif()
 if(UPSCALE_KWIN_PAINT_RETURNS_BOOL)
     add_definitions(-DUPSCALE_RENDER_DEVICE_API=1)
 else()
@@ -218,13 +201,6 @@ add_subdirectory(src/x11proxy)
 # module, where they can be read offline. Beside the data rather than among a
 # distribution's documents, whose directory differs between distributions.
 install(FILES doc/third-party-notices.md DESTINATION ${KDE_INSTALL_DATADIR}/kwin-effect-upscale)
-# Retain the old preparation helper for explicit development builds while the
-# X11 proxy is validated. Normal builds and packages must not install or
-# activate a service that changes Wine prefixes.
-option(UPSCALE_BUILD_WINE_HELPER "Build and install the legacy Wine preparation helper" OFF)
-if(UPSCALE_BUILD_WINE_HELPER)
-    add_subdirectory(src/winescreen)
-endif()
 if(BUILD_TESTING)
     add_subdirectory(autotests)
 endif()
