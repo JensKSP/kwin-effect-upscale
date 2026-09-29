@@ -41,6 +41,8 @@ class EffectStandIn : public QObject
 public:
     int asked = 0;
     bool prefixMayMatch = true;
+    // Programs whose names contain this are not in the list.
+    QString unselected;
     QStringList lastCandidates;
 public Q_SLOTS:
     bool x11PrefixMayMatch(const QString &prefix, const QStringList &candidates)
@@ -54,6 +56,9 @@ public Q_SLOTS:
         Q_UNUSED(pid)
         ++asked;
         lastCandidates = candidates;
+        if (!unselected.isEmpty() && candidates.join(QLatin1Char(' ')).contains(unselected)) {
+            return {{QStringLiteral("reason"), QStringLiteral("not in the list")}};
+        }
         const UpscaleX11::Wire canonical;
         QByteArray timing(32, '\0');
         canonical.integer(timing, 0, 1);
@@ -77,6 +82,7 @@ private Q_SLOTS:
     void unselectedWineComponentConnectsPromptly();
     void selectedWineComponentWaitsForProgram();
     void identifiesAProgramStartedByItsUnixPath();
+    void aWarmPrefixIsShownTheLaterScreen();
     void effectSwitchedOffMidSession();
 
 private:
@@ -118,6 +124,7 @@ void ProxySessionTest::initTestCase()
 void ProxySessionTest::cleanup()
 {
     m_effect.prefixMayMatch = true;
+    m_effect.unselected.clear();
     for (const int descriptor : std::as_const(m_kept)) {
         close(descriptor);
     }
@@ -343,6 +350,41 @@ void ProxySessionTest::identifiesAProgramStartedByItsUnixPath()
              qPrintable(m_effect.lastCandidates.join(QLatin1Char(' '))));
 }
 
+// A prefix that runs already when a selected program starts in it - a launcher
+// first, or Wine's own tools - has its earlier connections shown that
+// program's screen as well, those a process opened after its first included,
+// and no other prefix's. Found 2026-09-29: the program was answered while
+// Wine already knew the screen at full size.
+void ProxySessionTest::aWarmPrefixIsShownTheLaterScreen()
+{
+#if !defined(Q_OS_LINUX)
+    QSKIP("a Wine process is identified only where another process's command line can be read");
+#endif
+    const auto session = startSession(QStringLiteral("X15"));
+    QVERIFY(session);
+    m_effect.unselected = QStringLiteral("Launcher.exe");
+    s_logged.clear();
+    s_passOn = qInstallMessageHandler(record);
+    const auto passOn = qScopeGuard([]() {
+        qInstallMessageHandler(s_passOn);
+    });
+    const QByteArray prefix = QFile::encodeName(m_directory.filePath(QStringLiteral("warm")));
+    const pid_t launcher = spawnWine("C:\\Games\\Launcher.exe", {"--hold", m_path}, prefix);
+    const pid_t elsewhere = spawnWine("C:\\Games\\Launcher.exe", {"--hold", m_path}, QFile::encodeName(m_directory.filePath(QStringLiteral("cold"))));
+    QVERIFY(launcher > 0 && elsewhere > 0);
+    const auto stop = qScopeGuard([launcher, elsewhere]() {
+        for (const pid_t pid : {launcher, elsewhere}) {
+            kill(pid, SIGTERM);
+            waitpid(pid, nullptr, 0);
+        }
+    });
+    // Both launchers answered, at the size they have, before the game starts.
+    QTRY_COMPARE(s_logged.filter(QStringLiteral("not in the list")).size(), 2);
+    QVERIFY(succeeded(spawnWine("C:\\Games\\Game.exe", {"--connect", m_path}, prefix)));
+    const QString log = s_logged.join(QLatin1Char('\n'));
+    QVERIFY2(log.contains(QStringLiteral("now shows 2 earlier connections QSize(2560, 1440)")), qPrintable(log));
+}
+
 // The effect switched off while the proxy runs, which goes on relaying until
 // the next login: KWin is still on the bus, the effect's object is not. A
 // program connecting then is told its screen unchanged, a connection made
@@ -389,6 +431,9 @@ int main(int argc, char **argv)
         }
         if (std::strcmp(argv[index], "--connect") == 0) {
             return connectOnce(argv[index + 1]);
+        }
+        if (std::strcmp(argv[index], "--hold") == 0) {
+            return connectOnce(argv[index + 1], true);
         }
     }
     QTemporaryDir directory(QDir::tempPath() + QStringLiteral("/proxy-session-XXXXXX"));

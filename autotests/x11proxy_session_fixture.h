@@ -138,7 +138,7 @@ inline QSize rootSize(const SetupReply &reply)
 // ends its side and reads until the relay has ended the other, which the relay
 // does in the same step in which it finishes, so its exit means the relay is
 // gone.
-inline int connectOnce(const QByteArray &path)
+inline int connectOnce(const QByteArray &path, bool hold = false)
 {
     const int client = socket(AF_UNIX, SOCK_STREAM, 0);
     sockaddr_un address{};
@@ -152,6 +152,17 @@ inline int connectOnce(const QByteArray &path)
     const QSize root = rootSize(reply);
     std::printf("%dx%d\n", root.width(), root.height());
     std::fflush(stdout);
+    if (hold) {
+        // Connected for as long as it runs, as a program that goes on does,
+        // and a second time, as Wine does from another of its threads.
+        const int second = socket(AF_UNIX, SOCK_STREAM, 0);
+        if (second < 0 || ::connect(second, reinterpret_cast<const sockaddr *>(&address), sizeof(address)) != 0
+            || write(second, request.constData(), request.size()) != request.size() || !readFully(second, reply.data(), reply.size())) {
+            return 1;
+        }
+        pause();
+        return 0;
+    }
     shutdown(client, SHUT_WR);
     for (;;) {
         char byte;

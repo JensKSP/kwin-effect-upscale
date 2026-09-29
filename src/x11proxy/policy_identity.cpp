@@ -11,6 +11,7 @@ void Policy::setupReply(QByteArray &bytes)
         m_base = m_wire.integer(bytes, 12);
         m_registration = m_registry->insert(*m_base, m_wire.integer(bytes, 16), m_pid);
     }
+    m_setupReply = bytes;
     if (m_display) {
         m_display->setup(bytes);
     }

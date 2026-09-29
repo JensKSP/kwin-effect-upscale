@@ -238,6 +238,97 @@ void outputModeDisappears(bool little)
     check(display.reply("geometry", 42, rootGeometry(wire)) == rootGeometry(wire), "policy kept after its mode disappeared");
 }
 
+// RandR as the server announces it: requests under 140, events from 89.
+quint16 learnRandr(Policy &policy, const Wire &wire)
+{
+    QByteArray query(16, '\0');
+    query[0] = 98;
+    wire.word(query, 2, 4);
+    wire.word(query, 4, 5);
+    query.replace(8, 5, "RANDR");
+    check(fragmented(policy, 0, query) == query, "RandR query changed");
+    QByteArray reply(32, '\0');
+    reply[0] = 1;
+    wire.word(reply, 2, 1);
+    reply[8] = 1;
+    reply[9] = char(140);
+    reply[10] = 89;
+    check(fragmented(policy, 1, reply) == reply, "RandR reply changed");
+    return 2;
+}
+
+// Asks for the root's geometry and returns what the client reads of it.
+QByteArray askRootGeometry(Policy &policy, const Wire &wire, quint16 sequence, bool whole = true)
+{
+    QByteArray request(8, '\0');
+    request[0] = 14;
+    wire.word(request, 2, 2);
+    wire.integer(request, 4, 42);
+    check(fragmented(policy, 0, request) == request, "geometry request changed");
+    QByteArray reply = rootGeometry(wire);
+    wire.word(reply, 2, sequence);
+    return whole ? fragmented(policy, 1, reply) : reply;
+}
+
+// A connection of a Wine prefix answered at the full size, before a program of
+// the prefix was selected: from then on it sees the smaller screen, and is told
+// once that the screen changed, as the server would have told it.
+void warmPrefixIsToldTheScreen(bool little, bool selects)
+{
+    Wire wire;
+    wire.little = little;
+    Policy policy;
+    setup(policy, wire, false);
+    quint16 sequence = learnRandr(policy, wire);
+    if (selects) {
+        QByteArray select(12, '\0');
+        select[0] = char(140);
+        select[1] = 4;
+        wire.word(select, 2, 3);
+        wire.integer(select, 4, 42);
+        wire.word(select, 8, 2 | 4);
+        check(fragmented(policy, 0, select) == select, "RRSelectInput changed");
+        ++sequence;
+    }
+    check(wire.word(askRootGeometry(policy, wire, sequence++), 16) == 3840, "full size rewritten");
+    const QByteArray events = policy.changeDisplay(QSize(2560, 1440), {});
+    if (selects) {
+        check(events.size() == 32 && quint8(events[0]) == 90 && events[1] == 0, "no CrtcChange told");
+        check(wire.word(events, 2) == sequence - 1, "event not at the sequence the client read last");
+        check(wire.integer(events, 8) == 42, "event not about the root");
+        check(wire.word(events, 28) == 2560 && wire.word(events, 30) == 1440, "event without the new size");
+    } else {
+        check(events.isEmpty(), "told what it never selected");
+    }
+    check(wire.word(askRootGeometry(policy, wire, sequence++), 16) == 2560, "later geometry at full size");
+    check(policy.changeDisplay(QSize(2560, 1440), {}).isEmpty(), "told the same screen twice");
+}
+
+// A change that comes while the server is in the middle of a message waits
+// for its end rather than cutting it in two.
+void changeWaitsForTheServer(bool little)
+{
+    Wire wire;
+    wire.little = little;
+    Policy policy;
+    setup(policy, wire, false);
+    quint16 sequence = learnRandr(policy, wire);
+    QByteArray select(12, '\0');
+    select[0] = char(140);
+    select[1] = 4;
+    wire.word(select, 2, 3);
+    wire.integer(select, 4, 42);
+    wire.word(select, 8, 2);
+    check(fragmented(policy, 0, select) == select, "RRSelectInput changed");
+    ++sequence;
+    const QByteArray reply = askRootGeometry(policy, wire, sequence, false);
+    check(policy.feed(1, reply.first(10)).isEmpty(), "half a reply relayed");
+    check(policy.changeDisplay(QSize(2560, 1440), {}).isEmpty(), "event cut into a reply");
+    const QByteArray rest = policy.feed(1, reply.mid(10));
+    check(rest.size() == 64 && quint8(rest[32]) == 90, "event not after the reply");
+    check(wire.word(rest, 16) == 2560, "reply ending after the change not rewritten");
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -251,6 +342,9 @@ int main(int argc, char **argv)
             legacyModeDisappears(little);
             monitorOnSeveralOutputs(little);
             outputModeDisappears(little);
+            warmPrefixIsToldTheScreen(little, true);
+            warmPrefixIsToldTheScreen(little, false);
+            changeWaitsForTheServer(little);
         }
     } catch (const std::exception &error) {
         qCritical() << error.what();

@@ -32,6 +32,8 @@ private:
     bool resolveCandidates(const std::shared_ptr<PendingClient> &client);
     void relayClient(int client, quint32 pid, const QSize &size, const QByteArray &timing = {}, bool answered = false,
                      const QString &prefix = {});
+    void showPrefix(const QString &prefix, const QSize &size, const QByteArray &timing);
+    void forgetRelay(Relay *relay, quint32 pid, bool answered, const QString &prefix);
     QTemporaryDir m_directory;
     QByteArray m_backendPath;
     Startup m_startup;
@@ -45,6 +47,9 @@ private:
     // closes has stopped running, and the next game started in it may be
     // another one, so what it ran is forgotten with it.
     QHash<QString, int> m_prefixConnections;
+    // The connections each prefix has open, to be shown another screen when
+    // a program of it is selected after they were answered.
+    QHash<QString, QSet<Relay *>> m_prefixRelays;
     // What KWin answered a process, kept while any of its connections is
     // open, with the number of those connections.
     struct Answer
@@ -52,6 +57,9 @@ private:
         QSize size;
         QByteArray timing;
         int connections = 0;
+        // The Wine prefix the process runs in, which its later connections
+        // belong to as well: Wine opens one for each of its threads.
+        QString prefix;
     };
     QHash<quint32, Answer> m_answers;
     QList<int> m_signalSockets;

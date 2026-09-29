@@ -17,6 +17,7 @@ add_library(
     policy.cpp
     framer.cpp
     policy_identity.cpp
+    policy_display.cpp
     registry.cpp
     display.cpp
     display_legacy.cpp

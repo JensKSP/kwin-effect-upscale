@@ -64,6 +64,7 @@ bool receiveDescriptors(msghdr &message, std::vector<int> &descriptors)
 
 Relay::Relay(int client, int backend, QObject *parent, const ConnectionPolicy &policy)
     : QObject(parent)
+    , m_pid(policy.pid)
 {
     m_endpoints[0].socket = client;
     m_endpoints[1].socket = backend;
@@ -155,7 +156,6 @@ void Relay::receive(std::size_t side)
 void Relay::queuePacket(std::size_t side, Packet packet)
 {
     Endpoint &source = m_endpoints[side];
-    Endpoint &target = m_endpoints[1 - side];
     if (m_policy) {
         try {
             packet.bytes = m_policy->feed(side, packet.bytes);
@@ -173,6 +173,29 @@ void Relay::queuePacket(std::size_t side, Packet packet)
         // their FIFO ordering while fragmented frames await completion.
         packet.descriptors.swap(source.pendingDescriptors);
     }
+    deliver(side, std::move(packet));
+}
+
+bool Relay::changeDisplay(const QSize &size, const QByteArray &timing)
+{
+    if (!m_policy || m_finished || !m_policy->changesDisplay(size)) {
+        return false;
+    }
+    Packet events;
+    events.bytes = m_policy->changeDisplay(size, timing);
+    qInfo() << "Upscale X11 connection pid=" << m_pid << "shown" << size << "told with" << events.bytes.size() / 32 << "events";
+    if (!events.bytes.isEmpty()) {
+        // To the client, as though the server had sent them.
+        deliver(1, std::move(events));
+    }
+    return true;
+}
+
+// Queues what arrived from @p side for the other end, and writes it at once
+// where nothing waits before it.
+void Relay::deliver(std::size_t side, Packet packet)
+{
+    Endpoint &target = m_endpoints[1 - side];
     if (packet.bytes.size() > queueLimit - target.queuedBytes) {
         closeDescriptors(packet.descriptors);
         finish("output queue limit");

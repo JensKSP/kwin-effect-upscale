@@ -1083,3 +1083,34 @@ the drive whose directory holds it most closely, as Wine does, from the
 prefix's `dosdevices`: `wine:///<prefix>/Z:/path/game.exe` for a program
 anywhere, `C:` for one inside the prefix's own drive. How Proton names its
 games was not observed here; that stays with item 30.
+
+### A warm prefix, measured and fixed, 2026-09-29
+
+Item 27 of the open list. The Windows OpenGL probe under Debian's Wine 10.0,
+through the proxy in the conformance machine at 3840 × 2160, with an entry
+naming only the probe. The probe logs the screen Wine reports at its start.
+
+| Start | Before | After |
+| --- | --- | --- |
+| The probe alone in a new prefix | 2560 × 1440 | 2560 × 1440, nothing switched |
+| An unlisted Windows program first, the probe 20 s later | 3840 × 2160 | 2560 × 1440 |
+| Notepad first, the probe 20 s later | 3840 × 2160 | 2560 × 1440 |
+
+Before, the earlier connections were answered at full size - the unlisted
+program's as unlisted, Wine's components after their ten-second wait - and
+Wine's desktop process had read the screen through them, so the probe's own
+smaller answer came too late. Now the session keeps each prefix's connections,
+and when a program the effect selects is answered with a smaller screen, every
+earlier connection is shown that screen and sent the RandR events it selected
+on the root. Wine's desktop process selects CrtcChange, OutputChange and
+ProviderChange on the root, received one RRNotify, and re-read its displays
+at that moment (its `xrandr14_get_gpus` traces). The first measurement of the
+change still gave 3840 × 2160: the connection explorer selected on was opened
+by another of its threads, and a process's later connections were relayed
+without their prefix, so they were never switched. The session test now opens
+two connections per stand-in process.
+
+Found on the way and kept apart as 14a: when the "launcher" was itself the
+probe in fullscreen at 3840 × 2160, its window grew by 1280 × 720 on each size
+notification after the probe proper set 2560 × 1440, up to X's limit, and a
+Wine process aborted in libxcb; this happened before the change as well.

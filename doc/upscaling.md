@@ -408,6 +408,19 @@ Proton game acceptance has been established through it.
   answer. But Wine asks once per prefix, so every program sharing the prefix
   sees the size of the answer Wine read, and two games in one prefix cannot be
   relied on to get different sizes.
+- **A prefix that runs already is shown the game's screen too.** Wine reads the
+  screen through the connections its prefix opens first, and a game started
+  after a launcher, or after one of Wine's own programs, would otherwise be
+  answered while Wine already knew the screen at full size. When a program the
+  effect selects is answered with a smaller screen, every connection its prefix
+  opened before is shown that screen from then on, and told it changed with
+  the RandR events it selected, RRScreenChangeNotify or RRNotify, so that Wine
+  reads its displays again (decided by Jens on 2026-09-29). The events carry
+  the sequence of the last message the client read and never interrupt one the
+  server is sending. Measured with Wine 10.0 in the conformance machine on
+  2026-09-29: after an unlisted program or Notepad had opened the prefix, a
+  game started 20 seconds later saw 2560 × 1440 at start, where it had seen
+  3840 × 2160 before.
 - **A game is recognized by the program Wine runs.** Wine names that program,
   as an absolute path, in the command line of the process that runs it, and
   names its own components below `C:\windows\system32` and

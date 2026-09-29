@@ -303,6 +303,14 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   it, under Wine 10.0 through the proxy at 3840 × 2160 and scale 3, kept its
   2560 × 1440 window for 60 seconds while the effect presented it over the
   output. Input landing stays with 29. Recorded in the slice.
+- **14a.** **investigate** – Found 2026-09-29 while measuring 27: with two
+  fullscreen Wine programs in one prefix - the probe run as a launcher at
+  3840 × 2160, then the probe proper setting 2560 × 1440 - the launcher's
+  window grows by 1280 × 720 on every size notification up to X's limit, and a
+  Wine process then aborts in libxcb (`xcb_conn.c:323: write_vec: Assertion
+  'n == 0'`). Seen before and after 27's change, with the effect acting on
+  neither window. Real launchers are not fullscreen programs; still to trace
+  which of Wine, KWin and the proxy drives the growth.
 - **15.** **fix, –** – Incoherent advertisement: `wl_output.mode` falsified beside a
     truthful `xdg_output`; recorded as a defect in shipped code, no fix
     recorded (L1363-1365, L1841-1851).
@@ -420,6 +428,17 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   so that Wine registers its displays again. Measured first on real games
   (Proton's wineserver lifetime, launcher-first starts). Now an implementation
   item.
+  **Implemented and measured 2026-09-29:** measured first in the conformance
+  machine with Debian's Wine 10.0 and the OpenGL probe through the proxy: a
+  cold prefix gave the probe 2560 × 1440 at start, but after an unlisted
+  Windows program or Notepad had opened the prefix it saw 3840 × 2160. The
+  session now keeps each prefix's connections and, when a selected program is
+  answered with a smaller screen, shows every earlier one that screen and
+  sends the RandR events it selected; the probe then saw 2560 × 1440 in both
+  warm cases, and explorer re-read its displays at the switch. On the way: a
+  process's later connections, one per Wine thread, were never registered with
+  their prefix, and explorer's desktop thread is one of them. Proton's
+  wineserver lifetime and a real launcher stay with the games (30, 31).
 - **28.** **impl/test, S** – The 2026-09-25 decisions: prefix as the unit, path-tail
     matching, launchers, windowed left alone, per-prefix candidate report
     (L764-787).
