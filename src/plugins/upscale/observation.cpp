@@ -160,7 +160,7 @@ void UpscaleEffect::describeApplication(UpscaleSnapshot &state, const Window *wi
         state.advertised = m_modeOverride->advertised(window->surface()->client(), window->output()->name());
         // Whether this program is told anything when it next starts: only the
         // entry its path selects before it has a window can say it then.
-        const UpscaleBindAnswer answer = upscaleApplicationAtBind(window->surface()->client()->executablePath());
+        const UpscaleBindAnswer answer = upscaleApplicationAtBind(upscaleProgramOf(window->surface()->client()));
         state.advertisableAtStart = answer.decided && answer.application == known;
     }
     // Auto is the resize on X11 and the surface scale on Wayland, and reports

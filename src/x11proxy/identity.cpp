@@ -66,6 +66,23 @@ QString upscaleRuntimeIdentity(QStringView scheme, const QString &where, const Q
     return scheme + QStringLiteral("://") + where + separator + program;
 }
 
+QString upscaleFlatpakApplication(const QByteArray &info)
+{
+    // A key file, whose [Application] group names the application by its ID;
+    // a runtime run on its own is described by [Runtime] and names none.
+    bool application = false;
+    const QList<QByteArray> lines = info.split('\n');
+    for (const QByteArray &line : lines) {
+        const QByteArray entry = line.trimmed();
+        if (entry.startsWith('[')) {
+            application = entry == "[Application]";
+        } else if (application && entry.startsWith("name=")) {
+            return QString::fromUtf8(entry.sliced(5)).trimmed();
+        }
+    }
+    return {};
+}
+
 QStringList ProgramIdentity::candidates() const
 {
     // A program a runtime runs is named for where it runs as well as for what
@@ -74,7 +91,12 @@ QStringList ProgramIdentity::candidates() const
     // while the executable behind it is the loader every such program shares
     // and so tells them apart from nothing.
     QStringList strings;
-    const QString named = isWine() ? upscaleRuntimeIdentity(u"wine", prefix, program) : program;
+    QString named = program;
+    if (isWine()) {
+        named = upscaleRuntimeIdentity(u"wine", prefix, program);
+    } else if (!flatpak.isEmpty()) {
+        named = upscaleRuntimeIdentity(u"flatpak", flatpak, program);
+    }
     for (const QString &candidate : {named, executable}) {
         if (!candidate.isEmpty() && !strings.contains(candidate)) {
             strings.append(candidate);

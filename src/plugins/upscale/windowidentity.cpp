@@ -11,6 +11,8 @@
 #include "effect/effecthandler.h"
 #include "effect/effectwindow.h"
 #include "utils/executable_path.h"
+#include "wayland/clientconnection.h"
+#include "wayland/surface.h"
 #include "window.h"
 
 #include <QDBusConnection>
@@ -26,10 +28,21 @@ Q_LOGGING_CATEGORY(KWIN_UPSCALE_MATCHING, "kwin_effect_upscale.matching", QtWarn
 namespace KWin
 {
 
+QString upscaleProgramOf(const ClientConnection *client)
+{
+    return client ? upscaleProgramName(client->executablePath(), client->securityContextAppId()) : QString();
+}
+
 QString upscaleExecutableOf(const Window *window)
 {
     const pid_t pid = window ? window->pid() : 0;
-    return pid > 0 ? executablePathFromPid(pid) : QString();
+    if (pid <= 0) {
+        return {};
+    }
+    // An X11 window's surface is Xwayland's, whose connection declares no
+    // sandbox, so only a Wayland window is ever named by one.
+    const ClientConnection *client = window->surface() ? window->surface()->client() : nullptr;
+    return upscaleProgramName(executablePathFromPid(pid), client ? client->securityContextAppId() : QString());
 }
 
 namespace

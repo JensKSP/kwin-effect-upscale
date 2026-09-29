@@ -11,6 +11,7 @@
 
 #include "application.h"
 #include "matching.h"
+#include "windowidentity.h"
 
 #include <QFile>
 #include <QTest>
@@ -43,6 +44,7 @@ private Q_SLOTS:
     void nativeConnectionPatterns();
     void pinsOnlyWhatEveryMatchShares();
     void theIndexAnswersAsTheListDoes();
+    void namesAFlatpakByItsApplication();
 
 private:
     static void writeUserConfig(const QString &contents);
@@ -105,6 +107,27 @@ void MatchingTest::matchesProgramsByPath()
     const UpscaleBindAnswer unlisted = upscaleApplicationAtBind(QStringLiteral("/usr/games/etr"));
     QVERIFY(unlisted.decided);
     QVERIFY(!unlisted.application);
+}
+
+// A program Flatpak runs is named by its application as well as by its path in
+// the sandbox, as KWin resolved Flathub's SuperTuxKart 1.5 on Fedora 43, and
+// the shipped entry still claims it; through X11 the proxy offers that path as
+// well, which the entry's pattern for native connections takes.
+void MatchingTest::namesAFlatpakByItsApplication()
+{
+    const QString sandboxed = QStringLiteral("/app/bin/supertuxkart");
+    const QString game = QStringLiteral("flatpak://net.supertuxkart.SuperTuxKart/app/bin/supertuxkart");
+    QCOMPARE(upscaleProgramName(sandboxed, QStringLiteral("net.supertuxkart.SuperTuxKart")), game);
+    // Without a sandbox, or outside /app, a path is its own name.
+    QCOMPARE(upscaleProgramName(sandboxed, QString()), sandboxed);
+    QCOMPARE(upscaleProgramName(QStringLiteral("/usr/bin/supertuxkart"), QStringLiteral("net.supertuxkart.SuperTuxKart")),
+             QStringLiteral("/usr/bin/supertuxkart"));
+    const UpscaleApplication *kart = atBind(game);
+    QVERIFY(kart);
+    QCOMPARE(kart->name, QStringLiteral("SuperTuxKart"));
+    QCOMPARE(forWindow(game, QStringLiteral("supertuxkart"), QString()), kart);
+    const UpscalePattern connection(kart->x11ConnectionExecutable, UpscaleStringMatch::RegularExpression);
+    QVERIFY(connection.matches(sandboxed));
 }
 
 // The narrow extreme: one copy of one game, among several that share a
