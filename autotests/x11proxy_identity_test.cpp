@@ -109,6 +109,29 @@ void candidates()
               == QStringList{QStringLiteral("wine:///home/me/.wine/Z:/home/me/Games/Wreckfest/Wreckfest.exe"),
                              QStringLiteral("/usr/bin/wine-preloader")},
           "the program comes before the loader");
+
+    ProgramIdentity sandboxed;
+    sandboxed.executable = QStringLiteral("/app/bin/supertuxkart");
+    sandboxed.program = sandboxed.executable;
+    sandboxed.flatpak = QStringLiteral("net.supertuxkart.SuperTuxKart");
+    check(sandboxed.candidates()
+              == QStringList{QStringLiteral("flatpak://net.supertuxkart.SuperTuxKart/app/bin/supertuxkart"),
+                             QStringLiteral("/app/bin/supertuxkart")},
+          "a Flatpak program by its application first");
+}
+
+// Flatpak describes a sandbox as a key file at its root, as it did for
+// Flathub's SuperTuxKart 1.5 on Fedora 43; the application's ID is in its
+// [Application] group, and a runtime run on its own names none.
+void flatpakApplications()
+{
+    const QByteArray game("[Application]\nname=net.supertuxkart.SuperTuxKart\n"
+                          "runtime=runtime/org.freedesktop.Platform/x86_64/25.08\n\n[Instance]\ninstance-id=1279209189\n");
+    check(upscaleFlatpakApplication(game) == QStringLiteral("net.supertuxkart.SuperTuxKart"), "the application's ID");
+    check(upscaleFlatpakApplication("[Runtime]\nname=org.freedesktop.Platform\n").isEmpty(), "a runtime names no application");
+    check(upscaleFlatpakApplication("[Instance]\nname=elsewhere\n[Application]\n").isEmpty(),
+          "a name in another group is not the application's");
+    check(upscaleFlatpakApplication(QByteArray()).isEmpty(), "nothing to read");
 }
 } // namespace
 
@@ -122,10 +145,11 @@ int main(int argc, char **argv)
         components();
         runtimeIdentities();
         candidates();
+        flatpakApplications();
     } catch (const std::exception &error) {
         qCritical() << error.what();
         return 1;
     }
-    qInfo() << "PASS windows paths, unix paths, separators, components, runtime names, candidate order";
+    qInfo() << "PASS windows paths, unix paths, separators, components, runtime names, candidate order, Flatpak applications";
     return 0;
 }

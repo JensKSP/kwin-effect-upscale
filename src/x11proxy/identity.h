@@ -30,10 +30,15 @@ namespace UpscaleX11
  *
  *     wine:///home/me/prefix/Z:/path/to/program.exe
  *
- * A container's identifier is a token instead, so it occupies the authority:
- * `docker://<container>/usr/bin/game`. Those schemes are left open; only Wine
- * is resolved so far. One pattern can therefore single out every program of a
- * runtime, one program wherever it is installed, or one program in one place.
+ * A container's identifier is a token instead, so it occupies the authority.
+ * Flatpak's is the application's ID, and its program is the path inside the
+ * sandbox, where the application is always below /app:
+ *
+ *     flatpak://net.supertuxkart.SuperTuxKart/app/bin/supertuxkart
+ *
+ * Other containers, `docker://<container>/usr/bin/game`, are left open. One
+ * pattern can therefore single out every program of a runtime, one program
+ * wherever it is installed, or one program in one place.
  *
  * The names are not percent-encoded, although they are otherwise URIs. Game
  * paths are full of spaces, and encoding them would mean writing a pattern
@@ -52,6 +57,8 @@ struct ProgramIdentity
     QString program;
     /** WINEPREFIX, or Wine's default below HOME, for a Wine process only. */
     QString prefix;
+    /** The application's ID, for a program Flatpak runs only. */
+    QString flatpak;
     /** The program is one of Wine's own, not the prefix's. */
     bool component = false;
 
@@ -64,6 +71,11 @@ struct ProgramIdentity
 };
 /** What @p pid runs, or an empty identity where this cannot be read. */
 ProgramIdentity upscaleProgramIdentity(quint32 pid);
+/**
+ * The application a Flatpak sandbox runs, from the description Flatpak puts at
+ * its root, `/.flatpak-info`; empty for one that names none.
+ */
+QString upscaleFlatpakApplication(const QByteArray &info);
 /** Whether @p program is Wine naming a Windows program on a lettered drive. */
 bool upscaleWindowsPath(const QString &program);
 /** One drive of a prefix: its letter, and the Unix directory it stands for. */

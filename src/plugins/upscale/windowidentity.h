@@ -16,13 +16,40 @@
 namespace KWin
 {
 
+class ClientConnection;
 class EffectWindow;
 class EffectsHandler;
 class Window;
 struct UpscaleApplication;
 
 /**
- * The executable path of the program behind @p window, or empty.
+ * The name a program is matched by, from the @p executable path the system
+ * resolved for it and the application ID @p sandbox its Wayland connection
+ * declared, if any.
+ *
+ * Flatpak mounts an application at /app inside its sandbox, and that is the
+ * path the system resolves for its program too, which tells one Flatpak from
+ * another by nothing. So such a program is named with its application's ID in
+ * the authority, as the session proxy names it:
+ * flatpak://net.supertuxkart.SuperTuxKart/app/bin/supertuxkart. KWin keeps the
+ * ID a sandbox declared for a connection but not which sandbox declared it, and
+ * /app is where Flatpak, and no other, puts an application. Anything else is
+ * named by its path.
+ */
+inline QString upscaleProgramName(const QString &executable, const QString &sandbox)
+{
+    if (sandbox.isEmpty() || !executable.startsWith(QLatin1String("/app/"))) {
+        return executable;
+    }
+    return QStringLiteral("flatpak://") + sandbox + executable;
+}
+
+/** upscaleProgramName() of a Wayland @p client, from its credentials and its sandbox. */
+QString upscaleProgramOf(const ClientConnection *client);
+
+/**
+ * The name of the program behind @p window, as upscaleProgramName() gives it
+ * from the executable path, or empty.
  *
  * KWin resolves it from the window's PID. For a native Wayland client that
  * comes from its connection's credentials. For an X11 window KWin 6.3 reads

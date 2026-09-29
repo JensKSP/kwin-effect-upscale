@@ -435,12 +435,25 @@ Proton game acceptance has been established through it.
   shape of a URI, so that one pattern reaches a program whether it runs on the
   host or inside a runtime. A program of the host keeps its plain path. One
   Wine runs is named `wine://<prefix>/<program>`, and because a prefix is an
-  absolute path it leaves the authority empty, the way `file:///` does:
+  absolute path it leaves the authority empty, the way `file:///` does. One
+  Flatpak runs is named by its application's ID in the authority and its path
+  inside the sandbox, where Flatpak puts every application below `/app` (as
+  Jens decided on 2026-09-29, rather than a field of its own):
 
   ```text
   /usr/games/extremetuxracer
   wine:///home/me/.steam/steam/steamapps/compatdata/228380/pfx/Z:/home/me/.steam/steam/steamapps/common/Wreckfest/Wreckfest.exe
+  flatpak://net.supertuxkart.SuperTuxKart/app/bin/supertuxkart
   ```
+
+  The proxy reads the ID from the description Flatpak puts at the sandbox's
+  root, and the effect from the security context Flatpak declares for the
+  Wayland connection, which KWin keeps; `/app` is what tells a Flatpak from
+  another sandbox, because KWin keeps the ID but not which sandbox declared
+  it. The proxy offers the path inside the sandbox, `/app/bin/supertuxkart`,
+  as a second name, and a file-name pattern such as `.*/supertuxkart` takes
+  the whole name as well, so the shipped entries claim Flathub's games as they
+  claim the host's.
 
   A profile's `X11ConnectionExecutable` has to match the whole name, so
   `.*/Wreckfest/Wreckfest\.exe` names that game on any machine, `wine://.*`
@@ -450,8 +463,8 @@ Proton game acceptance has been established through it.
   are written `/`, because a pattern is a regular expression and a backslash
   in one has to be written twice. The names are not percent-encoded: game
   paths are full of spaces, and `Rocket%20League` is not a name anybody reads
-  on disk. The remaining schemes are reserved for the container runtimes,
-  which the effect does not resolve yet.
+  on disk. The remaining schemes are reserved for the other container
+  runtimes, which the effect does not resolve yet.
 - **A windowed game is not scaled**, which is the effect's rule for every
   program and not one this route adds: only a fullscreen or borderless window
   is a single rectangle to scale and to map input through. A Wine game's own

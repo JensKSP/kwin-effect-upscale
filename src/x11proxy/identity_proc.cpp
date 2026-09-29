@@ -78,6 +78,13 @@ ProgramIdentity upscaleProgramIdentity(quint32 pid)
     const QString directory = QStringLiteral("/proc/%1").arg(pid);
     ProgramIdentity identity;
     identity.executable = QFileInfo(directory + QStringLiteral("/exe")).symLinkTarget();
+    // A program Flatpak runs has the sandbox's description at the root it
+    // sees, which /proc shows through that root; a program of the host has
+    // none there. Its path is the one inside the sandbox, below /app.
+    QFile info(directory + QStringLiteral("/root/.flatpak-info"));
+    if (info.open(QIODevice::ReadOnly)) {
+        identity.flatpak = upscaleFlatpakApplication(info.read(qint64(64) * 1024));
+    }
     const QList<QByteArray> command = readList(directory + QStringLiteral("/cmdline"));
     if (command.isEmpty()) {
         return identity;

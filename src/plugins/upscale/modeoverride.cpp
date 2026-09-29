@@ -9,6 +9,7 @@
 #include "compatibility.h"
 #include "matching.h"
 #include "settings.h"
+#include "windowidentity.h"
 
 #include "effect/effecthandler.h"
 #include "wayland/clientconnection.h"
@@ -168,7 +169,7 @@ static std::optional<UpscaleBindDecision> decideAtBind(ClientConnection *client)
     // path claimed by a profile that also names a window does not decide
     // yet, and nothing is advertised: that profile may still claim the
     // window, and an advertisement cannot be taken back.
-    const UpscaleBindAnswer answer = upscaleApplicationAtBind(client->executablePath());
+    const UpscaleBindAnswer answer = upscaleApplicationAtBind(upscaleProgramOf(client));
     if (!answer.decided) {
         return std::nullopt;
     }

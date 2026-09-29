@@ -575,6 +575,13 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   matched by the same pattern fields. The proxy's identity header reserved
   such schemes for container runtimes. Checked against a real Flatpak game
   with 51.
+  **Implemented 2026-09-29:** the proxy reads the application's ID from
+  `/proc/<pid>/root/.flatpak-info` and names the program
+  `flatpak://<id>/app/...` before its path in the sandbox; the effect names a
+  Wayland program the same way from the security context's app ID KWin keeps,
+  for a path below `/app`, at bind and for its window. Unit cases in the
+  proxy's identity test and the matching test, with the description and path
+  51 observed; not yet seen in a session with a build that has it.
 - **48.** **impl/test** – Portable "Add from Window" (path below the library root as
     a pattern), export/import across users (L1352-1359).
   **Done 2026-09-29, `aa7053b`, pushed:** a Steam game is stored by its folder in the
@@ -586,6 +593,16 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
     (L1253, L1261, L1386).
 - **51.** **decide → investigate, F** – Flatpak/Snap identities for STK/ETR; needs a
     Flathub remote and snapd on the host (L1744-1831).
+  **Flatpak observed 2026-09-29** in the Fedora 43 package machine, not on the
+  host, with Flathub's SuperTuxKart 1.5 and nightly 36545995686's effect: the
+  system resolves its process to `/app/bin/supertuxkart`, the path inside the
+  sandbox; Flatpak 1.16.6 connects it to KWin through a security context
+  (sockets in `$XDG_RUNTIME_DIR/.flatpak/wl`) and describes the sandbox in
+  `/.flatpak-info` (`[Application] name=net.supertuxkart.SuperTuxKart`); its
+  Wayland window has class `supertuxkart` and no instance. The shipped entry
+  claimed it, asked it for 2560 × 1440 and got that buffer; it was not
+  enlarged only because the machine's screen had locked while idle. Left: the
+  same with a build that has 47, the X11 route through the proxy, and Snap.
 - **52.** **decide** – Submitted applications: ship unverified submissions? credit?
     scale? (L1681)
   **Decided by Jens 2026-09-29:** accepted submissions ship active, with their
