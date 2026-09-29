@@ -80,9 +80,11 @@ Closing this gate requires their ownership and restoration to be settled across
 output changes and effect lifecycle, and physical-display acceptance for the
 supported client class.
 
-**Full acceptance.** The criteria below, unchanged: Xwayland on the minimum
-supported version, Valve Proton and standalone Wine across the required
-graphics paths, input, HDR, VRR and real-game hardware acceptance.
+**Full acceptance.** The criteria below: Xwayland on the minimum supported
+version, Valve Proton and standalone Wine across the required graphics paths,
+and real-game hardware acceptance. Input on a real display for the supported
+games belongs to the supported scope above (Jens, 2026-09-29, item 94a); HDR
+and VRR are postponed to a later version (item 75).
 
 The cooperative X11 path addresses a bounded class on KWin 6.3.6; it does not
 establish all Xwayland, Proton or Wine compatibility. Those stay required,
@@ -1788,6 +1790,68 @@ no-external-patches, no-game-reconfiguration and Debian-delivery requirements.
   code. Run Wine and official Proton separately, with backend identity proved.
   Existing nested-compositor experiments do not establish plugin-only support.
 
+### Run in the conformance machine, 2026-09-29
+
+Item 20 of the open list: each investigation reproduced with the production
+effect and proxy of the tree then current, in the conformance machine with the
+Auto bench's runner (above), at 3840 × 2160, Quality, and pictures of the
+screen through KWin's own capture where a picture decides it. The source
+reading in each entry stands; this is what running it adds.
+
+- **glmark2 2023.01 on X11:** not refused. Under Auto with All applications
+  the effect resized its window to 2560 × 1440 and presented it, "pointer
+  input mapped", and the screen showed the bottom left two thirds of glmark2's
+  3840 × 2160 frame enlarged: glmark2 reported a 3840 × 2160 surface and kept
+  its viewport, as its source says it would. The effect cannot see a
+  program's viewport. No protocol a program consumes would make glmark2
+  rebuild its renderer. With the advertised mode, the proxy tells an
+  unlisted program nothing and glmark2 stayed at 3840 × 2160.
+- **SuperTuxKart on Wayland:** answered on 2026-09-21, above.
+- **Integer-scale reachability:** reproduced. glmark2 on Wayland with the
+  advertised scale, and vkmark with the mode and scale, reached the same
+  sizes. At scale 1.5 they reached 2560 × 1440 for Quality and for
+  Performance, and at 2 they reached 1920 × 1080 for both. At 3 they reached
+  2560 × 1440 for both. Each was enlarged, and at scale 1 neither is reached
+  at Quality (the bench). The report named a
+  reachable step as "1920 × 1080 from the next start; glmark2 was told 2560 ×
+  1440", as though the setting had changed; it now says "2560 × 1440 requested
+  … as its screen mode, the nearest to 1920 × 1080 it can be told", checked by
+  a unit case and by the scale-2 session.
+- **Extreme Tux Racer on two outputs:** it opened on the primary output and
+  was enlarged there by its own emulated mode, whole and centred, whichever
+  output the pointer was on. A custom 71 % asked for 2726 × 1534, which
+  Xwayland does not list: refused, "The requested X11 mode is unavailable on
+  this output", nothing substituted. A mechanism that would let it choose
+  another output exists only in principle: the proxy could name a different
+  primary output to one connection. Not built.
+- **SuperTux 0.6.3:** on X11, the same as glmark2: its window resized to
+  2560 × 1440 and presented, and the screen showed the bottom left two thirds
+  of its title screen enlarged, cut off at the top, where it was whole and
+  centred with the effect off. On Wayland its desktop fullscreen was reached by
+  neither lever and stayed 3840 × 2160.
+- **SuperTux's rendering cost:** not run. It needs a GPU; llvmpipe's timings
+  would measure the machine.
+- **Wine:** a Direct3D 11 sample (dxvk-tests' triangle, borderless and in
+  exclusive fullscreen, on Wine's own Direct3D) with an entry naming it was told
+  2560 × 1440 by the proxy, resized its swap chain and was presented whole. The
+  run found a defect: a program Wine was started with by its Unix path,
+  `wine /path/game.exe`, has that path in its command line rather than a
+  Windows one, and the proxy never identified it; its prefix's connections
+  were held for their ten seconds, after which the sample saw a 1024 × 768
+  screen and found no Direct3D device. The proxy now names it on the drive
+  whose directory holds it most closely, as Wine does. That is `Z:` for a
+  program anywhere and `C:` inside the prefix's own drive, read from the
+  prefix's `dosdevices`. A unit case and a session case check it; the session
+  case failed against the old code. Wine's Wayland driver: the bench. Windows
+  SuperTuxKart, vkd3d-proton's demo and official Proton were not run; Proton
+  needs Steam (item 36).
+
+The two cropped pictures are the X11 resize reaching programs that keep the
+viewport they started with. The resize cannot tell them from programs that
+follow it, and under All applications, Auto uses it for every unlisted X11
+program. Which way the effect should go is Jens's decision, item 20a of the open
+list.
+
 Physical mixed-scale outputs, movement/hotplug and pointer confinement remain
 acceptance tasks below. HDR/VRR and image/performance acceptance retain their
 owner in the [rendering slice](slice-fsr1-hdr-vrr.md); source review cannot replace
@@ -2067,6 +2131,72 @@ The Qt sample is the natural source of the second row, since Qt clamps the hint
 to one, and a GLFW program honours it, so it serves for the first, third and
 fourth.
 
+#### The bench, run 2026-09-29
+
+Item 19 of the open list. Run in the conformance machine, each program in a
+compositor of its own (KWin 6.3.6's virtual backend at 3840 × 2160, scale 1,
+Mesa's llvmpipe and lavapipe), with the effect of the tree then current, All
+applications checked, Quality, and one method for every slot of the global
+profile: `Auto`, and `AdvertisedMode`, which is the mode at bind with the
+surface scale where the mode did not reach the window, the bench's "both". The
+pointer was moved by KWin's own input to three places, and a program that
+reports where it sees the pointer was read. The runner and the probe programs
+were scratch files under the ignored `build/auto-bench`; the table is what they
+recorded.
+
+| Program | Auto | Advertised mode | Pointer |
+| --- | --- | --- | --- |
+| GLFW 3.4, fullscreen on its monitor | told 2560 × 1440 at bind, which only sized the window it asked for; the window was made 3840 × 2160 and the surface scale shrank its framebuffer to 2560 × 1440 within 1.1 s; enlarged | the same, by the fallback | 1920,1080 read as framebuffer 1280,720, and so at 960,540 and 3000,1800: lands where it looks |
+| GLFW 3.4, undecorated at the video mode's size | a plain 2560 × 1440 window from the told mode, presented windowed, left alone | the same | consistent inside the window |
+| SDL 3.2.10 `testsprite`, desktop fullscreen | stays 3840 × 2160: neither lever | the same | – |
+| the same with high pixel density | 2560 × 1440 by the surface scale; enlarged | the same | – |
+| the same, exclusive at the listed 2560 × 1440 | 2560 × 1440 by the mode; enlarged | the same | – |
+| Godot 4.7.2, `--display-driver wayland`, fullscreen | 2560 × 1440 by the surface scale (Godot reports scale 0.667); enlarged | the same | 1920,1080 read as 1280,720: lands where it looks |
+| Wine 10.0 `winewayland`, a D3D11 sample, borderless and exclusive | the window sized from the told mode, 2560 × 1440, not covering the output | the same | – |
+| vkmark 2025.01 | 2560 × 1440 from the mode, in a window that does not cover the output: refused | the same; mode and integer scale cannot say two thirds at scale 1 | – |
+| Qt Quick 6.8 (`qml`), fullscreen | stays 3840 × 2160: Qt clamps the scale | the same | – |
+
+What this settles, and what it found:
+
+- The surface scale reaches GLFW 3.4, Godot 4.7 and SDL 3 with high pixel
+  density, as the source reading said, keeps the window's logical size and so
+  the pointer mapping, and is given back by Qt's patience: an animated Qt
+  window had its scale back after thirty frames. A window that draws nothing
+  new counts no frames, and its request stands until it does.
+- SDL 3 without high pixel density and Qt are reached by neither lever; vkmark
+  binds neither `wp_fractional_scale_v1` nor `wp_viewporter`, only an integer
+  buffer scale, so the scale-1 gap stays open for it at Quality: only the mode
+  and scale 2 of Performance reach it, as its shipped entry does.
+- With the mode and the logical size told together, SDL 3 lists one coherent
+  display of 2560 × 1440 and no 3840 × 2160 beside it, which resolves the
+  ambiguous mode list the source review feared.
+- The mode Auto tells at bind turns a window sized from the mode into a small
+  plain window (GLFW undecorated, and Wine's Wayland driver): item 18, now with
+  two programs to test it with.
+- Wine's Wayland driver draws into a subsurface, which the effect refuses even
+  at full size ("the window's surface has child surfaces"), and allocates its
+  buffers with the height rounded up to a multiple of 128 (2176 for 2160, 1536
+  for 1440). Both belong to item 35. DXVK from Debian's `dxvk-wine64`, a
+  winelib build, did not load in Wine 10, so the sample ran on Wine's own
+  Direct3D 11. `EmulateModeset` changed nothing: the sample never asked for
+  another mode.
+- Three defects in the effect, each fixed with a test that failed before:
+  SDL 3.2.10 died with SIGFPE at start whenever it was told a mode at scale 1,
+  because the told logical size arrived with a done of its own after KWin's
+  had been applied (the division at `SDL_waylandvideo.c:1002`), now sent
+  before KWin's done; the report asked the player to "select 2560 × 1440 in the game"
+  for a program under All applications that Auto had reached, now the same as
+  for a listed one; and a request standing when the output's scale changed, the
+  fourth transition below, in its own section.
+- Not run: the late-mode negative control, because the effect has no path that
+  sends a mode after the window exists, and SuperTuxKart, measured under Auto
+  in Jens's session on 2026-09-21 (above) and in all six presentations by the
+  release check (item 16).
+
+The transitions: honouring, as above; ignoring, as Qt; losing coverage, and
+configuration moving, by `autoAsksTheWindowForAFractionalScale`; KWin
+reapplying the output's scale, below.
+
 ### Auto under test, 2026-09-21
 
 Until this date no automated test drove Auto at runtime: every integration case
@@ -2190,8 +2320,10 @@ windows and output changes. Add the method to configuration and diagnostics,
 exercise refusal and restoration as well as success, and verify the actual
 production controller with Tux Racer plus an unrelated fullscreen X11 client.
 The supported-scope gate requires both maintained compiler/container builds,
-configured checks, and virtual-backend runtime coverage. Physical input,
-GPU import, HDR/VRR and real-TV acceptance remain the full-acceptance gate.
+configured checks, virtual-backend runtime coverage and, decided by Jens on
+2026-09-29 (item 94a), input checked on a real display for the supported
+games. GPU import and real-TV acceptance remain the full-acceptance gate; HDR
+and VRR are postponed to a later version (item 75).
 
 Multi-output steering: use the selected window's output geometry and scale,
 never the global active output. Test target and unrelated fullscreen clients
@@ -2453,13 +2585,10 @@ present with regression coverage. The two earlier findings outside the diff
 No review was dismissed and no approval override was requested. Every push still
 requires a fresh approval for its exact revision.
 
-- [ ] Implement the `UserConfigured` method specified in the
-      [handbook](../upscaling.md#letting-the-user-choose-the-resolution-in-the-game):
-      the method value and its editor meaning, a preset that reads as a
-      recommendation rather than a request, and status that reports the size
-      actually supplied beside the one recommended. Asked for by Jens on
-      2026-09-19, for games no per-client request can reach. The scaling half
-      needs nothing: a smaller buffer is already scaled whoever chose its size.
+- [x] ~~Implement the `UserConfigured` method~~: dropped by Jens on 2026-09-29
+      (item 21). On/Off per presentation stands; a slot set to Off sends
+      nothing, a smaller buffer the player chose is enlarged all the same, and
+      the status names the size to choose.
 
 ### X11 integration tests on KWin 6.6, 2026-09-19
 

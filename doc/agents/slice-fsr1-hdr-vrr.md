@@ -10,9 +10,11 @@ path and the orientation fix are implemented; lifecycle and fallback are
 accepted on the OpenGL virtual backend in the VM (item 72). Open, as the open
 list numbers them: the scaled frame, active-effect state and fallback on the
 physical output and the phase-reversed A0/A1 repeats (71, 73), the B to D cost
-matrix with real games (74), which host and link to test VRR on (75, a
-decision), and aspect ratio with integer scaling, specified and not
-implemented (76).
+matrix with real games (74), and aspect ratio with integer scaling, specified
+and not implemented (76). **Decided by Jens on 2026-09-29 (item 75):** HDR and
+VRR are postponed to a later version; when they are taken up, VRR is accepted
+on the NVIDIA host (pcjensd) and on wzpc. This release's gates therefore leave
+out the HDR and VRR parts below.
 
 ## Start state
 

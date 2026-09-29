@@ -330,13 +330,47 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   at the screen's own logical size, which the program believes larger than its
   screen, so it may draw at full size again. Drawing the small window over the
   screen instead leaves the pointer where KWin thinks the window is. Which one,
-  and with which program to test it.
+  and with which program to test it. The bench (19) found two: GLFW 3.4 with an
+  undecorated window at the video mode's size, and Wine's Wayland driver.
 - **19.** **test, –** – The seven-item Auto bench was never run (L1853-1886).
+  **Done 2026-09-29, in the conformance machine:** the surface scale reaches
+  GLFW 3.4, Godot 4.7 and SDL 3 with high pixel density, pointer landing where
+  it looks; Qt, vkmark and SDL 3 without it are reached by neither lever; Wine's
+  Wayland driver sizes its window from the told mode and draws into a
+  subsurface. Three defects found and fixed, each with a test that failed
+  before: SDL 3.2.10 crashed (SIGFPE) whenever it was told a mode at scale 1,
+  because the told `xdg_output` size came after a done of its own; the report
+  asked a player to choose the size in the game for a program Auto had reached
+  under All applications; and a surface scale standing when the output's scale
+  changed was asked and given back at the old scale. Recorded in the slice.
+- **19a.** **decide** – Whether Auto on Wayland enters the supported scope,
+  which the handbook left to the bench; the bench is now run (19).
+  Jens, 2026-09-29: Auto is not reached; to be discussed in detail later.
 - **20.** **investigate, F** – Six source-led investigations unticked: glmark2 X11,
     integer-scale reachability, ETR secondary output, SuperTux borderless and
     render cost, Wine/Proton D3D presentation (L1546-1634).
+  **Run 2026-09-29 in the conformance machine, except SuperTux's rendering cost
+  (needs a GPU) and official Proton (item 36):** reachable sizes at scales 1.5,
+  2 and 3 reproduced; Extreme Tux Racer stays on the primary output and refuses
+  an odd size truthfully; a Direct3D 11 sample under Wine is presented whole.
+  Two defects fixed with tests that failed before: the report named a reachable
+  step as a wish for the next start, and a Wine program started by its Unix
+  path was never identified by the proxy. One finding for Jens: 20a.
+- **20a.** **decide** – Under All applications, Auto's X11 resize reaches
+  programs that keep the viewport they started with, glmark2 2023.01 and
+  SuperTux 0.6.3, and the screen shows the bottom left two thirds of their
+  picture enlarged while the report says it succeeded; the effect cannot see a
+  viewport. Keep the resize for unlisted programs and document the limit, tell
+  unlisted X11 programs the smaller screen through the proxy at connection as
+  measured entries are, or leave unlisted X11 programs alone.
+  Jens, 2026-09-29: to be discussed with the other cases that do not work as
+  wanted once the list is worked down; every one of them has to be solved.
 - **21.** **decide, –** – `UserConfigured` method (L2253) versus the later "On/Off
     per presentation" plan (L3586-3588): which one stands.
+  **Decided by Jens 2026-09-29:** On/Off per presentation stands and
+  `UserConfigured` is dropped: a slot set to Off sends nothing, a smaller buffer
+  the player chose is enlarged all the same, and the status already names the
+  size to choose. The handbook's section on it and the slice's task go.
 - **22.** **test, F** – Physical acceptance: mixed resolutions and scales, output
     movement, input and confinement, TV (L2116-2125).
 - **23.** **impl/test, F** – Proxy: Vulkan and presentation sync, overhead, container
@@ -353,6 +387,10 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
 
 - **25.** **doc + decide** – Gates and acceptance criteria still describe the retired
     prefix companion; the proxy route has no gate (L326-352).
+  **Decided by Jens 2026-09-29 and done:** the proxy route's gates replace the
+  companion's in the Proton slice: Wreckfest under Proton Experimental and one
+  Wine game outside Steam, launched normally, for the supported scope; every
+  flavour across the matrix on real hardware for full acceptance.
 - **26.** **impl, S** – Hold a prefix's first connection until its first real program
     appears, instead of answering within 500 ms (L791-796).
   **Closed 2026-09-28, `d068860`, pushed:** implemented since #21 (held until
@@ -360,6 +398,12 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   the session's own message rather than 300 ms. Recorded in the slice.
 - **27.** **decide/investigate** – Warm prefix: a running wineserver opens no new
     connection; no answer proposed (L797-798).
+  **Decided by Jens 2026-09-29:** the proxy makes Wine re-read: when an entry's
+  program appears in a running prefix, the prefix's existing connections are
+  answered with the smaller screen from then on and sent a screen-change event,
+  so that Wine registers its displays again. Measured first on real games
+  (Proton's wineserver lifetime, launcher-first starts). Now an implementation
+  item.
 - **28.** **impl/test, S** – The 2026-09-25 decisions: prefix as the unit, path-tail
     matching, launchers, windowed left alone, per-prefix candidate report
     (L764-787).
@@ -372,14 +416,35 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   in the surface's unscaled coordinates, so the pointer stays in the top left
   two thirds and the right and bottom third of the game cannot be reached.
   Recorded in the Proton slice.
+  **Re-run 2026-09-29 with 29a's interim mapping:** Wine 10.0, confined, reaches
+  (2550, 1425) of its 2560 × 1440 window at scale 3, its lower right, which
+  before stopped at about two thirds. Input on a real display remains, with
+  Jens (supported scope, 94a).
 - **29a.** **decide** – How the effect meets a confined pointer until KWin honours
   a presentation transform: map one to one while confined (the system cursor
   is drawn in the wrong place), undo KWin's confinement and clamp in the
   effect (KWin re-engages it), or wait for the KWin change and report it.
+  **Decided by Jens 2026-09-29:** propose the KWin change upstream, and map the
+  pointer one to one while it is confined on KWin versions without it.
+  **The interim half done the same day:** while the presented surface's
+  confinement is engaged, `UpscaleX11Input` maps with scale one, relative
+  motion included. `aConfinedPointerReachesTheWholeWindow` (scale-3 session)
+  confines the pointer as Wine does and receives 1800 × 1050 at that point of
+  the output; the old mapping gave 900 × 525. The upstream half is 29b. On
+  Kubuntu 26.04 Xwayland locks rather than confines for a window without a
+  cursor of its own; the test client sets one, as Wine does, and passes there.
+- **29b.** **upstream** – Propose to KWin a per-window presentation transform that
+  its input path honours, `Window::mapToLocal()` and the pointer constraint
+  checks among it, so that a confined pointer is checked in the picture the
+  effect presents. Prepared with the report of 2e; filing is Jens's call.
 - **30.** **test, S** – Wreckfest on wzpc through the proxy (L468-472, L925-927).
 - **31.** **test, S** – One Wine game outside Steam (L328-330).
 - **32.** **decide/impl** – Legacy Wine guards and the Helper1 path: remove or keep
     (L663-671, L744).
+  **Decided by Jens 2026-09-29:** remove the companion service, its `Helper1`
+  interface, its preparation flow and its tests; keep one rule of the guards, a
+  Wine window acted on only through the proxy route, never resized blindly.
+  Now an implementation item, with 1b's remaining waits.
 - **33.** **wzpc** – Restore global `OsdStatistics=true` from
     `build/wzpc-clean-start-94a6804/` (L632-636).
 - **34.** **test/investigate, F** – Steam as Flatpak and Snap; the 09-27 analysis
@@ -389,7 +454,9 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   window stays at the told 2560 × 1440 and the effect refuses it as not
   covering its output. Needs a Wayland presentation of a smaller fullscreen
   surface with pointer mapping, which shares the confinement gap of 29a.
-  Recorded in the Proton slice.
+  Recorded in the Proton slice. The bench (19) adds: the driver draws into a
+  subsurface, which the effect refuses even at full size, with buffer heights
+  rounded up to a multiple of 128.
 - **36.** **test, F** – Every flavour × D3D9/11/12/OpenGL/Vulkan × exclusive/borderless
     (L169-174, L335-339).
 - **37.** **doc** – Close the moot helper translation-domain question; owe the
@@ -412,6 +479,12 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   display was one block in one corner, the current one has three blocks with a
   position each, and nothing reads the old key, so a chosen corner falls back
   to the defaults. Which block or blocks inherit it. Found 2026-09-28 with 39.
+  **Decided by Jens 2026-09-29:** the statistics block inherits the old
+  corner; the other two keep their defaults, and one that would share the
+  corner moves on to the next free one, as dragging does. **Done 2026-09-29:**
+  `upscaleLegacyCorners()` for the effect and the page, Apply forgets the old
+  key; tested with the previous release's configuration, the displaced cases
+  and the page, whose case failed against its old loading.
 - **40.** **impl, S** – "Clear a profile's overrides" in the editor: required, not in
     the plugin (L60-62, L1244-1246).
   **Done 2026-09-28, `0d3af59`, pushed:** **Use Global Settings** under a game's tabs
@@ -419,14 +492,28 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   measurement. Its label and tooltip are new text for the text review.
 - **41.** **decide, S** – What the page shows when a stored `Enabled=false` stops
     every profile (L1380).
+  **Decided by Jens 2026-09-29:** nothing more on the page; the status already
+  reads "Inactive: upscaling was switched off." Closed.
 - **42.** **doc/decide, S** – "Wayland Auto makes no request" disclaimer versus the
     fractional scale now being requested (L84-90, L717, L1269).
+  **Decided by Jens 2026-09-29 and done:** the documents describe what the code
+  does; the false statement is corrected in the profiles slice, and the
+  supported scope stays with 19a.
 - **43.** **decide** – 60 strings from the 2026-09-21 text review (L1350).
 - **44.** **decide → impl** – Text review batch 3 and the texts after it (L1360-1368).
 - **45.** **decide** – Settings page layout, awaiting review in System Settings
     (L1284).
+  **Approved by Jens 2026-09-29.** Closed.
 - **46.** **decide** – Migration for a stored `ResolutionControl=false` (L1337).
+  **Decided by Jens 2026-09-29:** no migration; the key never shipped in a
+  release. Closed.
 - **47.** **decide** – Flatpak app ID as its own field (L1136).
+  **Decided by Jens 2026-09-29:** no field of its own; a Flatpak program is named
+  URL-style, as a Wine program is, with its app ID in the authority, for
+  instance `flatpak://net.supertuxkart.SuperTuxKart/app/bin/supertuxkart`, and
+  matched by the same pattern fields. The proxy's identity header reserved
+  such schemes for container runtimes. Checked against a real Flatpak game
+  with 51.
 - **48.** **impl/test** – Portable "Add from Window" (path below the library root as
     a pattern), export/import across users (L1352-1359).
   **Done 2026-09-29, `aa7053b`, pushed:** a Steam game is stored by its folder in the
@@ -440,6 +527,10 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
     Flathub remote and snapd on the host (L1744-1831).
 - **52.** **decide** – Submitted applications: ship unverified submissions? credit?
     scale? (L1681)
+  **Decided by Jens 2026-09-29:** accepted submissions ship active, with their
+  provenance in the entry; credit through Git history and release notes, no
+  names in the installed file; and the list is indexed by program and window
+  identity at load time now, rather than measured later. The index goes with 53.
 - **53.** **impl/test, S** – Submitted applications route: program name in the
     report, copy action, `CONTRIBUTING.md`, issue form, catalogue tests,
     end-to-end rehearsal (L1681-1688). Not started.
@@ -461,6 +552,8 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
 - **56a.** **decide** – Whether the settings page gets an About dialog with the
   notices: `KAboutPluginDialog` and `KAboutApplicationDialog` need KXmlGui as a
   new build dependency of the settings module (item 54). Found 2026-09-28.
+  **Decided by Jens 2026-09-29:** no dialog; KWin's own About in the Desktop
+  Effects list suffices, and the notices stay an installed file. Closed.
 - **57.** **impl, S** – `website` metadata field (L927).
   **Closed 2026-09-28, not added:** no KWin effect declares a website, and a
   link to this repository would be project-specific in the plugin folder.
@@ -479,6 +572,7 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   requires sixty unchanged frames to log nothing. Recorded in the slice.
 - **61.** **impl** – Shortcut to toggle the displays (L385).
   Needs Jens first: which displays one key toggles, and its default key.
+  **Jens 2026-09-29:** a later feature, not part of this release. Deferred.
 - **62.** **impl, S** – Heads-up wording: "native" only when sizes are equal, named
     resolutions only at exact sizes (L436-444).
   **Closed 2026-09-28:** done since #17 (`35b6a53`) and covered by two
@@ -503,6 +597,9 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
     de/fr/es, metadata, incomplete-catalogue check (L1099-1130).
 - **69.** **doc/decide** – Interactive controls: not started; only a hardware gate,
     so it can never close as written (L942-1021).
+  **Decided by Jens 2026-09-29:** a later feature. It stays specified in the
+  handbook as planned and leaves this release's gates; automated checks come
+  beside the hardware gate when it is taken up. Deferred.
 - **70.** **test, F** – Displays on the TV (legibility, SDR/HDR, VRR, lock), placement
     at scale 3, footer and metadata by eye (L342-346, L691-694, L927-930).
 
@@ -517,6 +614,9 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
 - **74.** **test, F** – B–D cost matrix, real games, image quality, HDR (L320-323).
 - **75.** **decide, F** – VRR: HDMI-A-1 on wzpc reports adaptive sync incapable, the
     NVIDIA host has VRR disabled; which host/link (L38-41, L541-546).
+  **Decided by Jens 2026-09-29:** HDR and VRR are postponed to a later version.
+  When taken up, VRR is accepted on the NVIDIA host (pcjensd) and on wzpc.
+  Deferred, with the HDR and VRR parts of 70 and 74.
 - **76.** **impl** – Aspect ratio and integer scaling: specified, not implemented
     (L750-757).
 - **77.** **test** – PR #14 GLES combined-candidate validation still "pending" (L640).
@@ -544,7 +644,17 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   the files when it comes back. Found 2026-09-29.
 - **81.** **decide** – Nightly checks CI's conclusion through the API instead of
     rerunning `ci.yml`.
-- **82.** **decide/investigate** – The openSUSE amd64 failure you reported; not observed.
+  **Decided by Jens 2026-09-29:** check through the API; CI runs itself only for a
+  commit with no completed CI run. **Implemented the same day:**
+  `tools/ci-conclusion.py` and the nightly's `ci` job; the instrumented tests
+  keep the nightly's 600-second fuzzing. Awaits its first nightly.
+- **82.** **investigate/fix** – An openSUSE amd64 package failure; not observed in
+  ten nightlies. **Jens 2026-09-29:** found by the agent, not reported by him;
+  the agent finds it and solves it.
+  **Found and fixed 2026-09-29:** the first attempt of nightly 35519298024
+  (2026-09-20, master) got 403 from `download.opensuse.org` while refreshing
+  the repositories; its rerun passed. Every openSUSE download is now tried up
+  to four times. Recorded in the pipeline slice; the nightly confirms it.
 
 ## I. Build and release pipeline – `slice-build-release-pipeline.md`
 
@@ -565,7 +675,19 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   and attested. Pages is 86a. Recorded in the slice.
 - **86a.** **decide** – GitHub Pages for the handbook: turning it on is a
   repository setting, and what the site holds and excludes follows from it.
+  **Decided by Jens 2026-09-29:** yes; a workflow publishes the handbook and the
+  permanent documents, never doc/agents/. **Implemented the same day:**
+  `tools/build-site.py` (the README as front page and the documents under doc/,
+  links to anything else pointed at GitHub, unit-tested) and `pages.yml`, run
+  on every push to master; Pages is switched on for workflow builds at
+  <https://jensksp.github.io/kwin-effect-upscale/>. Built locally with the Pages
+  action's own image: every page and all 27 of the handbook's tables. Its first
+  hosted run follows the merge.
 - **87.** **decide** – Release milestones (none exist).
+  **Decided by Jens 2026-09-29:** a 0.3.0 milestone now, without a due date,
+  holding the issues and pull requests that block it, and one per release from
+  then on. **Done the same day:** milestone 1, "0.3.0", holds #23, the only
+  open issue or pull request.
 - **88.** **test** – Issue forms render and reject empty required fields on GitHub.
 - **89.** **impl** – Hook-update pull requests; failure notifications.
   **Partly done 2026-09-28, `49cf326`, pushed:** `tools/update-hooks.py` proposes updates
@@ -576,11 +698,27 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   fine-grained token as a secret, or a CI dispatch on its branch. And Jens's
   notification settings for failed scheduled runs and security alerts, which
   the CLI's token cannot read without the `notifications` scope.
+  **Decided by Jens 2026-09-29:** the workflow pushes its branch, opens the pull
+  request with its own token and dispatches CI on that branch itself; no new
+  secret or app. For notifications, Jens grants the CLI the `notifications`
+  scope (`gh auth refresh -s notifications`) and the agent reads and reports
+  the settings. Both now implementation items. **The pull request half is
+  implemented the same day** in `hook-updates.yml`: a dated branch
+  `hook-updates-<day>` from the branch the run started on, a pull request with
+  the run's token, and CI dispatched on the branch; none is opened while an
+  earlier one is open, so nothing is pushed over. Not run yet: its first run is
+  the scheduled one on master. The notification half waits for Jens's
+  `gh auth refresh -s notifications`.
 - **90.** **doc/investigate** – CodeQL ran once (2026-09-21, success); the document
     says never; findings not assessed.
   **Done 2026-09-28, `51e56ff`, pushed:** analyses on 2026-09-21 and 2026-09-28 for all
   three languages, no alert. Recorded in the slice.
 - **91.** **decide** – Non-provider secret patterns and validity checks.
+  **Decided by Jens 2026-09-29:** both on. Tried the same day through the API
+  (`PATCH /repos/…` with `security_and_analysis`): answered 200, both stayed
+  disabled. Presumably not offered for a public repository of a personal
+  account; Jens checks Settings → Code security, where they would be switched
+  on if offered.
 
 ## K. The documents themselves
 
@@ -604,3 +742,6 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   acceptance of the supported client class, while its later gate and the full
   acceptance list put physical input under full acceptance, and item 29 is
   marked supported scope.
+  **Decided by Jens 2026-09-29:** supported scope. A release needs input checked
+  on a real display for the supported games; the slice's later gate and full
+  acceptance list are corrected to match.
