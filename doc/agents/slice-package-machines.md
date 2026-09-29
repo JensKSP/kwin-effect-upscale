@@ -131,7 +131,15 @@ SuperTuxKart started 23 seconds after it.
   bochs. Arch publishes no arm64 image. The Debian arm64 machine finished its
   first boot on 2026-09-29 in 38 minutes under emulation, logged in to Plasma's
   Wayland session with KWin running, and virtio-gpu offering 3840 × 2160; the
-  others have not been made yet.
+  others have not been made yet. Its check passed all nine steps the same day
+  with the nightly's arm64 package, at the second run. In the first, step 8
+  failed: the proxy asked the effect about Extreme Tux Racer's connection while
+  the emulated KWin was still busy with the SuperTuxKart killed a moment
+  before, and the answer came later than the half second the proxy holds a
+  program (D-Bus `NoReply` in the journal), so the game was passed on
+  unanswered and the effect resized its window instead. The check now waits
+  before the X11 game until KWin uses under a tenth of a core over two
+  seconds, at most two minutes; the proxy's bound is the product's and stays.
 - FreeBSD cannot run Plasma's Wayland session in a machine: KWin needs a
   DRM/KMS driver, FreeBSD's drm-kmod drives Intel, AMD and NVIDIA hardware
   only, and virtio-gpu KMS exists only as the open pull request
