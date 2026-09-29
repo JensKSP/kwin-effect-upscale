@@ -20,6 +20,7 @@ Policy::Policy(QSize size, Registry *registry, quint32 pid, const QByteArray &ti
 {
     if (size.isValid()) {
         m_display = std::make_unique<DisplayReplies>(m_wire, size, timing);
+        m_size = size;
     }
 }
 
@@ -32,9 +33,13 @@ Policy::~Policy()
 
 QByteArray Policy::feed(std::size_t side, const QByteArray &bytes)
 {
-    return m_framer.feed(side, bytes, [this](std::size_t direction, QByteArray message, Framer::FrameKind kind) {
+    QByteArray relayed = m_framer.feed(side, bytes, [this](std::size_t direction, QByteArray message, Framer::FrameKind kind) {
         return frame(direction, std::move(message), kind);
     });
+    if (side == 1 && !m_deferred.isEmpty() && !m_framer.pending(1)) {
+        relayed += std::exchange(m_deferred, {});
+    }
+    return relayed;
 }
 
 QByteArray Policy::frame(std::size_t side, QByteArray message, Framer::FrameKind kind)
@@ -46,7 +51,8 @@ QByteArray Policy::frame(std::size_t side, QByteArray message, Framer::FrameKind
         if (side == 0) {
             request(message);
         } else if (Wire::byte(message, 0) == 1) {
-            m_requests.remove(m_wire.word(message, 2));
+            m_lastSequence = m_wire.word(message, 2);
+            m_requests.remove(m_lastSequence);
         }
     } else if (kind == Framer::FrameKind::Setup) {
         if (side == 1 && Wire::byte(message, 0) == 1) {
@@ -89,6 +95,9 @@ void Policy::request(QByteArray &bytes)
         if (extension == "BIG-REQUESTS" && minor == 0 && bytes.size() == 4) {
             m_framer.enableBigRequests();
         }
+        if (extension == "RANDR" && minor == 4) {
+            selectInput(bytes, shift);
+        }
         if (m_display && extension == "RANDR") {
             m_display->request(minor, bytes, shift);
         }
@@ -104,6 +113,10 @@ void Policy::request(QByteArray &bytes)
 QByteArray Policy::response(QByteArray bytes)
 {
     const quint8 kind = Wire::byte(bytes, 0);
+    // KeymapNotify is the one message that carries no sequence.
+    if ((kind & 127) != 11) {
+        m_lastSequence = m_wire.word(bytes, 2);
+    }
     if (kind != 0 && kind != 1) {
         if (m_display) {
             m_display->event(bytes);
@@ -115,12 +128,7 @@ QByteArray Policy::response(QByteArray bytes)
         return bytes;
     }
     if (request.kind == "extension") {
-        if (Wire::byte(bytes, 8)) {
-            m_extensions.insert(Wire::byte(bytes, 9), request.extension);
-            if (m_display && request.extension == "RANDR") {
-                m_display->randrEvent = Wire::byte(bytes, 10);
-            }
-        }
+        learnExtension(request.extension, bytes);
         return bytes;
     }
     if (request.kind == "X-Resource" && request.operation == 4) {
@@ -132,6 +140,33 @@ QByteArray Policy::response(QByteArray bytes)
     bytes.append(QByteArray(padded(bytes.size()) - bytes.size(), '\0'));
     m_wire.integer(bytes, 4, static_cast<quint32>((bytes.size() - 32) / 4));
     return bytes;
+}
+
+// RRSelectInput, for the events a change of screen is told with. Bounded: a
+// client selects on its root, and the rest is not needed.
+void Policy::selectInput(const QByteArray &bytes, qsizetype shift)
+{
+    if (bytes.size() != 12 + shift) {
+        return;
+    }
+    const quint32 window = m_wire.integer(bytes, 4 + shift);
+    if (m_randrSelections.size() < 64 || m_randrSelections.contains(window)) {
+        m_randrSelections.insert(window, m_wire.word(bytes, 8 + shift));
+    }
+}
+
+void Policy::learnExtension(const QByteArray &name, const QByteArray &reply)
+{
+    if (!Wire::byte(reply, 8)) {
+        return;
+    }
+    m_extensions.insert(Wire::byte(reply, 9), name);
+    if (name == "RANDR") {
+        m_randrEvent = Wire::byte(reply, 10);
+        if (m_display) {
+            m_display->randrEvent = m_randrEvent;
+        }
+    }
 }
 
 } // namespace UpscaleX11

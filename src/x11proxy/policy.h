@@ -27,6 +27,23 @@ public:
     {
         return m_framer.pending(side);
     }
+    /**
+     * Show the client a screen of @p size from now on, as a program of its
+     * Wine prefix was answered after this connection was: one prefix is one
+     * Wine desktop, and its programs have to agree on its screen.
+     *
+     * Returns the events that tell the client so, where they can be sent at
+     * once, between two of the server's messages; otherwise they follow the
+     * message the server is in the middle of. Nothing is returned before the
+     * setup reply, which then shows the new size itself, and nothing for a
+     * connection this relay no longer reads.
+     */
+    QByteArray changeDisplay(QSize size, const QByteArray &timing);
+    /** Whether changeDisplay() would show the client another screen than it sees. */
+    bool changesDisplay(QSize size) const
+    {
+        return size.isValid() && size != m_size && !m_framer.transparent();
+    }
 
 private:
     struct Request
@@ -37,6 +54,8 @@ private:
     };
     QByteArray frame(std::size_t side, QByteArray message, Framer::FrameKind kind);
     void request(QByteArray &bytes);
+    void selectInput(const QByteArray &bytes, qsizetype shift);
+    void learnExtension(const QByteArray &name, const QByteArray &reply);
     QByteArray response(QByteArray bytes);
     void setupReply(QByteArray &bytes);
     void resourceReply(QByteArray &bytes);
@@ -51,6 +70,18 @@ private:
     quint64 m_sequence = 0;
     QHash<quint16, Request> m_requests;
     QHash<quint8, QByteArray> m_extensions;
+    // What a view made after setup learns the root and the screen from: the
+    // server's own setup reply, before any rewriting.
+    QByteArray m_setupReply;
+    QSize m_size;
+    // The sequence of the last message relayed to the client, which is the
+    // last it read: an event given a lower one would read as a wraparound.
+    quint16 m_lastSequence = 0;
+    int m_randrEvent = -1;
+    // The RandR events each window was selected for (RRSelectInput).
+    QHash<quint32, quint16> m_randrSelections;
+    // Events held until the server's message now in progress has ended.
+    QByteArray m_deferred;
 };
 
 } // namespace UpscaleX11

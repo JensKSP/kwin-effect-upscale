@@ -69,7 +69,7 @@ void Session::acceptClient(int listener)
     // 2026-09-27). The X Test Suite's grab and focus cases open one between
     // two steps and lost their race with KWin placing the window in between.
     if (const auto known = m_answers.constFind(pid); known != m_answers.cend()) {
-        relayClient(client, pid, known->size, known->timing, true);
+        relayClient(client, pid, known->size, known->timing, true, known->prefix);
         return;
     }
     auto pending = std::make_shared<PendingClient>();
@@ -219,22 +219,64 @@ void Session::relayClient(int client, quint32 pid, const QSize &size, const QByt
         Answer &answer = m_answers[pid];
         answer.size = size;
         answer.timing = timing;
+        answer.prefix = prefix;
         ++answer.connections;
     }
     if (!prefix.isEmpty()) {
         ++m_prefixConnections[prefix];
+        showPrefix(prefix, size, timing);
+        m_prefixRelays[prefix].insert(relay);
     }
     connect(relay, &QObject::destroyed, this, [this, relay, pid, answered, prefix]() {
-        m_relays.remove(relay);
-        const auto answer = m_answers.find(pid);
-        if (answered && answer != m_answers.end() && --answer->connections == 0) {
-            m_answers.erase(answer);
-        }
-        const auto open = m_prefixConnections.find(prefix);
-        if (!prefix.isEmpty() && open != m_prefixConnections.end() && --*open == 0) {
-            m_prefixConnections.erase(open);
-            m_prefixPrograms.remove(prefix);
-        }
+        forgetRelay(relay, pid, answered, prefix);
     });
+}
+
+// One prefix is one Wine desktop with one screen. A program selected in a
+// prefix that already runs - a launcher first, or Wine's own tools - has the
+// prefix's earlier connections shown its screen too, and told it changed, so
+// that Wine reads its displays again (decided by Jens on 2026-09-29).
+// Otherwise the program is answered while Wine already knows the screen at
+// full size.
+void Session::showPrefix(const QString &prefix, const QSize &size, const QByteArray &timing)
+{
+    if (!size.isValid()) {
+        return;
+    }
+    int changed = 0;
+    const QSet<Relay *> earlier = m_prefixRelays.value(prefix);
+    for (Relay *other : earlier) {
+        if (!other->changeDisplay(size, timing)) {
+            continue;
+        }
+        ++changed;
+        if (const auto known = m_answers.find(other->pid()); known != m_answers.end()) {
+            known->size = size;
+            known->timing = timing;
+        }
+    }
+    if (changed) {
+        qInfo() << "Upscale X11 prefix" << prefix << "now shows" << changed << "earlier connections" << size;
+    }
+}
+
+void Session::forgetRelay(Relay *relay, quint32 pid, bool answered, const QString &prefix)
+{
+    m_relays.remove(relay);
+    if (const auto relays = m_prefixRelays.find(prefix); relays != m_prefixRelays.end()) {
+        relays->remove(relay);
+        if (relays->isEmpty()) {
+            m_prefixRelays.erase(relays);
+        }
+    }
+    const auto answer = m_answers.find(pid);
+    if (answered && answer != m_answers.end() && --answer->connections == 0) {
+        m_answers.erase(answer);
+    }
+    const auto open = m_prefixConnections.find(prefix);
+    if (!prefix.isEmpty() && open != m_prefixConnections.end() && --*open == 0) {
+        m_prefixConnections.erase(open);
+        m_prefixPrograms.remove(prefix);
+    }
 }
 }

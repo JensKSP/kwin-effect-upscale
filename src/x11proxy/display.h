@@ -18,7 +18,19 @@ public:
     void request(quint8 operation, QByteArray &bytes, qsizetype shift);
     QByteArray reply(const QByteArray &kind, quint32 operation, QByteArray bytes);
     void event(QByteArray &bytes);
+    /**
+     * The events that tell a client its screen changed to this view, for a
+     * connection that saw another one until now: RRScreenChangeNotify where
+     * @p selected on the root has it, RRNotify's CrtcChange where it has
+     * that. Each carries @p sequence, the last the client read, so that no
+     * client takes it for a later one. Empty where nothing is selected.
+     */
+    QByteArray changed(quint16 sequence, quint16 selected) const;
     quint16 nativeSizeIndex(quint16 index) const;
+    quint32 root() const
+    {
+        return m_root;
+    }
     int randrEvent = -1;
 
 private:

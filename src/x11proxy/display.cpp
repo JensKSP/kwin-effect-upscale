@@ -254,6 +254,37 @@ QByteArray DisplayReplies::resources(const QByteArray &bytes)
     return result;
 }
 
+QByteArray DisplayReplies::changed(quint16 sequence, quint16 selected) const
+{
+    if (!m_enabled || randrEvent < 0) {
+        return {};
+    }
+    QByteArray events;
+    // RRScreenChangeNotifyMask and RRCrtcChangeNotifyMask (randr/randrstr.h).
+    if (selected & 1) {
+        QByteArray event(32, '\0');
+        event[0] = static_cast<char>(randrEvent);
+        event[1] = 1; // RR_Rotate_0
+        m_wire.word(event, 2, sequence);
+        m_wire.integer(event, 12, m_root);
+        m_wire.integer(event, 16, m_root);
+        dimensions(event, 24);
+        events += event;
+    }
+    if (selected & 2) {
+        QByteArray event(32, '\0');
+        event[0] = static_cast<char>(randrEvent + 1);
+        event[1] = 0; // CrtcChange
+        m_wire.word(event, 2, sequence);
+        m_wire.integer(event, 8, m_root);
+        m_wire.integer(event, 16, m_currentMode);
+        m_wire.word(event, 20, 1);
+        dimensions(event, 28);
+        events += event;
+    }
+    return events;
+}
+
 void DisplayReplies::event(QByteArray &bytes)
 {
     if (!m_enabled) {
