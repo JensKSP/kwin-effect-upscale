@@ -90,9 +90,9 @@ jobs:
           family: ${{ matrix.family }}
 
   # FreeBSD builds in a virtual machine, which shares no step with a container
-  # job, and it tests in that same machine: there is no second clean FreeBSD to
-  # install into, so splitting this across the two stages would buy nothing and
-  # cost a second boot. It is the one target whose test lives in the build job.
+  # job, and it tests in that same machine, emptied of what the build installed:
+  # a second clean FreeBSD would cost a second boot and buy nothing more. It is
+  # the one target whose test lives in the build job.
   virtual-machine-package:
     name: ${{ matrix.label }} ${{ matrix.architecture }} Package
     needs: targets
@@ -119,9 +119,19 @@ jobs:
             set -eu
             pkg install -y $(python3 -B tools/distribution-packages.py "$TARGET")
             python3 -B tools/build-package.py "$TARGET" "$VERSION"
-            # The same clean-environment check the container targets get, in
-            # the machine that built it: the package is installed, both plugins
-            # are loaded, and it is reinstalled and removed again.
+            # Emptied first, so that the test starts as clean as the container
+            # targets' does: everything the build installed goes (pkg delete -a
+            # keeps pkg itself), and what comes back is the interpreter the test
+            # runs in, rsync, with which the results are copied back, and the
+            # package's declared dependencies, by name from the repository as a
+            # user's pkg takes them. pkg add looks for dependencies only beside
+            # the package file, so an undeclared one is now simply missing.
+            package=$(python3 -B tools/test-package.py "$TARGET" build/artifacts --select)
+            pkg delete -a -y
+            pkg install -y python3 rsync $(pkg query -F "$package" '%dn')
+            # The same check the container targets get: the package is
+            # installed, both plugins are loaded, and it is reinstalled and
+            # removed again.
             python3 -B tools/test-package.py "$TARGET" build/artifacts
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
