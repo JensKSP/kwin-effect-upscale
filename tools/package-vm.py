@@ -47,6 +47,17 @@ SYSTEMS = {
         # The first boot installs the whole desktop.
         boot_seconds=5400,
     ),
+    "kubuntu-26.04-amd64": vm.Machine(
+        name="package-kubuntu-26.04-amd64",
+        template="containers/vm-host/plasma-kubuntu.in",
+        cloud="https://cloud-images.ubuntu.com/resolute/current/",
+        base="resolute-server-cloudimg-amd64.img",
+        sums="SHA256SUMS",
+        algorithm="sha256",
+        ready="pgrep -u tester -x kwin_wayland >/dev/null",
+        display=SCREEN,
+        boot_seconds=7200,
+    ),
 }
 
 

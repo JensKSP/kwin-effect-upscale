@@ -158,6 +158,14 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   passed all nine steps with the nightly's package, SuperTuxKart enlarged from
   2560 × 1440 and Extreme Tux Racer answered by the proxy. The other systems
   remain. Owned by the package machines slice.
+  **Kubuntu 26.04 amd64 done 2026-09-29:** its first run found a defect: at
+  the scale 2.7 Plasma 6.6 chose, a fullscreen window one device pixel short of
+  its output, which the effect allows, came out a hair over one pixel and was
+  refused, and so at many common scales. Fixed with a millionth of a pixel of
+  slack and a unit check; with a package of the fixed tree all nine steps
+  passed. Found on the way: the tests do not build with GCC 14 at -O2
+  (`-Warray-bounds` in the proxy session test), fixed. Fedora, openSUSE, Arch,
+  FreeBSD and arm64 remain.
 
 - **2g.** **fix, S** – CodeRabbit asked for changes on #23 (review 5342421790
   at `74de7c8`), found 2026-09-28: five comments, each checked against the

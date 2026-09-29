@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 import time
@@ -46,6 +47,29 @@ STEPS = (
     "Extreme Tux Racer's X11 connection answered by the proxy",
     "removed with the package manager, KWin still running",
 )
+
+
+NAME = "kwin-effect-upscale"
+# Each system's package manager: how it installs a package file with the
+# dependencies from the system's repositories, and how it removes the package.
+MANAGERS = {
+    "apt-get": (("apt-get", "install", "-y"), ("apt-get", "remove", "-y", NAME)),
+    "dnf": (("dnf", "install", "-y"), ("dnf", "remove", "-y", NAME)),
+    "zypper": (
+        ("zypper", "--non-interactive", "install", "--allow-unsigned-rpm"),
+        ("zypper", "--non-interactive", "remove", NAME),
+    ),
+    "pacman": (("pacman", "-U", "--noconfirm"), ("pacman", "-R", "--noconfirm", NAME)),
+}
+
+
+def manager() -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Find the system's package manager."""
+    for program, commands in MANAGERS.items():
+        if shutil.which(program):
+            return commands
+    message = f"none of {', '.join(MANAGERS)} is installed"
+    raise RuntimeError(message)
 
 
 # SuperTuxKart's own settings as a player at a 4K screen has them.
@@ -200,8 +224,9 @@ def check(package: str, steps: list[Step]) -> None:  # noqa: PLR0915 - One step 
     first = kwin()
     step.outcome, step.detail = ("passed", f"kwin_wayland {first}") if first else ("failed", "")
     step = begin("installed with the package manager")
+    install, remove = manager()
     try:
-        output(["apt-get", "install", "-y", package], timeout=1800)
+        output([*install, package], timeout=1800)
         step.outcome = "passed"
     except RuntimeError as error:
         step.outcome, step.detail = "failed", str(error)
@@ -268,7 +293,7 @@ def check(package: str, steps: list[Step]) -> None:  # noqa: PLR0915 - One step 
     step.outcome, step.detail = ("passed", found) if found else ("failed", "no connection logged")
     step = begin("removed with the package manager, KWin still running")
     try:
-        output(["apt-get", "remove", "-y", "kwin-effect-upscale"], timeout=600)
+        output(list(remove), timeout=600)
     except RuntimeError as error:
         step.outcome, step.detail = "failed", str(error)
         return
