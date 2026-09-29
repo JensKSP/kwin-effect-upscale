@@ -360,14 +360,16 @@ UpscaleSettings UpscaleEffectConfig::shownSettings() const
     return settings;
 }
 
-void UpscaleEffectConfig::showSettings()
+void UpscaleEffectConfig::showSettings(bool legacy)
 {
     // The global profile's own participation, read through the translation of
     // the previous release's key like every other global value on this page.
+    // Not after Defaults: the old keys stay in the file until Apply removes
+    // them, and read again they would bring back what Defaults just reset.
     const KConfigGroup global(UpscaleConfig::self()->config(), QStringLiteral("Effect-upscale"));
-    m_editor->setAllEnabled(UpscaleConfig::unlistedApplications() || upscaleLegacyUnlisted(global));
+    m_editor->setAllEnabled(UpscaleConfig::unlistedApplications() || (legacy && upscaleLegacyUnlisted(global)));
     m_percentage->setValue(qRound(UpscaleConfig::percentage() * 100));
-    m_preset->setCurrentIndex(upscaleSettingInfo(UpscaleSetting::Resolution).global());
+    m_preset->setCurrentIndex(legacy ? upscaleSettingInfo(UpscaleSetting::Resolution).global() : UpscaleConfig::resolution());
     upscaleSelectResolution(m_minimumPixels, UpscaleConfig::minimumPixels());
     m_x11Proxy->setChecked(UpscaleConfig::x11Proxy());
     updateProxyStatus();
@@ -384,9 +386,9 @@ void UpscaleEffectConfig::showSettings()
     // a file edited by hand can name one corner twice, and the page must not
     // show two displays sharing one.
     // The previous release's single corner is read as the effect reads it.
-    const std::array<int, 3> stored = upscaleLegacyCorners(KConfigGroup(UpscaleConfig::self()->config(), QStringLiteral("Effect-upscale")),
-                                                           {UpscaleConfig::osdAnnouncementPosition(), UpscaleConfig::osdStatisticsPosition(),
-                                                            UpscaleConfig::osdDeveloperPosition()});
+    const std::array<int, 3> current{UpscaleConfig::osdAnnouncementPosition(), UpscaleConfig::osdStatisticsPosition(),
+                                     UpscaleConfig::osdDeveloperPosition()};
+    const std::array<int, 3> stored = legacy ? upscaleLegacyCorners(global, current) : current;
     std::array<UpscaleCorner, 3> corners{upscaleCorner(stored[0]), upscaleCorner(stored[1]), upscaleCorner(stored[2])};
     upscaleSeparateCorners(corners);
     const std::array<QComboBox *, 3> positions = positionControls();
@@ -436,7 +438,7 @@ void UpscaleEffectConfig::applySettings()
 void UpscaleEffectConfig::load()
 {
     UpscaleConfig::self()->read();
-    showSettings();
+    showSettings(true);
     // The application list is part of what this page would apply, so Reset
     // discards its pending edits with everything else. Leaving them on screen
     // would let a later Apply write changes the user had just discarded.
@@ -450,7 +452,7 @@ void UpscaleEffectConfig::defaults()
     // The defaults live in upscaleconfig.kcfg. Repeating them here is how the
     // dialog and the effect start to disagree about what "default" means.
     UpscaleConfig::self()->setDefaults();
-    showSettings();
+    showSettings(false);
     setNeedsSave(true);
 }
 
