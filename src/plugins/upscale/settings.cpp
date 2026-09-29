@@ -111,19 +111,26 @@ static int globalOsdTimeout()
     return UpscaleConfig::osdTimeout();
 }
 
+// The display's corners as stored, or as the previous release's single corner
+// places them where no new position has replaced it.
+static std::array<int, 3> globalCorners()
+{
+    return upscaleLegacyCorners(globalGroup(), {UpscaleConfig::osdAnnouncementPosition(), UpscaleConfig::osdStatisticsPosition(), UpscaleConfig::osdDeveloperPosition()});
+}
+
 static int globalAnnouncementPosition()
 {
-    return UpscaleConfig::osdAnnouncementPosition();
+    return globalCorners()[0];
 }
 
 static int globalStatisticsPosition()
 {
-    return UpscaleConfig::osdStatisticsPosition();
+    return globalCorners()[1];
 }
 
 static int globalDeveloperPosition()
 {
-    return UpscaleConfig::osdDeveloperPosition();
+    return globalCorners()[2];
 }
 
 // The resolution is spelled by name in a configuration file, where a number

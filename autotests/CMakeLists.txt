@@ -86,6 +86,7 @@ add_executable(
     ../src/plugins/upscale/pattern.cpp
     ../src/plugins/upscale/settings.cpp
     ../src/plugins/upscale/legacysettings.cpp
+    ../src/plugins/upscale/placement.cpp
     ${application_test_sources}
 )
 target_include_directories(upscale_application_test PRIVATE ../src/plugins/upscale)
@@ -109,6 +110,7 @@ set(snapshot_test_sources
     ../src/plugins/upscale/pattern.cpp
     ../src/plugins/upscale/settings.cpp
     ../src/plugins/upscale/legacysettings.cpp
+    ../src/plugins/upscale/placement.cpp
     ../src/plugins/upscale/snapshot.cpp
     ../src/plugins/upscale/snapshot_metrics.cpp
     ../src/plugins/upscale/eligibility.cpp
@@ -134,6 +136,7 @@ set(headsup_test_sources
     ../src/plugins/upscale/pattern.cpp
     ../src/plugins/upscale/settings.cpp
     ../src/plugins/upscale/legacysettings.cpp
+    ../src/plugins/upscale/placement.cpp
     ../src/plugins/upscale/snapshot.cpp
     ../src/plugins/upscale/snapshot_metrics.cpp
     ../src/plugins/upscale/eligibility.cpp

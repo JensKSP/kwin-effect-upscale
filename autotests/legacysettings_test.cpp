@@ -121,11 +121,29 @@ void LegacySettingsTest::readsTheGlobalKeysOfThePreviousRelease()
     global.writeEntry("Enabled", false);
     QVERIFY(KWin::upscaleLegacySwitchedOff(global));
 
+    // The old display moved one block, its statistics, and that block takes the
+    // old corner; one that held it by default moves on to the next free corner,
+    // as dragging would move it. Corners: top left, top right, bottom left,
+    // bottom right; the defaults are 0, 1 and 3.
+    const std::array<int, 3> defaults{0, 1, 3};
+    QCOMPARE(KWin::upscaleLegacyCorners(global, defaults), defaults);
+    global.writeEntry("OsdPosition", 2);
+    QCOMPARE(KWin::upscaleLegacyCorners(global, defaults), (std::array<int, 3>{0, 2, 3}));
+    global.writeEntry("OsdPosition", 0);
+    QCOMPARE(KWin::upscaleLegacyCorners(global, defaults), (std::array<int, 3>{1, 0, 3}));
+    global.writeEntry("OsdPosition", 3);
+    QCOMPARE(KWin::upscaleLegacyCorners(global, defaults), (std::array<int, 3>{0, 3, 1}));
+    // A new statistics position replaces the old corner outright.
+    global.writeEntry("OsdStatisticsPosition", 1);
+    QCOMPARE(KWin::upscaleLegacyCorners(global, defaults), defaults);
+    global.deleteEntry("OsdStatisticsPosition");
+
     // Applying the page removes what the new keys now carry in full, and keeps
     // the one thing no new key says: that upscaling was switched off.
     KWin::upscaleForgetLegacySettings(global);
     QVERIFY(!global.hasKey("Preset"));
     QVERIFY(!global.hasKey("UnknownApplications"));
+    QVERIFY(!global.hasKey("OsdPosition"));
     QVERIFY(global.hasKey("Enabled"));
 }
 
@@ -270,13 +288,14 @@ void LegacySettingsTest::readsAConfigurationThePreviousReleaseWrote()
     QVERIFY(!global.switchedOn(UpscaleSetting::OsdDeveloper));
     QCOMPARE(global.value(UpscaleSetting::OsdTimeout), 5);
     QVERIFY(global.acts());
-    // Not carried over: OsdPosition placed the one block the old display had,
-    // and the display has three now, each with a position of its own. Which of
-    // them the old corner belongs to is not decided yet.
+    // OsdPosition placed the one block the old display moved, its statistics,
+    // and that block keeps the corner; the other two keep their defaults.
     const KConfigGroup stored(KSharedConfig::openConfig(QStringLiteral("kwinrc")), QStringLiteral("Effect-upscale"));
     QCOMPARE(stored.readEntry("OsdPosition", 0), 2);
     QVERIFY(!stored.hasKey("OsdStatisticsPosition"));
-    QCOMPARE(global.value(UpscaleSetting::StatisticsPosition), 1); // upscaleconfig.kcfg's default
+    QCOMPARE(global.value(UpscaleSetting::StatisticsPosition), 2);
+    QCOMPARE(global.value(UpscaleSetting::AnnouncementPosition), 0);
+    QCOMPARE(global.value(UpscaleSetting::DeveloperPosition), 3);
 
     // A shipped profile the person changed keeps the change, a profile they
     // switched off stays off, and one they added is found by its window.
