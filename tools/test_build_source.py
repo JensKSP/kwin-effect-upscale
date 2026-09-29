@@ -66,9 +66,22 @@ class ProvenanceTest(unittest.TestCase):
 
     def test_forge_tag_build(self) -> None:
         """A forge's build for a tag records the tag and no branch."""
+        self.git("tag", "v0.1.0")
         os.environ["GITHUB_REF_NAME"] = "v0.1.0"
         os.environ["GITHUB_REF_TYPE"] = "tag"
         self.assertEqual(provenance("HEAD"), {"commit": self.commit, "tag": "v0.1.0"})
+
+    def test_forge_tag_of_another_commit(self) -> None:
+        """A tag the forge built for is not recorded for a commit it is not on."""
+        self.git("tag", "v0.1.0")
+        Path("README").write_text("later\n")
+        self.git("commit", "--quiet", "-am", "later")
+        os.environ["GITHUB_REF_NAME"] = "v0.1.0"
+        os.environ["GITHUB_REF_TYPE"] = "tag"
+        recorded = provenance("HEAD")
+        self.assertEqual(recorded["commit"], self.git("rev-parse", "HEAD"))
+        self.assertNotIn("tag", recorded)
+        self.assertNotEqual(recorded.get("branch"), "v0.1.0")
 
     def test_tree_records_nothing(self) -> None:
         """A tree archived for a local check is no commit, and says nothing."""

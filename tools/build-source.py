@@ -29,17 +29,25 @@ def provenance(revision: str) -> dict[str, str]:
     if not commit:
         return {}
     recorded = {"commit": commit}
-    if os.environ.get("GITHUB_REF_TYPE") == "tag" and os.environ.get("GITHUB_REF_NAME"):
-        recorded["tag"] = os.environ["GITHUB_REF_NAME"]
-    else:
-        branch = os.environ.get("GITHUB_HEAD_REF") or os.environ.get("GITHUB_REF_NAME")
-        if not branch and git("rev-parse", "HEAD") == commit:
-            branch = git("symbolic-ref", "--short", "--quiet", "HEAD")
-        if branch:
-            recorded["branch"] = branch
-        tag = git("describe", "--tags", "--exact-match", commit)
-        if tag:
-            recorded["tag"] = tag
+    # A forge's build for a tag names it, but the revision archived may be
+    # another commit; the tag is this commit's only where it points here. A
+    # tag's name is never a branch's.
+    forge = os.environ.get("GITHUB_REF_NAME", "")
+    tagged = os.environ.get("GITHUB_REF_TYPE") == "tag"
+    pointed = (
+        git("rev-parse", "--verify", "--quiet", f"refs/tags/{forge}^{{commit}}") if forge else ""
+    )
+    if tagged and pointed == commit:
+        recorded["tag"] = forge
+        return recorded
+    branch = os.environ.get("GITHUB_HEAD_REF") or ("" if tagged else forge)
+    if not branch and git("rev-parse", "HEAD") == commit:
+        branch = git("symbolic-ref", "--short", "--quiet", "HEAD")
+    if branch:
+        recorded["branch"] = branch
+    tag = git("describe", "--tags", "--exact-match", commit)
+    if tag:
+        recorded["tag"] = tag
     return recorded
 
 
