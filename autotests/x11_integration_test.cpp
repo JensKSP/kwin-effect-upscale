@@ -298,10 +298,15 @@ void UpscaleX11IntegrationTest::movePointer(const QPoint &position)
     // It polls, so the request has to appear whole: a truncated file it reads
     // mid-write parses as too few fields, and it removes the file regardless,
     // losing the motion. QSaveFile publishes it by rename instead.
-    QSaveFile request(QString::fromLocal8Bit(qgetenv("XDG_RUNTIME_DIR")) + QStringLiteral("/upscale-test-pointer"));
+    const QString path = QString::fromLocal8Bit(qgetenv("XDG_RUNTIME_DIR")) + QStringLiteral("/upscale-test-pointer");
+    QSaveFile request(path);
     QVERIFY(request.open(QIODevice::WriteOnly));
     QVERIFY(request.write(QByteArray::number(position.x()) + ' ' + QByteArray::number(position.y())) > 0);
     QVERIFY(request.commit());
+    // Taken before the next one replaces it: a case that waits for motion the
+    // X server already gave the window, crossing into it as it mapped under
+    // the pointer, would otherwise move on and overwrite this one unread.
+    QTRY_VERIFY(!QFile::exists(path));
 }
 
 void UpscaleX11IntegrationTest::expiresDepartedClientRefusal()
