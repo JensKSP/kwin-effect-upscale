@@ -182,6 +182,15 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   SuperTuxKart enlarged from 2560 × 1440 on Wayland in each, and an X11
   game answered by the proxy (Extreme Tux Racer on Fedora, SuperTuxKart
   where Extreme Tux Racer is not installed).
+  **Debian arm64 passed 2026-09-29,** all nine steps, emulated whole, with
+  the same nightly's arm64 package, at the second run. The first failed step
+  8: the proxy asked the effect about Extreme Tux Racer's connection while
+  the emulated KWin was still busy with the Wayland game killed a moment
+  before, the answer took longer than the half second the proxy holds a
+  program (`NoReply`), and the game was passed on unanswered; the effect then
+  resized its window instead. The check now starts the X11 game from an idle
+  KWin, as a player's desktop is, and the second run passed. The other arm64
+  machines remain to be made.
   **FreeBSD blocked, for Jens to decide (found 2026-09-29):** a Plasma Wayland
   session needs a DRM/KMS driver, and FreeBSD's drm-kmod drives Intel, AMD and
   NVIDIA hardware only. No QEMU display device has one: virtio-gpu KMS for
