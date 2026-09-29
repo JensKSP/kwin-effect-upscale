@@ -358,6 +358,17 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   window of a prefix whose game is selected is sized to the game's screen and
   presented by the effect, although no entry lists it. Now an implementation
   item.
+  **Done 2026-09-29:** the proxy keeps the screen a prefix shows since its
+  game was answered, shows it to the prefix's later connections too, and
+  reports each process it shows it to over D-Bus before switching one that
+  already runs; the effect claims such a process's windows with the entry that
+  answered the game, and looks at them at once. Tests: the proxy session's
+  warm prefix reports the launcher and a later program (each failed with its
+  part taken out), and `presentsAProcessShownItsGamesScreen` in the
+  single-screen X11 session presents a stand-in launcher at 1920 × 1080 (it
+  failed without the effect's fallback). In the conformance machine the
+  launcher beside the probe is now 2560 × 1440 and presented, where it grew to
+  5120 × 2880. Recorded in the Proton slice and the handbook.
 - **15.** **fix, –** – Incoherent advertisement: `wl_output.mode` falsified beside a
     truthful `xdg_output`; recorded as a defect in shipped code, no fix
     recorded (L1363-1365, L1841-1851).

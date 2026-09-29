@@ -24,19 +24,33 @@ namespace
 // here would then hear that it ended; the oldest is forgotten first, long
 // after the window that asked about it was presented.
 constexpr int servedLimit = 128;
-QHash<uint, QSize> served;
+struct Served
+{
+    QSize screen;
+    // The entry that answered, empty for the global profile.
+    QString profile;
+};
+QHash<uint, Served> served;
 QList<uint> servedOrder;
 } // namespace
 
-void upscaleRecordServed(uint pid, const QSize &screen)
+void upscaleRecordServed(uint pid, const QSize &screen, const QString &profile)
 {
     if (!pid || screen.isEmpty() || served.contains(pid)) {
         return;
     }
-    served.insert(pid, screen);
+    served.insert(pid, {screen, profile});
     servedOrder.append(pid);
     if (servedOrder.size() > servedLimit) {
         served.remove(servedOrder.takeFirst());
+    }
+}
+
+void upscaleRecordShown(uint game, uint pid)
+{
+    const auto found = served.constFind(game);
+    if (found != served.cend()) {
+        upscaleRecordServed(pid, found->screen, found->profile);
     }
 }
 
@@ -47,7 +61,20 @@ bool upscaleServed(pid_t pid)
 
 QSize upscaleServedScreen(pid_t pid)
 {
-    return pid > 0 ? served.value(static_cast<uint>(pid)) : QSize();
+    return pid > 0 ? served.value(static_cast<uint>(pid)).screen : QSize();
+}
+
+const UpscaleApplication *upscaleServedApplication(pid_t pid)
+{
+    const QString profile = pid > 0 ? served.value(static_cast<uint>(pid)).profile : QString();
+    if (profile.isEmpty()) {
+        return nullptr;
+    }
+    const auto &applications = upscaleApplications();
+    const auto found = std::ranges::find_if(applications, [&profile](const UpscaleApplication &application) {
+        return application.id == profile && application.enabled;
+    });
+    return found != applications.end() ? &*found : nullptr;
 }
 
 static const UpscaleApplication *connectionApplication(const QStringList &candidates, QVariantMap &answer)
@@ -146,6 +173,17 @@ bool UpscaleIdentityService::x11PrefixMayMatch(const QString &prefix, const QStr
     return false;
 }
 
+void UpscaleIdentityService::x11ProcessShown(uint game, uint pid)
+{
+    upscaleRecordShown(game, pid);
+    // Its windows are looked at again before the answer goes back: the proxy
+    // tells the process of the smaller screen only then, and a fullscreen
+    // window of it has to be that size already when the process asks for it.
+    if (m_shown && upscaleServed(pid_t(pid))) {
+        m_shown(pid);
+    }
+}
+
 QVariantMap UpscaleIdentityService::x11ConnectionPolicy(uint pid, const QStringList &candidates) const
 {
     QVariantMap answer{{QStringLiteral("reason"), QStringLiteral("unidentified client")}};
@@ -201,7 +239,7 @@ QVariantMap UpscaleIdentityService::x11ConnectionPolicy(uint pid, const QStringL
     answer[QStringLiteral("reason")] = QStringLiteral("connection display advertisement");
     // This process now renders at the size wanted, so its window is presented
     // across the output instead of being asked to resize itself.
-    upscaleRecordServed(pid, desired);
+    upscaleRecordServed(pid, desired, selected ? selected->id : QString());
     return answer;
 }
 }

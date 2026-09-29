@@ -12,6 +12,7 @@
 #include <KSharedConfig>
 #include <QCoreApplication>
 #include <QDBusInterface>
+#include <QDBusMessage>
 #include <QDBusReply>
 #include <QFile>
 #include <QScopeGuard>
@@ -186,6 +187,39 @@ void UpscaleX11IntegrationTest::winePrefixEligibility()
         expected = false;
     }
     QCOMPARE(answer.value(), expected);
+}
+
+// A window of a process shown another's screen, a Wine prefix's launcher once
+// its game was answered, is claimed by the entry that answered the game
+// although no entry names it, and presented at that screen: one prefix is one
+// screen (item 14a). Here this process is the game and the stand-in the
+// launcher, fullscreen at the output's size as a launcher that became
+// fullscreen before the game started.
+void UpscaleX11IntegrationTest::presentsAProcessShownItsGamesScreen()
+{
+    configure(true);
+    QDBusInterface policy(QStringLiteral("org.kde.KWin"), QStringLiteral("/org/kde/KWin/Effect/Upscale1"),
+                          QStringLiteral("org.kde.KWin.Effect.Upscale1"), QDBusConnection::sessionBus());
+    QVariantMap game;
+    QVERIFY(QTest::qWaitFor([&]() {
+        const QDBusReply<QVariantMap> reply = policy.call(QStringLiteral("x11ConnectionPolicy"), uint(QCoreApplication::applicationPid()),
+                                                          QStringList{QStringLiteral("upscale-x11-test")});
+        game = reply.isValid() ? reply.value() : QVariantMap{};
+        return !game.value(QStringLiteral("retry")).toBool();
+    }, 10000));
+    if (game.value(QStringLiteral("reason")).toString().contains(QStringLiteral("one enabled output"))) {
+        QSKIP("a connection is answered only for a single screen");
+    }
+    QCOMPARE(game.value(QStringLiteral("width")).toInt(), 1920);
+    StandInGame launcher(QStringLiteral(UPSCALE_TEST_X11_GAME), QStringLiteral("on-map"), QSize(3840, 2160), false,
+                         QStringLiteral("upscale-x11-launcher"));
+    QVERIFY(launcher.started());
+    QVERIFY(policy.call(QStringLiteral("x11ProcessShown"), uint(QCoreApplication::applicationPid()), uint(launcher.processId()))
+                .type()
+            != QDBusMessage::ErrorMessage);
+    QTRY_VERIFY(launcher.isFullscreen());
+    QTRY_VERIFY2(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()));
+    QTRY_COMPARE(launcher.geometry().size(), QSize(1920, 1080));
 }
 
 // Under All applications a program no entry names is told the smaller screen

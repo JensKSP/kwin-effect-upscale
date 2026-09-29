@@ -1134,6 +1134,19 @@ prefix's other fullscreen windows at the game's screen too or not showing the
 smaller screen to a connection that has a fullscreen window, change what
 happens to a program no entry lists, and are Jens's to choose.
 
+Jens chose the first the same day: one prefix is one screen. Built: the proxy
+keeps the screen a prefix shows since its game was answered, with the game's
+process; a later connection of the prefix, listed or not, is shown it too;
+and every process shown it is reported to the effect (`x11ProcessShown`),
+which claims that process's windows with the entry that answered the game and
+looks at them at once. A process that already runs is switched only after the
+effect has answered its report, at most half a second later, so that its
+fullscreen window is 2560 × 1440 before Wine asks for that size. Run again in
+the conformance machine: the effect resized the launcher's window, the prefix
+switched five connections, the launcher reported 2560 × 1440 and was
+presented, first by the effect and then by Xwayland's emulation once Wine set
+the mode for it, and the probe saw 2560 × 1440 as before.
+
 ### Proposal prepared for KDE: a presentation transform KWin's input honours (item 29b), 2026-09-29
 
 Decided by Jens on 2026-09-29 to propose; filing is his, with 2e's report. The

@@ -7,6 +7,7 @@
 #include "windowidentity.h"
 
 #include "matching.h"
+#include "runtime.h"
 
 #include "effect/effecthandler.h"
 #include "effect/effectwindow.h"
@@ -121,7 +122,9 @@ const UpscaleApplication *upscaleApplicationForWindow(const Window *window)
         resolved.instance = window->resourceName();
         resolved.application = upscaleApplicationFor({resolved.executable, resolved.windowClass, resolved.instance});
     }
-    return resolved.application;
+    // Asked each time rather than kept: a launcher's window exists before its
+    // prefix is shown its game's screen.
+    return resolved.application ? resolved.application : upscaleServedApplication(window->pid());
 }
 
 UpscaleIdentityService::UpscaleIdentityService(QObject *parent)
@@ -170,6 +173,11 @@ QVariantMap UpscaleIdentityService::reportFacts(const QString &window) const
 void UpscaleIdentityService::setReporter(std::function<QVariantMap(EffectWindow *window)> reporter)
 {
     m_reporter = std::move(reporter);
+}
+
+void UpscaleIdentityService::setShownHandler(std::function<void(uint pid)> handler)
+{
+    m_shown = std::move(handler);
 }
 
 QString UpscaleIdentityService::executablePath(const QString &window) const

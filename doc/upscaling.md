@@ -422,6 +422,18 @@ Proton game acceptance has been established through it.
   2026-09-29: after an unlisted program or Notepad had opened the prefix, a
   game started 20 seconds later saw 2560 × 1440 at start, where it had seen
   3840 × 2160 before.
+- **One prefix is one screen.** A program the prefix starts once its game was
+  selected is shown the game's screen too, listed or not, and every
+  fullscreen window of the prefix is sized to that screen and presented as the
+  game's, with the settings of the entry that answered the game (decided by
+  Jens on 2026-09-29). The proxy tells the effect which processes it shows
+  the screen, and shows it to a process that already runs only once the
+  effect has resized that process's fullscreen window: otherwise KWin answers
+  Wine's request for the smaller size with the output's, and Wine, whose
+  window is larger than its visible part since the screen shrank, grows the
+  window by the difference at every answer. Measured with Wine 10.0 in the
+  conformance machine: a fullscreen launcher beside the probe grew from
+  3840 × 2160 to 5120 × 2880, and is now 2560 × 1440 and presented.
 - **A game is recognized by the program Wine runs.** Wine names that program,
   as an absolute path, in the command line of the process that runs it, and
   names its own components below `C:\windows\system32` and
