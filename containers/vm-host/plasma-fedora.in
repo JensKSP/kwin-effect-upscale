@@ -1,0 +1,47 @@
+#cloud-config
+# SPDX-FileCopyrightText: None
+# SPDX-License-Identifier: CC0-1.0
+#
+# A package machine: Fedora with the KDE Plasma Workspaces environment Fedora's
+# KDE edition installs, logged in by SDDM into a Plasma Wayland session, into
+# which the package is installed as a user's would be. tools/package-vm.py fills in the @...@ fields from keys
+# it makes for each machine; no key is kept in this file.
+hostname: upscale-plasma-fedora
+users:
+  - name: tester
+    uid: 1000
+    groups: [wheel, video, render, audio]
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - @AUTHORIZED_KEY@
+ssh_deletekeys: true
+ssh_genkeytypes: [ed25519]
+ssh_keys:
+  ed25519_private: |
+@HOST_KEY_PRIVATE@
+  ed25519_public: @HOST_KEY_PUBLIC@
+package_update: true
+# Fedora's KDE environment, and the games the checks run in the session.
+packages: ["@kde-desktop-environment", supertuxkart, extremetuxracer]
+write_files:
+  - path: /etc/fstab
+    append: true
+    content: "src /src 9p trans=virtio,version=9p2000.L,msize=1048576,nofail 0 0\n"
+  # SDDM logs the tester into Plasma's Wayland session, and again whenever the
+  # session ends, which is how a check starts a fresh one.
+  - path: /etc/sddm.conf.d/autologin.conf
+    content: |
+      [Autologin]
+      User=tester
+      Session=plasma
+      Relogin=true
+runcmd:
+  # The cloud image's kernel keeps 9p among its optional modules, for the
+  # kernel it runs rather than for whatever kernel is newest.
+  - dnf install -y "kernel-modules-$(uname -r)"
+  - mkdir -p /src
+  - mount /src
+  - systemctl enable sddm
+  - systemctl set-default graphical.target
+  - systemctl restart sddm

@@ -7,11 +7,14 @@ Making and booting a machine is exercised by doing it; see doc/checks.md.
 
 import runpy
 import shlex
+import subprocess
+import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import yaml
-from virtual_machine import expected_sum, ssh, user_data
+from virtual_machine import expected_sum, reached, ssh, user_data
 
 SCRIPT = runpy.run_path(str(Path(__file__).with_name("conformance-vm.py")))
 in_test_image = SCRIPT["in_test_image"]
@@ -73,6 +76,17 @@ class SumsTest(unittest.TestCase):
         self.assertEqual(expected_sum(debian, "debian-13-generic-amd64.qcow2"), "aa11")
         self.assertEqual(expected_sum(ubuntu, "resolute-server-cloudimg-amd64.img"), "cc33")
 
+    def test_the_tagged_form(self) -> None:
+        """Fedora names the algorithm and puts the name in parentheses."""
+        fedora = (
+            "# Fedora-Cloud-43-1.6-x86_64-CHECKSUM\n"
+            "SHA256 (Fedora-Cloud-Base-GCE-43-1.6.x86_64.tar.gz) = aa11\n"
+            "SHA256 (Fedora-Cloud-Base-Generic-43-1.6.x86_64.qcow2) = bb22\n"
+        )
+        self.assertEqual(
+            expected_sum(fedora, "Fedora-Cloud-Base-Generic-43-1.6.x86_64.qcow2"), "bb22"
+        )
+
     def test_a_name_only_contained_is_no_match(self) -> None:
         """A longer name that contains the one asked for is another file."""
         with self.assertRaisesRegex(ValueError, "not in the sums file"):
@@ -103,6 +117,24 @@ class GuestCommandTest(unittest.TestCase):
         self.assertIn('*/vgem) devices="$devices --device /dev/dri/${node##*/}"', script)
         self.assertIn("--group-add keep-groups", script)
         self.assertEqual(remote[-2:], ["localhost/upscale-wayland-tests:trixie", "true"])
+
+
+class DeadlineTest(unittest.TestCase):
+    """A wait for the guest ends with the boot's time, whatever the guest does."""
+
+    def test_a_hanging_command_ends_the_wait(self) -> None:
+        """A command that never returns is cut off at the deadline, and is no success."""
+        hanging = mock.Mock(side_effect=subprocess.TimeoutExpired("ssh", 1))
+        with mock.patch("subprocess.run", hanging):
+            self.assertFalse(reached(CONFORMANCE, time.monotonic() + 30, "true"))
+        self.assertLessEqual(hanging.call_args.kwargs["timeout"], 30)
+
+    def test_a_command_that_succeeds_ends_it_too(self) -> None:
+        """The first success is the answer, with no pause before it."""
+        answered = mock.Mock(return_value=subprocess.CompletedProcess([], 0))
+        with mock.patch("subprocess.run", answered), mock.patch("time.sleep") as pause:
+            self.assertTrue(reached(CONFORMANCE, time.monotonic() + 30, "true"))
+        pause.assert_not_called()
 
 
 if __name__ == "__main__":

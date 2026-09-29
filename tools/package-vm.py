@@ -58,6 +58,42 @@ SYSTEMS = {
         display=SCREEN,
         boot_seconds=7200,
     ),
+    "fedora-43-amd64": vm.Machine(
+        name="package-fedora-43-amd64",
+        template="containers/vm-host/plasma-fedora.in",
+        cloud="https://download.fedoraproject.org/pub/fedora/linux/releases/43/Cloud/x86_64/images/",
+        base="Fedora-Cloud-Base-Generic-43-1.6.x86_64.qcow2",
+        sums="Fedora-Cloud-43-1.6-x86_64-CHECKSUM",
+        algorithm="sha256",
+        ready="pgrep -u tester -x kwin_wayland >/dev/null",
+        display=SCREEN,
+        boot_seconds=7200,
+    ),
+    # Tumbleweed's image is replaced as the distribution rolls, and a newer
+    # one is fetched whenever its sum no longer matches the one here.
+    "opensuse-tumbleweed-amd64": vm.Machine(
+        name="package-opensuse-tumbleweed-amd64",
+        template="containers/vm-host/plasma-opensuse.in",
+        cloud="https://download.opensuse.org/tumbleweed/appliances/",
+        base="openSUSE-Tumbleweed-Minimal-VM.x86_64-Cloud.qcow2",
+        sums="openSUSE-Tumbleweed-Minimal-VM.x86_64-Cloud.qcow2.sha256",
+        algorithm="sha256",
+        ready="pgrep -u tester -x kwin_wayland >/dev/null",
+        display=SCREEN,
+        boot_seconds=7200,
+        restarts=True,
+    ),
+    "arch-amd64": vm.Machine(
+        name="package-arch-amd64",
+        template="containers/vm-host/plasma-arch.in",
+        cloud="https://geo.mirror.pkgbuild.com/images/latest/",
+        base="Arch-Linux-x86_64-cloudimg.qcow2",
+        sums="Arch-Linux-x86_64-cloudimg.qcow2.SHA256",
+        algorithm="sha256",
+        ready="pgrep -u tester -x kwin_wayland >/dev/null",
+        display=SCREEN,
+        boot_seconds=7200,
+    ),
 }
 
 
