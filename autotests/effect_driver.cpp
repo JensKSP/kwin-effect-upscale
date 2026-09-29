@@ -128,6 +128,7 @@ class UpscaleTestDriver : public Effect
     // game: "engaged", "asked" while the client has one KWin has not taken, or
     // "none".
     Q_PROPERTY(QString pointerLock READ pointerLock)
+    Q_PROPERTY(QString pointerConfinement READ pointerConfinement)
     Q_PROPERTY(QString inputBounds READ inputBounds)
     // How much the effect keeps per window and per program; see UpscaleEffect::records().
     Q_PROPERTY(QString records READ records)
@@ -322,6 +323,17 @@ public:
             return QStringLiteral("none");
         }
         return lock->isLocked() ? QStringLiteral("engaged") : QStringLiteral("asked");
+    }
+
+    // The same for a confinement, as a game under Wine asks for one.
+    QString pointerConfinement() const
+    {
+        SurfaceInterface *surface = waylandServer() ? waylandServer()->seat()->focusedPointerSurface() : nullptr;
+        ConfinedPointerV1Interface *confinement = surface ? surface->confinedPointer() : nullptr;
+        if (!confinement) {
+            return QStringLiteral("none");
+        }
+        return confinement->isConfined() ? QStringLiteral("engaged") : QStringLiteral("asked");
     }
 
     QString answers() const

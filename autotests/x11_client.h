@@ -50,6 +50,12 @@ public:
      */
     bool takePointer();
     /**
+     * Confine the pointer to the window with a cursor of its own shown, as
+     * Wine does for a fullscreen game, which Xwayland passes on as a
+     * confinement of the window's surface.
+     */
+    bool confinePointer();
+    /**
      * How many ConfigureNotify events the window has received, synthetic
      * ones included. A resize the window manager refuses is still answered
      * with one (ICCCM 4.1.5), so this is how a test waits for the answer to
@@ -94,6 +100,8 @@ private:
     xcb_atom_t atom(const QByteArray &name) const;
     void dispatch();
     void paint(const QSize &size);
+    /** Show @p cursor on the window and grab the pointer confined to it, with it. */
+    bool grabWith(xcb_cursor_t cursor);
     xcb_connection_t *m_connection = nullptr;
     xcb_screen_t *m_screen = nullptr;
     xcb_window_t m_window = XCB_NONE;
@@ -103,7 +111,6 @@ private:
     QPoint m_lastMotion{-1, -1};
     QPoint m_lastPress{-1, -1};
     int m_presses = 0;
-    xcb_cursor_t m_blankCursor = XCB_NONE;
     bool m_focused = false;
     int m_focusLosses = 0;
     int m_configureNotifies = 0;

@@ -146,3 +146,30 @@ void UpscaleX11IntegrationTest::coversPointerWithoutEmulatedMode()
     QCOMPARE(target.lastPress(), QPoint(1800, 1005));
     QCOMPARE(below.presses(), 0);
 }
+
+// A program that confines the pointer to its window, as Wine does for a
+// fullscreen game, is given that by Xwayland as a confinement of its surface,
+// which KWin checks in the surface's own coordinates and not in the picture the
+// effect presents. While it lasts the pointer passes one to one, so that the
+// program reaches every point of its window rather than two thirds of it.
+void UpscaleX11IntegrationTest::aConfinedPointerReachesTheWholeWindow()
+{
+    X11Client below(false);
+    QVERIFY(below.show(QByteArrayLiteral("upscale-x11-below"), QRect(0, 0, 3840, 2160), false));
+    configure(true);
+    X11Client target(false);
+    QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 1920, 1080), false));
+    QVERIFY(target.waitForMapping());
+    target.fullscreen(true);
+    QTRY_VERIFY(target.isFullscreen());
+    QTRY_VERIFY2(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()));
+    movePointer(logical(QPoint(100, 100)));
+    QTRY_VERIFY(target.lastMotion() != QPoint(-1, -1));
+    QVERIFY(target.confinePointer());
+    QTRY_VERIFY2_WITH_TIMEOUT(status().contains(QStringLiteral("pointerConfinement: engaged")), qPrintable(status()), 5000);
+    // Near the window's own lower right, one to one: presented, it would have
+    // arrived as half of that and the rest of the window been out of reach. A
+    // multiple of the scale, 3, so that no rounding stands between the two.
+    movePointer(logical(QPoint(1800, 1050)));
+    QTRY_COMPARE(target.lastMotion(), QPoint(1800, 1050));
+}

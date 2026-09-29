@@ -12,6 +12,7 @@
 #include <QTimer>
 
 #include <algorithm>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <memory>
@@ -171,44 +172,6 @@ void X11Client::resize(const QSize &size)
 void X11Client::reportProcess(qint64 pid)
 {
     m_reportedProcess = pid ? pid : QCoreApplication::applicationPid();
-}
-
-QPoint X11Client::lastMotion() const
-{
-    return m_lastMotion;
-}
-
-QPoint X11Client::lastPress() const
-{
-    return m_lastPress;
-}
-
-int X11Client::presses() const
-{
-    return m_presses;
-}
-
-bool X11Client::takePointer()
-{
-    // A cursor of one transparent pixel: Xwayland reads the window's cursor and
-    // treats the window as one that hides it.
-    const xcb_pixmap_t pixmap = xcb_generate_id(m_connection);
-    xcb_create_pixmap(m_connection, 1, pixmap, m_window, 1, 1);
-    m_blankCursor = xcb_generate_id(m_connection);
-    xcb_create_cursor(m_connection, m_blankCursor, pixmap, pixmap, 0, 0, 0, 0, 0, 0, 0, 0);
-    xcb_free_pixmap(m_connection, pixmap);
-    xcb_change_window_attributes(m_connection, m_window, XCB_CW_CURSOR, &m_blankCursor);
-    const xcb_grab_pointer_cookie_t cookie =
-        xcb_grab_pointer(m_connection, 1, m_window,
-                         XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE,
-                         XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, m_window, m_blankCursor, XCB_CURRENT_TIME);
-    xcb_generic_error_t *error = nullptr;
-    xcb_grab_pointer_reply_t *reply = xcb_grab_pointer_reply(m_connection, cookie, &error);
-    const bool taken = reply && reply->status == XCB_GRAB_STATUS_SUCCESS;
-    std::free(reply);
-    std::free(error);
-    xcb_flush(m_connection);
-    return taken;
 }
 
 bool X11Client::isFocused() const
