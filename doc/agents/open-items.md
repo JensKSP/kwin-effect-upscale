@@ -563,3 +563,13 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
 - **94.** **doc** – Contradictions to settle: global slot defaults and method
     inheritance (profiles); physical input in S or F (resolution control);
     sampling while hidden (what the effect says).
+  **Two of three settled 2026-09-29:** slot defaults and inheritance
+  follow Jens's decisions of 2026-09-21 and the code (a game's absent slot
+  inherits, the global one is Auto); sampling while hidden follows the code
+  and a run (presentation sampling continues, the display's own stops). Left
+  for 94a.
+- **94a.** **decide** – Physical input in the supported scope or in full
+  acceptance: the resolution slice's supported scope asks for physical-display
+  acceptance of the supported client class, while its later gate and the full
+  acceptance list put physical input under full acceptance, and item 29 is
+  marked supported scope.
