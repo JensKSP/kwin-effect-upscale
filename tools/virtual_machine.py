@@ -30,6 +30,10 @@ ROOT = Path(__file__).resolve().parent.parent
 HOST_IMAGE = "localhost/upscale-vm-host:trixie"
 DEBIAN = "https://cloud.debian.org/images/cloud/trixie/latest/"
 SSH_PORT = 2222
+# cloud-init's exit code for a boot that finished with recoverable errors.
+CLOUD_INIT_RECOVERABLE = 2
+# ssh's own exit code, for a connection that failed or was lost.
+SSH_FAILED = 255
 # What makes one machine: removed by --replace. The downloaded base stays.
 MACHINE_FILES = (
     "disk.qcow2",
@@ -72,6 +76,10 @@ class Machine:
     # How long the first boot may take, installation of the template's
     # packages included.
     boot_seconds: int = 900
+    # Whether the guest may restart during its first boot, as a system whose
+    # kernel it replaces has to. QEMU otherwise ends at a restart, so that a
+    # guest that resets on its own is seen rather than looping.
+    restarts: bool = False
 
     @property
     def directory(self) -> Path:
@@ -150,8 +158,16 @@ def checksum(path: Path, algorithm: str) -> str:
 
 
 def expected_sum(sums: str, name: str) -> str:
-    """Find a file's sum in a sums file, whether it marks binary files with * or not."""
+    """Find a file's sum in a sums file, in either way distributions write one.
+
+    Debian, Ubuntu, openSUSE and Arch write the sum and then the name, Ubuntu
+    marking binary files with *; Fedora writes the algorithm, the name in
+    parentheses and the sum, as BSD's tools do.
+    """
+    tagged = re.compile(r"[A-Z0-9-]+ \((?P<name>.+)\) = (?P<sum>[0-9a-fA-F]+)")
     for line in sums.splitlines():
+        if (match := tagged.fullmatch(line.strip())) and match["name"] == name:
+            return match["sum"]
         fields = line.split()
         if len(fields) == 2 and fields[1].lstrip("*") == name:  # noqa: PLR2004
             return fields[0]
@@ -189,8 +205,11 @@ def create(machine: Machine, replace: bool) -> None:  # noqa: FBT001 - One comma
             sys.exit("A machine exists already; --replace makes a new one in its place.")
         if state(machine) == "running":
             sys.exit("The machine is running; stop it first.")
-        for name in MACHINE_FILES:
-            (directory / name).unlink(missing_ok=True)
+    # Also what an earlier attempt left when it failed before its disk existed:
+    # a key left behind would make ssh-keygen ask whether to overwrite it, with
+    # nobody to answer, and fail every attempt after.
+    for name in MACHINE_FILES:
+        (directory / name).unlink(missing_ok=True)
     directory.mkdir(parents=True, exist_ok=True)
     # From the recipe in the tree every time, never from whatever image has the
     # name: a new machine is a statement about what the repository makes.
@@ -227,6 +246,71 @@ def create(machine: Machine, replace: bool) -> None:  # noqa: FBT001 - One comma
     start(machine)
 
 
+def reached(machine: Machine, deadline: float, *command: str) -> bool:
+    """Run a command in the guest until it succeeds, while the machine runs and there is time.
+
+    Each try is bounded by what is left of the time too: a command that hangs
+    in the guest would otherwise outlast it.
+    """
+    while True:
+        try:
+            answer = subprocess.run(
+                ssh(machine, *command),
+                check=False,
+                capture_output=True,
+                timeout=max(1.0, deadline - time.monotonic()),
+            )
+        except subprocess.TimeoutExpired:
+            return False
+        if not answer.returncode:
+            return True
+        if state(machine) != "running" or time.monotonic() > deadline:
+            return False
+        time.sleep(5)
+
+
+def cloud_init_done(machine: Machine, deadline: float) -> int:
+    """Wait for cloud-init in the guest, within what is left of the boot's time.
+
+    Asked as root: Fedora keeps cloud-init's state from other users, and a
+    user's wait for it there never ends. Bounded, because cloud-init that stalls
+    once SSH is up would otherwise be waited for without end.
+    """
+    log = machine.directory / "console.log"
+    try:
+        return subprocess.run(
+            ssh(machine, "sudo", "cloud-init", "status", "--wait"),
+            check=False,
+            capture_output=True,
+            timeout=max(1.0, deadline - time.monotonic()),
+        ).returncode
+    except subprocess.TimeoutExpired:
+        sys.exit(f"The machine's first boot did not end in time; see {log}.")
+
+
+def wait_for_first_boot(machine: Machine, deadline: float) -> None:
+    """Wait until a started guest has finished its first boot and is ready."""
+    log = machine.directory / "console.log"
+    if not reached(machine, deadline, "true"):
+        sys.exit(f"The machine did not come up; see {log}.")
+    # A first boot that failed is an error here: the guest is only of use
+    # whole. A guest that restarts ends the wait with its connection, and is
+    # asked again once it is back.
+    finished = cloud_init_done(machine, deadline)
+    while machine.restarts and finished == SSH_FAILED and reached(machine, deadline, "true"):
+        finished = cloud_init_done(machine, deadline)
+    if finished == CLOUD_INIT_RECOVERABLE:
+        # Done, with warnings, which are printed for the record: Fedora's
+        # cloud-init warns that it could not set the hostname before D-Bus ran,
+        # and sets it a stage later (2026-09-29).
+        run(*ssh(machine, "sudo", "cloud-init", "status", "--long"))
+    elif finished:
+        sys.exit(f"The machine's first boot failed; see {log}.")
+    # The session may still be starting once the first boot is done.
+    if not reached(machine, deadline, "sh", "-c", f"mountpoint -q /src && {machine.ready}"):
+        sys.exit(f"The machine is not ready; see {log}.")
+
+
 def start(machine: Machine) -> None:
     """Boot a machine and wait until its first boot has finished."""
     current = state(machine)
@@ -245,7 +329,8 @@ def start(machine: Machine) -> None:
         *("--group-add", "keep-groups", "--userns", "keep-id"),
         *("-v", f"{ROOT}:/src", HOST_IMAGE, "qemu-system-x86_64", "-enable-kvm", "-cpu", "host"),
         *("-smp", str(machine.cpus), "-m", f"{machine.memory}G", *machine.display),
-        *("-no-reboot", "-serial", f"file:{shared}/console.log"),
+        *(() if machine.restarts else ("-no-reboot",)),
+        *("-serial", f"file:{shared}/console.log"),
         *("-drive", f"file={shared}/disk.qcow2,if=virtio,format=qcow2"),
         *("-drive", f"file={shared}/seed.img,if=virtio,format=raw"),
         *("-netdev", f"user,id=net0,hostfwd=tcp:127.0.0.1:{SSH_PORT}-:22"),
@@ -253,14 +338,7 @@ def start(machine: Machine) -> None:
         *("-virtfs", "local,path=/src,mount_tag=src,security_model=none,id=src"),
         capture=True,
     )
-    deadline = time.monotonic() + machine.boot_seconds
-    while subprocess.run(ssh(machine, "true"), check=False, capture_output=True).returncode:
-        if state(machine) != "running" or time.monotonic() > deadline:
-            sys.exit(f"The machine did not come up; see {machine.directory / 'console.log'}.")
-        time.sleep(5)
-    # A degraded first boot is an error here: the guest is only of use whole.
-    run(*ssh(machine, "cloud-init", "status", "--wait"))
-    run(*ssh(machine, "sh", "-c", f"mountpoint -q /src && {machine.ready}"))
+    wait_for_first_boot(machine, time.monotonic() + machine.boot_seconds)
     print("The machine is up.")
 
 

@@ -1,0 +1,51 @@
+#cloud-config
+# SPDX-FileCopyrightText: None
+# SPDX-License-Identifier: CC0-1.0
+#
+# A package machine: Arch Linux with the Plasma meta package, logged in by SDDM
+# into a Plasma Wayland session, into which the package is installed as a
+# user's would be.
+# tools/package-vm.py fills in the @...@ fields from keys it makes for each
+# machine; no key is kept in this file.
+hostname: upscale-plasma-arch
+users:
+  - name: tester
+    uid: 1000
+    groups: [wheel, video, render, audio]
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - @AUTHORIZED_KEY@
+ssh_deletekeys: true
+ssh_genkeytypes: [ed25519]
+ssh_keys:
+  ed25519_private: |
+@HOST_KEY_PRIVATE@
+  ed25519_public: @HOST_KEY_PUBLIC@
+# Arch supports no partial upgrade, so the whole system is brought up to date
+# first. The share is mounted before that, while the running kernel's modules
+# are still on disk.
+bootcmd:
+  - mkdir -p /src
+  - mountpoint -q /src || mount -t 9p -o trans=virtio,version=9p2000.L,msize=1048576 src /src
+package_update: true
+package_upgrade: true
+# Plasma and SDDM, and the one game the checks run that Arch packages:
+# SuperTuxKart, on Wayland and through X11.
+packages: [plasma-meta, sddm, mesa, vulkan-swrast, supertuxkart]
+write_files:
+  - path: /etc/fstab
+    append: true
+    content: "src /src 9p trans=virtio,version=9p2000.L,msize=1048576,nofail 0 0\n"
+  # SDDM logs the tester into Plasma's Wayland session, and again whenever the
+  # session ends, which is how a check starts a fresh one.
+  - path: /etc/sddm.conf.d/autologin.conf
+    content: |
+      [Autologin]
+      User=tester
+      Session=plasma
+      Relogin=true
+runcmd:
+  - systemctl enable sddm
+  - systemctl set-default graphical.target
+  - systemctl start sddm

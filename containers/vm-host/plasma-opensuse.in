@@ -1,0 +1,65 @@
+#cloud-config
+# SPDX-FileCopyrightText: None
+# SPDX-License-Identifier: CC0-1.0
+#
+# A package machine: openSUSE Tumbleweed with its KDE Plasma pattern, logged in
+# by SDDM into a Plasma Wayland session, into which the package is installed as
+# a user's would be. tools/package-vm.py fills in the @...@ fields from keys
+# it makes for each machine; no key is kept in this file.
+hostname: upscale-plasma-opensuse
+users:
+  - name: tester
+    uid: 1000
+    groups: [wheel, video, render, audio]
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - @AUTHORIZED_KEY@
+ssh_deletekeys: true
+ssh_genkeytypes: [ed25519]
+ssh_keys:
+  ed25519_private: |
+@HOST_KEY_PRIVATE@
+  ed25519_public: @HOST_KEY_PUBLIC@
+# Tumbleweed installs from what is current, so the image is brought up to
+# date first. Its kernel-default-base has 9p, and kernel-default would
+# conflict with it.
+package_update: true
+package_upgrade: true
+# The KDE Plasma pattern, and the one game the checks run that Tumbleweed
+# packages: SuperTuxKart, on Wayland and through X11.
+packages: [patterns-kde-kde_plasma, sddm, supertuxkart]
+write_files:
+  - path: /etc/fstab
+    append: true
+    content: "src /src 9p trans=virtio,version=9p2000.L,msize=1048576,nofail 0 0\n"
+  # SDDM logs the tester into Plasma's Wayland session, which openSUSE names
+  # plasmawayland, and again whenever the session ends, which is how a check
+  # starts a fresh one.
+  - path: /etc/sddm.conf.d/autologin.conf
+    content: |
+      [Autologin]
+      User=tester
+      Session=plasmawayland
+      Relogin=true
+runcmd:
+  - mkdir -p /src
+  - mount /src
+  # openSUSE picks its display manager by alternative and runs it as
+  # display-manager.service, which is enabled already and refuses to be
+  # enabled by that name. Its start script writes SDDM's automatic login from
+  # sysconfig, which otherwise names nobody.
+  - update-alternatives --set default-displaymanager /usr/lib/X11/displaymanagers/sddm
+  - sed -i 's/^DISPLAYMANAGER_AUTOLOGIN=.*/DISPLAYMANAGER_AUTOLOGIN="tester"/' /etc/sysconfig/displaymanager
+  - systemctl set-default graphical.target
+  # The image's minimal kernel has no driver for QEMU's display, only the
+  # firmware's 800 x 600 framebuffer; the full kernel replaces it, and its
+  # driver is loaded before Plasma starts on the display.
+  - zypper --non-interactive install --force-resolution kernel-default
+  - modprobe bochs || true
+  - systemctl restart display-manager
+# Where the full kernel is newer than the one running, its driver cannot be
+# loaded, and the machine restarts into it once everything else is in place.
+power_state:
+  mode: reboot
+  condition: "! grep -q '^bochs ' /proc/modules"

@@ -21,7 +21,7 @@ import shutil
 import subprocess
 import sys
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -44,7 +44,7 @@ STEPS = (
     "the settings module opens",
     "X11 goes through the session proxy",
     "SuperTuxKart on Wayland enlarged from a smaller buffer",
-    "Extreme Tux Racer's X11 connection answered by the proxy",
+    "an X11 game's connection answered by the proxy",
     "removed with the package manager, KWin still running",
 )
 
@@ -72,6 +72,8 @@ def manager() -> tuple[tuple[str, ...], tuple[str, ...]]:
     raise RuntimeError(message)
 
 
+# The race every check starts SuperTuxKart with.
+RACE = ["supertuxkart", "-R", "--track=lighthouse", "--numkarts=1"]
 # SuperTuxKart's own settings as a player at a 4K screen has them.
 GAME = """<?xml version="1.0"?>
 <stkconfig version="8" >
@@ -152,14 +154,16 @@ def relogin(previous: str) -> str:
     place and the new login met it (2026-09-29). What a logout ends goes here:
     SDDM stops, the tester's service manager restarts with nothing of the old
     session in it, and SDDM logs the tester in anew, as at boot. The SSH
-    session the check runs in is a scope of its own and stays.
+    session the check runs in is a scope of its own and stays. SDDM is reached
+    as display-manager.service, the name systemd gives whichever display
+    manager a system runs, which on openSUSE is the only name it has.
     """
-    subprocess.run(["systemctl", "stop", "sddm"], check=False)
+    subprocess.run(["systemctl", "stop", "display-manager"], check=False)
     subprocess.run(["systemctl", "restart", f"user@{UID}.service"], check=False)
     gone = time.monotonic() + 60
     while kwin() and time.monotonic() < gone:
         time.sleep(1)
-    subprocess.run(["systemctl", "start", "sddm"], check=False)
+    subprocess.run(["systemctl", "start", "display-manager"], check=False)
     deadline = time.monotonic() + 300
     while time.monotonic() < deadline:
         current = kwin()
@@ -214,8 +218,133 @@ def enlarged_game() -> str:
     return ""
 
 
-def check(package: str, steps: list[Step]) -> None:  # noqa: PLR0915 - One step after another.
-    """Carry out the steps in order, each only where the ones it needs passed."""
+@dataclass
+class Session:
+    """What the steps in the new session share."""
+
+    since: str
+    kwin: str
+    environment: dict[str, str] = field(default_factory=dict)
+
+
+def effect_loaded(step: Step, session: Session) -> None:
+    """Check that the effect is loaded and supported, with nothing of it configured."""
+    del session
+    loaded, supported = (
+        effects("isEffectLoaded", "upscale"),
+        effects("isEffectSupported", "upscale"),
+    )
+    step.outcome = "passed" if loaded == supported == "True" else "failed"
+    step.detail = f"loaded {loaded}, supported {supported}"
+
+
+def settings_open(step: Step, session: Session) -> None:
+    """Check that the settings module opens and is still open when the timeout ends it."""
+    del session
+    opened = subprocess.run(
+        as_user(
+            *("timeout", "20", "kcmshell6", "kwin/effects/configs/kwin_upscale_config"),
+            environment={"QT_QPA_PLATFORM": "offscreen"},
+        ),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    step.outcome = "passed" if opened.returncode == 124 else "failed"  # noqa: PLR2004
+    step.detail = f"exit {opened.returncode}; {opened.stderr.strip()[-200:]}"
+
+
+def proxy_routed(step: Step, session: Session) -> None:
+    """Check that X11 goes through the session proxy, and that the proxy started."""
+    session.environment = session_environment()
+    routed = session.environment.get("UPSCALE_X11_SESSION_ROUTED") == "1"
+    started = "Upscale X11 backend started" in journal(session.since)
+    step.outcome = "passed" if routed and started else "failed"
+    step.detail = f"routed {routed}, proxy started {started}"
+
+
+def wayland_game(step: Step, session: Session) -> None:
+    """Check that SuperTuxKart on Wayland is drawn smaller and enlarged.
+
+    Programs start with the environment the session publishes, as they do
+    from its launcher: its PATH has /usr/games, where Debian puts games. The
+    game itself is set up as a player at this screen has it: fullscreen at
+    3840 x 2160, where a fresh configuration would draw 1024 x 768, which the
+    effect rightly leaves alone as under half the screen.
+    """
+    configuration = f"/home/{USER}/.config/supertuxkart/config-0.10"
+    output(as_user("mkdir", "-p", configuration))
+    output(as_user("sh", "-c", f"cat > {configuration}/config.xml"), input_text=GAME)
+    environment = session.environment | {"SDL_VIDEODRIVER": "wayland"}
+    found = watch(RACE, environment, 300, enlarged_game)
+    step.outcome, step.detail = ("passed", found) if found else ("failed", str(metrics()))
+
+
+def x11_game(step: Step, session: Session) -> None:
+    """Check that the proxy tells an X11 game's connection the smaller screen.
+
+    Extreme Tux Racer where the system packages it, as Debian, Ubuntu and
+    Fedora do; SuperTuxKart through X11 where it does not. Both ship an entry
+    that names the program of their X11 connection. Answered means told the
+    smaller screen, not only seen: a connection the proxy passed over is logged
+    too, with the reason it did.
+    """
+    racer = shutil.which("etr", path=session.environment.get("PATH"))
+    program, profile = (["etr"], "extremetuxracer") if racer else (RACE, "supertuxkart")
+    x11 = session.environment | ({} if racer else {"SDL_VIDEODRIVER": "x11"})
+
+    def answered() -> str:
+        return next(
+            (
+                line
+                for line in journal(session.since).splitlines()
+                if "Upscale X11 connection" in line
+                and f'"{profile}"' in line
+                and "connection display advertisement" in line
+            ),
+            "",
+        )
+
+    found = watch(program, x11, 120, answered)
+    detail = found or f"no connection of {profile} told a smaller screen"
+    step.outcome, step.detail = ("passed" if found else "failed"), detail
+
+
+# The steps in the new session, in order, each on its own: one that fails, even
+# by an exception, is recorded as failed and the next one still runs.
+SESSION_STEPS: tuple[tuple[str, Callable[[Step, Session], None]], ...] = (
+    ("the effect loaded and supported, nothing configured", effect_loaded),
+    ("the settings module opens", settings_open),
+    ("X11 goes through the session proxy", proxy_routed),
+    ("SuperTuxKart on Wayland enlarged from a smaller buffer", wayland_game),
+    ("an X11 game's connection answered by the proxy", x11_game),
+)
+
+
+def removed(step: Step, remove: tuple[str, ...], current: str) -> None:
+    """Remove the package, and check that KWin keeps running and answering."""
+    try:
+        output(list(remove), timeout=600)
+    except RuntimeError as error:
+        step.outcome, step.detail = "failed", str(error)
+        return
+    time.sleep(5)
+    after = kwin()
+    try:
+        effects("isEffectLoaded", "upscale")
+        answering = True
+    except RuntimeError:
+        answering = False
+    step.outcome = "passed" if after and after == current and answering else "failed"
+    step.detail = f"kwin_wayland {after or 'gone'}, answering {answering}"
+
+
+def check(package: str, steps: list[Step]) -> None:
+    """Carry out the steps in order, each only where the ones it needs passed.
+
+    Whatever happens after the package is installed, it is removed again, so
+    that a machine is never left holding it.
+    """
 
     def begin(name: str) -> Step:
         return next(step for step in steps if step.name == name)
@@ -233,79 +362,21 @@ def check(package: str, steps: list[Step]) -> None:  # noqa: PLR0915 - One step 
         return
     step = begin("a new session after logging in again")
     since = time.strftime("%Y-%m-%d %H:%M:%S")
+    current = ""
     try:
         current = relogin(first)
         step.outcome, step.detail = "passed", f"kwin_wayland {current}"
     except RuntimeError as error:
         step.outcome, step.detail = "failed", str(error)
-        return
-    step = begin("the effect loaded and supported, nothing configured")
-    loaded, supported = (
-        effects("isEffectLoaded", "upscale"),
-        effects("isEffectSupported", "upscale"),
-    )
-    step.outcome = "passed" if loaded == supported == "True" else "failed"
-    step.detail = f"loaded {loaded}, supported {supported}"
-    step = begin("the settings module opens")
-    opened = subprocess.run(
-        as_user(
-            *("timeout", "20", "kcmshell6", "kwin/effects/configs/kwin_upscale_config"),
-            environment={"QT_QPA_PLATFORM": "offscreen"},
-        ),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    # Still open when the timeout ended it is what opening means here.
-    step.outcome = "passed" if opened.returncode == 124 else "failed"  # noqa: PLR2004
-    step.detail = f"exit {opened.returncode}; {opened.stderr.strip()[-200:]}"
-    environment = session_environment()
-    step = begin("X11 goes through the session proxy")
-    routed = environment.get("UPSCALE_X11_SESSION_ROUTED") == "1"
-    started = "Upscale X11 backend started" in journal(since)
-    step.outcome = "passed" if routed and started else "failed"
-    step.detail = f"routed {routed}, proxy started {started}"
-    step = begin("SuperTuxKart on Wayland enlarged from a smaller buffer")
-    # Programs start with the environment the session publishes, as they do
-    # from its launcher: its PATH has /usr/games, where Debian puts games.
-    # The game itself is set up as a player at this screen has it: fullscreen
-    # at 3840 x 2160, where a fresh configuration would draw 1024 x 768, which
-    # the effect rightly leaves alone as under half the screen.
-    configuration = f"/home/{USER}/.config/supertuxkart/config-0.10"
-    output(as_user("mkdir", "-p", configuration))
-    output(as_user("sh", "-c", f"cat > {configuration}/config.xml"), input_text=GAME)
-    game = ["supertuxkart", "-R", "--track=lighthouse", "--numkarts=1"]
-    found = watch(game, environment | {"SDL_VIDEODRIVER": "wayland"}, 300, enlarged_game)
-    step.outcome, step.detail = ("passed", found) if found else ("failed", str(metrics()))
-    step = begin("Extreme Tux Racer's X11 connection answered by the proxy")
-
-    def answered() -> str:
-        return next(
-            (
-                line
-                for line in journal(since).splitlines()
-                if "Upscale X11 connection" in line and "extremetuxracer" in line
-            ),
-            "",
-        )
-
-    found = watch(["etr"], environment, 120, answered)
-    step.outcome, step.detail = ("passed", found) if found else ("failed", "no connection logged")
-    step = begin("removed with the package manager, KWin still running")
-    try:
-        output(list(remove), timeout=600)
-    except RuntimeError as error:
-        step.outcome, step.detail = "failed", str(error)
-        return
-    time.sleep(5)
-    after = kwin()
-    try:
-        effects("isEffectLoaded", "upscale")
-        answering = True
-    except RuntimeError:
-        answering = False
-    step.outcome = "passed" if after == current and answering else "failed"
-    step.detail = f"kwin_wayland {after or 'gone'}, answering {answering}"
+    if current:
+        session = Session(since, current)
+        for name, action in SESSION_STEPS:
+            step = begin(name)
+            try:
+                action(step, session)
+            except (RuntimeError, OSError, subprocess.SubprocessError, ValueError) as error:
+                step.outcome, step.detail = "failed", f"{type(error).__name__}: {error}"
+    removed(begin("removed with the package manager, KWin still running"), remove, current)
 
 
 def main(argv: list[str] | None = None) -> int:
