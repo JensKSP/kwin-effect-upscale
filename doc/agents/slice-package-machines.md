@@ -117,8 +117,12 @@ SuperTuxKart started 23 seconds after it.
 ## Remaining work
 
 - Fedora 43, openSUSE Tumbleweed and Arch have a template and a profile since
-  2026-09-29, and their machines came up logged in to Plasma's Wayland session;
-  their checks wait for a nightly package of the current tree.
+  2026-09-29, and their machines came up logged in to Plasma's Wayland session.
+  All three passed the nine steps the same day with nightly 36545995686's
+  packages of `7ff0fe6`: SuperTuxKart drawn at 2560 × 1440 and enlarged on
+  Wayland in each, the X11 game answered by the proxy through its shipped
+  entry (Extreme Tux Racer on Fedora; SuperTuxKart on openSUSE and Arch), and
+  KWin still running after the package was removed.
 - arm64 has profiles for Debian, Kubuntu, Fedora and openSUSE since 2026-09-29:
   the amd64 profile with the system's arm64 image, `qemu-system-aarch64` on the
   virt machine with every host core translating, UEFI from Debian's
