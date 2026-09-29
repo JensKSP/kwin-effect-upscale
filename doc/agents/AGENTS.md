@@ -65,6 +65,7 @@ not imply that already implemented diagnostics or resolution control are absent.
 | Wine and Proton games that ignore resizing, given a smaller screen for their prefix | [Proton smaller screen](slice-proton-smaller-screen.md) |
 | Validated package and release publication | [Build and release pipeline](slice-build-release-pipeline.md) |
 | How the pipeline is composed, named and paid for | [Pipeline modules](slice-pipeline-modules.md) |
+| Every package in a standard installation of its system | [Package machines](slice-package-machines.md) |
 | GitHub contribution, security and maintenance workflow | [GitHub project workflow](slice-github-project-workflow.md) |
 
 Six documents were closed on 2026-09-20. Distribution packages was deleted on

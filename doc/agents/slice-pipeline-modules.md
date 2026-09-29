@@ -252,8 +252,9 @@ Nothing below has run, and none of it may be reported as tested.
   packages, and arm64 had passed it in the three nightlies before (`f68eab0`,
   `7eac56e`, `1bd904e`). The job discarded both builds and named no file, so
   `tools/build-deb-package.py` now unpacks every differing package from both
-  builds and lists the files that differ in the log. The next nightly says
-  which; whether a change since `f68eab0` or an intermittent difference is the
-  cause is open.
+  builds and lists the files that differ in the log. The next nightly,
+  36503302445 on `d801766`, whose package sources differ from `5c117bd` in
+  nothing, built arm64 identically: the difference is intermittent, and the
+  listing names the files when it comes back.
 - Run a verify-only nightly and record what each stage cost and what failed.
 - The two open decisions above.
