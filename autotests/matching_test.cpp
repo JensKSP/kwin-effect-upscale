@@ -41,6 +41,8 @@ private Q_SLOTS:
     void comparesByEachMatchType();
     void refusesPatternsThatCannotBeUsed();
     void nativeConnectionPatterns();
+    void pinsOnlyWhatEveryMatchShares();
+    void theIndexAnswersAsTheListDoes();
 
 private:
     static void writeUserConfig(const QString &contents);
@@ -190,6 +192,71 @@ void MatchingTest::refusesPatternsThatCannotBeUsed()
     QVERIFY(!forWindow(QStringLiteral("/usr/bin/anything"), QStringLiteral("anything"), QStringLiteral("anything")));
     // An empty window class is not a match for a pattern either.
     QVERIFY(!forWindow(QString(), QString(), QStringLiteral("x")));
+}
+
+// The index files an entry under the one value every window it matches has, so
+// it may skip an entry only where that entry could never match.
+void MatchingTest::pinsOnlyWhatEveryMatchShares()
+{
+    const auto pinned = [](const QString &text, UpscaleStringMatch match) {
+        return UpscalePattern(text, match).fixedLastComponent();
+    };
+    const auto expression = UpscaleStringMatch::RegularExpression;
+    QCOMPARE(pinned(QStringLiteral("/usr/games/etr"), UpscaleStringMatch::Exact), QStringLiteral("etr"));
+    QCOMPARE(pinned(QStringLiteral("steam_app_228380"), UpscaleStringMatch::Exact), QStringLiteral("steam_app_228380"));
+    QCOMPARE(pinned(QStringLiteral(".*/supertuxkart"), expression), QStringLiteral("supertuxkart"));
+    QCOMPARE(pinned(QStringLiteral(".*/Left 4 Dead 2/hl2_linux"), expression), QStringLiteral("hl2_linux"));
+    QCOMPARE(pinned(QStringLiteral(".*/Wreckfest\\.exe"), expression), QStringLiteral("Wreckfest.exe"));
+    // Each of these matches values that end in more than one way.
+    QCOMPARE(pinned(QStringLiteral("(?:.*/)?etr"), expression), QString());
+    QCOMPARE(pinned(QStringLiteral("a|.*/foo"), expression), QString());
+    QCOMPARE(pinned(QStringLiteral(".*/foo|bar"), expression), QString());
+    QCOMPARE(pinned(QStringLiteral("(?i).*/foo"), expression), QString());
+    QCOMPARE(pinned(QStringLiteral(".*/game\\d"), expression), QString());
+    QCOMPARE(pinned(QStringLiteral("tux"), UpscaleStringMatch::Substring), QString());
+    QCOMPARE(pinned(QStringLiteral(".*"), expression), QString());
+}
+
+// Whatever the list holds, the index finds what trying every entry in order
+// finds: the first enabled entry that matches, at bind as for a window.
+void MatchingTest::theIndexAnswersAsTheListDoes()
+{
+    writeUserConfig(QStringLiteral(
+        "[Application-pinned]\nName=Pinned\nExecutable=.*/game\nExecutableMatch=RegularExpression\nOrder=1\n"
+        "[Application-alternative]\nName=Alternative\nExecutable=/opt/(game|other)\nExecutableMatch=RegularExpression\nOrder=2\n"
+        "[Application-exact]\nName=Exact\nExecutable=/usr/bin/game\nWindowClass=game\nOrder=3\n"
+        "[Application-part]\nName=Part\nWindowClass=ame\nWindowClassMatch=Substring\nOrder=4\n"
+        "[Application-instance]\nName=Instance\nInstance=other\nOrder=5\n"
+        "[Application-off]\nName=Off\nInstance=game\nEnabled=false\nOrder=0\n"
+        "[Application-either]\nName=Either\nExecutable=.*/(tux|kart)\nExecutableMatch=RegularExpression\nOrder=6\n"));
+    const auto scanned = [](const UpscaleIdentity &identity) -> const UpscaleApplication * {
+        for (const UpscaleApplication &application : upscaleApplications()) {
+            if (application.enabled && upscaleGatesOf(application).matches(identity)) {
+                return &application;
+            }
+        }
+        return nullptr;
+    };
+    const QStringList programs{QString(), QStringLiteral("/usr/bin/game"), QStringLiteral("/opt/game"),
+                               QStringLiteral("/opt/other"), QStringLiteral("/srv/other"), QStringLiteral("/srv/tux")};
+    const QStringList windows{QString(), QStringLiteral("game"), QStringLiteral("other"), QStringLiteral("games/game")};
+    for (const QString &program : programs) {
+        for (const QString &windowClass : windows) {
+            for (const QString &instance : windows) {
+                const UpscaleIdentity identity{program, windowClass, instance};
+                QCOMPARE(upscaleApplicationFor(identity), scanned(identity));
+            }
+        }
+        const UpscaleApplication *first = nullptr;
+        for (const UpscaleApplication &application : upscaleApplications()) {
+            const UpscaleGates gates = upscaleGatesOf(application);
+            if (application.enabled && gates.statesExecutable() && gates.executable.matches(program)) {
+                first = gates.statesWindow() ? nullptr : &application;
+                break;
+            }
+        }
+        QCOMPARE(upscaleApplicationAtBind(program).application, first);
+    }
 }
 
 int runMatchingTest(int argc, char *argv[])

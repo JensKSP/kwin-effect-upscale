@@ -67,6 +67,37 @@ bool UpscalePattern::matches(const QString &value) const
     return false;
 }
 
+QString UpscalePattern::fixedLastComponent() const
+{
+    if (m_text.isEmpty() || !m_usable) {
+        return QString();
+    }
+    if (m_match == UpscaleStringMatch::Exact) {
+        return m_text.section(QLatin1Char('/'), -1);
+    }
+    const QLatin1String anyFolder(".*/");
+    if (m_match != UpscaleStringMatch::RegularExpression || !m_text.startsWith(anyFolder)) {
+        return QString();
+    }
+    static const QString s_special = QStringLiteral("^$.|?*+()[]{}");
+    QString literal;
+    for (qsizetype index = anyFolder.size(); index < m_text.size(); ++index) {
+        QChar character = m_text.at(index);
+        if (character == QLatin1Char('\\')) {
+            // Escaped punctuation stands for itself; \d and its kind for many.
+            ++index;
+            if (index == m_text.size() || m_text.at(index).isLetterOrNumber()) {
+                return QString();
+            }
+            character = m_text.at(index);
+        } else if (s_special.contains(character)) {
+            return QString();
+        }
+        literal.append(character);
+    }
+    return literal.section(QLatin1Char('/'), -1);
+}
+
 QString UpscalePattern::problem() const
 {
     if (m_match != UpscaleStringMatch::RegularExpression || m_text.isEmpty()) {
