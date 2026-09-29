@@ -712,6 +712,9 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   commit with no completed CI run. **Implemented the same day:**
   `tools/ci-conclusion.py` and the nightly's `ci` job; the instrumented tests
   keep the nightly's 600-second fuzzing. Awaits its first nightly.
+  **First nightly 2026-09-29, verify-only 36545995686 on `7ff0fe6`:** the `ci`
+  job read the pull request's green run as passed, CI was skipped, and the
+  instrumented builds ran with the nightly's fuzzing, all three green.
 - **82.** **investigate/fix** – An openSUSE amd64 package failure; not observed in
   ten nightlies. **Jens 2026-09-29:** found by the agent, not reported by him;
   the agent finds it and solves it.
@@ -719,6 +722,10 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   (2026-09-20, master) got 403 from `download.opensuse.org` while refreshing
   the repositories; its rerun passed. Every openSUSE download is now tried up
   to four times. Recorded in the pipeline slice; the nightly confirms it.
+  The nightly 36545995686 built and tested both openSUSE packages; its only
+  failure was the same kind of thing elsewhere: neon's archive mid-sync ("File
+  has unexpected size ... Mirror sync in progress?") failed the neon Clang
+  image. The neon image now retries its downloads the same way.
 
 ## I. Build and release pipeline – `slice-build-release-pipeline.md`
 

@@ -141,6 +141,15 @@ cannot close that gate.
   tested against a command that fails twice and one that always fails, under
   bash and dash; the image built locally with them. The nightly shows them
   under real conditions.
+- **neon: the same kind of failure, fixed on 2026-09-29.** The nightly
+  36545995686 built and tested both openSUSE packages; its one failure was the
+  neon Clang image. `apt-get update` fetched neon's indexes 80 seconds after
+  the archive had written a new Release file, got "File has unexpected size ...
+  Mirror sync in progress?" for three of them, and failed without trying
+  again. The neon image now tries `apt-get update`, the tool installation and
+  `mk-build-deps` up to four times, after 30, 60 and 120 seconds. Checked
+  under dash with a failing and a passing command; the image itself is rebuilt
+  by the next nightly, not here.
 
 ## Progress
 
