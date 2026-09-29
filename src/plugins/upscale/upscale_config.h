@@ -46,7 +46,8 @@ private:
     void updatePreview();
     /** The global values as the page shows them, applied or not. */
     UpscaleSettings shownSettings() const;
-    void showSettings();
+    /** Shows the stored settings, through the previous release's keys where @p legacy. */
+    void showSettings(bool legacy);
     void applySettings();
     void addDisplayControls(QFormLayout *layout);
     /** The three position boxes, in the order the stored corners are kept. */

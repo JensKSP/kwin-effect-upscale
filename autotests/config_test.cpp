@@ -27,6 +27,7 @@
 #include <QDBusConnection>
 #include <QDoubleSpinBox>
 #include <QLabel>
+#include <QListWidget>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QScreen>
@@ -336,12 +337,27 @@ void UpscaleConfigTest::displayDefaults()
     {
         KConfigGroup group = stored();
         group.writeEntry("OsdPosition", int(KWin::UpscaleCorner::TopLeft));
+        group.writeEntry("Preset", 5);
+        group.writeEntry("UnknownApplications", true);
         group.sync();
     }
     module.load();
     QCOMPARE(position->currentIndex(), int(KWin::UpscaleCorner::TopLeft));
     QCOMPARE(announcementPosition->currentIndex(), int(KWin::UpscaleCorner::TopRight));
     QCOMPARE(developerPosition->currentIndex(), int(KWin::UpscaleCorner::BottomRight));
+    auto *preset = module.widget()->findChild<QComboBox *>(QStringLiteral("preset"));
+    auto *list = module.widget()->findChild<QListWidget *>(QStringLiteral("applicationList"));
+    QVERIFY(preset && list);
+    QCOMPARE(preset->currentIndex(), int(KWin::ResolutionPreset::Performance));
+    QCOMPARE(list->item(0)->checkState(), Qt::Checked);
+    // Defaults shows the defaults although the old keys are still stored;
+    // read again, they would bring back what it reset.
+    module.defaults();
+    QCOMPARE(position->currentIndex(), int(KWin::UpscaleCorner::TopRight));
+    QCOMPARE(preset->currentIndex(), int(KWin::ResolutionPreset::Quality));
+    QCOMPARE(list->item(0)->checkState(), Qt::Unchecked);
+    module.load();
+    QCOMPARE(position->currentIndex(), int(KWin::UpscaleCorner::TopLeft));
     module.save();
     QVERIFY(!stored().hasKey("OsdPosition"));
     QCOMPARE(stored().readEntry("OsdStatisticsPosition", -1), int(KWin::UpscaleCorner::TopLeft));
