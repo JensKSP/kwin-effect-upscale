@@ -17,11 +17,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
 import time
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -280,6 +282,32 @@ def wayland_game(step: Step, session: Session) -> None:
     step.outcome, step.detail = ("passed", found) if found else ("failed", str(metrics()))
 
 
+def settle(kwin: str, limit: float = 120) -> None:
+    """Wait until KWin is idle, as a player's desktop is when they start a game.
+
+    The proxy holds a connecting program for half a second at most while it
+    asks the effect, which answers in milliseconds from an idle compositor. A
+    KWin still busy with the game before can take longer: under whole-system
+    emulation, where a frame takes seconds, it did, and the proxy passed the
+    program on unanswered. Idle is under a tenth of a core over two seconds,
+    read from the process's own CPU time.
+    """
+
+    def used() -> int:
+        fields = Path(f"/proc/{kwin}/stat").read_text().rsplit(")", 1)[1].split()
+        return int(fields[11]) + int(fields[12])
+
+    ticks = os.sysconf("SC_CLK_TCK")
+    deadline = time.monotonic() + limit
+    previous = used()
+    while time.monotonic() < deadline:
+        time.sleep(2)
+        current = used()
+        if current - previous <= 0.2 * ticks:
+            return
+        previous = current
+
+
 def x11_game(step: Step, session: Session) -> None:
     """Check that the proxy tells an X11 game's connection the smaller screen.
 
@@ -289,6 +317,7 @@ def x11_game(step: Step, session: Session) -> None:
     smaller screen, not only seen: a connection the proxy passed over is logged
     too, with the reason it did.
     """
+    settle(session.kwin)
     racer = shutil.which("etr", path=session.environment.get("PATH"))
     program, profile = (["etr"], "extremetuxracer") if racer else (RACE, "supertuxkart")
     x11 = session.environment | ({} if racer else {"SDL_VIDEODRIVER": "x11"})
