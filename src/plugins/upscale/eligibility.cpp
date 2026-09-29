@@ -317,7 +317,8 @@ static UpscaleRefusal surfaceRefusal(EffectWindow *window, SurfaceItem *surface)
 // whether the scaler can read it as it stands.
 UpscalePicture upscalePictureOf(EffectWindow *window)
 {
-    SurfaceItem *surface = window->windowItem()->surfaceItem();
+    // Asked for status too, where no refusal has vouched for the window yet.
+    SurfaceItem *surface = window && window->windowItem() ? window->windowItem()->surfaceItem() : nullptr;
     if (!surface || !window->screen()) {
         return {};
     }

@@ -74,6 +74,8 @@ void UpscaleSnapshotTest::refusalNamesTheConditionThatFailed()
     QVERIFY(describeRefusal(UpscaleRefusal::BufferNotSmaller).contains(QStringLiteral("not smaller than the destination")));
     QVERIFY(describeRefusal(UpscaleRefusal::BufferBelowHalf).contains(QStringLiteral("less than half")));
     QVERIFY(describeRefusal(UpscaleRefusal::BufferAspectRatio).contains(QStringLiteral("aspect ratio")));
+    QVERIFY(describeRefusal(UpscaleRefusal::BufferNoWholeFactor).contains(QStringLiteral("no whole-number multiple")));
+    QVERIFY(describeRefusal(UpscaleRefusal::BufferFilterRange).startsWith(QStringLiteral("the whole-number factor that fits is not two")));
     QVERIFY(describeRefusal(UpscaleRefusal::NotFullScreen).contains(QStringLiteral("not fullscreen")));
     QVERIFY(describeRefusal(UpscaleRefusal::SeveralCandidates).contains(QStringLiteral("more than one")));
     QVERIFY(describeRefusal(UpscaleRefusal::ChildSurfaces).contains(QStringLiteral("child surfaces")));
@@ -105,6 +107,13 @@ void UpscaleSnapshotTest::reportsThePathActuallyTaken()
     QVERIFY2(headsUp.contains(QStringLiteral("FSR 1 + RCAS")), qPrintable(headsUp));
     QVERIFY2(headsUp.contains(QStringLiteral("720p → 4K")), qPrintable(headsUp));
     QVERIFY2(headsUp.contains(QStringLiteral("33%")), qPrintable(headsUp));
+    // Nearest sampling is named as what runs, not as the FSR it replaced.
+    UpscaleSnapshot nearest = snapshot;
+    nearest.filter = UpscaleFilter::Nearest;
+    nearest.sharpening = 0;
+    const QString nearestHeadsUp = upscaleHeadsUp(nearest);
+    QVERIFY2(nearestHeadsUp.contains(QStringLiteral("Nearest neighbor")) && !nearestHeadsUp.contains(QStringLiteral("FSR")),
+             qPrintable(nearestHeadsUp));
     QVERIFY(!headsUp.contains(QStringLiteral("Client buffer updates")));
     QVERIFY(!headsUp.contains(QStringLiteral("compositor repaints")));
     QVERIFY(!headsUp.contains(QStringLiteral("percentile")));

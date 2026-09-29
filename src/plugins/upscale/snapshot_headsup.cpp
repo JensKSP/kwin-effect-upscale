@@ -141,7 +141,13 @@ QString upscaleHeadsUp(const UpscaleSnapshot &snapshot)
     }
     QStringList picture;
     if (snapshot.scaling) {
-        picture.append(snapshot.sharpening > 0 ? i18n("FSR 1 + RCAS") : i18n("FSR 1"));
+        QString filter = i18n("FSR 1");
+        if (snapshot.filter == UpscaleFilter::Nearest) {
+            filter = i18n("Nearest neighbor");
+        } else if (snapshot.sharpening > 0) {
+            filter = i18n("FSR 1 + RCAS");
+        }
+        picture.append(filter);
         picture.append(i18n("%1 → %2", upscaleSuppliedForDisplay(snapshot, resolutionName(snapshot.supplied)),
                             resolutionName(snapshot.destination)));
         const QString scale = renderScale(snapshot);
