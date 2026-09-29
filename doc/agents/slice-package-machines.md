@@ -124,7 +124,10 @@ SuperTuxKart started 23 seconds after it.
   virt machine with every host core translating, UEFI from Debian's
   `qemu-efi-aarch64`, and virtio-gpu at 3840 × 2160 in place of VGA, which the
   virt machine lacks; openSUSE's template loads virtio_gpu there instead of
-  bochs. Arch publishes no arm64 image. None has booted yet.
+  bochs. Arch publishes no arm64 image. The Debian arm64 machine finished its
+  first boot on 2026-09-29 in 38 minutes under emulation, logged in to Plasma's
+  Wayland session with KWin running, and virtio-gpu offering 3840 × 2160; the
+  others have not been made yet.
 - FreeBSD cannot run Plasma's Wayland session in a machine: KWin needs a
   DRM/KMS driver, FreeBSD's drm-kmod drives Intel, AMD and NVIDIA hardware
   only, and virtio-gpu KMS exists only as the open pull request
