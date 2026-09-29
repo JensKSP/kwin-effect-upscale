@@ -192,7 +192,7 @@ void UpscaleX11IntegrationTest::winePrefixEligibility()
 // A window of a process shown another's screen, a Wine prefix's launcher once
 // its game was answered, is claimed by the entry that answered the game
 // although no entry names it, and presented at that screen: one prefix is one
-// screen (item 14a). Here this process is the game and the stand-in the
+// screen. Here this process is the game and the stand-in the
 // launcher, fullscreen at the output's size as a launcher that became
 // fullscreen before the game started.
 void UpscaleX11IntegrationTest::presentsAProcessShownItsGamesScreen()
@@ -224,7 +224,7 @@ void UpscaleX11IntegrationTest::presentsAProcessShownItsGamesScreen()
 
 // Under All applications a program no entry names is told the smaller screen
 // when it connects, as an entry's program is, so that it starts with the
-// viewport it keeps (item 20a). Nothing is said with All applications off, nor
+// viewport it keeps. Nothing is said with All applications off, nor
 // yet for a program an entry names without a connection pattern, which that
 // entry decides once the window exists.
 void UpscaleX11IntegrationTest::answersUnlistedProgramsUnderAllApplications()

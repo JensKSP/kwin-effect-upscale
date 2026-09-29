@@ -395,7 +395,7 @@ void ProxySessionTest::aWarmPrefixIsShownTheLaterScreen()
                  qPrintable(s_logged.join(QLatin1Char('\n'))));
     // The effect is told, so that it presents the launcher's windows as the
     // game's; and a program the prefix starts later is shown the game's screen
-    // too, although not in the list: one prefix is one screen (item 14a).
+    // too, although not in the list: one prefix is one screen.
     QTRY_VERIFY(m_effect.shown.contains(uint(launcher)));
     QVERIFY(!m_effect.shown.contains(uint(elsewhere)));
     const pid_t later = spawnWine("C:\\Games\\Launcher.exe", {"--connect", m_path}, prefix);

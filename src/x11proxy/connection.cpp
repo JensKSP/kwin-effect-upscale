@@ -202,8 +202,8 @@ void Session::relayClient(int client, quint32 pid, const QSize &answeredSize, co
     --m_pendingConnections;
     // A connection of a prefix that shows its game's screen is shown that,
     // whatever it was answered itself: one prefix is one screen, and a program
-    // of it at the full size would disagree with the rest (item 14a, decided
-    // by Jens on 2026-09-29).
+    // of it at the full size would disagree with the rest, as Jens decided on
+    // 2026-09-29.
     QSize size = answeredSize;
     QByteArray timing = answeredTiming;
     quint32 game = 0;
@@ -276,7 +276,7 @@ void Session::showPrefix(const QString &prefix, const QSize &size, const QByteAr
     // The effect first: it makes a fullscreen window of these processes the
     // game's size and presents it, and has to have done so before Wine hears
     // of the smaller screen, or KWin answers Wine's request for that size with
-    // the output's and Wine grows the window by the difference (item 14a).
+    // the output's and Wine grows the window by the difference.
     // Each answer, or its half second, counts; the switch follows the last.
     auto remaining = std::make_shared<qsizetype>(processes.size());
     const auto proceed = [this, prefix, size, timing, remaining]() {

@@ -4,7 +4,7 @@
 # The handbook and the other documents people read, as a site on GitHub Pages,
 # rebuilt whenever master moves. tools/build-site.py decides what the site
 # holds: the README and the permanent documents, never an agent's documents
-# (decided by Jens on 2026-09-29, item 86a of the open list).
+# (decided by Jens on 2026-09-29).
 
 name: Pages
 

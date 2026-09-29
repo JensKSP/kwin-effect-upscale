@@ -7,7 +7,7 @@
 
 The site holds what people read: the README as its front page and the permanent
 documents under doc/. It leaves out what agents read, doc/AGENTS.md and
-doc/agents/, as Jens decided on 2026-09-29 (item 86a of the open list). A link
+doc/agents/, as Jens decided on 2026-09-29. A link
 from a page to anything the site does not hold, an agent document or a file of
 the repository, goes to that file on GitHub instead, so that no link on the
 site leads nowhere. Jekyll, run by GitHub's own action, turns the pages into
