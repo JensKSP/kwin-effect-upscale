@@ -160,10 +160,10 @@ void UpscaleLogicalSizes::destroyed(wl_listener *listener, void *data)
     });
 }
 
-// KWin sends a new xdg_output its output's position right after creating it,
-// in the same request. Only for that moment is every event read, and the one
-// that says where this object's output is is kept; the rest of the time no
-// event passes through here.
+// KWin sends a new xdg_output its position, its size, then its name and
+// description where the version has them, and the done that applies them, all
+// in the same request (6.3.6, 6.6.6 and master alike). Only for that moment is
+// every event read.
 void UpscaleLogicalSizes::watchFor(Resource *resource)
 {
     Q_UNUSED(resource)
@@ -175,23 +175,44 @@ void UpscaleLogicalSizes::watchFor(Resource *resource)
     }
 }
 
+// The position says which output the object stands for. The told size goes out
+// as the event after KWin's size is logged, which libwayland does just before
+// sending it, so it follows KWin's size and precedes the done that applies
+// both: the program never applies KWin's size on its own. SDL 3.2.10 did, when
+// it came with a done of its own, and divided by a density of two thirds cast
+// to an integer on the told size after it (SDL_waylandvideo.c:1002): SIGFPE at
+// start, on the bench of 2026-09-29.
 void UpscaleLogicalSizes::logged(void *data, wl_protocol_logger_type direction, const wl_protocol_logger_message *message)
 {
-    if (direction != WL_PROTOCOL_LOGGER_EVENT || message->message_opcode != logicalPositionEvent || message->arguments_count != 2) {
+    auto self = static_cast<UpscaleLogicalSizes *>(data);
+    if (direction != WL_PROTOCOL_LOGGER_EVENT || self->m_sending) {
         return;
     }
-    auto self = static_cast<UpscaleLogicalSizes *>(data);
-    for (const auto &resource : self->m_resources) {
-        if (resource->resource == message->resource && !resource->positioned && resource->output.isEmpty()) {
+    const auto found = std::ranges::find_if(self->m_resources, [message](const auto &resource) {
+        return resource->resource == message->resource && resource->output.isEmpty();
+    });
+    if (found == self->m_resources.end()) {
+        return;
+    }
+    Resource *resource = found->get();
+    if (message->message_opcode == logicalPositionEvent && message->arguments_count == 2) {
+        if (!resource->positioned) {
             resource->position = QPoint(message->arguments[0].i, message->arguments[1].i);
             resource->positioned = true;
         }
+    } else if (message->message_opcode == logicalSizeEvent) {
+        resource->sized = true;
+    } else if (resource->sized) {
+        self->m_sending = true;
+        self->answer(false);
+        self->m_sending = false;
     }
 }
 
 // Runs once libwayland has handled every request it read in this round, and
 // before KWin flushes what it sent: after KWin's events on the new objects,
-// in the same message to the program.
+// in the same message to the program. An object the logger did not answer, if
+// KWin ever sends its events otherwise, is answered here with a done of its own.
 void UpscaleLogicalSizes::idle(void *data)
 {
     auto self = static_cast<UpscaleLogicalSizes *>(data);
@@ -201,35 +222,49 @@ void UpscaleLogicalSizes::idle(void *data)
         wl_protocol_logger_destroy(self->m_logger);
         self->m_logger = nullptr;
     }
-    self->answer();
+    self->answer(true);
 }
 
-void UpscaleLogicalSizes::answer()
+// The output an object stands for, found by the position KWin sent on it,
+// where that output was told a size; nothing otherwise.
+OutputInterface *UpscaleLogicalSizes::toldOutput(const Resource &resource, const QList<OutputInterface *> &outputs)
+{
+    if (!resource.positioned) {
+        return nullptr;
+    }
+    const qreal scale = resource.client->connection->scaleOverride();
+    for (OutputInterface *output : outputs) {
+        const UpscaleOutput *handle = output->handle();
+        if (handle && (handle->geometryF().topLeft() * scale).toPoint() == resource.position
+            && resource.client->logical.contains(handle->name())) {
+            return output;
+        }
+    }
+    return nullptr;
+}
+
+void UpscaleLogicalSizes::answer(bool done)
 {
     const auto outputs = waylandServer()->display()->outputs();
-    std::erase_if(m_resources, [&outputs](const auto &resource) {
-        if (!resource->output.isEmpty()) {
+    std::erase_if(m_resources, [&outputs, done](const auto &resource) {
+        if (!resource->output.isEmpty() || (!done && !resource->sized)) {
             return false;
         }
         // An object whose position did not arrive, or whose output was not
         // told anything, is left as KWin described it.
-        const qreal scale = resource->client->connection->scaleOverride();
-        for (OutputInterface *output : outputs) {
-            const UpscaleOutput *handle = output->handle();
-            if (!resource->positioned || !handle) {
-                continue;
-            }
-            const QPointF position = handle->geometryF().topLeft() * scale;
-            const auto told = resource->client->logical.constFind(handle->name());
-            if (position.toPoint() == resource->position
-                && told != resource->client->logical.cend()) {
-                resource->output = handle->name();
-                send(resource->resource, output, *told);
-                return false;
-            }
+        OutputInterface *output = toldOutput(*resource, outputs);
+        if (!output) {
+            wl_list_remove(&resource->destroyed.listener.link);
+            return true;
         }
-        wl_list_remove(&resource->destroyed.listener.link);
-        return true;
+        resource->output = output->handle()->name();
+        const QSize told = resource->client->logical.value(resource->output);
+        if (done) {
+            send(resource->resource, output, told);
+        } else {
+            wl_resource_post_event(resource->resource, logicalSizeEvent, told.width(), told.height());
+        }
+        return false;
     });
 }
 

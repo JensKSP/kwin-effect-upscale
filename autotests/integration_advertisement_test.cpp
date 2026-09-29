@@ -10,6 +10,8 @@
 
 #include "integration_test.h"
 
+#include <QDebug>
+
 void UpscaleIntegrationTest::asksApplicationsForASmallerImage()
 {
     QTRY_VERIFY(m_effects.isValid());
@@ -37,6 +39,12 @@ void UpscaleIntegrationTest::asksApplicationsForASmallerImage()
         // density, as SDL3 does. It is sent after KWin's own, in the same
         // message as a rule, which the round trip covers where it is not.
         QTRY_COMPARE((asked.roundtrip(), asked.advertisedLogicalSize()), QSize(85, 85));
+        // KWin's own size is never applied on its own: SDL 3.2.10 took the two
+        // sizes, one after the other, for densities, and divided by a zero on
+        // the second.
+        QVERIFY2(!asked.appliedLogicalSizes().contains(QSize(128, 128)),
+                 qPrintable(QDebug::toString(asked.appliedLogicalSizes())));
+        QVERIFY(!asked.appliedLogicalSizes().isEmpty());
         // The refresh rate stays the screen's own: only the size is in
         // question, and frame pacing is not this effect's to change.
         // Nothing asks this client for a scale, because an unscaled screen

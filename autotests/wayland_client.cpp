@@ -84,9 +84,16 @@ void WaylandClient::global(void *data, wl_registry *registry, uint32_t name, con
         output->name = name;
         output->proxy = static_cast<wl_output *>(wl_registry_bind(registry, name, &wl_output_interface, client->m_outputVersion));
         static const wl_output_listener listener{
-            [](void *, wl_output *, int32_t, int32_t, int32_t, int32_t, int32_t, const char *, const char *, int32_t) { },
+            [](void *, wl_output *, int32_t, int32_t, int32_t, int32_t, int32_t, const char *, const char *, int32_t) {},
             outputMode,
-            [](void *, wl_output *) { },
+            // Since version 3 of xdg_output, this done applies its logical
+            // size too, which is what a program then goes by.
+            [](void *data, wl_output *) {
+            auto output = static_cast<Output *>(data);
+            if (output->logical && output->logicalSize.isValid()) {
+                output->appliedLogicalSizes.append(output->logicalSize);
+            }
+        },
             outputScale,
             nullptr,
             nullptr,
@@ -240,6 +247,11 @@ void WaylandClient::framePresented(void *data, wl_callback *callback, uint32_t t
 int WaylandClient::advertisedScale(int output) const
 {
     return output >= 0 && output < int(m_outputs.size()) ? m_outputs.at(output)->scale : 0;
+}
+
+QList<QSize> WaylandClient::appliedLogicalSizes(int output) const
+{
+    return output >= 0 && output < int(m_outputs.size()) ? m_outputs.at(output)->appliedLogicalSizes : QList<QSize>();
 }
 
 QSize WaylandClient::advertisedLogicalSize(int output) const
