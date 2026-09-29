@@ -16,6 +16,7 @@
 #include <QHash>
 #include <QPointer>
 #include <QString>
+#include <QVariantMap>
 
 #include <memory>
 
@@ -65,6 +66,8 @@ public:
      * that nothing piles up for the ones that are gone.
      */
     QString records() const;
+    /** What a submission report is made of for @p window; see UpscaleIdentityService::reportFacts(). */
+    QVariantMap reportFacts(EffectWindow *window) const;
     int requestedEffectChainPosition() const override;
     UpscalePaintResult drawWindow(const RenderTarget &target, const RenderViewport &viewport, EffectWindow *window,
                                   int mask, const UpscaleRegion &region, WindowPaintData &data) override;

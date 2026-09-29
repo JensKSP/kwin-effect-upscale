@@ -251,6 +251,7 @@ if(KWIN_BUILD_KCMS)
         ../src/plugins/upscale/proxycontrols.cpp
         ../src/plugins/upscale/displaycontrols.cpp
         ../src/plugins/upscale/applicationcontrols.cpp
+        ../src/plugins/upscale/submission.cpp
         ../src/plugins/upscale/resolutionchoice.cpp
         ../src/plugins/upscale/resolutionpreview.cpp
         ../src/plugins/upscale/sliderfield.cpp
@@ -262,7 +263,13 @@ if(KWIN_BUILD_KCMS)
     foreach(
         variant
         IN
-        ITEMS config config-buildinfo application-editor identity-controls application-list
+        ITEMS
+            config
+            config-buildinfo
+            application-editor
+            identity-controls
+            application-list
+            submission
     )
         set(test_target "upscale_${variant}_test")
         if(variant STREQUAL "application-editor")
@@ -273,6 +280,8 @@ if(KWIN_BUILD_KCMS)
             set(test_source identity_controls_test.cpp editor_stand_ins.h)
         elseif(variant STREQUAL "application-list")
             set(test_source application_list_test.cpp)
+        elseif(variant STREQUAL "submission")
+            set(test_source submission_test.cpp)
         else()
             set(test_source config_test.cpp)
         endif()

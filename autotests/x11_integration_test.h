@@ -51,6 +51,7 @@ private Q_SLOTS:
     void winePrefixEligibility();
     void leavesWineToTheProxy_data();
     void leavesWineToTheProxy();
+    void reportsWhatItObserved();
     void keepsEmulatedPointerCoverage_data();
     void keepsEmulatedPointerCoverage();
     void expiresDepartedClientRefusal();

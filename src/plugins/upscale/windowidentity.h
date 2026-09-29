@@ -11,9 +11,12 @@
 #include <QStringList>
 #include <QVariantMap>
 
+#include <functional>
+
 namespace KWin
 {
 
+class EffectWindow;
 class EffectsHandler;
 class Window;
 struct UpscaleApplication;
@@ -103,9 +106,24 @@ public Q_SLOTS:
      */
     QStringList windowsMatching(const QVariantMap &entry) const;
 
+    /**
+     * What the effect observed of the window with this internal ID, for the
+     * report a person sends with an entry: its identity, how it presents, the
+     * method and what it told or asked, the buffer, the output, and the
+     * build, KWin and graphics it ran with. Empty for a window that is gone.
+     * Sizes are width x height. The page makes the report of it, and keeps
+     * the program's path to itself; see upscaleSubmissionReport().
+     */
+    QVariantMap reportFacts(const QString &window) const;
+
+public:
+    /** How the effect answers reportFacts(). */
+    void setReporter(std::function<QVariantMap(EffectWindow *window)> reporter);
+
 private:
     // The compositor the effect was loaded into, which knows the windows.
     EffectsHandler *m_handler;
+    std::function<QVariantMap(EffectWindow *)> m_reporter;
 };
 
 } // namespace KWin

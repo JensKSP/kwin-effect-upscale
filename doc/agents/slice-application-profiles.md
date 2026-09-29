@@ -1747,13 +1747,31 @@ Planned checks, not observed results:
       notes, with no names in the installed file; and the list is indexed by
       program and window identity when it is loaded, now rather than after a
       measurement.
-- [ ] Index the list at load time, by program and by window identity.
-- [ ] Report the program name for the selected window, including the X11 case.
-- [ ] Add the copy action and its tests.
-- [ ] Write the trial rule and the four answers into `CONTRIBUTING.md`.
-- [ ] Add the application form with the GitHub workflow slice.
-- [ ] Extend the catalogue tests to the acceptance rule.
-- [ ] Walk the route once end to end and record what it produced here.
+- [x] Index the list at load time, by program and by window identity. Done
+      2026-09-29 in `matching.cpp`: each entry is filed under one field that
+      has the same last component in every value it matches (the program's
+      file name from an exact path or a `.*/literal` pattern, else an exact
+      class, else an exact instance), and what no field pins is always tried,
+      in list order. `theIndexAnswersAsTheListDoes` compares it with a plain
+      scan over a mixed list, and failed against a mutated key.
+- [x] Report the program name for the selected window, including the X11 case:
+      the effect's `reportFacts` over D-Bus, from the window's process for
+      X11 as well; `reportsWhatItObserved` in the X11 session.
+- [x] Add the copy action and its tests: **Copy Report…** beside Export and
+      Import, `upscaleSubmissionReport()` in `submission.cpp`, and
+      `upscale-submission`, which checks the entry as observed, that no path,
+      title or environment gets in, the unknown-program and runtime cases, and
+      that the report reads back as an entry.
+- [x] Write the trial rule and the four answers into `CONTRIBUTING.md`.
+- [x] Add the application form, `.github/ISSUE_TEMPLATE/application.yml`, with
+      the label `area:applications` and its own release-note category. Whether
+      it renders and rejects an empty submission on GitHub is checked with 88.
+- [x] Extend the catalogue tests to the acceptance rule: `catalogue_test.cpp`,
+      checked against the shipped list and against a fixture that breaks each
+      rule once.
+- [ ] Walk the route once end to end and record what it produced here: a game
+      not listed, its report from a real session, its entry in a package, and
+      a fresh session recognizing it.
 
 ### Standalone exports retain measured methods, 2026-09-24
 

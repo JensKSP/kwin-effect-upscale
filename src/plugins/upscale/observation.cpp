@@ -25,6 +25,7 @@
 #include "windowidentity.h"
 #include "x11resolution.h"
 
+#include "config-kwin.h"
 #include "effect/effecthandler.h"
 #include "effect/effectwindow.h"
 #include "scene/surfaceitem.h"
@@ -163,6 +164,43 @@ void UpscaleEffect::describeApplication(UpscaleSnapshot &state, const Window *wi
     } else if (!x11) {
         state.scaleRequested = m_waylandScale->requested(window);
     }
+}
+
+static QString sizeFact(const QSize &size)
+{
+    return size.isValid() ? QStringLiteral("%1x%2").arg(size.width()).arg(size.height()) : QString();
+}
+
+QVariantMap UpscaleEffect::reportFacts(EffectWindow *window) const
+{
+    const UpscaleSnapshot state = snapshot(window, nullptr);
+    const Window *internal = window->window();
+    QVariantMap facts{
+        // The path is the page's to reduce to what stays the same wherever the
+        // game is installed; nothing else here says where anything is kept.
+        {QStringLiteral("executable"), upscaleExecutableOf(internal)},
+        {QStringLiteral("windowClass"), internal->resourceClass()},
+        {QStringLiteral("instance"), internal->resourceName()},
+        {QStringLiteral("x11"), upscaleIsX11(state.presentedAs)},
+        // The key the entry states the method under, for this presentation.
+        {QStringLiteral("presentation"), QString::fromLatin1(upscalePresentationKey(state.presentedAs))},
+        {QStringLiteral("method"), upscaleMethodKey(state.method)},
+        {QStringLiteral("advertised"), sizeFact(state.advertised)},
+        {QStringLiteral("requested"), sizeFact(state.requested)},
+        {QStringLiteral("requestFailure"), state.requestFailure},
+        {QStringLiteral("scaleRequested"), state.scaleRequested},
+        {QStringLiteral("supplied"), sizeFact(state.supplied)},
+        {QStringLiteral("destination"), sizeFact(state.destination)},
+        {QStringLiteral("outputScale"), state.outputScale},
+        {QStringLiteral("build"), state.build},
+        {QStringLiteral("kwin"), QString(KWIN_VERSION_STRING)},
+        {QStringLiteral("graphics"), state.graphics},
+    };
+    if (const auto context = effects->openglContext()) {
+        facts.insert(QStringLiteral("renderer"), QString::fromLatin1(context->renderer()));
+        facts.insert(QStringLiteral("driver"), QString::fromLatin1(context->openglVersionString()));
+    }
+    return facts;
 }
 
 } // namespace KWin

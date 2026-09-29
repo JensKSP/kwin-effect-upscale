@@ -53,6 +53,43 @@ and [benchmark comparisons](doc/upscaling.md#benchmark-performance-comparisons).
 Record pass, fail, not tested or not applicable for each condition, with evidence.
 One successful SDR test does not establish HDR or VRR support.
 
+## Application entries
+
+The upscaler ships a list of the games it recognizes and what each one follows.
+A game you got working can join it in a later package. An entry needs four
+answers, and three of them come from the upscaler rather than from memory:
+
+1. **Which window it is.** Its class and instance, as KWin reports them.
+2. **Which program it is.** The program's name as it stays the same wherever the
+   game is installed; for a game run by Wine or Proton, the window names it.
+3. **Which method it follows**, for the way it presents: fullscreen, borderless
+   or windowed, on Wayland or through Xwayland. A method succeeded when three
+   things held together: the game drew a smaller picture, the picture still
+   covered the screen, and the pointer still landed where it looked. A smaller
+   picture alone is not success. A method the game ignored is an answer too:
+   an entry stating **Off** recognizes the game and tells the next person the
+   question was already asked.
+4. **Which version you measured.** A game can change what it follows between
+   releases, and a later report can only be compared with this one if both say
+   which version they ran.
+
+Open **Upscale**'s settings, choose **Copy Report…** and pick the game's window
+while it runs the way you measured it. The report is the entry as the upscaler
+observed it, with the conditions it ran under, and marked lines for what only
+you know. It names the program without the folder you keep it in, and carries
+no window title, which can name a saved game or a player, no environment and
+nothing else about you. Nothing is sent anywhere: it is text on your clipboard.
+Paste it into the
+[application form](https://github.com/JensKSP/kwin-effect-upscale/issues/new?template=application.yml),
+or put the entry into `src/plugins/upscale/kwinupscalerc` in a pull request with
+the report in its description.
+
+An accepted entry ships active, with what was measured and the conditions in
+the entry itself. It is named in the release notes of the package that adds or
+changes it, and credit is the pull request's author or the issue in the
+commit, never a name in the installed file. An entry that turns out wrong goes
+back through the same form, with a report of what the game does now.
+
 ## Building and checking
 
 Build dependencies are maintained in `debian/control`. Use the maintained

@@ -65,7 +65,10 @@ UpscaleEffect::UpscaleEffect(ItemRenderer *renderer)
     m_modeOverride = std::make_unique<UpscaleModeOverride>();
     m_x11Resolution = std::make_unique<UpscaleX11Resolution>();
     m_waylandScale = std::make_unique<UpscaleWaylandScale>();
-    new UpscaleIdentityService(this);
+    auto identity = new UpscaleIdentityService(this);
+    identity->setReporter([this](EffectWindow *window) {
+        return reportFacts(window);
+    });
 #if !UPSCALE_RENDER_DEVICE_API
     if (!m_renderer) {
         m_renderer = effects->scene()->renderer();

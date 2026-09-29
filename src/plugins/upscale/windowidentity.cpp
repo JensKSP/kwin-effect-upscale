@@ -148,6 +148,17 @@ QStringList UpscaleIdentityService::windowsMatching(const QVariantMap &entry) co
     return captions;
 }
 
+QVariantMap UpscaleIdentityService::reportFacts(const QString &window) const
+{
+    EffectWindow *found = m_handler ? m_handler->findWindow(QUuid::fromString(window)) : nullptr;
+    return found && found->window() && m_reporter ? m_reporter(found) : QVariantMap();
+}
+
+void UpscaleIdentityService::setReporter(std::function<QVariantMap(EffectWindow *window)> reporter)
+{
+    m_reporter = std::move(reporter);
+}
+
 QString UpscaleIdentityService::executablePath(const QString &window) const
 {
     const EffectWindow *found = m_handler ? m_handler->findWindow(QUuid::fromString(window)) : nullptr;

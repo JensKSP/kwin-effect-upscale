@@ -2129,10 +2129,11 @@ were read in the source and then confirmed by running them.
 
 #### How that list grows
 
-Required extension, not yet implemented: a route by which someone who got a game
-working submits what they measured, and a written rule for what we do with it.
-The six entries above were measured on one machine, and a list assembled that
-way reaches exactly as far as the games one person owns.
+A route by which someone who got a game working submits what they measured,
+and a written rule for what we do with it. The six entries above were measured
+on one machine, and a list assembled that way reaches exactly as far as the
+games one person owns. Implemented except for its first walk from a report to a
+package, which the supported scope needs.
 
 An entry is a measurement, so a submission is one too. It states the identity
 fields read off the running window, the program behind the connection, the
@@ -2144,17 +2145,39 @@ whose method asks for nothing is still worth shipping, because it records that
 the question was already asked.
 
 The effect produces that text itself, so that the fields come from what it
-observed rather than from memory. The report names the program as a file name
-and never the path it was found at, and carries no window title, no environment
-and nothing else about the person running it.
+observed rather than from memory. **Copy Report…** on the settings page lets
+KWin pick the window, asks the effect over its D-Bus interface what it observed
+of it - identity, presentation, the method and what it told or asked, the
+buffer, the output, the build, KWin and graphics - and puts on the clipboard the
+entry in the list's own format, with those conditions as comments and marked
+lines for what only the person knows: the game's version, how it was started,
+and whether the picture covered the screen and the pointer landed where it
+looked. The program is stated as it stays the same wherever the game is
+installed, as Add from Window states it, never by its path, and a runtime many
+games share, such as Proton's loader, is left to the window's identity. The
+report carries no window title, no environment and nothing else about the
+person running it. It is written in English, because it is read on the
+project's tracker and its lines are the entry's own keys.
+
+The report goes into the application form on the issue tracker, or with the
+entry into a pull request; `CONTRIBUTING.md` says how. Accepted entries ship
+active, with their provenance in the entry, as Jens decided on 2026-09-29, and
+are named in the release notes under their own category; credit is Git history
+and the release notes, never a name in the installed file. Every shipped entry
+meets one rule, which the catalogue test holds the list to: it names the
+application and the version measured, states only methods this build knows and
+no resolution, has a note for a person, a unique order and at least one usable
+identity, and is not identified by a window class that carries a version number
+alone. The list is indexed when it is read, by the program's file name, the
+window class or the instance, whichever of them every window an entry matches
+shares, so that matching stays cheap however far the list grows.
 
 Three boundaries hold regardless of how the list grows. It stays a file in the
 package, reviewed before it ships: nothing is fetched into a compositor effect
 at runtime. Nothing is ever sent from the user's machine on its own; a
 submission is text a person read and chose to paste. And the installed file
 carries no personal data, because it is system configuration that reaches
-everyone who installs the package. The submission route, the acceptance rule and
-the open decision about shipping entries we could not verify ourselves are in the
+everyone who installs the package. The working detail is in the
 [application profiles slice](agents/slice-application-profiles.md#submitted-applications-and-the-list-we-maintain).
 
 ### Application launch configuration and method discovery

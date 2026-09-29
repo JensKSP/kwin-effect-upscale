@@ -563,6 +563,10 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
 - **53.** **impl/test, S** – Submitted applications route: program name in the
     report, copy action, `CONTRIBUTING.md`, issue form, catalogue tests,
     end-to-end rehearsal (L1681-1688). Not started.
+  **Implemented 2026-09-29 except the rehearsal:** the load-time index, the
+  effect's `reportFacts`, **Copy Report…** and its report, the acceptance rule
+  as a catalogue test, `CONTRIBUTING.md` and the application form. Left: the
+  end-to-end rehearsal in a real session, and the form checked on GitHub (88).
 
 ## E. What the effect says – `slice-development-infrastructure.md`
 

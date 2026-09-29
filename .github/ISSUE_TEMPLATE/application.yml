@@ -1,0 +1,45 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+name: Application entry
+description: Send what you measured of a game you got working, so that a later package recognizes it.
+labels: [area:applications]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Open **Upscale**'s settings under **Appearance** in **System Settings** → **Desktop Effects**,
+        choose **Copy Report…**, pick the game's window while it runs as you measured it, fill in the
+        lines marked `<...>` and paste the report below. Leave the other lines as the upscaler wrote
+        them: they are what it observed. What the report carries and what it leaves out is described in
+        [CONTRIBUTING.md](https://github.com/JensKSP/kwin-effect-upscale/blob/master/CONTRIBUTING.md#application-entries).
+        A game you have not measured is a feature request instead.
+  - type: input
+    id: application
+    attributes:
+      label: Application and version
+      description: The name, and the version you measured, as the game shows it.
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: Report
+      description: The text Copy Report put on the clipboard, with the marked lines filled in.
+      render: ini
+    validations:
+      required: true
+  - type: textarea
+    id: methods
+    attributes:
+      label: Methods tried
+      description: >-
+        Each method you tried for the way the game presents, and what it did: the size it drew at
+        before and after, whether the picture still covered the screen, and whether the pointer still
+        landed where it looked. A method the game ignored is worth saying too.
+    validations:
+      required: true
+  - type: textarea
+    id: frames
+    attributes:
+      label: Frame times
+      description: Optional. Frame times before and after, from the heads-up display.
