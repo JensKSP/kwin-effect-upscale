@@ -11,11 +11,11 @@ import unittest
 from pathlib import Path
 
 import yaml
+from virtual_machine import ssh, user_data
 
 SCRIPT = runpy.run_path(str(Path(__file__).with_name("conformance-vm.py")))
-user_data = SCRIPT["user_data"]
-ssh = SCRIPT["ssh"]
 in_test_image = SCRIPT["in_test_image"]
+CONFORMANCE = SCRIPT["CONFORMANCE"]
 TEMPLATE = (Path(__file__).resolve().parent.parent / "containers/vm-host/user-data.in").read_text()
 # A text of several lines where the machine's host key goes; no key at all,
 # since what is checked is that every line arrives, indented, and nothing else.
@@ -66,7 +66,7 @@ class GuestCommandTest(unittest.TestCase):
 
     def test_the_host_key_is_checked(self) -> None:
         """Never trust on first use: the machine's known host key or nothing."""
-        command = ssh("true")
+        command = ssh(CONFORMANCE, "true")
         self.assertIn("StrictHostKeyChecking=yes", command)
         self.assertIn("UserKnownHostsFile=/src/build/conformance-vm/known_hosts", command)
         self.assertIn("BatchMode=yes", command)
@@ -74,7 +74,7 @@ class GuestCommandTest(unittest.TestCase):
     def test_words_keep_their_boundaries(self) -> None:
         """The remote shell sees the words it was given, spaces and all."""
         words = ["sh", "-c", "echo 'a b' \"$HOME\""]
-        self.assertEqual(shlex.split(ssh(*words)[-1]), words)
+        self.assertEqual(shlex.split(ssh(CONFORMANCE, *words)[-1]), words)
 
     def test_the_test_image_gets_vgem_alone(self) -> None:
         """Only vgem's nodes and the groups that may open them go into the container."""
