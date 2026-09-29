@@ -663,6 +663,14 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   **Done 2026-09-28, `439d625`, pushed;** what the platform theme reports after
   a change in a real session goes with the hardware checks.
 - **64.** **test, S/F** – `kill -9` a game repeatedly, watch memory (L418-424).
+  **Done 2026-09-29, native half:** in the Arch package machine (KWin
+  6.7.5, llvmpipe, the nightly's package), SuperTuxKart was started twelve
+  times, enlarged each time, and killed with `kill -9`. KWin's resident
+  memory after each kill settled at 410,228 kB from the fifth round and was
+  410,240 kB after the twelfth; open files and threads came back to 163 and
+  18 every time. Under llvmpipe textures are KWin's own memory, so this
+  covers the video memory the effect allocates. The nested-session half is
+  the crash cases' records check. Recorded in the infrastructure slice.
 - **65.** **test, S** – Per-game display settings against the opposite global
     (L1144-1146).
   **Closed 2026-09-28, `51e56ff`, pushed:** covered since #21 by
