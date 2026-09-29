@@ -25,8 +25,41 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The commit's own CI run, from its push or its pull request, stands for the
+  # nightly's check leg when it finished green; running it again cost a third
+  # of the nightly. Only a commit without a finished run has CI run here, and
+  # one whose CI failed stops the nightly.
+  ci:
+    name: Find the commit's CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      state: ${{ steps.find.outputs.state }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B tools/ci-conclusion.py "$GITHUB_REPOSITORY" "$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+
   quality:
+    needs: ci
+    if: needs.ci.outputs.state == 'missing'
     uses: ./.github/workflows/ci.yml
+    with:
+      fuzz-seconds: 600
+
+  # The nightly's longer fuzzing is its own: the pull request's CI fuzzes for a
+  # minute. It runs with the instrumented builds where CI is not run here.
+  instrumented:
+    needs: ci
+    if: needs.ci.outputs.state == 'passed'
+    uses: ./.github/workflows/run-instrumented-tests.yml
     with:
       fuzz-seconds: 600
 
@@ -146,7 +179,11 @@ jobs:
   # Nothing is published that was not installed and tested first.
   publish:
     name: Release
-    needs: [version, quality, test]
+    needs: [version, quality, instrumented, test]
+    # The check leg is one of the two, the other skipped.
+    if: >-
+      ${{ !cancelled() && needs.version.result == 'success' && needs.test.result == 'success'
+      && (needs.quality.result == 'success' || needs.instrumented.result == 'success') }}
     permissions:
       contents: write
       id-token: write
