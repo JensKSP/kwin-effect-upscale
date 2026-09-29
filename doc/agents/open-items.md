@@ -57,7 +57,8 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   `tools/`, measurement durations in `measure-frame-times.py`, two bounded
   waits with no signal (commented), the 300 ms in `x11proxy_session_test.cpp`
   that belongs to item 26, and the 13 in the Wine helper, prepared-list and
-  prepared-session tests, which wait for item 32.
+  prepared-session tests, which wait for item 32. Committed as `c24ca56`; the
+  300 ms went with item 26 (`d068860`).
 - **2.** **test, S** – Nightly has published nothing since 2026-09-20 (`c88f842`):
   red 23–27 Sep on `Build / FreeBSD amd64 Package` at `94d93e0` (fixed by
   `ee6b3b2`), then item 1. The release carries none of the stable download
@@ -102,6 +103,9 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   test container, prepare KWin's packaged source), and when and how in
   `doc/checks.md`. Owned by the Wayland conformance slice. Checked by
   recreating the VM with the script and running `testUpscaleProduction`.
+  **Done 2026-09-29, `0eaffbc`, pushed:** `tools/conformance-vm.py` with `containers/vm-host`;
+  a machine recreated with `create --replace` ran `testUpscaleProduction`, 17
+  of 17. Recorded in the slice and in `doc/checks.md`.
 
 - **2c.** **Closed 2026-09-28, no defect.** Locally, under the address sanitizer,
   every session reported an 8-byte leak inside KF6ConfigCore in the KWin
@@ -120,7 +124,8 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   sources remain.
   **Fixed 2026-09-28:** the map hold asks XRes where `_NET_WM_PID` is unset;
   `anUnnamedProgramIsHeldAtItsFirstMapping` fails without it on KWin 6.6 (3 of
-  3) and passes with it (3 of 3). Commit and hosted run pending.
+  3) and passes with it (3 of 3). Committed as `a7e18d5`, pushed; the hosted
+  run on KWin 6.6 is the first nightly after the merge.
 - **2e.** **upstream?** – KWin 6.6.6 / Xwayland 24.1.10 leaves a window its client
   withdraws right after mapping it mapped, and the client hears no
   UnmapNotify, with or without the effect; KWin 6.3.6 withdraws it. KWin
@@ -167,7 +172,7 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   - `tools/measure-frame-times.py:452`: a missing program fails only after
     kwinrc has been changed, with a traceback and no report.
 
-  **Fixed 2026-09-28, pending commit:** all five, the proxy with two unit
+  **Fixed 2026-09-28, `a64aed9` and `d73802c`, pushed:** all five, the proxy with two unit
   cases in `x11proxy_display_test.cpp`, the tools with
   `tools/test_check_presentations.py` and a case in
   `test_measure_frame_times.py`; each new tool test failed on the old code.
@@ -202,7 +207,7 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   154 s on the runner against 62 s locally, where the case passes. Open whether
   the test paces badly or the effect requests against a frame that is still
   changing, which a slow real machine could hit too. Found 2026-09-28.
-  **Fixed 2026-09-28, pending commit:** `fullscreenRequest()` began a request
+  **Fixed 2026-09-28, `7b3fbf1`, pushed:** `fullscreenRequest()` began a request
   while the client still owed the withdrawal of its previous mode; it now
   leaves that to `apply()`. New case `reenteringFullscreenAtOnce`: 8/8 failed
   on KWin 6.6.6 before, 8/8 passed after. Written up in the slice.
@@ -237,7 +242,8 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   **Done 2026-09-28:** `x11proxy_shutdown_test.cpp`, three cases, each failing
   against a session broken on purpose; the review found repeated signals
   postponing the kill of an Xwayland that ignores SIGTERM, fixed in
-  `session.cpp`. Passes with GCC and under both sanitizers.
+  `session.cpp`. Passes with GCC and under both sanitizers. Committed as
+  `4928f3a`, pushed.
 - **11.** **decide, –** – Is the XTS release-conformance gate judged with the suite's
     windows kept from the window manager? (L3936-3939)
   **Decided by Jens 2026-09-28:** the XTS release gate is judged with the
@@ -264,6 +270,10 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   and Wine drives the loop, fix it there, and add a regression test (a Wine
   OpenGL fullscreen window keeps its size over many size notifications, input
   landing). Together with 26 to 28, which share the path and the setup.
+  **Closed 2026-09-29:** it no longer grows. A probe written again for
+  it, under Wine 10.0 through the proxy at 3840 × 2160 and scale 3, kept its
+  2560 × 1440 window for 60 seconds while the effect presented it over the
+  output. Input landing stays with 29. Recorded in the slice.
 - **15.** **fix, –** – Incoherent advertisement: `wl_output.mode` falsified beside a
     truthful `xdg_output`; recorded as a defect in shipped code, no fix
     recorded (L1363-1365, L1841-1851).
@@ -272,6 +282,11 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   for its `xdg_output` and given back on restore. To find out first whether the
   effect can reach one program's `xdg_output` on KWin 6.3.6 and 6.6. If stuck,
   call in Fable.
+  **Done 2026-09-28, `940b940`, pushed:** KWin offers no hook, so the effect
+  notices a told program's `xdg_output` objects through libwayland's public API
+  and sends the told logical size after KWin's, and KWin's back on restore;
+  both sessions test it. The lasting fix is a `bound` signal on KWin's
+  `xdg_output` global, for the KDE report. Recorded in the slice.
 - **16.** **impl/test, –** – SuperTuxKart hard requirement: automated matrix of all
     six cells with output capture; live in-game changes (L1233, L1321-1325).
   **Agreed with Jens 2026-09-28:** `tools/check-supertuxkart.py` runs the six
@@ -282,6 +297,11 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   against plain enlargement. In-game changes automated where STK can be driven,
   otherwise on the hardware session's checklist. A report per run, before every
   release. Release gate (hard requirement).
+  **Done 2026-09-29 except in-game changes, `39e2bcd`, pushed:** `tools/check-supertuxkart.py`
+  with `containers/game-tests`; all six cells pass in the machine, each
+  2560 × 1440 drawn to 3840 × 2160 and 25 to 29 % sharper than KWin's plain
+  stretch of the same stopped frame. Changes inside the running game stay with
+  the checks in Jens's session. Recorded in the slice and the handbook.
 - **17.** **investigate, –** – SuperTuxKart writes the reduced mode into its own
     configuration; to be answered from the compositor side (L1256-1264).
   **Answered 2026-09-28, no code change:** Native enlarges a kept smaller
@@ -289,6 +309,15 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   warning colour. Wording asking the player to change it goes with 43/44.
 - **18.** **impl, –** – A program that sizes a plain window from the mode it was told
     has to be presented over its screen (L1345-1347).
+  Needs Jens first (moved to the decisions, 2026-09-29): no program known to do
+  this has been named, and the mechanism is a choice. Only AdvertisedMode
+  leaves such a window smaller than the screen, because the methods that send a
+  scale keep mode ÷ scale at KWin's logical size. The effect can make the window
+  fullscreen, as it does for a prepared X11 window, but KWin then configures it
+  at the screen's own logical size, which the program believes larger than its
+  screen, so it may draw at full size again. Drawing the small window over the
+  screen instead leaves the pointer where KWin thinks the window is. Which one,
+  and with which program to test it.
 - **19.** **test, –** – The seven-item Auto bench was never run (L1853-1886).
 - **20.** **investigate, F** – Six source-led investigations unticked: glmark2 X11,
     integer-scale reachability, ETR secondary output, SuperTux borderless and
@@ -308,12 +337,27 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
     prefix companion; the proxy route has no gate (L326-352).
 - **26.** **impl, S** – Hold a prefix's first connection until its first real program
     appears, instead of answering within 500 ms (L791-796).
+  **Closed 2026-09-28, `d068860`, pushed:** implemented since #21 (held until
+  the prefix's program is known, ten seconds at most); the test now waits for
+  the session's own message rather than 300 ms. Recorded in the slice.
 - **27.** **decide/investigate** – Warm prefix: a running wineserver opens no new
     connection; no answer proposed (L797-798).
 - **28.** **impl/test, S** – The 2026-09-25 decisions: prefix as the unit, path-tail
     matching, launchers, windowed left alone, per-prefix candidate report
     (L764-787).
+  **Checked 2026-09-28, `51e56ff`, pushed:** all five implemented since #21. Missing is a
+  shipped Wine entry that uses the path, which needs the path Proton reports
+  for Wreckfest (item 30). Recorded in the slice.
 - **29.** **test, S** – Real Wine input at scale 3 (L748-752, L829-835).
+  **Run 2026-09-29: a defect found.** Through the proxy at scale 3 the
+  mapping is right until Wine confines the pointer: KWin checks the confinement
+  in the surface's unscaled coordinates, so the pointer stays in the top left
+  two thirds and the right and bottom third of the game cannot be reached.
+  Recorded in the Proton slice.
+- **29a.** **decide** – How the effect meets a confined pointer until KWin honours
+  a presentation transform: map one to one while confined (the system cursor
+  is drawn in the wrong place), undo KWin's confinement and clamp in the
+  effect (KWin re-engages it), or wait for the KWin change and report it.
 - **30.** **test, S** – Wreckfest on wzpc through the proxy (L468-472, L925-927).
 - **31.** **test, S** – One Wine game outside Steam (L328-330).
 - **32.** **decide/impl** – Legacy Wine guards and the Helper1 path: remove or keep
@@ -327,6 +371,8 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
     (L169-174, L335-339).
 - **37.** **doc** – Close the moot helper translation-domain question; owe the
     handbook update in proxy form (L575-579, L592).
+  **Closed 2026-09-28, `51e56ff`, pushed:** moot since the companion left the default
+  build; the handbook already describes the proxy route. Recorded in the slice.
 
 ## D. Application profiles – `slice-application-profiles.md`
 
@@ -336,8 +382,18 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   Clang and neon GCC/Clang. Recorded in the slice.
 - **39.** **test, S** – Migration from a real configuration written by the previous
     release (L81-82, L915-934).
+  **Done 2026-09-28, `af288ce`, pushed:** the 2026-09-20 nightly's own code wrote a
+  configuration, kept in `autotests/data/previous-release/`, which the current
+  code reads with every value under its current meaning except `OsdPosition`.
+- **39a.** **decide** – Where the old single display position goes: the old
+  display was one block in one corner, the current one has three blocks with a
+  position each, and nothing reads the old key, so a chosen corner falls back
+  to the defaults. Which block or blocks inherit it. Found 2026-09-28 with 39.
 - **40.** **impl, S** – "Clear a profile's overrides" in the editor: required, not in
     the plugin (L60-62, L1244-1246).
+  **Done 2026-09-28, `0d3af59`, pushed:** **Use Global Settings** under a game's tabs
+  forgets every value it sets and returns its methods to the package's
+  measurement. Its label and tooltip are new text for the text review.
 - **41.** **decide, S** – What the page shows when a stored `Enabled=false` stops
     every profile (L1380).
 - **42.** **doc/decide, S** – "Wayland Auto makes no request" disclaimer versus the
@@ -350,6 +406,10 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
 - **47.** **decide** – Flatpak app ID as its own field (L1136).
 - **48.** **impl/test** – Portable "Add from Window" (path below the library root as
     a pattern), export/import across users (L1352-1359).
+  **Done 2026-09-29, `aa7053b`, pushed:** a Steam game is stored by its folder in the
+  library and its path there, anything else by its file name in any folder, as
+  a regular expression; an exported entry matches another user's copy. Not
+  checked with two real accounts. Recorded in the slice and the handbook.
 - **49.** **impl** – Translate the catalogue notes (L514-516).
 - **50.** **test, F** – Real-session validation of the recommended values; TV
     (L1253, L1261, L1386).
@@ -368,25 +428,46 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   6.13; notices need `KAboutApplicationDialog`. Both need KXmlGui as a new
   build dependency of the settings module. Recorded in the slice.
 - **55.** **impl** – Notices audit; AMD shader entry in `debian/copyright` (L370).
+  **Done 2026-09-28, `0ac6bd1`, pushed.** Recorded in the slice.
 - **56.** **impl** – About access in settings: dialog, full hash, tag, offline
     notices (L371-375).
+  **Done 2026-09-28, `0ac6bd1`, pushed, except the settings page:** branch,
+  tag, full commit and the date's origin are fields, a source archive records
+  its provenance, the log gets the whole record, and the notices are installed
+  offline. Left for 56a.
+- **56a.** **decide** – Whether the settings page gets an About dialog with the
+  notices: `KAboutPluginDialog` and `KAboutApplicationDialog` need KXmlGui as a
+  new build dependency of the settings module (item 54). Found 2026-09-28.
 - **57.** **impl, S** – `website` metadata field (L927).
   **Closed 2026-09-28, not added:** no KWin effect declares a website, and a
   link to this repository would be project-specific in the plugin folder.
-  Jens may overrule.
+  **Reopened and done the same day, `0ac6bd1`, pushed:** that closure
+  contradicted Jens's decision of 2026-09-21 for the About page; `Website` and
+  `GPL-2.0-or-later` are in the metadata.
 - **58.** **test, S** – Incremental build-identity checks (L298-308).
+  **Done 2026-09-28, `51e56ff`, pushed, except in a session:** measured with Ninja; only
+  `buildinfo.cpp` recompiles, and a new commit reaches the binaries without
+  reconfiguring. The installed pair after an upgrade needs a session.
 - **59.** **test** – Package and source archive with and without the KCM (L352-355).
+  **Done 2026-09-28, `044a366`, pushed.** Recorded in the slice.
 - **60.** **test, S** – Transition-logging acceptance: no flooding, separate debug
     tracing, no environment dumps (L338-341, L383).
+  **Done 2026-09-28, `e31d3a7`, pushed:** implemented since #21; `logsTransitionsNotFrames`
+  requires sixty unchanged frames to log nothing. Recorded in the slice.
 - **61.** **impl** – Shortcut to toggle the displays (L385).
+  Needs Jens first: which displays one key toggles, and its default key.
 - **62.** **impl, S** – Heads-up wording: "native" only when sizes are equal, named
     resolutions only at exact sizes (L436-444).
   **Closed 2026-09-28:** done since #17 (`35b6a53`) and covered by two
   heads-up tests; the slice's note was stale.
 - **63.** **impl** – Lay the text out again when fonts change (L430-432).
+  **Done 2026-09-28, `439d625`, pushed;** what the platform theme reports after
+  a change in a real session goes with the hardware checks.
 - **64.** **test, S/F** – `kill -9` a game repeatedly, watch memory (L418-424).
 - **65.** **test, S** – Per-game display settings against the opposite global
     (L1144-1146).
+  **Closed 2026-09-28, `51e56ff`, pushed:** covered since #21 by
+  `perGameDisplaySettings`. Recorded in the slice.
 - **66.** **test, S** – 2026-09-27 display change: seven suites, Clang, neon, tidy
     and both pre-commit stages never finished; the machine went down during
     `upscale-x11-integration` (L522-530).
@@ -407,6 +488,8 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
 - **71.** **test, S** – A scaled frame on hardware: pixel comparison, `activeEffects`,
     fallback (L60-70, L316).
 - **72.** **test, S** – Lifecycle and fallback integration acceptance (L318).
+  **Done 2026-09-28, `51e56ff`, pushed:** the VM production test passed all eight cases on
+  KWin 6.3.6 with the OpenGL virtual backend. Recorded in the slice.
 - **73.** **test, S** – A0/A1 with phase-reversed repeats (L28-31, L570).
 - **74.** **test, F** – B–D cost matrix, real games, image quality, HDR (L320-323).
 - **75.** **decide, F** – VRR: HDMI-A-1 on wzpc reports adaptive sync incapable, the
@@ -414,6 +497,8 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
 - **76.** **impl** – Aspect ratio and integer scaling: specified, not implemented
     (L750-757).
 - **77.** **test** – PR #14 GLES combined-candidate validation still "pending" (L640).
+  **Closed 2026-09-28, `51e56ff`, pushed:** `allocationIgnoresEarlierErrors` passes in
+  both render suites in every full check run. Recorded in the slice.
 
 ## G. Wayland conformance – `slice-wayland-conformance.md`
 
@@ -444,11 +529,26 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
 
 - **86.** **impl** – Section 4: `.github/release.yml`, workflow summaries, SBOM, Pages
     (none exist).
+  **Done 2026-09-28 except Pages, `ffad4a7`, pushed:** categorized release notes, a
+  summary for every check job, and an SPDX SBOM in every release, validated
+  and attested. Pages is 86a. Recorded in the slice.
+- **86a.** **decide** – GitHub Pages for the handbook: turning it on is a
+  repository setting, and what the site holds and excludes follows from it.
 - **87.** **decide** – Release milestones (none exist).
 - **88.** **test** – Issue forms render and reject empty required fields on GitHub.
 - **89.** **impl** – Hook-update pull requests; failure notifications.
+  **Partly done 2026-09-28, `49cf326`, pushed:** `tools/update-hooks.py` proposes updates
+  every Monday in the run's summary, holding clang-format to 19 and never moving
+  a pin back. Left for 89a.
+- **89a.** **decide** – How the hook update opens its pull request: a PR made
+  with the run's own token starts no workflow, so it needs a GitHub App or a
+  fine-grained token as a secret, or a CI dispatch on its branch. And Jens's
+  notification settings for failed scheduled runs and security alerts, which
+  the CLI's token cannot read without the `notifications` scope.
 - **90.** **doc/investigate** – CodeQL ran once (2026-09-21, success); the document
     says never; findings not assessed.
+  **Done 2026-09-28, `51e56ff`, pushed:** analyses on 2026-09-21 and 2026-09-28 for all
+  three languages, no alert. Recorded in the slice.
 - **91.** **decide** – Non-provider secret patterns and validity checks.
 
 ## K. The documents themselves
@@ -456,6 +556,7 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
 - **92.** **doc** – Stale status sections in resolution control, application
     profiles, Proton, what the effect says and FSR; several still call #21
     pending.
+  **Done 2026-09-28, `51e56ff`, pushed:** a dated status paragraph heads each of the five.
 - **93.** **doc** – Application profiles: "four entries" (six ship), "six slots"
     (four since 2026-09-25).
   **Done 2026-09-28:** six shipped entries and four slots, corrected.

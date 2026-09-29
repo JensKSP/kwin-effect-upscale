@@ -969,3 +969,34 @@ installs, and it closes nothing in the supported scope. It does not join the
 current candidate's baseline: Jens's hardware acceptance sequence stays
 Wreckfest, Extreme Tux Racer, SuperTuxKart and Left 4 Dead 2 natively, and
 these experiments follow it.
+
+### A confined pointer cannot reach the whole game, 2026-09-29
+
+Found while checking real Wine input at scale 3 (item 29 of the open list), in
+the conformance machine: a Windows OpenGL program under Wine 10.0, asking for
+2560 × 1440 in exclusive fullscreen, through the session proxy, at 3840 × 2160
+and scale 3, presented by the effect over the whole output. A pointer device
+added by a small test plugin (`upscale_test_pointer`, kept with the probe under
+`build/wine-probe/` until a regression test uses it) moved to logical positions
+while the program logged every `WM_MOUSEMOVE`. (640, 360) arrived as
+(1280, 720) and (100, 50) as (200, 100), as the effect's mapping intends. Then
+Wine confined the pointer to its window, and Xwayland passed that on as a
+pointer constraint over the window's surface: 854 × 480 logical, the 2560 ×
+1440 pixels at scale 3. KWin 6.3.6 checks a confinement in the surface's own
+coordinates, `Window::mapToLocal()`, which subtracts the buffer's position and
+knows nothing of the effect's presentation, and it applies the check before any
+input filter. So the pointer stays in the top left 854 × 480 of the 1280 × 720
+screen: (1200, 700) did not move it, and (320, 540) moved it in x alone
+(arriving as 640, 100). Through the effect's mapping the program then receives
+at most two thirds of its range in each direction, and the right and bottom
+third of the game cannot be reached while it confines the pointer, which many
+fullscreen games do. A pointer lock, as mouse look uses, is handled already.
+
+The lasting fix is the one this slice already names for KWin: a per-window
+presentation transform that the input path honours, `mapToLocal()` and the
+constraint checks among it. Until then the effect has only workarounds, each
+with a cost: mapping one to one while the pointer is confined (the program
+gets its whole range, but the system cursor is drawn where KWin keeps it), or
+undoing KWin's confinement and clamping in the effect's own filter (KWin
+engages it again whenever the pointer is inside the small region). Which to
+take is Jens's decision (item 29a of the open list).
