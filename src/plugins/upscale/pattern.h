@@ -68,6 +68,18 @@ public:
      */
     QString problem() const;
 
+    /**
+     * What every value this pattern matches has after its last `/`, or an
+     * empty string where two matches can differ there.
+     *
+     * The list is indexed by it (see upscaleApplicationFor()). An exact field
+     * has its own. A regular expression has one only in the form the shipped
+     * entries and Add from Window write, `.*` and `/` and then literal text,
+     * because anything more, an alternative or a flag among it, can match
+     * values that end otherwise.
+     */
+    QString fixedLastComponent() const;
+
 private:
     QString m_text;
     UpscaleStringMatch m_match = UpscaleStringMatch::Exact;
