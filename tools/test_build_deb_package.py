@@ -28,8 +28,8 @@ class DifferencesTest(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         self.root = Path(directory.name)
 
-    def package(self, build: str, library: bytes) -> Path:
-        """Build a package holding a library and a document."""
+    def package(self, build: str, library: bytes, link: str = "upscale.so") -> Path:
+        """Build a package holding a library, a link to it and a document."""
         tree = self.root / build / "tree"
         (tree / "DEBIAN").mkdir(parents=True)
         (tree / "DEBIAN/control").write_text(
@@ -38,13 +38,14 @@ class DifferencesTest(unittest.TestCase):
         )
         (tree / "usr/lib").mkdir(parents=True)
         (tree / "usr/lib/upscale.so").write_bytes(library)
+        (tree / "usr/lib/current.so").symlink_to(link)
         (tree / "usr/share").mkdir(parents=True)
         (tree / "usr/share/notices.md").write_text("the same in both\n")
         # Built as the package is, from fixed times: two builds a second apart
         # otherwise record different times in their archives, which a slow
         # runner showed on 2026-09-29 where a fast machine never had.
         for path in [tree, *tree.rglob("*")]:
-            os.utime(path, (EPOCH, EPOCH))
+            os.utime(path, (EPOCH, EPOCH), follow_symlinks=False)
         package = self.root / build / "fixture_1_all.deb"
         subprocess.run(
             ["dpkg-deb", "--build", "--root-owner-group", str(tree), str(package)],
@@ -60,6 +61,23 @@ class DifferencesTest(unittest.TestCase):
         second = self.package("second", b"two")
         found = differences([first], [second], self.root / "scratch")
         self.assertEqual(found, ["fixture_1_all.deb: usr/lib/upscale.so"])
+
+    def test_a_link_that_points_elsewhere_is_named(self) -> None:
+        """A link differs by where it points, although no file's bytes do."""
+        first = self.package("first", b"one")
+        second = self.package("second", b"one", link="other.so")
+        found = differences([first], [second], self.root / "scratch")
+        self.assertEqual(found, ["fixture_1_all.deb: usr/lib/current.so"])
+
+    def test_a_package_one_build_lacks_is_named(self) -> None:
+        """A package only one build made is named, with the build that made it."""
+        first = self.package("first", b"one")
+        found = differences([first], [], self.root / "scratch")
+        self.assertEqual(found, ["fixture_1_all.deb: only in the first build"])
+        self.assertEqual(
+            differences([], [first], self.root / "scratch"),
+            ["fixture_1_all.deb: only in the second build"],
+        )
 
     def test_identical_builds_say_nothing(self) -> None:
         """Packages with the same bytes are not listed."""
