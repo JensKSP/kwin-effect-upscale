@@ -201,6 +201,13 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   the driver ships, and its session check waits for it; (b) the session check
   runs on real hardware with an AMD or Intel GPU, by hand; (c) build that pull
   request's module in the machine, which is no longer a standard installation.
+  **Decided by Jens 2026-09-29: (a).** FreeBSD keeps the nightly's install,
+  load and removal test in an emptied machine; its session check waits for the
+  virtio-gpu driver and stays open in the package slice.
+  **Kubuntu 26.04, Fedora 43 and openSUSE Tumbleweed arm64 passed
+  2026-09-29,** each machine made and checked under emulation, all nine steps,
+  with nightly 36545995686's arm64 packages. Every system and architecture but
+  FreeBSD has passed.
 
 - **2g.** **fix, S** – CodeRabbit asked for changes on #23 (review 5342421790
   at `74de7c8`), found 2026-09-28: five comments, each checked against the
@@ -347,6 +354,10 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   enlarged by the effect although no entry lists them, or connections with a
   fullscreen window are not shown the smaller screen. For the discussion at
   the end, with 18 to 20a.
+  **Decided by Jens 2026-09-29:** the prefix is one screen: every fullscreen
+  window of a prefix whose game is selected is sized to the game's screen and
+  presented by the effect, although no entry lists it. Now an implementation
+  item.
 - **15.** **fix, –** – Incoherent advertisement: `wl_output.mode` falsified beside a
     truthful `xdg_output`; recorded as a defect in shipped code, no fix
     recorded (L1363-1365, L1841-1851).
@@ -392,6 +403,11 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   screen instead leaves the pointer where KWin thinks the window is. Which one,
   and with which program to test it. The bench (19) found two: GLFW 3.4 with an
   undecorated window at the video mode's size, and Wine's Wayland driver.
+  **Decided by Jens 2026-09-29:** the effect draws such a window enlarged over
+  its output and maps the pointer over the whole output onto it, claiming
+  focus beside the window as it does for the X11 windows it presents; the
+  program keeps the size it asked for. Tested with GLFW 3.4 in the Wayland
+  session. Now an implementation item.
 - **19.** **test, –** – The seven-item Auto bench was never run (L1853-1886).
   **Done 2026-09-29, in the conformance machine:** the surface scale reaches
   GLFW 3.4, Godot 4.7 and SDL 3 with high pixel density, pointer landing where
@@ -406,6 +422,11 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
 - **19a.** **decide** – Whether Auto on Wayland enters the supported scope,
   which the handbook left to the bench; the bench is now run (19).
   Jens, 2026-09-29: Auto is not reached; to be discussed in detail later.
+  **Decided by Jens 2026-09-29:** Wayland Auto enters the supported scope for
+  the programs that follow either lever: SDL's exclusive fullscreen through
+  the told mode, GLFW, Godot and SDL 3 with high pixel density through the
+  surface scale. The handbook names what follows neither and how the status
+  reports it, and the bench cases are the scope's acceptance.
 - **20.** **investigate, F** – Six source-led investigations unticked: glmark2 X11,
     integer-scale reachability, ETR secondary output, SuperTux borderless and
     render cost, Wine/Proton D3D presentation (L1546-1634).
@@ -425,6 +446,10 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   measured entries are, or leave unlisted X11 programs alone.
   Jens, 2026-09-29: to be discussed with the other cases that do not work as
   wanted once the list is worked down; every one of them has to be solved.
+  **Decided by Jens 2026-09-29:** under All applications, the proxy tells
+  every unlisted X11 program the smaller screen when it connects, as it does
+  for measured entries, and the window resize follows as now. Now an
+  implementation item.
 - **21.** **decide, –** – `UserConfigured` method (L2253) versus the later "On/Off
     per presentation" plan (L3586-3588): which one stands.
   **Decided by Jens 2026-09-29:** On/Off per presentation stands and
@@ -587,6 +612,11 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   supported scope stays with 19a.
 - **43.** **decide** – 60 strings from the 2026-09-21 text review (L1350).
 - **44.** **decide → impl** – Text review batch 3 and the texts after it (L1360-1368).
+  **Decided by Jens 2026-09-29 for both:** the table of 2026-09-21 was never
+  saved and the texts have changed since, so every user-facing string is
+  extracted afresh from the source, grouped by where it appears, with a
+  proposed wording beside each, on a private review page where Jens accepts,
+  rejects or rewrites each one; his answers are applied and tested.
 - **45.** **decide** – Settings page layout, awaiting review in System Settings
     (L1284).
   **Approved by Jens 2026-09-29.** Closed.
