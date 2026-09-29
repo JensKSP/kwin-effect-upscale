@@ -15,11 +15,23 @@ ARG DEPENDENCY_EPOCH=local
 COPY debian/control /tmp/upscale/debian/control
 COPY tools/distribution_packages.py tools/distribution-packages.py /tmp/upscale/tools/
 WORKDIR /tmp
+# Everything comes from one host, download.opensuse.org, and libzypp takes an
+# HTTP error from it as final: on 2026-09-20 it refused the repository metadata
+# with 403 once, and the nightly's rerun built the image. So each step that
+# downloads is tried again after a pause, up to four times.
 RUN test -n "$DEPENDENCY_EPOCH" \
-    && zypper --non-interactive --gpg-auto-import-keys refresh \
-    && zypper --non-interactive install --no-recommends \
+    && fetch() { \
+        for pause in 30 60 120 -; do \
+            "$@" && return; \
+            [ "$pause" != - ] || return 1; \
+            echo "Trying again in $pause seconds: $*" >&2; \
+            sleep "$pause"; \
+        done; \
+    } \
+    && fetch zypper --non-interactive --gpg-auto-import-keys refresh \
+    && fetch zypper --non-interactive install --no-recommends \
         gcc-c++ git python3 rpm-build \
-    && zypper --non-interactive install --no-recommends \
+    && fetch zypper --non-interactive install --no-recommends \
         $(python3 -B /tmp/upscale/tools/distribution-packages.py opensuse) \
     && zypper clean --all
 
