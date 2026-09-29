@@ -62,6 +62,11 @@ struct UpscaleSnapshot
     // selects the entry before it has a window. An entry that also names the
     // window cannot, because it is not known to match until the window exists.
     bool advertisableAtStart = false;
+    // Whether the size told is the nearest the program can be told for the
+    // wish as it stands: a method that tells a scale moves a program only in
+    // whole steps of its output's own scale, so the size told can differ from
+    // the wish without the wish having changed.
+    bool nearestReachable = false;
     // A live X11 request is a window size, not a Wayland mode advertisement.
     QSize requested;
     QString requestFailure;

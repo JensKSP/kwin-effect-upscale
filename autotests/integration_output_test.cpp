@@ -169,6 +169,15 @@ void UpscaleIntegrationTest::anOutputVersionWithoutScaleIsLeftAlone()
         QVERIFY(current.initialize());
         QCOMPARE(current.advertisedMode(), QSize(64, 64));
         QCOMPARE(current.advertisedScale(), 1);
+        // Quality wishes 85 × 85, which a whole step cannot say; the report
+        // names the step as the nearest, not as a wish for the next start.
+        QSocketNotifier notifier(current.descriptor(), QSocketNotifier::Read);
+        connect(&notifier, &QSocketNotifier::activated, this, [&current]() {
+            current.dispatch();
+        });
+        QVERIFY(current.show(QSize(64, 64)));
+        QTRY_VERIFY2(status().contains(QStringLiteral("64 × 64 requested from Upscale integration test as its screen mode, the nearest to 85 × 85 it can be told")),
+                     qPrintable(status()));
     }
     WaylandClient old(1);
     QVERIFY(old.initialize());

@@ -393,49 +393,50 @@ static QString x11Presentation(const UpscaleSnapshot &snapshot)
 // What was asked of the game, and how: the first half of the "Desired" line.
 static QString wishText(const UpscaleSnapshot &snapshot)
 {
-    QString wish;
+    const QString name = snapshot.recognized.isEmpty() ? application(snapshot) : snapshot.recognized;
+    const QString width = QString::number(snapshot.desired.width);
+    const QString height = QString::number(snapshot.desired.height);
     if (snapshot.requested.isValid()) {
-        wish = i18n("%1 requested from %2 as its X11 window size", sizeText(snapshot.requested),
-                    snapshot.recognized.isEmpty() ? application(snapshot) : snapshot.recognized);
-    } else if (snapshot.scaleRequested > 0) {
+        return i18n("%1 requested from %2 as its X11 window size", sizeText(snapshot.requested), name);
+    }
+    if (snapshot.scaleRequested > 0) {
         // Asked of the window's surface, and like an advertisement only a
         // request: the committed input below says what the client did. Named
         // before an advertisement, because the surface is asked only where the
         // advertisement did not reach the window, so this is the request the
         // window is answering.
-        wish = i18n("%1 × %2 requested from %3 as its surface scale", QString::number(snapshot.desired.width),
-                    QString::number(snapshot.desired.height),
-                    snapshot.recognized.isEmpty() ? application(snapshot) : snapshot.recognized);
-    } else if (snapshot.advertised.isValid()) {
+        return i18n("%1 × %2 requested from %3 as its surface scale", width, height, name);
+    }
+    if (snapshot.advertised.isValid()) {
         // Advertised, not applied. The committed input below is the only
         // evidence of what the application actually did with it.
         //
         // An advertisement is said when the client starts and cannot be taken
         // back, so a wish that has moved on since is waiting for the next
         // start, and saying anything else would present a setting as a result.
-        const QString name = snapshot.recognized.isEmpty() ? application(snapshot) : snapshot.recognized;
+        // A method that tells a scale reaches only whole steps, so a size told
+        // that differs from the wish can also be the nearest step to it.
         const QString told = sizeText(snapshot.advertised);
         if (snapshot.preset == ResolutionPreset::Native) {
-            wish = i18n("Native from the next start; %1 was told %2 as its screen mode", name, told);
-        } else if (snapshot.advertised != QSize(snapshot.desired.width, snapshot.desired.height)) {
-            wish = i18n("%1 × %2 from the next start; %3 was told %4 as its screen mode",
-                        QString::number(snapshot.desired.width), QString::number(snapshot.desired.height), name, told);
-        } else {
-            wish = i18n("%1 requested from %2 as its screen mode", told, name);
+            return i18n("Native from the next start; %1 was told %2 as its screen mode", name, told);
         }
-    } else if (snapshot.preset == ResolutionPreset::Native) {
-        wish = i18n("Native (no request)");
-    } else if (upscaleIsAdvertisement(snapshot.method) && snapshot.advertisableAtStart) {
+        if (snapshot.advertised == QSize(snapshot.desired.width, snapshot.desired.height)) {
+            return i18n("%1 requested from %2 as its screen mode", told, name);
+        }
+        if (snapshot.nearestReachable) {
+            return i18n("%1 requested from %2 as its screen mode, the nearest to %3 × %4 it can be told", told, name, width, height);
+        }
+        return i18n("%1 × %2 from the next start; %3 was told %4 as its screen mode", width, height, name, told);
+    }
+    if (snapshot.preset == ResolutionPreset::Native) {
+        return i18n("Native (no request)");
+    }
+    if (upscaleIsAdvertisement(snapshot.method) && snapshot.advertisableAtStart) {
         // Nothing was said when this client started, and an advertisement can
         // be said only then.
-        wish = i18n("%1 × %2 from the next start of %3", QString::number(snapshot.desired.width),
-                    QString::number(snapshot.desired.height),
-                    snapshot.recognized.isEmpty() ? application(snapshot) : snapshot.recognized);
-    } else {
-        wish = i18n("Select %1 × %2 in the game",
-                    QString::number(snapshot.desired.width), QString::number(snapshot.desired.height));
+        return i18n("%1 × %2 from the next start of %3", width, height, name);
     }
-    return wish;
+    return i18n("Select %1 × %2 in the game", width, height);
 }
 
 // What the effect is doing with the window.
