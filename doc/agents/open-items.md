@@ -171,7 +171,10 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   **Fedora, openSUSE and Arch machines made 2026-09-29;** their checks wait for
   a nightly package of the current tree. **arm64 profiles added the same day**
   for Debian, Kubuntu, Fedora and openSUSE (Arch publishes no arm64 image),
-  emulated whole with virtio-gpu for the screen; not yet booted.
+  emulated whole with virtio-gpu for the screen; not yet booted. **The Debian
+  arm64 machine finished its first boot the same day** in 38 minutes, logged
+  in to Plasma's Wayland session on aarch64 with virtio-gpu offering
+  3840 × 2160; its package check waits for the nightly's arm64 package.
   **FreeBSD blocked, for Jens to decide (found 2026-09-29):** a Plasma Wayland
   session needs a DRM/KMS driver, and FreeBSD's drm-kmod drives Intel, AMD and
   NVIDIA hardware only. No QEMU display device has one: virtio-gpu KMS for
