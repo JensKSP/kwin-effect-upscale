@@ -506,6 +506,7 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   size to choose. The handbook's section on it and the slice's task go.
 - **22.** **test, F** – Physical acceptance: mixed resolutions and scales, output
     movement, input and confinement, TV (L2116-2125).
+  Listed as K13 in the [known limitations](slice-known-limitations.md).
 - **23.** **impl/test, F** – Proxy: Vulkan and presentation sync, overhead, container
     identity (Flatpak, Snap, Docker), BSD (L3308-3310, L3360-3363, L3487-3489).
   **Partly done 2026-09-29:** the overhead is measured (about 30 microseconds a
@@ -583,6 +584,7 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   effect presents. Prepared with the report of 2e; filing is Jens's call.
   **Proposal text prepared 2026-09-29** in the Proton slice, naming the places
   in KWin 6.3.6 that check without the presentation; filing is Jens's.
+  The limitation it would remove is K15 in the [known limitations](slice-known-limitations.md).
 - **30.** **test, S** – Wreckfest on wzpc through the proxy (L468-472, L925-927).
 - **31.** **test, S** – One Wine game outside Steam (L328-330).
 - **32.** **decide/impl** – Legacy Wine guards and the Helper1 path: remove or keep
@@ -608,6 +610,7 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
     `build/wzpc-clean-start-94a6804/` (L632-636).
 - **34.** **test/investigate, F** – Steam as Flatpak and Snap; the 09-27 analysis
     still reasons with the companion (L870-927).
+  Listed as K9 in the [known limitations](slice-known-limitations.md).
 - **35.** **impl, F** – Present Wine's Wayland driver (L313-319).
   **Reproduced 2026-09-29, not implemented:** under Wine 10.0's Wayland driver the
   window stays at the told 2560 × 1440 and the effect refuses it as not
@@ -616,8 +619,10 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   Recorded in the Proton slice. The bench (19) adds: the driver draws into a
   subsurface, which the effect refuses even at full size, with buffer heights
   rounded up to a multiple of 128.
+  Listed as K3 and K20 in the [known limitations](slice-known-limitations.md).
 - **36.** **test, F** – Every flavour × D3D9/11/12/OpenGL/Vulkan × exclusive/borderless
     (L169-174, L335-339).
+  Listed as K10 in the [known limitations](slice-known-limitations.md).
 - **37.** **doc** – Close the moot helper translation-domain question; owe the
     handbook update in proxy form (L575-579, L592).
   **Closed 2026-09-28, `51e56ff`, pushed:** moot since the companion left the default
@@ -712,6 +717,7 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   claimed it, asked it for 2560 × 1440 and got that buffer; it was not
   enlarged only because the machine's screen had locked while idle. Left: the
   same with a build that has 47, the X11 route through the proxy, and Snap.
+  Its remainder is listed as K9 in the [known limitations](slice-known-limitations.md).
 - **52.** **decide** – Submitted applications: ship unverified submissions? credit?
     scale? (L1681)
   **Decided by Jens 2026-09-29:** accepted submissions ship active, with their

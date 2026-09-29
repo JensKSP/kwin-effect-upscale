@@ -63,6 +63,7 @@ not imply that already implemented diagnostics or resolution control are absent.
 | Obtaining original smaller game buffers | [Resolution control](slice-resolution-control.md) |
 | Upstream Wayland compatibility and production scaling in the VM | [Wayland conformance](slice-wayland-conformance.md) |
 | Wine and Proton games that ignore resizing, given a smaller screen for their prefix | [Proton smaller screen](slice-proton-smaller-screen.md) |
+| Where a buffer is not made smaller, the picture is not right or the pointer is not where the picture is, one case at a time | [Known limitations](slice-known-limitations.md) |
 | Validated package and release publication | [Build and release pipeline](slice-build-release-pipeline.md) |
 | How the pipeline is composed, named and paid for | [Pipeline modules](slice-pipeline-modules.md) |
 | Every package in a standard installation of its system | [Package machines](slice-package-machines.md) |
