@@ -1000,3 +1000,25 @@ gets its whole range, but the system cursor is drawn where KWin keeps it), or
 undoing KWin's confinement and clamping in the effect's own filter (KWin
 engages it again whenever the pointer is inside the small region). Which to
 take is Jens's decision (item 29a of the open list).
+
+### Wine's Wayland driver, reproduced, 2026-09-29
+
+Item 35 of the open list, first by observation rather than from Wine's source.
+The same Windows OpenGL probe under Debian's Wine 10.0 with the prefix's
+graphics driver set to `wayland`, in the conformance machine at 3840 × 2160 and
+scale 1, with an entry naming Wine's loader and AdvertisedMode on the Wayland
+fullscreen slot. Wine heard the 2560 × 1440 mode at bind, its screen was 2560 ×
+1440 and so was its window, which stayed fullscreen. The effect refused it:
+"the window does not exactly cover its output", with a supplied buffer of
+2560 × 1536, taller than the surface Wine reports, where the X11 path presents
+the same program over the whole output. Two findings on the way: Wine 10.0's
+Wayland driver locks the pointer for a fullscreen window without checking that
+the seat has one, and dies on a seat without a pointer (`lock_pointer` with a
+null `wl_pointer`), which KWin's virtual backend is until a pointer device is
+added; and the probe and its runner stay scratch under `build/wine-probe/`.
+
+Presenting it needs what the X11 path has and the Wayland path lacks: drawing a
+fullscreen window whose surface is smaller than its output over the whole
+output, with the viewport's source rather than the buffer's size, and mapping
+the pointer onto the smaller surface, which on Wayland meets the same unscaled
+constraint check as the confined pointer above. Not implemented yet.
