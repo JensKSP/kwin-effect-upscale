@@ -36,7 +36,8 @@ namespace UpscaleX11
  *
  *     flatpak://net.supertuxkart.SuperTuxKart/app/bin/supertuxkart
  *
- * Other containers, `docker://<container>/usr/bin/game`, are left open. One
+ * A program of the runtime, outside /app, keeps its path, as the effect names
+ * it. Other containers, `docker://<container>/usr/bin/game`, are left open. One
  * pattern can therefore single out every program of a runtime, one program
  * wherever it is installed, or one program in one place.
  *

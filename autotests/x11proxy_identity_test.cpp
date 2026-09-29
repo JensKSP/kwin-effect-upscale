@@ -118,6 +118,10 @@ void candidates()
               == QStringList{QStringLiteral("flatpak://net.supertuxkart.SuperTuxKart/app/bin/supertuxkart"),
                              QStringLiteral("/app/bin/supertuxkart")},
           "a Flatpak program by its application first");
+    ProgramIdentity runtime = sandboxed;
+    runtime.executable = QStringLiteral("/usr/bin/xdg-open");
+    runtime.program = runtime.executable;
+    check(runtime.candidates() == QStringList{QStringLiteral("/usr/bin/xdg-open")}, "a runtime's program keeps its path");
 }
 
 // Flatpak describes a sandbox as a key file at its root, as it did for

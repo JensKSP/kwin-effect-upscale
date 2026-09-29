@@ -94,7 +94,9 @@ QStringList ProgramIdentity::candidates() const
     QString named = program;
     if (isWine()) {
         named = upscaleRuntimeIdentity(u"wine", prefix, program);
-    } else if (!flatpak.isEmpty()) {
+    } else if (!flatpak.isEmpty() && program.startsWith(QLatin1String("/app/"))) {
+        // As the effect names it: a program of the runtime, outside /app,
+        // keeps its path, and an exact pattern for it matches either way.
         named = upscaleRuntimeIdentity(u"flatpak", flatpak, program);
     }
     for (const QString &candidate : {named, executable}) {
