@@ -229,14 +229,14 @@ void UpscaleProductionTest::ignoredRequestIsRestored()
     Window *window = Test::renderAndWaitForShown(surface.get(), pattern(QSize(384, 216)));
     QVERIFY(window);
     QTRY_VERIFY(Test::waylandSync() && fractional->preferredScale() == 80);
-    for (int frame = 0; frame < 45; ++frame) {
-        // A frame is one the compositor presented, not a stretch of time.
-        QSignalSpy rendered(workspace()->outputs().first()->renderLoop(), &RenderLoop::framePresented);
-        Test::render(surface.get(), pattern(QSize(384, 216)));
-        QVERIFY(Test::waylandSync());
-        QVERIFY(rendered.wait());
-    }
-    QTRY_VERIFY(Test::waylandSync() && fractional->preferredScale() == 120);
+    // The client keeps drawing at full size, ignoring the scale, until the
+    // effect takes its request back, after thirty presented frames of patience
+    // (patienceInFrames in waylandscale.cpp). What is waited for is that, not a
+    // presented frame for every commit: once in five runs on 2026-09-29 a
+    // commit was followed by no presented frame within five seconds.
+    QSignalSpy presented(workspace()->outputs().first()->renderLoop(), &RenderLoop::framePresented);
+    QTRY_VERIFY_WITH_TIMEOUT((Test::render(surface.get(), pattern(QSize(384, 216))), Test::waylandSync() && fractional->preferredScale() == 120), 30000);
+    QVERIFY2(presented.count() >= 30, qPrintable(QString::number(presented.count())));
     QVERIFY(!status().contains(QStringLiteral("scaling=1")));
     QCOMPARE(window->windowItem()->surfaceItem()->bufferSize(), QSize(384, 216));
 }
@@ -335,12 +335,11 @@ void UpscaleProductionTest::windowedClientIsUnchanged()
     auto shell = Test::createXdgToplevelSurface(surface.get());
     Window *window = Test::renderAndWaitForShown(surface.get(), pattern(QSize(160, 90)));
     QVERIFY(window);
-    // A frame presented with the window in it, committed again so that one
+    // A frame presented with the window in it, committed again until one
     // follows: the effect has looked at the window, and whatever it asked of
     // the client has arrived after the sync.
     QSignalSpy rendered(workspace()->outputs().first()->renderLoop(), &RenderLoop::framePresented);
-    Test::render(surface.get(), pattern(QSize(160, 90)));
-    QVERIFY(rendered.wait());
+    QTRY_VERIFY((Test::render(surface.get(), pattern(QSize(160, 90))), !rendered.isEmpty()));
     QVERIFY(Test::waylandSync());
     QCOMPARE(fractional->preferredScale(), 120);
     QCOMPARE(window->frameGeometry().size(), QSizeF(160, 90));
@@ -357,12 +356,11 @@ void UpscaleProductionTest::nativeBufferBypassesScaling()
     });
     Window *window = Test::renderAndWaitForShown(surface.get(), pattern(QSize(384, 216)));
     QVERIFY(window);
-    // A frame presented with the window in it, committed again so that one
+    // A frame presented with the window in it, committed again until one
     // follows: the effect has looked at the window, and whatever it asked of
     // the client has arrived after the sync.
     QSignalSpy rendered(workspace()->outputs().first()->renderLoop(), &RenderLoop::framePresented);
-    Test::render(surface.get(), pattern(QSize(384, 216)));
-    QVERIFY(rendered.wait());
+    QTRY_VERIFY((Test::render(surface.get(), pattern(QSize(384, 216))), !rendered.isEmpty()));
     QVERIFY(Test::waylandSync());
     QVERIFY2(status().contains(QStringLiteral("scaling=0")), qPrintable(status()));
     QCOMPARE(window->windowItem()->surfaceItem()->bufferSize(), QSize(384, 216));
