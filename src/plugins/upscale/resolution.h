@@ -106,6 +106,36 @@ inline UpscaleSizing upscaleSizing(UpscaleSize input, UpscaleSize output)
     return difference <= 0.5 * (double(output.width) + output.height) ? UpscaleSizing::Supported : UpscaleSizing::AspectRatio;
 }
 
+/**
+ * Whether two edges in logical coordinates fall on the same device pixel.
+ *
+ * Logical geometry is fractional whenever the output's scale is. A 3840 x 2160
+ * output at scale 1.45 is 2648.28 x 1489.66 logical, and a client can only ever
+ * commit whole pixels, so no window can equal that rectangle exactly. Comparing
+ * the two as they stand therefore refuses a window that covers the screen
+ * completely.
+ *
+ * The question is settled where the answer is defined, in the device pixels the
+ * scaler reads and writes. Two edges that round to the same pixel cover the same
+ * pixel, and nothing finer than a pixel can be drawn differently.
+ */
+inline bool upscaleSamePixel(double first, double second, double scale)
+{
+    // Within one device pixel, rather than rounding each side and comparing.
+    // Rounding on its own is not enough: two edges a fraction of a pixel apart
+    // can still fall either side of a rounding boundary. At scale 1.45,
+    // logical heights of 1490.3 and 1489.7 differ by less than one device
+    // pixel but round to different integers.
+    //
+    // One pixel exactly is common, and the arithmetic that finds it lands a
+    // hair either side of one: at scale 2.7 an output 3840 pixels wide is
+    // 1422.22 logical, a fullscreen client makes its window 1422, which KWin
+    // places at 3839 pixels, 1421.85 logical, and the difference comes back
+    // as 1.0000000000002 (SuperTuxKart refused on Kubuntu 26.04, 2026-09-29).
+    // A millionth of a pixel is room for that and nothing a screen can show.
+    return std::abs(first - second) * scale <= 1.0 + 1e-6;
+}
+
 inline bool canUpscale(UpscaleSize input, UpscaleSize output)
 {
     return upscaleSizing(input, output) == UpscaleSizing::Supported;

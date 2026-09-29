@@ -44,6 +44,18 @@ int main()
     assert((desiredResolution({101, 101}, ResolutionPreset::Custom, 5000) == UpscaleSize{51, 51}));
     assert((desiredResolution(output, ResolutionPreset::Custom, -1) == UpscaleSize{1920, 1080}));
     assert((desiredResolution(output, ResolutionPreset::Custom, 99999) == output));
+    // A window covers its output when every edge falls within one device
+    // pixel of the output's: one pixel exactly at scale 2.7, where a window
+    // of 1422 logical is placed at 3839 pixels of 3840, and at 1.35 and 1.8;
+    // less than one at 1.45; two is a window that does not cover.
+    assert(upscaleSamePixel(3839.0 / 2.7, 3840.0 / 2.7, 2.7));
+    assert(upscaleSamePixel(3839.0 / 1.35, 3840.0 / 1.35, 1.35));
+    assert(upscaleSamePixel(3839.0 / 1.8, 3840.0 / 1.8, 1.8));
+    assert(upscaleSamePixel(1490.3, 1489.7, 1.45));
+    assert(upscaleSamePixel(0.0, 0.0, 3.0));
+    assert(!upscaleSamePixel(3838.0 / 2.7, 3840.0 / 2.7, 2.7));
+    assert(!upscaleSamePixel(1420.0, 1422.0, 1.0));
+    assert(!upscaleSamePixel(1421.0, 1422.0, 1.01));
     assert(canUpscale({1920, 1080}, output));
     assert(canUpscale({2560, 1440}, output));
     assert(canUpscale({2259, 1271}, output));
