@@ -2,12 +2,15 @@
 # SPDX-License-Identifier: CC0-1.0
 
 # Once a week, which pre-commit hooks have a newer version, as the run's
-# summary. tools/update-hooks.py is the one updater of .pre-commit-config.yaml,
-# and it keeps clang-format on the major version Debian Trixie ships.
+# summary and as a pull request. tools/update-hooks.py is the one updater of
+# .pre-commit-config.yaml, and it keeps clang-format on the major version Debian
+# Trixie ships.
 #
-# It proposes and does not open a pull request: one opened with this run's
-# token would start no workflow, so the required checks would never run on it.
-# How it gets a token that does is the maintainer's decision.
+# A pull request opened with this run's token starts no workflow, so the run
+# dispatches CI on the pull request's branch itself, and the checks land on its
+# commit (decided by Jens on 2026-09-29, item 89a of the open list). Each week's
+# branch is new and named for its day, and none is opened while an earlier one
+# is still open, so nothing is ever pushed over.
 
 name: Hook updates
 
@@ -28,6 +31,10 @@ jobs:
     name: Propose hook updates
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -36,10 +43,45 @@ jobs:
         # The version the check images carry.
         run: pipx install pre-commit==4.6.2
       - name: Propose the newest versions
+        id: propose
         run: |
+          python3 -B tools/update-hooks.py > "$RUNNER_TEMP/moved.md"
           {
             echo "### Hook updates"
             echo
-            python3 -B tools/update-hooks.py
+            cat "$RUNNER_TEMP/moved.md"
           } >> "$GITHUB_STEP_SUMMARY"
           git diff -- .pre-commit-config.yaml
+          if git diff --quiet -- .pre-commit-config.yaml; then
+            echo "moved=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "moved=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Open the pull request and run CI on it
+        if: steps.propose.outputs.moved == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          open=$(gh pr list --state open --json headRefName \
+            --jq '[.[] | select(.headRefName | startswith("hook-updates-"))] | length')
+          if [ "$open" != 0 ]; then
+            echo "An earlier hook update is still open; nothing new is opened." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          branch="hook-updates-$(date -u +%Y-%m-%d)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git commit -F - -- .pre-commit-config.yaml <<EOF
+          ci: Move the pre-commit hooks to their newest versions
+
+          Proposed by the weekly hook update; clang-format stays held to the
+          major version Debian Trixie ships.
+
+          $(cat "$RUNNER_TEMP/moved.md")
+          EOF
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$branch"
+          gh pr create --head "$branch" --base "$GITHUB_REF_NAME" \
+            --title "ci: Move the pre-commit hooks to their newest versions" \
+            --body-file "$RUNNER_TEMP/moved.md"
+          gh workflow run ci.yml --ref "$branch"
