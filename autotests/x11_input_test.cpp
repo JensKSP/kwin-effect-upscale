@@ -12,6 +12,7 @@
 
 #include <QDBusConnection>
 #include <QDBusInterface>
+#include <QMap>
 #include <QSaveFile>
 #include <QScopeGuard>
 #include <QTest>
@@ -265,13 +266,21 @@ void UpscaleX11IntegrationTest::movesThePointerOverAHiddenTitleBar()
 {
     const KSharedConfig::Ptr config = KSharedConfig::openConfig(QStringLiteral("kwinrc"));
     KConfigGroup decoration(config, QStringLiteral("org.kde.kdecoration2"));
+    // Put back as found afterwards, a key that was absent staying absent.
+    const QMap<QString, QString> before = decoration.entryMap();
     decoration.writeEntry("library", "org.kde.kwin.aurorae");
     decoration.writeEntry("theme", "kwin4_decoration_qml_plastik");
     config->sync();
     QDBusInterface kwin(QStringLiteral("org.kde.KWin"), QStringLiteral("/KWin"), QStringLiteral("org.kde.KWin"),
                         QDBusConnection::sessionBus());
     const auto restore = qScopeGuard([&] {
-        decoration.deleteGroup();
+        for (const QString &key : {QStringLiteral("library"), QStringLiteral("theme")}) {
+            if (before.contains(key)) {
+                decoration.writeEntry(key, before.value(key));
+            } else {
+                decoration.deleteEntry(key);
+            }
+        }
         config->sync();
         kwin.call(QStringLiteral("reconfigure"));
     });
