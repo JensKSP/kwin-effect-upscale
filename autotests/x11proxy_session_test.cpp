@@ -158,21 +158,20 @@ int ProxySessionTest::connectClient(QSize &size)
     }
     // The relay runs in this thread, so the answer is awaited without
     // blocking it.
-    QByteArray reply;
+    SetupReply reply{};
+    std::size_t received = 0;
     const auto answered = [&]() {
-        char data[80];
-        const ssize_t count = recv(client, data, sizeof(data) - static_cast<std::size_t>(reply.size()), MSG_DONTWAIT);
+        const ssize_t count = recv(client, reply.data() + received, reply.size() - received, MSG_DONTWAIT);
         if (count > 0) {
-            reply.append(data, count);
+            received += static_cast<std::size_t>(count);
         }
-        return reply.size() == 80;
+        return received == reply.size();
     };
     if (!QTest::qWaitFor(answered, 5000)) {
         close(client);
         return -1;
     }
-    const UpscaleX11::Wire wire;
-    size = QSize(wire.word(reply, 60), wire.word(reply, 62));
+    size = rootSize(reply);
     return client;
 }
 
