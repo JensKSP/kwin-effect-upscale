@@ -889,9 +889,9 @@ the module's unsaved state. Information is selectable and copyable, with a
 **Copy build information** action for reporting a particular build.
 
 The current generator runs on every build invocation, refreshes the timestamp
-each time and records an abbreviated revision in snapshot versions. The
-independent full hash, the branch or tag of a source archive and the complete
-About/notices record below remain requirements, not implemented claims.
+each time and records an abbreviated revision in snapshot versions, alongside
+the independent full hash and known source-archive branch and tag. The complete
+About presentation and notices viewer below remain requirements.
 
 #### Required identity fields
 
@@ -2394,7 +2394,7 @@ in the others or in the game's internal 3D rendering. Some games cache display
 modes before their first window appears; determine whether a launch-time
 mechanism or restart is necessary before claiming automatic control.
 
-For native Wayland, the effect has two levers, and
+For native Wayland, the effect has three ways to request smaller buffers, and
 [selecting the resolution control method](#selecting-the-resolution-control-method)
 describes what each profile slot does with them. The first is an advertisement
 made when a recognized client binds the output: a smaller current mode, a
@@ -2402,19 +2402,22 @@ smaller scale, or both, which is what SDL's exclusive fullscreen sizes its
 buffer from. The second, used by Auto once the window exists, is a preferred
 fractional surface scale for a surface still drawing at full size: it can
 request fewer buffer pixels while preserving fullscreen logical geometry and
-input coordinates, and it can be taken back. Both are client hints, not
-enforcement. A client that binds neither `wl_output` nor
-`wp_fractional_scale_manager_v1` is out of reach of both, and a client that
-honours a hint may still render its scene at full size and shrink only the
+input coordinates, and it can be taken back. The third is a smaller fullscreen
+configure: Auto uses it when the scale hint is ignored, or before the first
+buffer at desktop scale one for clients without fractional scaling. All are
+client requests, not enforcement. A client that
+honours a request may still render its scene at full size and shrink only the
 result, so a smaller committed buffer is not by itself proof of a cheaper
 frame. The request is expressed relative to logical surface dimensions,
 accounting for desktop scale. Changing only `wl_output` mode information is
 insufficient to establish a coherent override: clients also receive logical
 output geometry, surface scale and fullscreen configure events. An
 implementation must keep these consistent and restore KWin's normal policy
-after deactivation or output changes. The implemented advertisement does not
-meet this yet: it rewrites only the `wl_output` mode and scale, and
-`xdg_output` still reports the output's true logical size.
+after deactivation or output changes. The advertisement sends a mode-consistent
+`xdg_output` logical size and restores KWin's logical size on withdrawal.
+Auto can also request smaller fullscreen geometry when the scale hint is
+ignored; the effect presents that geometry over the output and maps pointer
+coordinates back to the content.
 
 For Xwayland, the game queries the X server, which shares a Wayland connection
 across X11 applications. Rewriting that connection's output information is not

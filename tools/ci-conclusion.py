@@ -38,16 +38,21 @@ def state(runs: list[dict[str, str]]) -> str:
 
 def runs_of(repository: str, commit: str) -> list[dict[str, str]]:
     """Ask GitHub for the CI runs of a commit: a handful, well within one page."""
-    answer = subprocess.run(
-        [
-            "gh",
-            "api",
-            f"repos/{repository}/actions/workflows/ci.yml/runs?head_sha={commit}&per_page=100",
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        answer = subprocess.run(
+            [
+                "gh",
+                "api",
+                f"repos/{repository}/actions/workflows/ci.yml/runs?head_sha={commit}&per_page=100",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired as error:
+        message = "GitHub did not list the runs: the API request timed out"
+        raise RuntimeError(message) from error
     if answer.returncode:
         message = f"GitHub did not list the runs: {answer.stderr.strip()}"
         raise RuntimeError(message)

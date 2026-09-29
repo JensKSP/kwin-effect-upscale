@@ -550,3 +550,10 @@ provider secret scanning, push protection, Dependabot security updates and
 private vulnerability reporting report enabled. Non-provider patterns and
 validity checks remain disabled. Auto-merge availability and merged-branch
 deletion report enabled; these settings do not authorize an agent to merge.
+
+PR #23 review follow-up, 2026-09-29: the CI lookup now reports a stalled GitHub
+API call as a timeout after 120 seconds. Weekly hook updates use GitHub CLI's
+credential helper instead of a token in the push URL. Both hook stages passed
+in maintained Trixie, including workflow validation and the API-timeout
+regression (`build/wayland-auto-check/review-lint2.log`). The scheduled
+workflow itself was not dispatched as part of this correction.

@@ -104,6 +104,7 @@ public:
     /** What this keeps per window or program; see UpscaleEffect::records(). */
     QString records() const
     {
+#if KWIN_BUILD_X11
         return QStringLiteral("x11PendingMaps=%1 x11Negotiations=%2 x11Requests=%3 x11Watched=%4 x11Scheduled=%5 ")
                    .arg(m_pendingMaps.size())
                    .arg(m_negotiations.size())
@@ -115,6 +116,9 @@ public:
                   .arg(m_withdrawals.size())
                   .arg(m_overdue.size())
                   .arg(m_releases.size());
+#else
+        return {};
+#endif
     }
     QString failure(const Window *window) const;
     /** Who is enlarging this window's buffer to the output right now. */

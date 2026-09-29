@@ -310,7 +310,14 @@ def wait_for_first_boot(machine: Machine, deadline: float) -> None:
         # Done, with warnings, which are printed for the record: Fedora's
         # cloud-init warns that it could not set the hostname before D-Bus ran,
         # and sets it a stage later (2026-09-29).
-        run(*ssh(machine, "sudo", "cloud-init", "status", "--long"))
+        try:
+            subprocess.run(
+                ssh(machine, "sudo", "cloud-init", "status", "--long"),
+                check=False,
+                timeout=max(0.001, deadline - time.monotonic()),
+            )
+        except subprocess.TimeoutExpired:
+            print("The cloud-init diagnostic exceeded the boot deadline.", file=sys.stderr)
     elif finished:
         sys.exit(f"The machine's first boot failed; see {log}.")
     # The session may still be starting once the first boot is done.

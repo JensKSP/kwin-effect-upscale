@@ -14,7 +14,14 @@ from pathlib import Path
 from unittest import mock
 
 import yaml
-from virtual_machine import expected_sum, reached, ssh, user_data
+from virtual_machine import (
+    CLOUD_INIT_RECOVERABLE,
+    expected_sum,
+    reached,
+    ssh,
+    user_data,
+    wait_for_first_boot,
+)
 
 SCRIPT = runpy.run_path(str(Path(__file__).with_name("conformance-vm.py")))
 in_test_image = SCRIPT["in_test_image"]
@@ -135,6 +142,26 @@ class DeadlineTest(unittest.TestCase):
         with mock.patch("subprocess.run", answered), mock.patch("time.sleep") as pause:
             self.assertTrue(reached(CONFORMANCE, time.monotonic() + 30, "true"))
         pause.assert_not_called()
+
+    def test_cloud_init_diagnostic_is_bounded_and_best_effort(self) -> None:
+        """Warnings and a stuck diagnostic cannot prevent the final readiness check."""
+        for result in (CLOUD_INIT_RECOVERABLE, subprocess.TimeoutExpired("ssh", 1)):
+            with self.subTest(result=result):
+                diagnostic = mock.Mock(
+                    side_effect=result if isinstance(result, Exception) else None,
+                    return_value=subprocess.CompletedProcess([], CLOUD_INIT_RECOVERABLE),
+                )
+                with (
+                    mock.patch("virtual_machine.reached", return_value=True) as ready,
+                    mock.patch(
+                        "virtual_machine.cloud_init_done", return_value=CLOUD_INIT_RECOVERABLE
+                    ),
+                    mock.patch("subprocess.run", diagnostic),
+                ):
+                    wait_for_first_boot(CONFORMANCE, time.monotonic() + 30)
+                self.assertEqual(ready.call_count, 2)
+                self.assertGreater(diagnostic.call_args.kwargs["timeout"], 0)
+                self.assertLessEqual(diagnostic.call_args.kwargs["timeout"], 30)
 
 
 if __name__ == "__main__":

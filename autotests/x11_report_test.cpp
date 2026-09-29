@@ -41,6 +41,7 @@ void UpscaleX11IntegrationTest::reportsWhatItObserved()
     QCOMPARE(facts.value(QStringLiteral("method")).toString(), QStringLiteral("X11Resize"));
     QCOMPARE(facts.value(QStringLiteral("supplied")).toString(), QStringLiteral("1920x1080"));
     QCOMPARE(facts.value(QStringLiteral("destination")).toString(), QStringLiteral("3840x2160"));
+    QCOMPARE(facts.value(QStringLiteral("output")).toString(), QStringLiteral("Virtual-0"));
     // The program is this test, which the window names as its own.
     QVERIFY2(facts.value(QStringLiteral("executable")).toString().endsWith(QLatin1String("/upscale_x11_integration_test")),
              qPrintable(facts.value(QStringLiteral("executable")).toString()));

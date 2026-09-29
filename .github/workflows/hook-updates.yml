@@ -80,7 +80,8 @@ jobs:
 
           $(cat "$RUNNER_TEMP/moved.md")
           EOF
-          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$branch"
+          gh auth setup-git
+          git push "https://github.com/${GITHUB_REPOSITORY}.git" "$branch"
           gh pr create --head "$branch" --base "$GITHUB_REF_NAME" \
             --title "ci: Move the pre-commit hooks to their newest versions" \
             --body-file "$RUNNER_TEMP/moved.md"
