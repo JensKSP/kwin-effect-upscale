@@ -337,31 +337,36 @@ behaves as without it.
 
 ## Gates
 
+Replaced by Jens's decision of 2026-09-29 (item 25 of the open list): the gates
+below are the proxy route's, which replaced the prefix companion on 2026-09-25.
+The companion's gates and acceptance criteria are in Git history.
+
 - **Supported scope:** Wreckfest (DXVK D3D11, exclusive fullscreen) with Proton
-  Experimental 11 on Debian Trixie's KWin 6.3.6, and one game under Wine outside
-  Steam: the question, the restart, a W × H buffer upscaled across the output
-  with working input, and a clean undo from the settings page. The status names
-  every flavour not yet verified. A game that renders at a size of its own
-  whatever its screen offers is outside this scope, and the helper takes its own
-  preparation back for it.
-- **Full acceptance:** every flavour listed under the additions, including
-  Flatpak and Snap installs and Wine's Wayland driver, across the handbook's
+  Experimental on Debian Trixie's KWin 6.3.6 through its shipped entry, and one
+  game under Wine outside Steam. Each is launched normally, with no question,
+  no restart and no write to its prefix, and supplies a W × H buffer upscaled
+  across the output, with input working, a confined pointer included (item
+  29a); the status names the program, and switching its slot Off in the settings
+  gives it the full size at its next start.
+- **Full acceptance:** every flavour listed under the
+  [additions](#additions-laid-down-by-jens-2026-09-22), Flatpak and Snap
+  installs of Steam and Wine's Wayland driver included, across the handbook's
   matrix (D3D9, D3D11, D3D12, OpenGL, Vulkan; exclusive and borderless) on real
-  hardware, with automated tests for the prefix check, the write and the undo,
-  and the X11 path's pinned presentation.
+  hardware, with automated tests for the program's identity (Unix paths, drive
+  mapping, the prefix's hold), its presentation and its input mapping.
 
 ## Acceptance criteria
 
-- The companion refuses every mismatch in [locating the prefix](#locating-the-prefix),
-  each covered by a test with a fabricated prefix and environment.
-- No write happens without a yes, while the game's Wine server runs, or into a
-  prefix whose `Desktop` value the user set.
-- After *Restart game and apply*, the game restarts through Steam and supplies
-  W × H; the effect shows it fullscreen and upscaled.
-- Reset from the settings page restores the prefix byte for byte except the two
-  keys, and the next start is at full size.
-- A prefix that has not described its own devices yet, or whose programs run in a
-  virtual desktop of the user's, is refused rather than written.
+- A Wine or Proton program is identified by the program path Wine names, from
+  a Windows path or a Unix one, on the prefix's drives, each shape covered by a
+  test.
+- A prefix's connections wait for its program at most ten seconds, and one
+  whose program matches no entry is answered unchanged.
+- The program an entry names is told the smaller screen at its connection,
+  renders at it, and is presented over the whole output with its pointer
+  mapped; one it does not name keeps the screen as it is.
+- Switching the entry's slot Off, or the effect off, gives the next start the
+  full screen; nothing is written to a prefix at any point.
 
 ## The experiment that ran, 2026-09-23
 
@@ -1001,6 +1006,38 @@ undoing KWin's confinement and clamping in the effect's own filter (KWin
 engages it again whenever the pointer is inside the small region). Which to
 take is Jens's decision (item 29a of the open list).
 
+Decided by Jens on 2026-09-29: propose the KWin change upstream (item 29b), and
+map one to one while confined on KWin versions without it. The second half is
+implemented: while a presented surface's confinement is engaged,
+`UpscaleX11Input` passes positions and relative motion with scale one, so the
+program reaches its whole window and a system cursor, where one is shown, is
+drawn where KWin keeps it. `aConfinedPointerReachesTheWholeWindow`, in the
+scale-3 session, confines the pointer with the cursor shown as Wine does and
+receives 1800 × 1050 at that point of the output, where the old mapping gave
+900 × 525. With real Wine 10.0 in the machine, the same OpenGL probe at scale 3
+through the proxy, confined by Wine: the test pointer at logical (640, 360),
+(100, 50) and (850, 475) arrived as (1920, 1080), (300, 150) and
+(2550, 1425), the last its window's lower right, which before the change
+could not be reached beyond about (1706, 960). A position outside the
+confinement is dropped by KWin for this absolute test device, where a real
+mouse's relative motion stops at the edge; input on a real display is checked
+with Jens (supported scope, item 94a).
+
+Under KWin 6.6.6 and Xwayland 24.1.10 of Kubuntu 26.04 the case first waited in
+vain: Xwayland asked for a lock, not a confinement. A window that sets no cursor
+of its own, as the test client's did, counts there as one that hides the
+cursor, and a grab with the cursor hidden is mouse look to Xwayland
+(`xwl_seat_maybe_lock_on_hidden_cursor`); Trixie's 24.1.6 under KWin 6.3.6
+confined the same window. Wine always sets a game's cursor on its window, so the
+test client now does too, with the arrow of the server's cursor font, and
+Xwayland confines under both: the case passes on 6.3.6 and 6.6.6. The case also
+showed a race in the X11 session's `movePointer`, which returned before the
+driver in KWin had read the request: a window that mapped under the pointer
+got its crossing from the X server alone, the next case's wait for motion was
+already met, and its next move replaced the unread one. `movePointer` now
+waits until the driver has taken the request, as the prepared session's
+`request()` did already.
+
 ### Wine's Wayland driver, reproduced, 2026-09-29
 
 Item 35 of the open list, first by observation rather than from Wine's source.
@@ -1022,3 +1059,23 @@ fullscreen window whose surface is smaller than its output over the whole
 output, with the viewport's source rather than the buffer's size, and mapping
 the pointer onto the smaller surface, which on Wayland meets the same unscaled
 constraint check as the confined pointer above. Not implemented yet.
+
+The Auto bench of 2026-09-29 (item 19, in the
+[resolution-control slice](slice-resolution-control.md#the-bench-run-2026-09-29))
+ran a Direct3D 11 sample the same way, borderless and in exclusive fullscreen,
+on Wine's own Direct3D, and found one more obstacle: with nothing told, at the
+full 3840 × 2160, the effect refused the window because Wine draws into a
+subsurface ("the window's surface has child surfaces"). The buffer heights are
+rounded up to a multiple of 128 there too, 2176 for 2160. A presentation for
+Wine's Wayland driver therefore has to take the subsurface's image and its
+viewport's source, not the main surface's buffer.
+
+The same bench's Wine runs through the proxy (item 20) found that a program Wine
+is started with by its Unix path, `wine /path/game.exe`, keeps that path in its
+command line rather than a Windows one, and that the proxy never identified it:
+its prefix's connections waited their ten seconds for a program that never
+showed, and the program then saw a 1024 × 768 screen. The proxy now names it on
+the drive whose directory holds it most closely, as Wine does, from the
+prefix's `dosdevices`: `wine:///<prefix>/Z:/path/game.exe` for a program
+anywhere, `C:` for one inside the prefix's own drive. How Proton names its
+games was not observed here; that stays with item 30.

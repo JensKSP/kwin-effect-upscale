@@ -719,7 +719,10 @@ which must be stated plainly wherever it is offered.
 
 ## HDR and variable refresh rate
 
-HDR and VRR are required, including simultaneous HDR upscaling and VRR.
+HDR and VRR are required, including simultaneous HDR upscaling and VRR. Their
+acceptance is postponed to a version after 0.3.0 (Jens, 2026-09-29); until
+then the effect follows KWin's colour management and presentation as below,
+without an accepted HDR or VRR path.
 The effect must preserve KWin's colour management and adaptive presentation
 when the client, output and driver support them. SDR content on an HDR output,
 HDR content using PQ or scRGB, and transitions between SDR and HDR belong in
@@ -1803,7 +1806,7 @@ observations; none alone establishes reduced internal rendering cost.
 
 | Gap | Open-source example and evidence | Current consequence |
 | --- | --- | --- |
-| X11 renderer ignores resizing or does not request mode emulation | glmark2 2023.01, X11: a targeted research run reduced its drawable to 1080p but retained a 4K rendering viewport and lost full-output coverage. Its event loop does not handle resize events. | `X11Resize` cannot make this client cooperate; bounded negotiation restores geometry and refuses an unsupported request. |
+| X11 renderer ignores resizing or does not request mode emulation | glmark2 2023.01, X11: its event loop does not handle resize events, and it keeps the viewport it started with. SuperTux 0.6.3 on X11 keeps its layout the same way. Measured in a virtual machine on 2026-09-29: resized to 2560 × 1440, both went on drawing their 3840 × 2160 frame into the smaller window. | `X11Resize` cannot make such a client cooperate, and the effect cannot see a program's viewport: it presents the smaller window over the output, and the screen shows the bottom left two thirds of the picture enlarged. Under **All applications**, Auto uses the resize for every unlisted X11 program, so these programs are shown cropped until they have an entry with another method or All applications is off. |
 | Fullscreen-desktop Wayland client ignores advertised mode | SuperTuxKart 1.4, Vulkan, in its default borderless fullscreen: advertising 1080p still produced a 4K buffer, because its swapchain follows `SDL_Vulkan_GetDrawableSize`, which SDL 2 derives from the window size and its fractional scale rather than from a mode. | An advertisement that did not reach a window falls back to the surface's fractional scale, which this client follows: 2560 × 1440 at Quality on a 3840 × 2160 output, measured 2026-09-21. |
 | Integer scale cannot express the target | glmark2 2023.01 Wayland and vkmark 2025.01 read scale differently from mode-only clients. The implemented scale methods cannot reduce a scale-1 desktop through a smaller positive integer scale. | No reduction at scale 1; other desktop scales allow only discrete reachable sizes. Report the reachable request separately from the configured wish. |
 | Toolkit selects the wrong output | Extreme Tux Racer 0.8.4 with SFML 2.6.2 moved from the secondary display to the primary when recreating its fullscreen window. SFML explicitly selects the primary RandR output. | The shipped profile refuses resolution control on secondary outputs before resizing. Other clients can scale there; secondary displays are not generally excluded. |
@@ -1854,7 +1857,7 @@ resolution control succeeded.
 
 | Method | Intended behaviour |
 | --- | --- |
-| Auto | **Implemented**, and stateless: nothing it learns is stored. On X11 it is the buffer request, put back where the window stops covering its output. On Wayland it tells the program the smaller screen mode at bind, because a game in SDL's exclusive fullscreen takes its buffer from that and from nothing said later; it means the same whether an entry or the global profile answers, and KWin's own clients - Xwayland, which serves every X11 program, the input method and the screen locker - are never told anything (laid down by Jens on 2026-09-21); once the window exists it asks a surface still drawing at full size for a fractional scale, asserts it again when KWin reapplies the output's scale, and gives it back when the window stops covering its output or no smaller buffer arrives within 30 frames. It asks the window its output would scale once the buffer allowed it, which a window drawing at full size is not yet; it keeps the effect active while it asks, so that nothing else has to; a window that ignored it is not asked again until the window, the ratio or the settings change; and a window that stops qualifying gets its own scale back at once. Wayland Auto has passed with SuperTuxKart 1.4 in a real KWin 6.3.6 session on a 3840 × 2160 output, in all three Wayland presentations: by the advertised mode in OpenGL fullscreen and in Vulkan exclusive fullscreen, and by the surface scale in Vulkan borderless. No output capture was compared and no other program has been measured with it; the [resolution-control bench](agents/slice-resolution-control.md#a-reversible-wayland-lever-for-auto-2026-09-20) decides when it enters the supported scope. In-session negotiation only: the [four requirements](#four-requirements-that-bound-every-route) leave no launch-time method to fall back to. |
+| Auto | **Implemented**, and stateless: nothing it learns is stored. On X11 it is the buffer request, put back where the window stops covering its output. On Wayland it tells the program the smaller screen mode at bind, because a game in SDL's exclusive fullscreen takes its buffer from that and from nothing said later; it means the same whether an entry or the global profile answers, and KWin's own clients - Xwayland, which serves every X11 program, the input method and the screen locker - are never told anything (laid down by Jens on 2026-09-21); once the window exists it asks a surface still drawing at full size for a fractional scale, asserts it again when KWin reapplies the output's scale, and gives it back when the window stops covering its output or no smaller buffer arrives within 30 frames. It asks the window its output would scale once the buffer allowed it, which a window drawing at full size is not yet; it keeps the effect active while it asks, so that nothing else has to; a window that ignored it is not asked again until the window, the ratio or the settings change; and a window that stops qualifying gets its own scale back at once. Wayland Auto has passed with SuperTuxKart 1.4 in a real KWin 6.3.6 session on a 3840 × 2160 output, in all three Wayland presentations: by the advertised mode in OpenGL fullscreen and in Vulkan exclusive fullscreen, and by the surface scale in Vulkan borderless. The [resolution-control bench](agents/slice-resolution-control.md#the-bench-run-2026-09-29), run in a virtual machine on 2026-09-29, found the surface scale honoured by GLFW 3.4, Godot 4.7 and SDL 3 with high pixel density, with the pointer landing where it looks, and ignored by Qt, vkmark and SDL 3 without it. When Auto enters the supported scope is Jens's decision. In-session negotiation only: the [four requirements](#four-requirements-that-bound-every-route) leave no launch-time method to fall back to. |
 | Advertised screen mode | **Implemented.** Tell a native Wayland client the effect acts on that its screen has a smaller current mode when it binds the output: a program an enabled entry names by its path alone, or any program once All applications is switched on. It is not confined to measured client/runtime combinations, because a fullscreen slot on Auto advertises the mode as well. This does not control Xwayland games. It needs no launch helper or restart and changes nothing outside that connection. |
 | Wayland negotiation | Generic surface-scale negotiation remains experimental; the implemented advertised scale and mode-and-scale methods are separate profile choices. |
 | X11 buffer request | **Implemented.** Request a smaller drawable. The window keeps the place and size the system gave it; only the size the client renders at changes. A client that establishes Xwayland's fullscreen emulation is enlarged by Xwayland; one that does not is presented across its frame by the effect itself. Only a profile stating `X11RequiresEmulatedMode` requires the client's own emulated mode. |
@@ -2099,31 +2102,12 @@ output is scaled whether the effect asked for that size or the person playing
 chose it in the game's own video settings. That gives a game with a resolution
 menu a second route, and it is the only route that reaches every game.
 
-The option is `UserConfigured`. The person selects the resolution once, in the
-game, and the entry records that this is how this game is driven. It is not the
-same statement as `Off`. `Off` says the question was asked and the program
-followed nothing; `UserConfigured` says the program never needed to follow
-anything, because its own settings already produce the smaller buffer. Neither
-sends a request, and both recognize the game. They differ in what they tell the
-next person who looks at the entry, which is what an entry is for.
-
-What it costs is the single thing the automatic methods exist to avoid: a video
-menu, opened once. What it buys is every game that has one. The effect never
-writes a game's settings, so the value stays the user's, survives a package that
-corrects a method, and is visible where the player expects to find it.
-
-The preset means something different under this method. It is not what the
-effect will request but what the person should select, which is the size the
-settings page already names when it says which resolution to choose in the game.
-When the supplied buffer matches that size the status says so; when it does not,
-the status reports the size actually supplied rather than the one recommended,
-because a recommendation that quietly reports itself as a result would make the
-entry unfalsifiable.
-
-**Status:** specified, not implemented. The scaling half is already what the
-effect does for any smaller buffer, and needs nothing added. The method value,
-its meaning in the editor, and reporting that distinguishes a recommended size
-from a requested one are not written.
+No method is needed for it, as Jens decided on 2026-09-29: a slot set to Off
+sends no request, the smaller buffer the person chose in the game is enlarged
+all the same, and the status names the size to choose ("Select 2560 × 1440 in
+the game") while nothing asks the game for it. The effect never writes a game's
+settings, so the value stays the person's, survives a package that corrects a
+method, and is visible where the player expects to find it.
 
 #### The recognized applications shipped with this effect
 

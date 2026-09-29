@@ -243,8 +243,10 @@ rows above. What each check actually returned:
   vocabulary, including the `area:` group for build, ci, legal, logging, osd,
   tests, kwin-api and upscaling, `blocked:kwin-question`, and the type labels
   the forms default to.
-- **Release milestones (section 1): open.** The milestones API returns an empty
-  list. No milestone exists, so there is no blocker filter for a next release.
+- **Release milestones (section 1): done 2026-09-29.** Jens decided on a
+  milestone per release, without due dates (item 87). Milestone 1, "0.3.0",
+  exists and holds #23, the only open issue or pull request; its list is the
+  blocker filter for the release.
 - **Contribution forms (section 1): on the default branch, acceptance open.**
   Five templates plus `config.yml` and the PR template are present. Whether the
   forms render and reject an empty required field has still not been observed
@@ -260,7 +262,7 @@ rows above. What each check actually returned:
   code-scanning alert, open or closed. SARIF upload works and there is nothing
   to assess; whether CodeQL may gate pull requests stays a separate question.
 - **Auto-merge and merged-branch cleanup (section 3): enabled and read back.**
-  Hook update PRs and failure notifications remain.
+  Hook update pull requests implemented (below); failure notifications remain.
 - **Hook updates (section 3): proposed weekly; no pull request yet.** Recorded
   2026-09-28 (item 89 of the open list). `tools/update-hooks.py` is the one
   updater of `.pre-commit-config.yaml` (Dependabot has no pre-commit entry). It
@@ -274,13 +276,24 @@ rows above. What each check actually returned:
   `tools/test_update_hooks.py` covers the free, held, backwards and local
   cases against fixture repositories; widening the release filter or dropping
   the backwards rule fails it. `.github/workflows/hook-updates.yml` runs it
-  every Monday and writes the proposal to the summary. Opening the pull request
-  is not implemented: one opened with the run's `GITHUB_TOKEN` starts no
-  workflow, so the required checks would never run on it. Whether it uses a
-  GitHub App or a fine-grained token as a secret, or dispatches CI on the branch
-  itself, is Jens's decision. Failure notifications are Jens's own account
-  settings; reading his repository subscription through the API needs the
-  `notifications` scope the CLI's token lacks.
+  every Monday and writes the proposal to the summary. A pull request opened
+  with the run's `GITHUB_TOKEN` starts no workflow; Jens decided on 2026-09-29
+  (item 89a) that the run dispatches CI on the branch itself. Implemented the
+  same day: where hooks moved, the run commits to a new branch
+  `hook-updates-<day>` from the branch it started on, opens a pull request
+  against that branch and runs `gh workflow run ci.yml` on it, whose checks
+  land on the pull request's commit; while an earlier hook update is still open
+  it opens nothing, so nothing is ever pushed over. Its first run is the
+  scheduled one on master. Failure notifications are Jens's own account
+  settings; he grants the CLI the `notifications` scope, and the agent reads
+  and reports them.
+- **Pages (section 4): implemented 2026-09-29**, decided by Jens (item 86a):
+  `tools/build-site.py` gathers the README and the permanent documents, never
+  doc/AGENTS.md or doc/agents/, and points links to anything else at the file
+  on GitHub; `pages.yml` builds it with GitHub's Jekyll action on every push to
+  master and publishes it. Pages is switched on for workflow builds at
+  <https://jensksp.github.io/kwin-effect-upscale/>. Built locally with the
+  action's own image, not yet hosted.
 - **Section 4: release notes, summaries and the SBOM implemented; Pages not.**
   Recorded 2026-09-28 (item 86 of the open list). `.github/release.yml` sorts
   the notes that `tools/publish-release.py` already asks GitHub to generate

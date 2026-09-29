@@ -118,13 +118,29 @@ cannot close that gate.
 
 ## Open decisions
 
-- **The nightly's check leg.** Whether the nightly verifies the commit's CI
-  conclusion through the API instead of re-running `ci.yml`. Not implemented
-  while undecided; it is the largest single saving.
-- **openSUSE.** Jens reported a broken openSUSE amd64 package build. Every
-  `opensuse` job in the last ten nightlies succeeded, including the current
-  one, so the failure has not been observed here and nothing is being fixed
-  blind. Waiting for the run or the symptom.
+- **The nightly's check leg: decided by Jens on 2026-09-29 (item 81),
+  implemented the same day.** `tools/ci-conclusion.py` reads the commit's CI
+  runs through the API. A finished green run stands for the check leg, and the
+  nightly then runs only the instrumented tests with its longer, 600-second
+  fuzzing; a commit without a finished run has CI run as before; one whose CI
+  failed stops the nightly. Checked against the API on 2026-09-29: `51e56ff`
+  passed, `2cbb162` failed, and `d801766`, whose run a later push cancelled,
+  is missing. The first nightly to use it is still to come.
+- **openSUSE: found and fixed on 2026-09-29 (item 82).** Not a report of
+  Jens's but a failure found here: the nightly 35519298024 of 2026-09-20 on
+  master, green overall because its rerun passed, failed `opensuse amd64` in
+  its first attempt. Building the image, `zypper refresh` got 403 Forbidden
+  from `download.opensuse.org` for the Tumbleweed repository metadata and
+  exited with 4. openSUSE fetches everything from that one host, and libzypp
+  takes an HTTP error from it as final, where apt and dnf try again
+  themselves and pacman moves on to another mirror. So each openSUSE step that
+  downloads is now tried up to four times, after 30, 60 and 120 seconds: the
+  image's `zypper` calls, the clean-distribution test's bootstrap (for every
+  target, in `.github/actions/test-package`), and the first installation in
+  `tools/test-package.py`, which fetches the dependencies. The retries were
+  tested against a command that fails twice and one that always fails, under
+  bash and dash; the image built locally with them. The nightly shows them
+  under real conditions.
 
 ## Progress
 

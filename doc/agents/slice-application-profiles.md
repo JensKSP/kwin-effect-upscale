@@ -104,12 +104,15 @@ through one path, the migration exercised from a configuration written by the
 previous release, and the editor driven by its own test rather than the class
 behind it. `Auto` is inside this scope on X11, where the window exists before
 anything is asked of it and a failed resize is reversible. **`Auto` on native
-Wayland is explicitly outside it** until
-[resolution control](slice-resolution-control.md#a-reversible-wayland-lever-for-auto-2026-09-20)
-has measured the fractional-scale lever; until then a Wayland slot set to
-`Auto` makes no request, and the settings page and the release note both say
-so. A profile that names a measured method keeps working either way, which is
-what makes that exclusion shippable rather than a hole.
+Wayland is outside it** until Jens decides otherwise (item 19a of the open
+list): it tells a program the smaller mode when the program starts, as Jens laid
+down on 2026-09-21, and asks its window for a smaller fractional scale
+afterwards, and the
+[bench](slice-resolution-control.md#the-bench-run-2026-09-29) measured which
+programs follow either. A profile that names a measured method keeps working
+either way, which is what makes that exclusion shippable rather than a hole.
+Corrected 2026-09-29 (item 42): this paragraph said a Wayland slot on `Auto`
+made no request, which has not been true since 2026-09-21.
 
 **Full acceptance**, which authorises calling the requirement met: the above,
 plus `Auto` working on native Wayland, plus real-session acceptance on the
@@ -541,10 +544,11 @@ slice as well.
 What an upgrade does with a stored global `Enabled=false`, which has no
 successor switch, is decided and implemented: it is honoured and kept, as
 [what an existing installation loses](#what-an-existing-installation-loses)
-states. Open is only how the settings page explains it. Auto's own
-Wayland mechanism is no longer in doubt as a design but is unmeasured as
-behaviour; it and its bench belong to
-[resolution control](slice-resolution-control.md#a-reversible-wayland-lever-for-auto-2026-09-20).
+states; the settings page adds nothing to the status, which reads
+"Inactive: upscaling was switched off." (Jens, 2026-09-29, item 41). Auto's
+own Wayland mechanism was measured by the
+[bench](slice-resolution-control.md#the-bench-run-2026-09-29) in
+resolution control; whether it enters the supported scope is item 19a.
 
 How the shipped list grows beyond the applications one machine can run is
 tracked separately below, under
@@ -949,11 +953,15 @@ with no minimum, Extreme Tux Racer switched off and a new profile for an X11
 game. It stores only what differs from its defaults. The two files are
 `autotests/data/previous-release/`, and
 `LegacySettingsTest::readsAConfigurationThePreviousReleaseWrote` reads them
-through the current code: every value arrives under its current meaning except
-`OsdPosition`. The old display was one block in one corner; the current one has
-three blocks with a position each, and nothing reads the old key, so a person's
-chosen corner falls back to the defaults. Which block, or blocks, the old
-corner belongs to is a decision (item 39a).
+through the current code: every value arrives under its current meaning.
+`OsdPosition` was the last: the old display moved one block, its statistics,
+while its message and developer dump had corners of their own, and nothing read
+the key after the display became three blocks. Jens decided on 2026-09-29 (item
+39a) that the statistics block takes the old corner and a block that held it
+moves on as dragging would move it; `upscaleLegacyCorners()` does that for the
+effect and the page, Apply removes the old key, and the previous release's
+configuration, `readsTheGlobalKeysOfThePreviousRelease` and `displayDefaults`
+check it. The page's case failed against the page's old loading.
 
 **All of this is read, never written.** Implemented on 2026-09-21 in
 `legacysettings.cpp`: an old key is translated each time it is read, for as
@@ -971,10 +979,10 @@ anything else would switch upscaling on for someone who had turned it off.
 and Apply keeps it, because no new key can say "everything off" and removing it
 would be the page quietly switching upscaling back on. `LegacySettingsTest`
 asserts both halves: only a stored `false` counts, and forgetting the legacy
-keys on Apply leaves it in place. What is not decided is presentation, not
-behaviour: what the page shows such a person, since at present nothing on it
-explains why no profile acts. That, and the Wayland measurement, are the open
-questions in this section.
+keys on Apply leaves it in place. How the page presents it was decided by Jens
+on 2026-09-29 (item 41): it adds nothing, because the status already reads
+"Inactive: upscaling was switched off." The Wayland measurement has run; see
+item 19a.
 
 ### Storage
 
@@ -1174,7 +1182,10 @@ reading of a process:
 ### Not decided yet
 
 Whether the Flatpak app ID is worth a field of its own once it has been seen on
-a real Flatpak game. Settled by the implementation: *Add from Window* states a
+a real Flatpak game. Decided by Jens on 2026-09-29: it is not a field of its
+own; a Flatpak program is named URL-style, as a Wine program is, with its app
+ID in the authority (`flatpak://<app-id>/app/bin/<program>`), and matched by
+the same pattern fields. Item 51 checks it against a real Flatpak game. Settled by the implementation: *Add from Window* states a
 Proton game's window identity, `steam_app_<id>` among it, because its program
 is the Wine loader every Proton game shares.
 
@@ -1311,8 +1322,9 @@ Planned checks, not observed results:
       `waylandscale.{h,cpp}` and the decision that uses it in `autorequest.cpp`.
       Reported working by Jens on a real session on 2026-09-21; which game, which
       protocol and what buffer arrived are still to be recorded here. The
-      [resolution-control bench](slice-resolution-control.md#a-reversible-wayland-lever-for-auto-2026-09-20)
-      remains the measurement that moves Wayland Auto into the supported scope.
+      [resolution-control bench](slice-resolution-control.md#the-bench-run-2026-09-29)
+      has run (2026-09-29); whether Wayland Auto enters the supported scope is
+      Jens's decision, item 19a.
 - [x] Implement the editor's **Use global** controls, 2026-09-21: built from the
       table by `settingcontrols.{h,cpp}` and `methodcontrols.{h,cpp}`. Named
       **Global (value)** since the text review below.
@@ -1374,8 +1386,8 @@ Planned checks, not observed results:
       removing the global method (Wayland) or by switching the test entry off
       (X11), both of which reach the same condition the switch did. No
       migration: the key only ever shipped in nightly builds, on by default; a
-      stored `ResolutionControl=false` is now ignored. Asked of Jens whether
-      he wants one.
+      stored `ResolutionControl=false` is now ignored. Jens decided on
+      2026-09-29 that none is needed.
 - [x] Snap the scale slider to well-known resolutions and let every slider's
       value be typed, 2026-09-21, required by Jens. The scale is held in basis
       points (`resolutionRatio()`), written as a decimal percentage, and the
@@ -1729,8 +1741,13 @@ Planned checks, not observed results:
 ### Progress and remaining work
 
 - [x] Write this plan. Nothing in it is implemented; recorded 2026-09-19.
-- [ ] Obtain Jens's answer on shipping unverified submissions, credit and the
-      two smaller decisions above.
+- [x] Obtain Jens's answer on shipping unverified submissions, credit and the
+      two smaller decisions above. Decided 2026-09-29: accepted submissions
+      ship active with their provenance; credit through Git history and release
+      notes, with no names in the installed file; and the list is indexed by
+      program and window identity when it is loaded, now rather than after a
+      measurement.
+- [ ] Index the list at load time, by program and by window identity.
 - [ ] Report the program name for the selected window, including the X11 case.
 - [ ] Add the copy action and its tests.
 - [ ] Write the trial rule and the four answers into `CONTRIBUTING.md`.
