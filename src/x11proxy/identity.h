@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
 // SPDX-License-Identifier: GPL-2.0-or-later
 #pragma once
+#include <QList>
 #include <QString>
 #include <QStringList>
 namespace UpscaleX11
@@ -65,6 +66,19 @@ struct ProgramIdentity
 ProgramIdentity upscaleProgramIdentity(quint32 pid);
 /** Whether @p program is Wine naming a Windows program on a lettered drive. */
 bool upscaleWindowsPath(const QString &program);
+/** One drive of a prefix: its letter, and the Unix directory it stands for. */
+struct WineDrive
+{
+    QChar letter;
+    QString root;
+};
+/**
+ * The Windows path of a program Wine was started with by its Unix path, as
+ * Wine names it: on the drive whose directory holds it most closely, so that a
+ * program inside the prefix's own drive is on C: although Z:, which stands for
+ * /, holds it too. Empty where no drive holds it.
+ */
+QString upscaleWindowsPathFor(const QString &unixPath, const QList<WineDrive> &drives);
 /**
  * The Windows program of @p prefix that is not one of Wine's own, or an empty
  * string while only Wine's components are running.

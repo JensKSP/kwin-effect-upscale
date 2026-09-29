@@ -46,6 +46,31 @@ QString prefixOf(const QList<QByteArray> &environment)
     const QString home = environmentValue(environment, "HOME");
     return home.isEmpty() ? QString() : QDir::cleanPath(home + QStringLiteral("/.wine"));
 }
+// A path as Wine sees it: with its links resolved, as far as it exists.
+QString resolved(const QString &path)
+{
+    const QFileInfo info(path);
+    if (info.exists()) {
+        return info.canonicalFilePath();
+    }
+    const QString directory = QFileInfo(info.absolutePath()).canonicalFilePath();
+    return directory.isEmpty() ? QDir::cleanPath(info.absoluteFilePath()) : directory + QLatin1Char('/') + info.fileName();
+}
+
+// The drives of a prefix, which are the links below its dosdevices.
+QList<WineDrive> drivesOf(const QString &prefix)
+{
+    QList<WineDrive> drives;
+    const QDir devices(prefix + QStringLiteral("/dosdevices"));
+    const QStringList entries = devices.entryList(QDir::AllEntries | QDir::System | QDir::NoDotAndDotDot);
+    for (const QString &entry : entries) {
+        const QString root = QFileInfo(devices.filePath(entry)).canonicalFilePath();
+        if (entry.size() == 2 && entry.at(0).isLetter() && entry.at(1) == QLatin1Char(':') && !root.isEmpty()) {
+            drives.append({entry.at(0), root});
+        }
+    }
+    return drives;
+}
 } // namespace
 
 ProgramIdentity upscaleProgramIdentity(quint32 pid)
@@ -57,7 +82,20 @@ ProgramIdentity upscaleProgramIdentity(quint32 pid)
     if (command.isEmpty()) {
         return identity;
     }
-    const QString first = QString::fromLocal8Bit(command.constFirst());
+    QString first = QString::fromLocal8Bit(command.constFirst());
+    QString prefix;
+    // Wine started with a program's Unix path keeps that path in the command
+    // line, where the process runs Wine's loader rather than the program:
+    // Wine names the program on the drive that holds it, and so does this.
+    // Found 2026-09-29 with `wine /path/to/game.exe`, which the proxy did not
+    // identify, holding its prefix's connections for their ten seconds.
+    if (!upscaleWindowsPath(first) && first.endsWith(QLatin1String(".exe"), Qt::CaseInsensitive)) {
+        const QString program = resolved(QDir(directory + QStringLiteral("/cwd")).absoluteFilePath(first));
+        if (program != resolved(identity.executable)) {
+            prefix = prefixOf(readList(directory + QStringLiteral("/environ")));
+            first = upscaleWindowsPathFor(program, drivesOf(prefix));
+        }
+    }
     if (!upscaleWindowsPath(first)) {
         identity.program = identity.executable;
         return identity;
@@ -67,7 +105,7 @@ ProgramIdentity upscaleProgramIdentity(quint32 pid)
     // than from the path, which may sit on any drive the prefix maps.
     identity.program = upscaleProgramPath(first);
     identity.component = upscaleWineComponent(identity.program);
-    identity.prefix = prefixOf(readList(directory + QStringLiteral("/environ")));
+    identity.prefix = prefix.isEmpty() ? prefixOf(readList(directory + QStringLiteral("/environ"))) : prefix;
     return identity;
 }
 
