@@ -4,7 +4,9 @@
 #include "wire.h"
 #include <QCoreApplication>
 #include <QFile>
+#include <QSize>
 #include <QTest>
+#include <array>
 #include <cerrno>
 #include <csignal>
 #include <cstdio>
@@ -117,6 +119,21 @@ inline bool socketAddress(const QByteArray &path, sockaddr_un &address)
     return true;
 }
 
+// The part of a connection setup reply these tests read: up to the first
+// screen's size.
+using SetupReply = std::array<char, 80>;
+
+// The first screen's size in a setup reply. Read from an array of known size:
+// through a QByteArray, GCC 14 at -O2 follows the path on which the array is
+// empty into Wire::word() and fails the build with -Warray-bounds, which it
+// cannot prove false.
+inline QSize rootSize(const SetupReply &reply)
+{
+    const QByteArray bytes = QByteArray::fromRawData(reply.data(), static_cast<qsizetype>(reply.size()));
+    const UpscaleX11::Wire wire;
+    return QSize(wire.word(bytes, 60), wire.word(bytes, 62));
+}
+
 // A client in another process, which prints the root size it was given. It
 // ends its side and reads until the relay has ended the other, which the relay
 // does in the same step in which it finishes, so its exit means the relay is
@@ -126,14 +143,14 @@ inline int connectOnce(const QByteArray &path)
     const int client = socket(AF_UNIX, SOCK_STREAM, 0);
     sockaddr_un address{};
     const QByteArray request = setupRequest();
-    QByteArray reply(80, '\0');
+    SetupReply reply{};
     if (client < 0 || !socketAddress(path, address)
         || ::connect(client, reinterpret_cast<const sockaddr *>(&address), sizeof(address)) != 0
-        || write(client, request.constData(), request.size()) != request.size() || !readFully(client, reply.data(), 80)) {
+        || write(client, request.constData(), request.size()) != request.size() || !readFully(client, reply.data(), reply.size())) {
         return 1;
     }
-    const UpscaleX11::Wire wire;
-    std::printf("%ux%u\n", static_cast<unsigned>(wire.word(reply, 60)), static_cast<unsigned>(wire.word(reply, 62)));
+    const QSize root = rootSize(reply);
+    std::printf("%dx%d\n", root.width(), root.height());
     std::fflush(stdout);
     shutdown(client, SHUT_WR);
     for (;;) {
