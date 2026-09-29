@@ -92,15 +92,20 @@ def build(root: Path, destination: Path, version: str, epoch: int) -> list[Path]
 
 
 def unpacked(package: Path, directory: Path) -> dict[str, str]:
-    """Map every file a package installs, and its control data, to a digest."""
+    """Map every file a package installs, and its control data, to a digest.
+
+    A symbolic link maps to where it points, which is all it carries.
+    """
     # dpkg-deb makes the directory it extracts into, but not its parents.
     directory.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(["dpkg-deb", "--raw-extract", str(package), str(directory)], check=True)
-    return {
-        str(path.relative_to(directory)): digest(path)
-        for path in sorted(directory.rglob("*"))
-        if path.is_file() and not path.is_symlink()
-    }
+    found = {}
+    for path in sorted(directory.rglob("*")):
+        if path.is_symlink():
+            found[str(path.relative_to(directory))] = f"-> {path.readlink()}"
+        elif path.is_file():
+            found[str(path.relative_to(directory))] = digest(path)
+    return found
 
 
 def differences(first: list[Path], second: list[Path], scratch: Path) -> list[str]:
@@ -109,8 +114,10 @@ def differences(first: list[Path], second: list[Path], scratch: Path) -> list[st
     The two builds live in the job's own disk and go with it, so what differs
     has to be said in the log for anyone to see it.
     """
-    found = []
     theirs = {path.name: path for path in second}
+    built = {path.name for path in first}
+    found = [f"{name}: only in the first build" for name in sorted(built - theirs.keys())]
+    found += [f"{name}: only in the second build" for name in sorted(theirs.keys() - built)]
     for ours in first:
         other = theirs.get(ours.name)
         if other is None or digest(ours) == digest(other):
