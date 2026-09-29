@@ -5,8 +5,8 @@
 */
 
 // The pointer as the test client sees it: where it last moved, in the surface
-// coordinates a game maps onto its buffer, and a confinement as a game takes
-// one for its mouse look.
+// coordinates a game maps onto its buffer, how often a button went down on it,
+// and a confinement as a game takes one for its mouse look.
 
 #include "wayland_client.h"
 
@@ -34,7 +34,9 @@ void WaylandClient::bindSeat(wl_registry *registry, uint32_t name)
                 events.motion = [](void *data, wl_pointer *, uint32_t, wl_fixed_t x, wl_fixed_t y) {
                     static_cast<WaylandClient *>(data)->m_lastMotion = QPointF(wl_fixed_to_double(x), wl_fixed_to_double(y));
                 };
-                events.button = [](void *, wl_pointer *, uint32_t, uint32_t, uint32_t, uint32_t) { };
+                events.button = [](void *data, wl_pointer *, uint32_t, uint32_t, uint32_t, uint32_t state) {
+                    static_cast<WaylandClient *>(data)->m_presses += state == WL_POINTER_BUTTON_STATE_PRESSED ? 1 : 0;
+                };
                 events.axis = [](void *, wl_pointer *, uint32_t, uint32_t, wl_fixed_t) { };
                 return events;
             }();
@@ -64,6 +66,11 @@ void WaylandClient::releasePointer()
 QPointF WaylandClient::lastMotion() const
 {
     return m_lastMotion;
+}
+
+int WaylandClient::presses() const
+{
+    return m_presses;
 }
 
 bool WaylandClient::confinePointer()

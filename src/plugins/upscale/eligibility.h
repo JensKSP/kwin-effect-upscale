@@ -10,7 +10,10 @@
 #include "picture.h"
 #include "presentation.h"
 
+#include <QSize>
 #include <QString>
+
+#include <functional>
 
 namespace KWin
 {
@@ -116,8 +119,39 @@ enum class UpscaleRefusal {
 /** Which of the six cells this window presents in. */
 UpscalePresentation upscalePresentationOf(EffectWindow *window);
 
-/** Fullscreen, or a profiled borderless window covering its own output. */
+/** Fullscreen, or a profiled borderless window covering its own output or drawn over it. */
 bool upscalePresentation(EffectWindow *window);
+
+/**
+ * Tells eligibility the screen mode, in device pixels, the effect told the
+ * Wayland client of a window about that window's output, or an invalid size.
+ * Set by the effect, which keeps what it told; unset, nothing was told.
+ */
+void upscaleSetToldMode(std::function<QSize(const EffectWindow *window)> told);
+
+/**
+ * Whether @p window is a plain Wayland window its program sized to the smaller
+ * screen mode it was told, rather than going fullscreen, as GLFW 3.4 with an
+ * undecorated window at the video mode's size and Wine's Wayland driver do.
+ * Such a window is drawn enlarged over its whole output, without any
+ * decoration KWin gave it, with the pointer mapped from there onto it, as Jens
+ * decided on 2026-09-29.
+ */
+bool upscaleDrawnOverOutput(const EffectWindow *window);
+
+/**
+ * The rectangle a presented window's picture is laid in: its output for one
+ * drawn over it, its frame otherwise.
+ */
+UpscaleRectF upscalePresentedFrame(const EffectWindow *window);
+
+/**
+ * Whether @p window lies under the picture of @p drawn, a window drawn over
+ * its output: below it, or above it in a layer an active fullscreen window
+ * would cover, while @p drawn is the active window. So the picture covers
+ * what KWin would let a fullscreen window cover, and nothing more.
+ */
+bool upscaleDrawnCovers(EffectWindow *drawn, EffectWindow *window);
 
 /**
  * Whether the window's frame sits exactly on its output, in device pixels.

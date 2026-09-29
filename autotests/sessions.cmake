@@ -68,6 +68,7 @@ if(KWin_VERSION VERSION_LESS 6.7)
         ../src/plugins/upscale/framestatistics.cpp
         ../src/plugins/upscale/display.h
         ../src/plugins/upscale/eligibility.cpp
+        ../src/plugins/upscale/eligibility_over.cpp
         ../src/plugins/upscale/windowidentity.cpp
         ../src/plugins/upscale/x11proxypolicy.cpp
         ../src/plugins/upscale/refusaltext.cpp
@@ -81,6 +82,7 @@ if(KWin_VERSION VERSION_LESS 6.7)
         ../src/plugins/upscale/snapshot_headsup.cpp
         ../src/plugins/upscale/snapshot_metrics.cpp
         ../src/plugins/upscale/upscale.cpp
+        ../src/plugins/upscale/upscale_over.cpp
         ../src/plugins/upscale/upscale_display.cpp
         ../src/plugins/upscale/autorequest.cpp
         ../src/plugins/upscale/x11geometry.cpp

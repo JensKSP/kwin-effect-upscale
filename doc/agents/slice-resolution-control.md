@@ -2210,6 +2210,42 @@ the surface scale. The handbook's Auto row now says so, names Qt, vkmark and
 SDL 3 without high pixel density as outside the scope with what the status
 shows for them, and makes the bench above the scope's acceptance.
 
+#### A window sized to the told screen, drawn over its output, 2026-09-29
+
+Item 18, as Jens decided: the effect draws a normal Wayland window whose
+surface has the size its program was told for its output over the whole
+output, maps the pointer over the whole output onto it, and claims the pointer
+beside it. How it works is in the handbook's section on telling one application
+its screen is smaller and beside the code (`eligibility_over.cpp`,
+`upscale_over.cpp`, `UpscalePictureInput`).
+
+- GLFW 3.4's undecorated window came out decorated: GLFW asks libdecor for no
+  decoration, libdecor found no plugins in the bench image ("falling back on no
+  decorations"), and KWin 6.3.6 drew its title bar all the same, frame
+  2562 × 1477 around the 2560 × 1440 client. So the rule measures the surface,
+  and the picture leaves the decoration out.
+- What the first build got wrong. Found by running it: the refusal chain still
+  asked for a window covering its output and for a surface as large as the
+  frame; and moving from beside the window onto it lost the first motion,
+  because KWin's own hit test entered the surface again and set the seat's
+  position before the filter mapped it. Found by reading KWin 6.3.6's input
+  code: over a decoration KWin's pointer focus is empty and its decoration
+  filter, which runs after the picture filter, takes the motion, so the filter
+  now asks KWin's hover window and delivers a claimed pointer's motion itself.
+  The same holds for the X11 filter: item 18b.
+- Run in the conformance machine with `glfw_probe undecorated` under
+  `AdvertisedMode` at Quality: the effect selected and scaled the window, a
+  capture of the output showed the window's colour across all of 3840 × 2160
+  with no title bar, and the probe read the pointer at 200,200 as 133.3,133.3,
+  at 1920,1080 as 1280,720, at 3700,2000 as 2466.7,1333.3, at 640,370 (the
+  hidden title bar) as 426.7,246.7 and at 1000,1000 as 666.7,666.7.
+- `drawsAWindowOfTheToldSizeOverItsOutput` in the Wayland session covers an
+  undecorated 85 × 85 window on the 128 × 128 screen: over the window, beside
+  it, a click beside it, and back onto it.
+- Not covered: Wine's Wayland driver, which draws into a subsurface the effect
+  refuses (item 35); and which cursor KWin shows over a hidden decoration,
+  which was not looked at.
+
 ### Auto under test, 2026-09-21
 
 Until this date no automated test drove Auto at runtime: every integration case

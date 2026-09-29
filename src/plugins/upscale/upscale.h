@@ -54,6 +54,8 @@ public:
                                    const UpscaleRegion &region, UpscaleOutput *screen) override;
 #if UPSCALE_RENDER_DEVICE_API
     void prePaintScreen(ScreenPrePaintData &data) override;
+#else
+    void prePaintScreen(ScreenPrePaintData &data, std::chrono::milliseconds presentTime) override;
 #endif
     bool isActive() const override;
     bool blocksDirectScanout() const override;
@@ -80,6 +82,11 @@ public:
      * different target than the one the chain painted into.
      */
     void paintDisplay(const RenderTarget &target, const RenderViewport &viewport, UpscaleOutput *screen);
+    /**
+     * What prePaintScreen() adds to KWin's preparation of a frame for a window
+     * drawn over its output. Separate for the same reason as paintDisplay().
+     */
+    void coverDrawnWindow(ScreenPrePaintData &data);
 
 private:
     // Prepare selection, settings and resolution requests for this paint pass.
@@ -128,6 +135,11 @@ private:
     std::unique_ptr<UpscaleWaylandScale> m_waylandScale;
     // Maps the pointer onto a Wayland window's picture where it has bars.
     std::unique_ptr<UpscalePictureInput> m_pictureInput;
+    // The window drawn over each output, from its last frame; see upscale_over.cpp.
+    QHash<UpscaleOutput *, QPointer<EffectWindow>> m_drawnOver;
+    void shareToldModes();
+    bool coveredByDrawn(EffectWindow *window) const;
+    EffectWindow *drawnAt(const QPointF &position) const;
 
     /** Auto's Wayland half for the selected window, or giving its scale back. */
     void askForSmallerBuffer(UpscaleOutput *output, EffectWindow *candidate, const UpscaleApplication *claimed);

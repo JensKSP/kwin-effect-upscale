@@ -120,6 +120,7 @@ set(snapshot_test_sources
     ../src/plugins/upscale/snapshot_headsup.cpp
     ../src/plugins/upscale/snapshot_metrics.cpp
     ../src/plugins/upscale/eligibility.cpp
+    ../src/plugins/upscale/eligibility_over.cpp
     ../src/plugins/upscale/windowidentity.cpp
     ../src/plugins/upscale/x11proxypolicy.cpp
     ../src/plugins/upscale/x11modes.cpp
@@ -147,6 +148,7 @@ set(headsup_test_sources
     ../src/plugins/upscale/snapshot_headsup.cpp
     ../src/plugins/upscale/snapshot_metrics.cpp
     ../src/plugins/upscale/eligibility.cpp
+    ../src/plugins/upscale/eligibility_over.cpp
     ../src/plugins/upscale/windowidentity.cpp
     ../src/plugins/upscale/x11proxypolicy.cpp
     ../src/plugins/upscale/x11modes.cpp
@@ -175,6 +177,7 @@ set(placement_test_sources
     ../src/plugins/upscale/snapshot_headsup.cpp
     ../src/plugins/upscale/snapshot_metrics.cpp
     ../src/plugins/upscale/eligibility.cpp
+    ../src/plugins/upscale/eligibility_over.cpp
     ../src/plugins/upscale/windowidentity.cpp
     ../src/plugins/upscale/x11proxypolicy.cpp
     ../src/plugins/upscale/x11modes.cpp
@@ -213,6 +216,7 @@ set(display_test_sources
     ../src/plugins/upscale/snapshot_headsup.cpp
     ../src/plugins/upscale/snapshot_metrics.cpp
     ../src/plugins/upscale/eligibility.cpp
+    ../src/plugins/upscale/eligibility_over.cpp
     ../src/plugins/upscale/windowidentity.cpp
     ../src/plugins/upscale/x11proxypolicy.cpp
     ../src/plugins/upscale/x11modes.cpp

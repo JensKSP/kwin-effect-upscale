@@ -366,6 +366,22 @@ public:
         return m_effect->blocksDirectScanout();
     }
 
+    // What the effect adds to a frame's preparation, without its own taking
+    // of the view's renderer, which would replace the capture renderer.
+#if UPSCALE_RENDER_DEVICE_API
+    void prePaintScreen(ScreenPrePaintData &data) override
+    {
+        m_effect->coverDrawnWindow(data);
+        effects->prePaintScreen(data);
+    }
+#else
+    void prePaintScreen(ScreenPrePaintData &data, std::chrono::milliseconds presentTime) override
+    {
+        m_effect->coverDrawnWindow(data);
+        effects->prePaintScreen(data, presentTime);
+    }
+#endif
+
     void paintScreen(const RenderTarget &target, const RenderViewport &viewport, int mask,
                      const UpscaleRegion &region, UpscaleOutput *screen) override
     {

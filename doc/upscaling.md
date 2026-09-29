@@ -2019,6 +2019,35 @@ separate values, and status reports them separately. This Wayland output method 
 Xwayland binds the output while KWin starts, before any effect is loaded, and
 serves every X11 application from one connection.
 
+**A window sized to the told screen.** A program can also take the told mode
+as the size of a plain window rather than go fullscreen: GLFW 3.4 opens an
+undecorated window at the video mode's size for a fullscreen request with a
+mode, and Wine's Wayland driver sizes its window from the told mode. KWin
+places that window somewhere on the real, larger screen, and may decorate it
+all the same: GLFW's request for no decoration goes through libdecor, whose
+negotiation left KWin 6.3.6 drawing a title bar in the bench. As Jens decided
+on 2026-09-29, the effect draws such a window - a normal Wayland window that is
+not fullscreen, lying on its output, whose surface has the size its program
+was told for that output - over the whole output, enlarged as a fullscreen
+window's picture would be and without the decoration, and the program keeps
+the size it asked for. Making the
+window fullscreen instead would have KWin configure it at the screen's own
+size, which the program believes larger than its screen. While it is drawn, its
+output is painted whole every frame, window by window from the bottom, leaving
+out what the picture covers: every window below it and, while it is the active
+window, the windows above it in the layers KWin lets an active fullscreen
+window cover - panels, windows kept above, ordinary notifications. Popups,
+critical notifications and on-screen displays stay above it, and a window
+activated over it is shown over it, as over an inactive fullscreen window. The
+pointer is mapped from the picture onto the window across the whole output.
+Beside the window, where KWin's hit test finds what the picture covers - a
+window, a decoration, the hidden one's own included - or nothing at all, the
+input filter focuses the window's surface on the seat itself and delivers the
+pointer's motion, buttons and wheel to it, ahead of KWin's decoration and click
+handling, and a press there activates it. While the program confines the
+pointer, KWin keeps it inside the window in the surface's own coordinates, and
+it passes one to one, as for a presented X11 window.
+
 **Its visible cost.** The game's own settings screen will offer resolutions
 only up to the advertised size, because that is what the game believes the
 screen is. Nothing outside the game observes a difference.

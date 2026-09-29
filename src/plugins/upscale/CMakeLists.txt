@@ -7,6 +7,7 @@ set(upscale_SOURCES
     display.cpp
     diagnostics.cpp
     eligibility.cpp
+    eligibility_over.cpp
     refusaltext.cpp
     framestatistics.cpp
     main.cpp
@@ -25,6 +26,7 @@ set(upscale_SOURCES
     snapshot_headsup.cpp
     snapshot_metrics.cpp
     upscale.cpp
+    upscale_over.cpp
     upscale_display.cpp
     windowidentity.cpp
     x11proxypolicy.cpp
