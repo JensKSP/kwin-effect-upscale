@@ -107,13 +107,19 @@ UpscaleSnapshot UpscaleEffect::snapshot(EffectWindow *window, const RenderTarget
 void UpscaleEffect::describeApplication(UpscaleSnapshot &state, const Window *window,
                                         UpscalePresentation presentation) const
 {
+    // The cell a window presents in is its own, whoever answers for it.
+    state.presentedAs = presentation;
     // Read identity fields separately; EffectWindow::windowClass combines them.
     const UpscaleApplication *known = upscaleApplicationForWindow(window);
-    if (!known) {
+    // A window no entry claims follows the global profile, which acts on it
+    // once All applications is checked, and what that asked of it is reported
+    // as for a listed program. Otherwise nothing was asked of it.
+    if (!known && !upscaleResolveSettings(nullptr).acts()) {
         return;
     }
-    state.recognized = known->name;
-    state.presentedAs = presentation;
+    if (known) {
+        state.recognized = known->name;
+    }
     state.method = upscaleMethodFor(known, state.presentedAs);
     // Keyed by the connection, not the program: another connection of the same
     // executable must not overwrite what the selected window was told.

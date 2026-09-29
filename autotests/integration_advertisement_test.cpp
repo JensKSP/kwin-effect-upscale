@@ -248,7 +248,32 @@ void UpscaleIntegrationTest::anAdvertisementThatDidNotReachFallsBackToTheSurface
         QVERIFY(modeList.presentFrames(40));
         QCOMPARE(modeList.preferredScale(), 120);
     }
+    // A program no entry describes, under All applications, is asked the same
+    // way by the global profile, and the report says so as it does for a
+    // listed one, rather than asking the player to choose the size in the game.
+    // The global threshold as an earlier case left it is the whole screen;
+    // this one, with no entry, has only the global one.
+    const KSharedConfig::Ptr config = KSharedConfig::openConfig(QStringLiteral("kwinrc"));
+    KConfigGroup global(config, QStringLiteral("Effect-upscale"));
+    const int threshold = global.readEntry("MinimumPixels", 0);
+    global.writeEntry("MinimumPixels", 0);
+    global.sync();
     writeCatalogue(QString());
+    configureResolution(true, true, Stored::Quality);
+    {
+        WaylandClient unlisted;
+        QVERIFY(unlisted.initialize());
+        QCOMPARE(unlisted.advertisedMode(), QSize(85, 85));
+        QSocketNotifier notifier(unlisted.descriptor(), QSocketNotifier::Read);
+        pump(unlisted, notifier);
+        QVERIFY(unlisted.show(QSize(128, 128)));
+        QTRY_VERIFY2(unlisted.preferredScale() == 80,
+                     qPrintable(QString::number(unlisted.preferredScale()) + QLatin1Char('\n') + status()));
+        QTRY_VERIFY2(status().contains(QStringLiteral("85 × 85 requested from Upscale integration test as its surface scale")),
+                     qPrintable(status()));
+    }
+    global.writeEntry("MinimumPixels", threshold);
+    global.sync();
     configureResolution(true, false, {});
     m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
 }
