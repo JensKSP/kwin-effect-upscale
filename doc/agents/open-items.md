@@ -419,6 +419,12 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   focus beside the window as it does for the X11 windows it presents; the
   program keeps the size it asked for. Tested with GLFW 3.4 in the Wayland
   session. Now an implementation item.
+  **Built 2026-09-29:** drawn over its output with what it covers left out, a
+  decoration KWin gave it included; the pointer claimed beside it, motion
+  included. GLFW 3.4's undecorated window, which KWin decorated, filled a 4K
+  output and saw the pointer at two thirds of its position everywhere, in the
+  conformance machine; `drawsAWindowOfTheToldSizeOverItsOutput` covers it in
+  the Wayland session. Recorded in the slice.
 - **19.** **test, –** – The seven-item Auto bench was never run (L1853-1886).
   **Done 2026-09-29, in the conformance machine:** the surface scale reaches
   GLFW 3.4, Godot 4.7 and SDL 3 with high pixel density, pointer landing where

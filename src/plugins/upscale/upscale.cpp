@@ -67,12 +67,16 @@ UpscaleEffect::UpscaleEffect(ItemRenderer *renderer)
     m_x11Resolution = std::make_unique<UpscaleX11Resolution>();
     m_waylandScale = std::make_unique<UpscaleWaylandScale>();
     // An X11 window the effect asked for a size is UpscaleX11Input's.
-    m_pictureInput = std::make_unique<UpscalePictureInput>([this](Window *window) -> EffectWindow * {
+    m_pictureInput = std::make_unique<UpscalePictureInput>(
+        [this](Window *window) -> EffectWindow * {
         EffectWindow *effectWindow = window ? window->effectWindow() : nullptr;
         return effectWindow && effectWindow->screen() && candidate(nullptr, effectWindow->screen()) == effectWindow
                 && m_x11Resolution->requested(window).isEmpty()
             ? effectWindow
             : nullptr;
+    },
+        [this](const QPointF &position) {
+        return drawnAt(position);
     });
     auto identity = new UpscaleIdentityService(this);
     identity->setReporter([this](EffectWindow *window) {
@@ -81,6 +85,9 @@ UpscaleEffect::UpscaleEffect(ItemRenderer *renderer)
     identity->setShownHandler([this](uint pid) {
         m_x11Resolution->reconsider(pid);
     });
+    // What a Wayland client was told its screen is, which a plain window it
+    // sized to that screen is measured against; see upscaleDrawnOverOutput().
+    shareToldModes();
 #if !UPSCALE_RENDER_DEVICE_API
     if (!m_renderer) {
         m_renderer = effects->scene()->renderer();
@@ -118,12 +125,14 @@ void UpscaleEffect::prePaintScreen(ScreenPrePaintData &data)
         m_scaler.reset();
         m_renderer = renderer;
     }
+    coverDrawnWindow(data);
     effects->prePaintScreen(data);
 }
 #endif
 
 UpscaleEffect::~UpscaleEffect()
 {
+    upscaleSetToldMode(nullptr);
     m_waylandScale.reset();
     m_x11Resolution.reset();
     effects->makeOpenGLContextCurrent();
@@ -437,6 +446,14 @@ UpscaleRefusal UpscaleEffect::rememberPassRefusal(EffectWindow *window, UpscaleR
 UpscalePaintResult UpscaleEffect::drawWindow(const RenderTarget &target, const RenderViewport &viewport, EffectWindow *window,
                                              int mask, const UpscaleRegion &region, WindowPaintData &data)
 {
+    if (coveredByDrawn(window)) {
+        // Under a picture drawn over its output, where nothing of it shows.
+#if UPSCALE_RENDER_DEVICE_API
+        return true;
+#else
+        return;
+#endif
+    }
     // Selection is shared by the draws in this paint pass. Check the actual
     // window again before using its surface, which may have been replaced.
     const bool canRender = m_renderer && eligible(window);
@@ -467,7 +484,7 @@ UpscalePaintResult UpscaleEffect::drawWindow(const RenderTarget &target, const R
 #endif
             // Placed in device pixels, where bars and a whole factor are exact.
             const UpscalePicture picture = upscalePictureOf(window);
-            const UpscaleRectF frame = window->frameGeometry();
+            const UpscaleRectF frame = upscalePresentedFrame(window);
             const double pixels = window->screen()->scale();
             const UpscaleRectF destination(frame.x() + (picture.x / pixels), frame.y() + (picture.y / pixels), picture.width / pixels,
                                            picture.height / pixels);

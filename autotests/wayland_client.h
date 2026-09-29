@@ -76,6 +76,8 @@ public:
      * though that filled the surface; (-1, -1) before it arrived.
      */
     QPointF lastMotion() const;
+    /** How many times a button was pressed on this client's surface. */
+    int presses() const;
     /** Confines the pointer to the surface; pointerConfined() says once KWin engaged it. */
     bool confinePointer();
     bool pointerConfined() const;
@@ -135,4 +137,5 @@ private:
     zwp_confined_pointer_v1 *m_confinement = nullptr;
     bool m_confined = false;
     QPointF m_lastMotion{-1, -1};
+    int m_presses = 0;
 };

@@ -181,8 +181,8 @@ bool upscaleRequestCoversOutput(const Window *window)
 UpscalePresentation upscalePresentationOf(EffectWindow *window)
 {
     const Window *internal = window->window();
-    const bool borderless = internal && internal->isNormalWindow() && !internal->isDecorated()
-        && upscaleCoversOutput(window);
+    const bool borderless = internal && internal->isNormalWindow()
+        && ((!internal->isDecorated() && upscaleCoversOutput(window)) || upscaleDrawnOverOutput(window));
     return upscalePresentationFor(!window->isWaylandClient(), window->isFullScreen(), borderless);
 }
 
@@ -197,9 +197,13 @@ bool upscalePresentation(EffectWindow *window)
     const Window *internal = window->window();
     // Borderless applications need not advertise fullscreen. Match both the
     // origin and extent of one output; equal dimensions on a different output
-    // or a spanning window do not describe the same presentation.
-    if (!internal || !internal->isNormalWindow() || internal->isDecorated()
-        || internal->clientGeometry() != internal->frameGeometry() || !upscaleCoversOutput(window)) {
+    // or a spanning window do not describe the same presentation. A window at
+    // the smaller screen its program was told is drawn over its output.
+    if (!internal || !internal->isNormalWindow()) {
+        return false;
+    }
+    const bool covering = !internal->isDecorated() && internal->clientGeometry() == internal->frameGeometry() && upscaleCoversOutput(window);
+    if (!covering && !upscaleDrawnOverOutput(window)) {
         return false;
     }
     // Something has to have asked for this path, because an undecorated
@@ -275,7 +279,7 @@ static UpscaleRefusal placementRefusal(EffectWindow *window)
     if (window->screen()->transform() != OutputTransform::Normal) {
         return UpscaleRefusal::TransformedOutput;
     }
-    if (!upscaleCoversOutput(window)) {
+    if (!upscaleCoversOutput(window) && !upscaleDrawnOverOutput(window)) {
         return UpscaleRefusal::NotCoveringOutput;
     }
     if (!window->windowItem()->transform().isIdentity()) {
@@ -295,7 +299,9 @@ static UpscaleRefusal surfaceRefusal(EffectWindow *window, SurfaceItem *surface)
     if (!surface->transform().isIdentity()) {
         return UpscaleRefusal::TransformedSurface;
     }
-    if (surface->position() != QPointF()) {
+    // A window drawn over its output is drawn without the decoration KWin may
+    // have given it, which is what moves its surface.
+    if (surface->position() != QPointF() && !upscaleDrawnOverOutput(window)) {
         return UpscaleRefusal::OffsetSurface;
     }
     if (surface->opacity() != 1.0) {
@@ -305,7 +311,9 @@ static UpscaleRefusal surfaceRefusal(EffectWindow *window, SurfaceItem *surface)
     // fractionally scaled output the two can never agree exactly.
     const double scale = window->screen() ? window->screen()->scale() : 1;
     const QSizeF destination = surface->destinationSize();
-    const auto frame = window->frameGeometry().size();
+    // A window drawn over its output shows its surface alone.
+    const UpscaleRectF shown = upscaleDrawnOverOutput(window) ? UpscaleRectF(window->window()->clientGeometry()) : UpscaleRectF(window->frameGeometry());
+    const auto frame = shown.size();
     if (!upscaleSamePixel(destination.width(), frame.width(), scale)
         || !upscaleSamePixel(destination.height(), frame.height(), scale)) {
         return UpscaleRefusal::ResizedSurface;
