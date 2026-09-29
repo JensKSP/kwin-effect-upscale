@@ -5,6 +5,7 @@
 #include "application.h"
 #include "compatibility.h"
 #include "effect/effecthandler.h"
+#include "matching.h"
 #include "runtime.h"
 #include "settings.h"
 #include "upscaleconfig.h"
@@ -72,6 +73,17 @@ static const UpscaleApplication *connectionApplication(const QStringList &candid
     return nullptr;
 }
 
+// Whether no entry can claim the program by any of its names: then the global
+// profile answers for it. An entry that names the program without a connection
+// pattern decides once the window exists, so its program is not unlisted.
+static bool unlisted(const QStringList &identities)
+{
+    return std::ranges::all_of(identities, [](const QString &identity) {
+        const UpscaleBindAnswer answer = upscaleApplicationAtBind(identity);
+        return answer.decided && !answer.application;
+    });
+}
+
 static QSize connectionSize(const UpscaleApplication *selected, EffectsHandler *handler, QVariantMap &answer)
 {
     // Display queries precede the first window. Refuse a conflicting Off slot
@@ -103,6 +115,12 @@ bool UpscaleIdentityService::x11PrefixMayMatch(const QString &prefix, const QStr
 {
     if (!UpscaleConfig::x11Proxy() || !m_handler || prefix.isEmpty()) {
         return false;
+    }
+    // Under All applications any prefix may run a program the global profile
+    // answers for, so its components wait for that program as for an entry's.
+    QVariantMap global;
+    if (connectionSize(nullptr, m_handler, global).isValid()) {
+        return true;
     }
     const QString identity = QStringLiteral("wine://") + prefix + QLatin1Char('/');
     for (const UpscaleApplication &application : upscaleApplications()) {
@@ -144,10 +162,21 @@ QVariantMap UpscaleIdentityService::x11ConnectionPolicy(uint pid, const QStringL
         ? QStringList{executablePathFromPid(static_cast<pid_t>(pid))}
         : candidates;
     const UpscaleApplication *selected = connectionApplication(identities, answer);
-    if (!selected) {
+    // Under All applications an unlisted program is told the smaller screen
+    // when it connects, as a measured entry's program is, and not only asked
+    // to resize its window later: a program that keeps the viewport it
+    // started with, as glmark2 2023.01 and SuperTux 0.6.3 do, would otherwise
+    // show part of its picture enlarged (item 20a, decided by Jens on
+    // 2026-09-29). A disabled entry keeps its refusal.
+    const bool global = !selected && answer.value(QStringLiteral("reason")) != QLatin1String("profile disabled") && unlisted(identities);
+    if (!selected && !global) {
         return answer;
     }
-    answer[QStringLiteral("profile")] = selected->id;
+    if (global && !upscaleResolveSettings(nullptr).acts()) {
+        answer[QStringLiteral("reason")] = QStringLiteral("not in the list, and All applications is off");
+        return answer;
+    }
+    answer[QStringLiteral("profile")] = selected ? selected->id : QStringLiteral("global");
     const QSize desired = connectionSize(selected, m_handler, answer);
     if (!desired.isValid()) {
         return answer;
