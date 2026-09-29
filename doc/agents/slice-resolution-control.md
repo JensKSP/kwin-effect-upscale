@@ -1850,16 +1850,232 @@ reading in each entry stands; this is what running it adds.
   SuperTuxKart, vkd3d-proton's demo and official Proton were not run; Proton
   needs Steam (item 36).
 
-The two cropped pictures are the X11 resize reaching programs that keep the
+The two cropped pictures were the X11 resize reaching programs that keep the
 viewport they started with. The resize cannot tell them from programs that
-follow it, and under All applications, Auto uses it for every unlisted X11
-program. Which way the effect should go is Jens's decision, item 20a of the open
-list.
+follow it. Item 20a's connection-time advertisement solves these fresh starts
+under All applications on one output; the real-display follow-up below
+confirms the result for both programs.
 
 Physical mixed-scale outputs, movement/hotplug and pointer confinement remain
 acceptance tasks below. HDR/VRR and image/performance acceptance retain their
 owner in the [rendering slice](slice-fsr1-hdr-vrr.md); source review cannot replace
 those checks. No new live compatibility result is claimed by this task list.
+
+### Fresh X11 starts on wzpc, 2026-09-29
+
+Item 20a repeated on the real desktop: KWin 6.3.6, Xwayland 24.1.6, AMD Radeon
+Graphics with Mesa 26.1.6, HDMI-A-1 at 3840 × 2160, 120 Hz and scale 3. The
+loaded effect reported `0.3.0+git20260929.4a7ee65e73-dirty`, built at
+`2026-09-29T18:51:59Z`; its session proxy was running. Each case used a fresh
+process and fresh game settings. The baseline left All applications off; the
+second start enabled it with Auto for both X11 slots, Quality, Fit and FSR 1
+without sharpening. Neither game had an application entry selecting it.
+
+| Program | Baseline buffer | Buffer with startup advertisement | Picture on the 4K display |
+| --- | --- | --- | --- |
+| glmark2 2023.01, X11 fullscreen | 3840 × 2160 | 2560 × 1440 | Whole model, same placement as the baseline; no cropping. |
+| SuperTux 0.6.3, X11 fullscreen | 3840 × 2160 | 2560 × 1440 | Whole, centred title and menu, with all four screen borders visible. |
+
+For each scaled start, the proxy logged `connection display advertisement`,
+profile `global`, size 2560 × 1440, for that game's PID. The effect recorded
+`selected=1`, `scaling=1` and a 3840 × 2160 destination; glmark2 also reported
+its own fullscreen surface as 2560 × 1440. The initial screenshots hid the
+OSD; SuperTux's scaled capture enabled it and shows `FSR 1`, `1440p → 4K`.
+The first glmark2 run began while the screen was locked; its baseline capture
+and accepted readings were taken after it unlocked.
+
+Logs, sampled status, screenshots and settings before and after are under
+`build/native-startup-glmark2-baseline-bdpobz0k`,
+`build/native-startup-glmark2-quality-20uodh6v`,
+`build/native-startup-supertux-baseline-zpnzmybt` and
+`build/native-startup-supertux-quality-fgo5vfsp`. Each run restored the effect
+settings and read them back equal to their original values. This establishes
+fresh X11 startup and uncropped presentation on this display; pointer input,
+already-running games, native Wayland and multiple outputs were not tested.
+
+### Wayland Auto at scale one, 2026-09-29
+
+Jens asked for an effect-only solution after the real-display checks found
+Qt, SDL without high pixel density, SuperTux and SuperTuxKart's Vulkan desktop
+fullscreen still drawing at 4K. A forwarding socket is excluded. He then
+requested implementation of the Auto fix and visible game checks on wzpc,
+including inspection of the supplied buffers and pointer behaviour.
+
+The initial investigation used a temporary diagnostic effect in the
+conformance VM, unmodified KWin 6.3.6, a 3840 × 2160 virtual output at scale
+one, and software rendering. A normal `Window::resize()` request changed the
+actual buffer of Qt Quick 6.8.2, SDL 3.2.10 desktop fullscreen without high
+pixel density, and SuperTuxKart 1.4 Vulkan desktop fullscreen from 3840 × 2160
+to 2560 × 1440. Each returned to 3840 × 2160 after restoration. vkmark 2025.01
+ignored the configure and stayed at 4K, as its source predicts: it takes its
+buffer dimensions from the mode at startup. Artifacts are under
+`build/wayland-cause-review/{qt-resize-7n054tew,sdl3-resize-4dm2e7z_,stk-resize-h4g0fl2_,vkmark-resize-0jrat8j4}`.
+
+These requests also shrink the window's input region. Merely enlarging its
+picture is insufficient. `ClientConnection::setScaleOverride()` is not a
+complete alternative: the Qt experiment `qt-override-y0f6_nx2` enlarged the
+surface and its input region to 3840 × 2160, but the xdg-shell frame stayed
+2560 × 1440. KWin documents that API as supporting the Xwayland protocol
+subset. Its xdg-shell configure and window-geometry paths do not apply the
+override. This is a measured inconsistency, not accepted input support.
+
+Implemented in the developer build: retain the successful fractional-scale path;
+after an ignored request, let Auto ask for smaller fullscreen geometry and
+present that geometry over the original output. A fullscreen window that
+already matches the smaller advertised mode also needs this presentation,
+which now accepts fullscreen windows too. The existing
+picture input mapping must follow both cases. Restore geometry on disable,
+unload and fullscreen exit, and stop retrying an ignored resize. The
+confinement limitation and upstream proposal 29b remain separate: no result
+here establishes a complete pointer transform inside KWin. Focused regression
+checks and native results are recorded below; full release validation remains open.
+
+The first implementation passed the focused Trixie QPainter tests for
+fractional-scale negotiation, full-output presentation, and a new fallback
+case with mapped motion, a click outside the smaller window, geometry
+restoration and pointer restoration. The new case exposed a stale pointer
+coordinate on returning focus to the restored window; confirming the restored
+position fixes it. `build/wayland-auto-check/focused6.log` records five QtTest
+passes (including setup and cleanup), zero failures. This is developer-build
+validation; the full compiler/container matrix has not run.
+
+The production plugin also passed the Qt Quick case in the conformance VM:
+3840 × 2160 became 2560 × 1440 and filled the 4K output. Positions (1920,1080),
+(960,540) and (3000,1800) reached Qt as (1280,720), (640,360) and (2000,1200).
+Artifacts: `build/auto-bench/runs/qt-resize-fallback-Auto-9zawpk3o`.
+
+Installed natively on wzpc and loaded with `tools/reload-upscale.py`, the
+plugin reports build `7dc79f354f-dirty`, 2026-09-29T20:10:58Z. A simple
+unload/load kept Qt's cached old library: the first on-screen Qt attempt still
+reported the old 18:51:59 build and is not a test of the fix. The reload
+utility loaded a fresh copy without restarting KWin.
+
+On the physical HDMI-A-1 output at 3840 × 2160, desktop scale one, Quality and
+Auto, with the OSD visible, these cases supplied 2560 × 1440 with FSR active.
+Their screenshots were inspected for full-output presentation:
+
+| Case | Artifact under build/ | Result |
+| --- | --- | --- |
+| Qt Quick 6.8.2 | display-auto-fixed-qt-scale1-fresh-k16sr3w4 | Whole animated scene; resize fallback |
+| SuperTuxKart 1.4 Vulkan, SDL 2.32.2 | display-auto-fixed-stk-vulkan-scale1-5ghl8288 | Whole lighthouse race; resize fallback; log confirms AMD Vulkan |
+| SuperTux 0.6.3 native Wayland | display-auto-fixed-supertux-scale1-kselwbfi | Whole menu and frame; resize fallback |
+| vkmark 2025.01 | display-auto-fixed-vkmark-scale1-3bjiuwlj | Whole cube scene; advertised mode and full-output presentation |
+| SDL 3.2.10 without high pixel density | display-auto-fixed-sdl3-nohidpi-scale1-ezq69912 | Whole sprite field, corner markers and diagonals; resize fallback |
+
+**The first, late-resize glmark2 run failed.** In
+`build/display-auto-fixed-glmark2-wayland-scale1-u9jv5a3q`, Auto reduced the
+buffer to 2560 × 1440, but the scene was cropped and displaced. Jens spotted
+this, and inspection confirmed it. glmark2's own log still reports its initial
+3840 × 2160 surface size. Its Wayland configure handler resizes the EGL window
+but the renderer keeps the original viewport. The comparison
+`build/display-glmark2-wayland-native-comparison-kj99n87v` ran the same scene at
+native 4K with the method Off: the whole model is centred, and Jens confirmed
+it correct. This led to the first-configure fix recorded below; the late
+resize is not accepted. A small buffer alone never establishes a correct
+picture.
+
+Each completed physical run restored the saved effect settings and desktop
+scale three, with readback checks. These results do not establish internal
+render-target savings or complete physical-pointer acceptance. Pointer
+confinement, touch, tablet input and lock hints remain open. K1 and K2 in the
+[known-limitations slice](slice-known-limitations.md) link here for the result.
+
+The subsequent first-configure fix corrects the fresh glmark2 case at scale
+one. `waylandinitial.cpp` observes KWin's exported xdg-shell initialization
+signal before the first configure is sent. For an Auto fullscreen client at
+scale one without a fractional-scale object, it requests the smaller geometry
+before the first buffer exists. It shares the geometry ownership, full-output
+presentation and pointer mapping used by the fallback. It neither changes the
+physical output nor creates a socket. Clients with fractional scaling keep the
+established scale/fallback path; scaled desktops keep their existing handling.
+
+The Trixie focused run in `build/wayland-auto-check/initial-focused.log` passed
+six QtTest cases including setup and cleanup, with zero failures. It includes
+an integer-only client checking its configure before allocating any buffer,
+then verifying motion and a click near the far edge of the output. Native
+build 2026-09-29T20:33:03Z was installed and freshly reloaded. In
+`build/display-auto-first-configure-glmark2-scale1-ip7wqnae`, glmark2's own
+startup log now says 2560 × 1440, FSR presents it at 3840 × 2160, and the captured
+model is whole and centred like the native comparison. The earlier cropped
+run remains a failure; the corrected fresh-start run is a separate result.
+Live changes to a renderer's fixed initial viewport are still not solved.
+
+Jens then asked whether the scale-one techniques could become one generic
+method. A diagnostic hook in the conformance VM requested two thirds of the
+output's logical size on both xdg-shell initialization and fullscreen requests,
+without advertising a mode or changing scale hints. Each final observation
+waited for at least five commits carrying buffers, rather than judging the
+first splash buffer. The initial-only experiment missed SDL's later fullscreen
+request; it is not the final comparison. Both logs remain under
+`build/wayland-auto-check/generic-matrix.log` and
+`build/wayland-auto-check/generic-fullscreen-matrix.log`; the final per-case
+records are in `build/wayland-cause-review/generic-fullscreen-matrix.json`.
+
+The target was 2560 × 1440 on a 3840 × 2160 output. Actual buffers:
+
+| Client | Desktop scale 1 | Desktop scale 1.5 | Desktop scale 3 |
+| --- | --- | --- | --- |
+| Qt Quick 6.8.2 | 2560 × 1440 | 2561 × 1440 | 2559 × 1440 |
+| SDL 3.2.10, high pixel density | 2560 × 1440 | 2561 × 1440 | 2559 × 1440 |
+| SDL 3.2.10, no high pixel density | 2560 × 1440 | 1707 × 960 | 853 × 480 |
+| glmark2 2023.01 | 2560 × 1440 | 3414 × 1920 | 2559 × 1440 |
+| vkmark 2025.01 | 3840 × 2160 | 3840 × 2160 | 3840 × 2160 |
+| SuperTux 0.6.3 | 2560 × 1440 | 1707 × 960 | 853 × 480 |
+| SuperTuxKart 1.4 Vulkan | 2560 × 1440 | 2561 × 1440 | 2559 × 1440 |
+| Godot 4.7.2 Wayland | 2560 × 1440 | 2561 × 1440 | 2559 × 1440 |
+
+The one-pixel differences are configure-size rounding. The larger differences
+are real density policies: fractional-density clients use the desktop scale,
+glmark2 uses the output's integer scale, and low-density SDL clients use one.
+vkmark ignores configure sizes and needs the advertised mode, as the physical
+Auto test demonstrated. A smaller configure is therefore reusable, but is not
+a universal replacement for mode advertising and scale negotiation. These are
+buffer-mechanism observations with the diagnostic hook, not new claims of
+production acceptance for every matrix cell. Common geometry, presentation and
+pointer code can be shared; density policy and startup timing still matter.
+Confinement continues to require the upstream transform work of item 29b.
+
+Application catalogue tests passed in Trixie after the SuperTuxKart and vkmark
+Wayland fullscreen defaults were changed to Auto
+(`build/wayland-auto-check/application2.log`). glmark2 retains its established
+AdvertisedScale default for scaled desktops; the scale-one demonstration
+explicitly selected Auto. Physical test settings were restored after each run.
+
+Submission validation after Jens requested the fix be finished and pushed:
+Trixie GCC and Clang compiled with warnings as errors, as did both compilers
+against current KWin in neon-unstable. The Clang run passed all 31 runtime
+checks. GCC's full run exposed catalogue and snapshot test expectations that
+still named the old default or assumed every geometry request was X11; the
+corrected tests passed, with the last catalogue case rerun separately. The
+final source rebuild and focused negotiation/input run passed eight QtTest
+cases including setup and cleanup. Logs are under
+`build/wayland-auto-check/`: `gcc-final2.log`, `gcc-catalogue-final.log`,
+`clang-final.log`, `rebuild-final.log`, `neon-gcc-final3.log` and
+`neon-clang-final.log`.
+
+The full clang-tidy run found three style issues in the new helpers. They
+were corrected, and the affected files and metadata validation passed
+(`tidy-final.log`, `tidy-corrected.log`). Production rendering in the VM passed
+17 cases (`production-final5.log`). That run also updated two stale test
+assumptions: Fit mode adds bars for another aspect ratio, and Auto's restored
+fractional scale now starts its configure fallback rather than ending all
+negotiation. The refusal case acknowledges configures while ignoring their
+sizes, verifies withdrawal of both requests, and observes another 35 presented
+frames without another configure. The earlier wait for unacknowledged
+configures was a test failure, not an accepted result.
+
+The six SuperTuxKart presentation cases passed in the conformance VM:
+OpenGL fullscreen and Vulkan borderless and exclusive, each on Wayland and
+Xwayland. All supplied 2560 × 1440 for a 3840 × 2160 destination and passed
+the picture-placement and sharpening comparisons. Captures include startup
+frames (the Xwayland Vulkan exclusive capture shows the loading screen), so
+this is not six captures of racing gameplay. Two Wayland cases needed the
+runner's existing second capture-stop attempt after a D-Bus timeout. Results
+are in `build/conformance-vm/effect/supertuxkart-d95hk5n0/` and `stk-final.log`.
+Wayland crash recovery, including 50 consecutive game crashes, passed all
+five QtTest cases including setup and cleanup; X11 resize crash recovery
+passed all three (`crash-wayland-final.log`, `crash-x11-final.log`). Both
+pre-commit stages passed (`lint-final4.log`). Push and review are still pending.
 
 ### Extreme Tux Racer's own fullscreen is the wrong shape, 2026-09-20
 

@@ -138,7 +138,7 @@ void UpscaleApplicationEditorTest::editsTheApplicationList()
     auto *programMatch = editor->findChild<QComboBox *>(QStringLiteral("applicationProgramMatch"));
     QVERIFY(programMatch);
     QCOMPARE(programMatch->currentIndex(), int(KWin::UpscaleStringMatch::RegularExpression));
-    QCOMPARE(method->currentText(), KWin::upscaleMethodLabel(KWin::UpscaleMethod::AdvertisedMode));
+    QCOMPARE(method->currentText(), KWin::upscaleMethodLabel(KWin::UpscaleMethod::Auto));
     QCOMPARE(list->item(kart)->checkState(), Qt::Checked);
     // A shipped entry's note records what was measured, for the people who
     // maintain the list; it is not shown beside the fields.

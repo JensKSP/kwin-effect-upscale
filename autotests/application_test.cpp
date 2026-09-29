@@ -136,7 +136,7 @@ void ApplicationTest::matchesObservedIdentities()
     QVERIFY(kart);
     QCOMPARE(kart->name, QStringLiteral("SuperTuxKart"));
     QCOMPARE(kart->methods[std::size_t(KWin::UpscalePresentation::WaylandFullScreen)],
-             std::optional(KWin::UpscaleMethod::AdvertisedMode));
+             std::optional(KWin::UpscaleMethod::Auto));
     // The other five are unmeasured and state nothing, so they follow the
     // global profile's answer, which is Auto unless a person chose another,
     // and not Off: the game has only ever been run one of the six ways.
@@ -144,7 +144,7 @@ void ApplicationTest::matchesObservedIdentities()
     QCOMPARE(KWin::upscaleMethodFor(kart, KWin::UpscalePresentation::X11FullScreen), KWin::UpscaleMethod::Auto);
     // What a reset returns a slot to: the package's measurement.
     QCOMPARE(kart->measured[std::size_t(KWin::UpscalePresentation::WaylandFullScreen)],
-             std::optional(KWin::UpscaleMethod::AdvertisedMode));
+             std::optional(KWin::UpscaleMethod::Auto));
     // It states no resolution of its own. A shipped resolution would be taste,
     // and it would stop the user's global setting ever reaching this game.
     QVERIFY(!kart->overrides[std::size_t(KWin::UpscaleSetting::Resolution)]);
@@ -182,7 +182,7 @@ void ApplicationTest::matchesTheBenchmarks()
                                              QStringLiteral("vkmark"));
     QVERIFY(vk);
     QCOMPARE(vk->methods[std::size_t(KWin::UpscalePresentation::WaylandFullScreen)],
-             std::optional(KWin::UpscaleMethod::AdvertisedModeAndScale));
+             std::optional(KWin::UpscaleMethod::Auto));
 
     // They state no resolution, as no shipped entry does: every entry follows
     // the global values until the user states one of its own.
@@ -230,7 +230,7 @@ void ApplicationTest::layersUserChangesOverTheDefaults()
     QCOMPARE(KWin::upscaleResolveSettings(kart).resolution(), ResolutionPreset::Performance);
     // The field the user did not touch still comes from the shipped file.
     QCOMPARE(kart->methods[std::size_t(KWin::UpscalePresentation::WaylandFullScreen)],
-             std::optional(KWin::UpscaleMethod::AdvertisedMode));
+             std::optional(KWin::UpscaleMethod::Auto));
     QVERIFY(kart->shipped);
 
     // A disabled entry stops matching without being deleted.
@@ -268,7 +268,7 @@ void ApplicationTest::restoringDiscardsOnlyTheUserChanges()
     // The user's own resolution is gone, so this follows the global one again.
     QVERIFY(!kart->overrides[std::size_t(KWin::UpscaleSetting::Resolution)]);
     QCOMPARE(kart->methods[std::size_t(KWin::UpscalePresentation::WaylandFullScreen)],
-             std::optional(KWin::UpscaleMethod::AdvertisedMode));
+             std::optional(KWin::UpscaleMethod::Auto));
     QVERIFY(!forInstance(QStringLiteral("mygame")));
 
     // Restoring must leave the defaults reachable rather than suppressed: a

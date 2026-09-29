@@ -126,7 +126,8 @@ void UpscaleEffect::askForSmallerBuffer(UpscaleOutput *output, EffectWindow *can
     // A window that answered a request from here draws smaller too, and has to
     // go on being asked, or its scale would be given back and it would grow.
     const bool reached = drawsSmaller(window) && !m_waylandScale->known(window->window());
-    m_waylandScale->request(window, autoRatio(window, asked, upscaleResolveSettings(asked), reached));
+    const bool resize = upscaleMethodFor(asked, upscalePresentationOf(window)) == UpscaleMethod::Auto;
+    m_waylandScale->request(window, autoRatio(window, asked, upscaleResolveSettings(asked), reached), resize);
 }
 
 } // namespace KWin

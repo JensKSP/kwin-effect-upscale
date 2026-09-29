@@ -14,5 +14,5 @@ MeasuredVersion=1.4
 Executable=.*/supertuxkart
 X11ConnectionExecutable=/(?:.*/)?supertuxkart
 ExecutableMatch=RegularExpression
-MethodWaylandFullScreen=AdvertisedMode
+MethodWaylandFullScreen=Auto
 Order=10

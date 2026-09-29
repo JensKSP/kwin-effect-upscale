@@ -111,6 +111,10 @@ void UpscalePictureInput::giveBack(SeatInterface *seat, Window *focus, const QPo
     if (m_surface && seat->focusedPointerSurface() == m_surface) {
         if (focus && focus->surface() == m_surface) {
             seat->setFocusedPointerSurfaceTransformation(focus->inputTransformation());
+            // KWin may already have entered at this position while the seat
+            // still held our mapping, and suppress the following motion.
+            // Confirm the restored coordinates just as we do a mapped enter.
+            confirmEnteredPosition(seat, m_surface, position, focus->inputTransformation());
         } else if (m_claimed && focus && focus->surface()) {
             seat->notifyPointerEnter(focus->surface(), position, focus->inputTransformation());
         } else if (m_claimed) {

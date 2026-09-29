@@ -84,9 +84,9 @@ MeasuredVersion=1.4
 Executable=.*/supertuxkart
 X11ConnectionExecutable=/(?:.*/)?supertuxkart
 ExecutableMatch=RegularExpression
-MethodWaylandFullScreen=AdvertisedMode
+MethodWaylandFullScreen=Auto
 Order=10
-Note=Follows the advertised screen mode in exclusive fullscreen, which its OpenGL renderer always uses. In borderless fullscreen, which its Vulkan renderer uses by default, it follows the surface scale instead.
+Note=Auto advertises the mode for OpenGL exclusive fullscreen. Vulkan desktop fullscreen follows the surface scale or, at desktop scale one, the smaller fullscreen configure.
 
 [Application-extremetuxracer]
 Name=Extreme Tux Racer
@@ -148,7 +148,7 @@ Executable=.*/glmark2-wayland
 ExecutableMatch=RegularExpression
 MethodWaylandFullScreen=AdvertisedScale
 Order=30
-Note=Follows the advertised screen scale. A screen without a scale above one offers it no reduction.
+Note=The advertised scale is the established path on scaled desktops. Auto also works for fresh starts at desktop scale one; changing size after startup leaves the renderer's viewport unchanged.
 
 [Application-vkmark]
 Name=vkmark
@@ -156,6 +156,6 @@ MeasuredVersion=2025.01
 # Its window: class com.github.vkmark.vkmark, instance vkmark.
 Executable=.*/vkmark
 ExecutableMatch=RegularExpression
-MethodWaylandFullScreen=AdvertisedModeAndScale
+MethodWaylandFullScreen=Auto
 Order=40
-Note=Follows the advertised screen mode and scale together. A screen without a scale above one offers it no reduction.
+Note=Auto advertises the smaller mode at startup and presents the resulting fullscreen surface over the output, including at desktop scale one. The client ignores later configure sizes.

@@ -243,7 +243,7 @@ void ApplicationListTest::aGameInheritsItsMethods()
     list->setCurrentRow(kart);
     // The measured slot shows the package's measurement, inherited; an
     // unmeasured one the global method, Automatic by default.
-    QCOMPARE(wayland->currentText(), KWin::upscaleMethodLabel(KWin::UpscaleMethod::AdvertisedMode));
+    QCOMPARE(wayland->currentText(), KWin::upscaleMethodLabel(KWin::UpscaleMethod::Auto));
     QCOMPARE(inheritance(game, QStringLiteral("method0")), Follows);
     QCOMPARE(x11->currentText(), KWin::upscaleMethodLabel(KWin::UpscaleMethod::Auto));
     QCOMPARE(inheritance(game, QStringLiteral("method3")), Follows);
@@ -254,17 +254,17 @@ void ApplicationListTest::aGameInheritsItsMethods()
     QCOMPARE(x11->currentText(), KWin::upscaleMethodLabel(KWin::UpscaleMethod::Off));
     QCOMPARE(inheritance(game, QStringLiteral("method3")), Follows);
     // Choosing a method states it, and it is stored as the user's own.
-    wayland->setCurrentIndex(wayland->findText(KWin::upscaleMethodLabel(KWin::UpscaleMethod::Auto)));
+    wayland->setCurrentIndex(wayland->findText(KWin::upscaleMethodLabel(KWin::UpscaleMethod::AdvertisedMode)));
     QCOMPARE(inheritance(game, QStringLiteral("method0")), States);
     module.save();
     QFile stored(upscaleUserApplicationFile());
     QVERIFY(stored.open(QIODevice::ReadOnly));
-    QVERIFY(stored.readAll().contains("MethodWaylandFullScreen=Auto"));
+    QVERIFY(stored.readAll().contains("MethodWaylandFullScreen=AdvertisedMode"));
     stored.close();
     // Resetting returns to the measurement, and stores nothing of its own.
     list->setCurrentRow(kart);
     waylandReset->click();
-    QCOMPARE(wayland->currentText(), KWin::upscaleMethodLabel(KWin::UpscaleMethod::AdvertisedMode));
+    QCOMPARE(wayland->currentText(), KWin::upscaleMethodLabel(KWin::UpscaleMethod::Auto));
     QCOMPARE(inheritance(game, QStringLiteral("method0")), Follows);
     module.save();
     QVERIFY(stored.open(QIODevice::ReadOnly));
@@ -299,7 +299,7 @@ void ApplicationListTest::clearsEverythingAGameStatesAtOnce()
     // The package's own entry states nothing of the person's yet.
     QVERIFY(!clear->isEnabled());
     sharpening->click();
-    wayland->setCurrentIndex(wayland->findText(KWin::upscaleMethodLabel(KWin::UpscaleMethod::Auto)));
+    wayland->setCurrentIndex(wayland->findText(KWin::upscaleMethodLabel(KWin::UpscaleMethod::AdvertisedMode)));
     QCOMPARE(inheritance(game, QStringLiteral("Sharpening")), States);
     QCOMPARE(inheritance(game, QStringLiteral("method0")), States);
     QVERIFY(clear->isEnabled());
@@ -307,7 +307,7 @@ void ApplicationListTest::clearsEverythingAGameStatesAtOnce()
     clear->click();
     QCOMPARE(inheritance(game, QStringLiteral("Sharpening")), Follows);
     QCOMPARE(inheritance(game, QStringLiteral("method0")), Follows);
-    QCOMPARE(wayland->currentText(), KWin::upscaleMethodLabel(KWin::UpscaleMethod::AdvertisedMode));
+    QCOMPARE(wayland->currentText(), KWin::upscaleMethodLabel(KWin::UpscaleMethod::Auto));
     QVERIFY(!clear->isEnabled());
     module.save();
     QFile stored(upscaleUserApplicationFile());

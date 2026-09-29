@@ -135,3 +135,96 @@ void UpscaleIntegrationTest::drawsAWindowOfTheToldSizeOverItsOutput()
     QTRY_VERIFY2(near(game.lastMotion(), QPointF(60 * across, 60 * across)),
                  qPrintable(QStringLiteral("%1, %2").arg(game.lastMotion().x()).arg(game.lastMotion().y())));
 }
+
+// A client that ignores fractional scale, as Qt does below one, but sizes its
+// buffer to the fullscreen configure. Auto must make that configure smaller,
+// carry input back from the enlarged picture, and restore the original size.
+void UpscaleIntegrationTest::autoResizesAClientThatIgnoresScale()
+{
+    const QDBusReply<bool> loaded = m_effects.call(QStringLiteral("loadEffect"), QStringLiteral("upscale_test_driver"));
+    QVERIFY(loaded.isValid() && loaded.value());
+    const auto unload = qScopeGuard([this]() {
+        writeCatalogue(QString());
+        configureResolution(true, false, {});
+        m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
+    });
+    writeCatalogue(integrationEntry(QStringLiteral("MethodWaylandFullScreen=Auto\nMinimumPixels=0\nOrder=1\n")));
+    configureResolution(true, false, Stored::Quality);
+    configureDisplay(false, false);
+    WaylandClient game;
+    QVERIFY(game.initialize());
+    QSocketNotifier notifier(game.descriptor(), QSocketNotifier::Read);
+    connect(&notifier, &QSocketNotifier::activated, this, [&game]() {
+        game.dispatch();
+    });
+    QVERIFY(game.show(QSize(128, 128)));
+    QVERIFY(game.presentFrames(35));
+    QTRY_COMPARE(game.configuredSize(), QSize(85, 85));
+    QVERIFY(game.show(game.configuredSize()));
+    QTRY_VERIFY2(status().contains(QStringLiteral("Supplied input: 85 × 85")) && status().contains(QStringLiteral("FSR 1, sharpening")),
+                 qPrintable(status()));
+    QCOMPARE(game.preferredScale(), 120);
+    const double across = 85.0 / 128.0;
+    movePointer(QPoint(64, 64));
+    QTRY_VERIFY(near(game.lastMotion(), QPointF(64 * across, 64 * across)));
+    movePointer(QPoint(124, 124));
+    QTRY_VERIFY(near(game.lastMotion(), QPointF(124 * across, 124 * across)));
+    clickPointer(QPoint(124, 124));
+    QTRY_COMPARE(game.presses(), 1);
+
+    writeCatalogue(integrationEntry(QStringLiteral("MethodWaylandFullScreen=Off\nMinimumPixels=0\nOrder=1\n")));
+    configureResolution(false, false, Stored::Quality);
+    QTRY_COMPARE(game.configuredSize(), QSize(128, 128));
+    QVERIFY(game.show(game.configuredSize()));
+    QVERIFY(game.presentFrames(2));
+    movePointer(QPoint(60, 60));
+    QTRY_VERIFY2(near(game.lastMotion(), QPointF(60, 60)),
+                 qPrintable(QStringLiteral("%1, %2").arg(game.lastMotion().x()).arg(game.lastMotion().y())));
+}
+
+void UpscaleIntegrationTest::autoConfiguresAnIntegerClientBeforeItsFirstBuffer_data()
+{
+    QTest::addColumn<QString>("method");
+    QTest::addColumn<QSize>("configured");
+    QTest::newRow("auto") << QStringLiteral("Auto") << QSize(85, 85);
+    QTest::newRow("off") << QStringLiteral("Off") << QSize(128, 128);
+    QTest::newRow("explicit-scale") << QStringLiteral("AdvertisedScale") << QSize(128, 128);
+}
+
+void UpscaleIntegrationTest::autoConfiguresAnIntegerClientBeforeItsFirstBuffer()
+{
+    QFETCH(QString, method);
+    QFETCH(QSize, configured);
+    const QDBusReply<bool> loaded = m_effects.call(QStringLiteral("loadEffect"), QStringLiteral("upscale_test_driver"));
+    QVERIFY(loaded.isValid() && loaded.value());
+    const auto unload = qScopeGuard([this]() {
+        writeCatalogue(QString());
+        configureResolution(true, false, {});
+        m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
+    });
+    writeCatalogue(integrationEntry(QStringLiteral("MethodWaylandFullScreen=%1\nMinimumPixels=0\nOrder=1\n").arg(method)));
+    configureResolution(true, false, Stored::Quality);
+    configureDisplay(false, false);
+    WaylandClient game(2, false);
+    QVERIFY(game.initialize());
+    // Before show() allocates the first buffer: a late resize cannot change a
+    // viewport that an application initializes only once, as glmark2 does.
+    QCOMPARE(game.configuredSize(), configured);
+    QCOMPARE(game.preferredScale(), 0);
+    // The early hook must respect an explicit method as well as Auto: Off
+    // leaves the original size, and an advertisement never changes geometry.
+    if (method != QLatin1String("Auto")) {
+        return;
+    }
+    QSocketNotifier notifier(game.descriptor(), QSocketNotifier::Read);
+    connect(&notifier, &QSocketNotifier::activated, this, [&game]() {
+        game.dispatch();
+    });
+    QVERIFY(game.show(game.configuredSize()));
+    QTRY_VERIFY2(status().contains(QStringLiteral("Supplied input: 85 × 85")) && status().contains(QStringLiteral("FSR 1, sharpening")),
+                 qPrintable(status()));
+    movePointer(QPoint(124, 124));
+    QTRY_VERIFY(near(game.lastMotion(), QPointF(124 * 85.0 / 128.0, 124 * 85.0 / 128.0)));
+    clickPointer(QPoint(124, 124));
+    QTRY_COMPARE(game.presses(), 1);
+}

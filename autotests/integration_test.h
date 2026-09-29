@@ -42,6 +42,9 @@ private Q_SLOTS:
     void logsTransitionsNotFrames();
     void mapsThePointerOntoThePicture();
     void drawsAWindowOfTheToldSizeOverItsOutput();
+    void autoResizesAClientThatIgnoresScale();
+    void autoConfiguresAnIntegerClientBeforeItsFirstBuffer_data();
+    void autoConfiguresAnIntegerClientBeforeItsFirstBuffer();
 
 private:
     // The global resolution as kwinrc stores it. Spelled out here rather than
