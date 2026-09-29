@@ -177,6 +177,11 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   arm64 machine finished its first boot the same day** in 38 minutes, logged
   in to Plasma's Wayland session on aarch64 with virtio-gpu offering
   3840 × 2160; its package check waits for the nightly's arm64 package.
+  **Fedora 43, openSUSE Tumbleweed and Arch amd64 passed 2026-09-29,** all
+  nine steps each, with nightly 36545995686's packages of `7ff0fe6`:
+  SuperTuxKart enlarged from 2560 × 1440 on Wayland in each, and an X11
+  game answered by the proxy (Extreme Tux Racer on Fedora, SuperTuxKart
+  where Extreme Tux Racer is not installed).
   **FreeBSD blocked, for Jens to decide (found 2026-09-29):** a Plasma Wayland
   session needs a DRM/KMS driver, and FreeBSD's drm-kmod drives Intel, AMD and
   NVIDIA hardware only. No QEMU display device has one: virtio-gpu KMS for
