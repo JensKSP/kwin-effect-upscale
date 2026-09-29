@@ -278,9 +278,12 @@ void Session::showPrefix(const QString &prefix, const QSize &size, const QByteAr
     // of the smaller screen, or KWin answers Wine's request for that size with
     // the output's and Wine grows the window by the difference.
     // Each answer, or its half second, counts; the switch follows the last.
+    // Not for a prefix that closed meanwhile, or shows another game's screen
+    // by now: its relays are that game's to switch.
     auto remaining = std::make_shared<qsizetype>(processes.size());
-    const auto proceed = [this, prefix, size, timing, remaining]() {
-        if (--*remaining == 0) {
+    const auto proceed = [this, prefix, size, timing, game, remaining]() {
+        const auto current = m_prefixShown.constFind(prefix);
+        if (--*remaining == 0 && current != m_prefixShown.cend() && current->game == game && current->size == size) {
             switchPrefix(prefix, size, timing);
         }
     };
