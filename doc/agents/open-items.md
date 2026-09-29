@@ -153,6 +153,11 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   report per system. Tooling in Python under `tools/`, the best fit for the
   repository's own tools. 2b becomes one profile of it, and it tests 8 on every
   distribution. Owned by a new slice for package installation in standard VMs.
+  **Supported scope done 2026-09-29:** `tools/package-vm.py` and
+  `tools/package_check.py`; a fresh Debian Trixie amd64 machine with Plasma
+  passed all nine steps with the nightly's package, SuperTuxKart enlarged from
+  2560 × 1440 and Extreme Tux Racer answered by the proxy. The other systems
+  remain. Owned by the package machines slice.
 
 - **2g.** **fix, S** – CodeRabbit asked for changes on #23 (review 5342421790
   at `74de7c8`), found 2026-09-28: five comments, each checked against the
@@ -524,9 +529,11 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   **Done 2026-09-29, `5c117bd`, pushed:** the machine is emptied between build
   and test; the verify-only nightly 36501169792 passed it. Recorded in the
   pipeline slice.
-- **80a.** **fix** – The same nightly's Debian arm64 builds differed, where amd64
+- **80a.** **watch** – The same nightly's Debian arm64 builds differed, where amd64
   and three earlier arm64 runs built identically. The comparison now lists the
-  differing files; the next nightly names them. Found 2026-09-29.
+  differing files. The next nightly, 36503302445 on nearly the same sources,
+  built arm64 identically, so the difference is intermittent; the listing names
+  the files when it comes back. Found 2026-09-29.
 - **81.** **decide** – Nightly checks CI's conclusion through the API instead of
     rerunning `ci.yml`.
 - **82.** **decide/investigate** – The openSUSE amd64 failure you reported; not observed.
