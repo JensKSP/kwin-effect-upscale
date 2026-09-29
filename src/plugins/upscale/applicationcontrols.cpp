@@ -42,6 +42,10 @@ void UpscaleEffectConfig::addApplicationControls(QFormLayout *layout)
     exportList->setObjectName(QStringLiteral("exportApplications"));
     auto importList = new QPushButton(i18n("Import…"), widget());
     importList->setObjectName(QStringLiteral("importApplications"));
+    // The way a game somebody got working reaches the list the package ships.
+    auto report = new QPushButton(i18n("Copy Report…"), widget());
+    report->setObjectName(QStringLiteral("copyReport"));
+    report->setToolTip(i18n("Pick a game's window and copy what the upscaler observed of it, to send with a new entry"));
     // What the list is, the way back to the list the package ships, and the
     // way to take it elsewhere. All three act on the games and never on "All
     // applications", whose values System Settings' own Defaults restores.
@@ -49,11 +53,13 @@ void UpscaleEffectConfig::addApplicationControls(QFormLayout *layout)
     status->addWidget(m_applications, 1);
     status->addWidget(exportList);
     status->addWidget(importList);
+    status->addWidget(report);
     status->addWidget(m_resetApplications);
     layout->addRow(status);
     connect(m_resetApplications, &QPushButton::clicked, this, &UpscaleEffectConfig::resetApplications);
     connect(exportList, &QPushButton::clicked, this, &UpscaleEffectConfig::exportApplications);
     connect(importList, &QPushButton::clicked, this, &UpscaleEffectConfig::importApplications);
+    connect(report, &QPushButton::clicked, this, &UpscaleEffectConfig::copyReport);
     updateApplicationSummary();
 }
 

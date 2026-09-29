@@ -151,6 +151,7 @@ if(KWin_VERSION VERSION_LESS 6.7)
         x11_crash_test.cpp
         x11_fullscreen_test.cpp
         x11_wine_test.cpp
+        x11_report_test.cpp
         crash_game.h
         x11_standin_game.h
     )

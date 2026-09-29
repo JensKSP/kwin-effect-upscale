@@ -62,6 +62,9 @@ private:
     void resetApplications();
     void exportApplications();
     void importApplications();
+    /** Copy what the effect observed of a window the person picks; see upscaleSubmissionReport(). */
+    void copyReport();
+    void askForReport(const QString &window);
     static void reconfigureEffect();
     void updateApplicationSummary();
     void addAboutControls(QFormLayout *layout);
@@ -93,6 +96,8 @@ private:
     UpscaleApplicationEditor *m_editor = nullptr;
     QLabel *m_applications;
     QPushButton *m_resetApplications;
+    // A report is being assembled: the window is being picked or asked about.
+    bool m_reporting = false;
     QLabel *m_build;
 };
 

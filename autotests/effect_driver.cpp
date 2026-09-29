@@ -113,6 +113,8 @@ class UpscaleTestDriver : public Effect
     Q_OBJECT
     Q_PROPERTY(QString status READ status)
     Q_PROPERTY(QString windows READ windows)
+    // The active window's internal ID, as KWin's window picker names it.
+    Q_PROPERTY(QString activeWindowId READ activeWindowId)
     Q_PROPERTY(QString captured READ captured)
     Q_PROPERTY(bool blocksScanout READ blocksDirectScanout)
     // What a test waits for before judging what a reconfiguration did to an
@@ -202,6 +204,12 @@ public:
     QString captured() const
     {
         return m_captured.join(QLatin1Char(','));
+    }
+
+    QString activeWindowId() const
+    {
+        EffectWindow *window = effects->activeWindow();
+        return window && window->window() ? window->window()->internalId().toString() : QString();
     }
 
     QString windows() const

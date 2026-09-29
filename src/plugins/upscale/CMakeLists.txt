@@ -67,6 +67,7 @@ if (KWIN_BUILD_KCMS)
         proxycontrols.cpp
         displaycontrols.cpp
         applicationcontrols.cpp
+        submission.cpp
         resolutionchoice.cpp
         resolutionpreview.cpp
         sliderfield.cpp
