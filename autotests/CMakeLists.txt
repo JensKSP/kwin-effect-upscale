@@ -79,6 +79,7 @@ add_executable(
     upscale_application_test
     application_test.cpp
     application_export_test.cpp
+    catalogue_test.cpp
     legacysettings_test.cpp
     matching_test.cpp
     ../src/plugins/upscale/application.cpp

@@ -27,6 +27,7 @@ using namespace KWin;
 int runLegacySettingsTest(int argc, char *argv[]);
 int runMatchingTest(int argc, char *argv[]);
 int runApplicationExportTest(int argc, char *argv[]);
+int runCatalogueTest(int argc, char *argv[]);
 
 static QString userDirectory()
 {
@@ -104,20 +105,15 @@ QByteArray ApplicationTest::readUserConfig()
 
 void ApplicationTest::readsTheShippedDefaults()
 {
+    // What an entry has to state before it ships is catalogue_test.cpp's rule;
+    // this is what reading the installed file makes of it.
     QVERIFY(!upscaleApplications().empty());
-    int previousOrder = -1;
     for (const UpscaleApplication &application : upscaleApplications()) {
         QVERIFY(!application.id.isEmpty());
-        QVERIFY(!application.name.isEmpty());
-        QVERIFY(!application.version.isEmpty());
-        QVERIFY(!application.note.isEmpty());
         // Every shipped entry comes from the effect's own file, so every one
         // of them has a default behind it to be restored to.
         QVERIFY(application.shipped);
         QVERIFY(application.enabled);
-        // An entry has to constrain an identity, or it would match anything,
-        // and every pattern it states has to be usable.
-        QVERIFY2(upscaleIdentityProblem(application).isEmpty(), qPrintable(application.id));
         // An advertisement is made before the window exists, so it has
         // nothing but the program's path to recognize the application by,
         // and an entry that also names a window could not answer then.
@@ -130,9 +126,6 @@ void ApplicationTest::readsTheShippedDefaults()
             QVERIFY(application.windowClass.isEmpty() && application.instance.isEmpty());
         }
         QVERIFY2(upscaleAdvertisementProblem(application).isEmpty(), qPrintable(application.id));
-        // Matching order has to be decided by the file, not by its layout.
-        QVERIFY(application.order > previousOrder);
-        previousOrder = application.order;
     }
 }
 
@@ -551,7 +544,8 @@ int main(int argc, char *argv[])
     // The cases about what a previous release stored live in their own file,
     // beside the code that reads it, and run in the same environment. Both go
     // together once no installation can carry the old keys.
-    return result | runLegacySettingsTest(argc, argv) | runMatchingTest(argc, argv) | runApplicationExportTest(argc, argv);
+    return result | runLegacySettingsTest(argc, argv) | runMatchingTest(argc, argv) | runApplicationExportTest(argc, argv)
+        | runCatalogueTest(argc, argv);
 }
 
 #include "application_test.moc"
