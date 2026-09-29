@@ -93,6 +93,18 @@ void UpscaleSnapshotTest::reportsAWishThatWaitsForTheNextStart()
              qPrintable(status));
     QVERIFY(!status.contains(QStringLiteral("requested from")));
 
+    // A method that tells a scale reaches only whole steps of the output's
+    // scale: at 1.5 on a 4K screen, 2560 × 1440 is the nearest to a wish of
+    // 1920 × 1080, and the wish has not moved on.
+    snapshot.method = KWin::UpscaleMethod::AdvertisedScale;
+    snapshot.nearestReachable = true;
+    status = upscaleStatusText(snapshot);
+    QVERIFY2(status.contains(QStringLiteral("2560 × 1440 requested from SuperTuxKart as its screen mode, the nearest to 1920 × 1080 it can be told")),
+             qPrintable(status));
+    QVERIFY(!status.contains(QStringLiteral("next start")));
+    snapshot.method = KWin::UpscaleMethod::AdvertisedMode;
+    snapshot.nearestReachable = false;
+
     snapshot.preset = ResolutionPreset::Native;
     status = upscaleStatusText(snapshot);
     QVERIFY2(status.contains(QStringLiteral("Native from the next start; SuperTuxKart was told 2560 × 1440 as its screen mode")),

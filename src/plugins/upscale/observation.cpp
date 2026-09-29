@@ -38,6 +38,31 @@
 namespace KWin
 {
 
+// Whether the size a method that tells a scale told the program is the step
+// the wish as it stands reaches, rather than a wish that has moved on since.
+// The advertised mode and Auto tell the wish itself.
+static bool nearestReachable(const UpscaleSnapshot &state)
+{
+    if (!state.advertised.isValid() || state.method == UpscaleMethod::AdvertisedMode || state.method == UpscaleMethod::Auto) {
+        return false;
+    }
+    const UpscaleSize pixels{state.destination.width(), state.destination.height()};
+    const int step = reachableScale(pixels, state.outputScale, state.preset, state.percentage);
+    const UpscaleSize nearest = step > 0 ? scaledRequest(pixels, state.outputScale, step) : UpscaleSize{};
+    return QSize(nearest.width, nearest.height) == state.advertised;
+}
+
+// The output a window is on, and what the settings wish for on it.
+static void describeOutput(UpscaleSnapshot &state, UpscaleOutput *output)
+{
+    state.output = output->name();
+    state.destination = output->pixelSize();
+    state.outputScale = output->scale();
+    state.outputArea = output->geometryF();
+    state.desired = desiredResolution({state.destination.width(), state.destination.height()}, state.preset, state.percentage);
+    state.nearestReachable = nearestReachable(state);
+}
+
 UpscaleSnapshot UpscaleEffect::snapshot(EffectWindow *window, const RenderTarget *target) const
 {
     UpscaleSnapshot state;
@@ -71,11 +96,7 @@ UpscaleSnapshot UpscaleEffect::snapshot(EffectWindow *window, const RenderTarget
     state.sharpening = settings.sharpening();
 
     if (UpscaleOutput *output = window->screen()) {
-        state.output = output->name();
-        state.destination = output->pixelSize();
-        state.outputScale = output->scale();
-        state.outputArea = output->geometryF();
-        state.desired = desiredResolution({state.destination.width(), state.destination.height()}, state.preset, state.percentage);
+        describeOutput(state, output);
     }
     // Which window system the client speaks decides which requests can reach
     // it at all, so it is recorded for every window, refused or not. Both are
