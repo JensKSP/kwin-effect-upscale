@@ -75,6 +75,8 @@ if(KWin_VERSION VERSION_LESS 6.7)
         ../src/plugins/upscale/logicalsize.cpp
         ../src/plugins/upscale/modeoverride.cpp
         ../src/plugins/upscale/waylandscale.cpp
+        ../src/plugins/upscale/waylandresize.cpp
+        ../src/plugins/upscale/waylandinitial.cpp
         ../src/plugins/upscale/observation.cpp
         ../src/plugins/upscale/overlay.cpp
         ../src/plugins/upscale/placement.cpp

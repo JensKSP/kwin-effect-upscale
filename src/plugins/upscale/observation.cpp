@@ -174,6 +174,7 @@ void UpscaleEffect::describeApplication(UpscaleSnapshot &state, const Window *wi
         state.x11Presentation = m_x11Resolution->presentation(window);
     } else if (!x11) {
         state.scaleRequested = m_waylandScale->requested(window);
+        state.requested = m_waylandScale->requestedSize(window);
     }
 }
 

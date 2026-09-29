@@ -5,8 +5,8 @@
 */
 
 // A window the effect draws over its whole output although it covers only part
-// of it: a plain window its program sized to the smaller screen mode it was
-// told, rather than going fullscreen. KWin clips a window to its own
+// of it: a window sized to the smaller screen mode it was told, or a
+// fullscreen window resized by Auto. KWin clips a window to its own
 // rectangle and repaints only where something changed, so while such a window
 // is drawn its output is painted whole, window by window from the bottom, as
 // for an effect that transforms windows. What the picture covers is left out,
@@ -16,6 +16,7 @@
 
 #include "eligibility.h"
 #include "modeoverride.h"
+#include "waylandscale.h"
 
 #include "effect/effecthandler.h"
 #include "wayland/surface.h"
@@ -26,6 +27,9 @@ namespace KWin
 
 void UpscaleEffect::shareToldModes()
 {
+    upscaleSetResizedGeometry([this](const Window *window) {
+        return m_waylandScale->resizedGeometry(window);
+    });
     upscaleSetToldMode([this](const EffectWindow *window) {
         const Window *internal = window->window();
         return internal && internal->surface() && internal->output()

@@ -28,13 +28,17 @@ class WaylandClient
 public:
     // The wl_output version this client binds. A program binds the version its
     // toolkit was written against, and the first one has no scale event.
-    explicit WaylandClient(uint32_t outputVersion = 2);
+    explicit WaylandClient(uint32_t outputVersion = 2, bool fractionalScale = true);
     ~WaylandClient();
     bool initialize(bool fullscreen = true);
     bool show(const QSize &size, bool opaque = true);
     void commit();
     void fullscreen(bool enabled);
     void resize(const QSize &destination);
+    QSize configuredSize() const
+    {
+        return m_destination;
+    }
     int descriptor() const;
     void dispatch();
     // Process everything the compositor has already sent. The output's events
@@ -112,6 +116,7 @@ private:
     wl_compositor *m_compositor = nullptr;
     wl_shm *m_sharedMemory = nullptr;
     uint32_t m_outputVersion;
+    bool m_useFractionalScale;
     std::vector<std::unique_ptr<Output>> m_outputs;
     xdg_wm_base *m_shell = nullptr;
     wp_viewporter *m_viewporter = nullptr;

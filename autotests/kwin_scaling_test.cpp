@@ -52,6 +52,7 @@ private Q_SLOTS:
     void unpluggedOutputIsPassedOver();
     void unsupportedBufferFallsBack_data();
     void unsupportedBufferFallsBack();
+    void fitsAnotherAspectRatio();
     void ignoredRequestIsRestored();
     void windowedClientIsUnchanged();
     void nativeBufferBypassesScaling();
@@ -226,19 +227,31 @@ void UpscaleProductionTest::ignoredRequestIsRestored()
     auto shell = Test::createXdgToplevelSurface(surface.get(), [](Test::XdgToplevel *toplevel) {
         toplevel->set_fullscreen(nullptr);
     });
+    // Keep acknowledging configures while ignoring their suggested size, as
+    // a live client does. Unacknowledged configures can hold later commits.
+    connect(shell->xdgSurface(), &Test::XdgSurface::configureRequested, shell.get(), [xdg = shell->xdgSurface()](quint32 serial) {
+        xdg->ack_configure(serial);
+    });
+    QSignalSpy configured(shell.get(), &Test::XdgToplevel::configureRequested);
     Window *window = Test::renderAndWaitForShown(surface.get(), pattern(QSize(384, 216)));
     QVERIFY(window);
     QTRY_VERIFY(Test::waylandSync() && fractional->preferredScale() == 80);
-    // The client keeps drawing at full size, ignoring the scale, until the
-    // effect takes its request back, after thirty presented frames of patience
-    // (patienceInFrames in waylandscale.cpp). What is waited for is that, not a
-    // presented frame for every commit: once in five runs on 2026-09-29 a
-    // commit was followed by no presented frame within five seconds.
-    QSignalSpy presented(workspace()->outputs().first()->renderLoop(), &RenderLoop::framePresented);
-    QTRY_VERIFY_WITH_TIMEOUT((Test::render(surface.get(), pattern(QSize(384, 216))), Test::waylandSync() && fractional->preferredScale() == 120), 30000);
-    QVERIFY2(presented.count() >= 30, qPrintable(QString::number(presented.count())));
+    configured.clear();
+    // Ignore the scale, then the smaller fullscreen configure. Restoring the
+    // scale starts Auto's second request; only restoring its geometry ends it.
+    // Wait for those protocol states rather than counting presented frames:
+    // the effect judges a frame before the presentation signal is emitted.
+    QTRY_VERIFY_WITH_TIMEOUT((Test::render(surface.get(), pattern(QSize(384, 216))), Test::waylandSync() && !configured.isEmpty() && configured.last().first().toSize() == QSize(256, 144)), 30000);
+    QCOMPARE(fractional->preferredScale(), 120);
+    QTRY_VERIFY_WITH_TIMEOUT((Test::render(surface.get(), pattern(QSize(384, 216))), Test::waylandSync() && !status().contains(QStringLiteral("as its Wayland window size")) && window->moveResizeGeometry().size() == QSizeF(384, 216)), 30000);
+    QCOMPARE(fractional->preferredScale(), 120);
     QVERIFY(!status().contains(QStringLiteral("scaling=1")));
     QCOMPARE(window->windowItem()->surfaceItem()->bufferSize(), QSize(384, 216));
+    configured.clear();
+    QSignalSpy presented(workspace()->outputs().first()->renderLoop(), &RenderLoop::framePresented);
+    QTRY_VERIFY_WITH_TIMEOUT((Test::render(surface.get(), pattern(QSize(384, 216))), Test::waylandSync() && presented.count() >= 35), 30000);
+    QVERIFY(Test::waylandSync());
+    QVERIFY2(configured.isEmpty(), "An ignored resize must not be retried every thirty frames");
 }
 
 void UpscaleProductionTest::advertisedModeProducesSmallerBuffer()
@@ -290,7 +303,6 @@ void UpscaleProductionTest::unsupportedBufferFallsBack_data()
     QTest::addColumn<bool>("transparent");
     QTest::newRow("native") << QSize(384, 216) << false;
     QTest::newRow("below-half") << QSize(96, 54) << false;
-    QTest::newRow("aspect-ratio") << QSize(256, 150) << false;
     QTest::newRow("transparent") << QSize(256, 144) << true;
 }
 
@@ -325,6 +337,26 @@ void UpscaleProductionTest::unsupportedBufferFallsBack()
     }
     QCOMPARE(ordinary, withEffect);
     QCOMPARE(window->windowItem()->surfaceItem()->bufferSize(), size);
+}
+
+void UpscaleProductionTest::fitsAnotherAspectRatio()
+{
+    configure(true, QStringLiteral("Off"));
+    auto surface = Test::createSurface();
+    Viewport viewport(m_viewporter.get_viewport(*surface));
+    viewport.set_destination(384, 216);
+    auto shell = Test::createXdgToplevelSurface(surface.get(), [](Test::XdgToplevel *toplevel) {
+        toplevel->set_fullscreen(nullptr);
+    });
+    Window *window = Test::renderAndWaitForShown(surface.get(), pattern(QSize(256, 150)));
+    QVERIFY(window);
+    const QImage fitted = renderOutput();
+    QVERIFY2(status().contains(QStringLiteral("scaling=1")), qPrintable(status()));
+    QCOMPARE(fitted.size(), QSize(384, 216));
+    QCOMPARE(fitted.pixelColor(0, 108), QColor(Qt::black));
+    QCOMPARE(fitted.pixelColor(383, 108), QColor(Qt::black));
+    QVERIFY(fitted.pixelColor(192, 108) != QColor(Qt::black));
+    QCOMPARE(window->windowItem()->surfaceItem()->bufferSize(), QSize(256, 150));
 }
 
 void UpscaleProductionTest::windowedClientIsUnchanged()

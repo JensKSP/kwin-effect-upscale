@@ -18,6 +18,8 @@ set(upscale_SOURCES
     pattern.cpp
     settings.cpp
     waylandscale.cpp
+    waylandresize.cpp
+    waylandinitial.cpp
     observation.cpp
     overlay.cpp
     placement.cpp

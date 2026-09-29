@@ -4,8 +4,8 @@
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
-// A plain window its program sized to the smaller screen it was told, which
-// the effect draws over its whole output as though it were fullscreen.
+// A window sized to the smaller screen it was told, or a fullscreen window
+// resized by Auto, which the effect draws over its whole output.
 
 #include "eligibility.h"
 
@@ -21,6 +21,7 @@ namespace KWin
 namespace
 {
 std::function<QSize(const EffectWindow *)> toldMode;
+std::function<QRectF(const Window *)> resizedGeometry;
 }
 
 void upscaleSetToldMode(std::function<QSize(const EffectWindow *window)> told)
@@ -28,11 +29,25 @@ void upscaleSetToldMode(std::function<QSize(const EffectWindow *window)> told)
     toldMode = std::move(told);
 }
 
+void upscaleSetResizedGeometry(std::function<QRectF(const Window *window)> requested)
+{
+    resizedGeometry = std::move(requested);
+}
+
 bool upscaleDrawnOverOutput(const EffectWindow *window)
 {
     const Window *internal = window->window();
     UpscaleOutput *screen = window->screen();
-    if (!toldMode || !screen || !window->isWaylandClient() || window->isFullScreen() || !internal || !internal->isNormalWindow()) {
+    if (!screen || !window->isWaylandClient() || !internal || !internal->isNormalWindow()) {
+        return false;
+    }
+    if (resizedGeometry && window->isFullScreen()) {
+        const QRectF requested = resizedGeometry(internal);
+        if (!requested.isEmpty() && internal->clientGeometry() == requested && screen->geometryF().contains(requested)) {
+            return true;
+        }
+    }
+    if (!toldMode) {
         return false;
     }
     const QSize told = toldMode(window);

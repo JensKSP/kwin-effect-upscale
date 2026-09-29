@@ -14,8 +14,9 @@
 #include <algorithm>
 #include <cstring>
 
-WaylandClient::WaylandClient(uint32_t outputVersion)
+WaylandClient::WaylandClient(uint32_t outputVersion, bool fractionalScale)
     : m_outputVersion(outputVersion)
+    , m_useFractionalScale(fractionalScale)
 {
 }
 
@@ -101,7 +102,7 @@ void WaylandClient::global(void *data, wl_registry *registry, uint32_t name, con
         };
         wl_output_add_listener(output->proxy, &listener, output.get());
         client->m_outputs.push_back(std::move(output));
-    } else if (std::strcmp(interface, "wp_fractional_scale_manager_v1") == 0) {
+    } else if (std::strcmp(interface, "wp_fractional_scale_manager_v1") == 0 && client->m_useFractionalScale) {
         client->m_fractionalScaleManager = static_cast<wp_fractional_scale_manager_v1 *>(
             wl_registry_bind(registry, name, &wp_fractional_scale_manager_v1_interface, 1));
     } else if (std::strcmp(interface, "zxdg_output_manager_v1") == 0) {

@@ -10,6 +10,7 @@
 #include "picture.h"
 #include "presentation.h"
 
+#include <QRectF>
 #include <QSize>
 #include <QString>
 
@@ -128,6 +129,9 @@ bool upscalePresentation(EffectWindow *window);
  * Set by the effect, which keeps what it told; unset, nothing was told.
  */
 void upscaleSetToldMode(std::function<QSize(const EffectWindow *window)> told);
+
+/** A smaller fullscreen configure held by Auto and presented over its output. */
+void upscaleSetResizedGeometry(std::function<QRectF(const Window *window)> requested);
 
 /**
  * Whether @p window is a plain Wayland window its program sized to the smaller

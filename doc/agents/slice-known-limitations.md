@@ -107,8 +107,8 @@ marked **F** belong here.
 
 | | Limitation | Evidence | What the player sees, what the status says | Gate | Next |
 | --- | --- | --- | --- | --- | --- |
-| K1 | Wayland programs that follow neither lever: Qt, and SDL 3 without high pixel density | The bench of 2026-09-29 in the resolution-control slice: Qt Quick 6.8 clamps the scale, SDL 3.2.10 desktop fullscreen keeps 3840 × 2160 | The game at full size, as without the effect. The status shows what was asked beside the full-size buffer, and "Inactive: the supplied buffer is not smaller than the destination." | F, outside the scope of Wayland Auto (19a) | Read Qt's and SDL 3's Wayland backends for any lever they do follow; otherwise stated |
-| K2 | A mode and an integer scale cannot say two thirds at scale 1 | vkmark 2025.01 binds neither `wp_fractional_scale_v1` nor `wp_viewporter`, only an integer buffer scale (bench); the handbook's row names glmark2 2023.01 on Wayland beside it | Full size at Quality on a scale-1 screen; only Performance's scale 2 reaches it. The status names the reachable request apart from the wish | F | Stated already in the handbook; check whether a mode alone can reach vkmark's swapchain |
+| K1 | Wayland clients with different buffer-density policies | The original bench found Qt and SDL 3 without high pixel density ignoring the scale hint. The [scale-one Auto work](slice-resolution-control.md#wayland-auto-at-scale-one-2026-09-29) owns the configure fallback, real-display results and comparison across desktop scales. | A smaller configure reaches these clients at scale one; low-density SDL at higher desktop scales can still supply a buffer below the supported range. Status reports the supplied size and refusal. | F; scale-one coverage extended by the linked work | Follow the linked density comparison and remaining acceptance; not a universal geometry-only solution |
+| K2 | Integer scale and startup-only sizing | vkmark ignores configure sizes; glmark2 keeps the viewport initialized from its first fullscreen configure. The [scale-one Auto work](slice-resolution-control.md#wayland-auto-at-scale-one-2026-09-29) owns their separate fixes and the native comparison. | vkmark can use the advertised mode; fresh glmark2 can use a smaller first configure. A late glmark2 resize crops the scene despite a smaller buffer. Integer-only density still differs on fractional desktops. | F | Preserve startup timing and actual-picture checks; live changes to fixed viewports remain open |
 | K3 | Wine's Wayland driver | Item 35: the window stays at the told 2560 × 1440; it draws into a subsurface, which the effect refuses even at full size, and rounds buffer heights up to a multiple of 128 | A smaller window, not enlarged. The status names child surfaces or the coverage | F | Present a window whose picture is in one subsurface, with the pointer mapped; shares K20's confinement gap |
 | K4 | A program that connected before it could be told | The Wayland mode is told when a client binds the output, the X11 screen when a connection goes through the proxy; a program already running, or an X11 program that does not connect through the proxy, hears neither | Full size, or an X11 program resized after it started showing part of its picture enlarged (glmark2 2023.01, SuperTux 0.6.3 keep their first viewport). For a Wayland program the status names the size "from the next start"; not checked for every route | S, stated | A test per route that the status says so |
 | K5 | A toolkit that picks another output | Extreme Tux Racer 0.8.4 with SFML 2.6.2 moves to the primary output when it recreates its fullscreen window | The shipped entry refuses control on a secondary output; the status says so | S, stated | Stays stated unless SFML changes |
@@ -154,4 +154,9 @@ first:
 
 ## Progress
 
-Nothing yet.
+K1 and K2 are being addressed in the
+[scale-one Auto work](slice-resolution-control.md#wayland-auto-at-scale-one-2026-09-29).
+That section owns the implementation, real-display results and remaining
+acceptance. It records both the cropped late-resize glmark2 case and the corrected
+first-configure run; do not mark K2 removed from buffer dimensions alone. K15–K20 remain
+open, and Jens excluded second-display checks from this session.

@@ -1774,11 +1774,11 @@ observations; none alone establishes reduced internal rendering cost.
 | Gap | Open-source example and evidence | Current consequence |
 | --- | --- | --- |
 | X11 renderer ignores resizing or does not request mode emulation | glmark2 2023.01, X11: its event loop does not handle resize events, and it keeps the viewport it started with. SuperTux 0.6.3 on X11 keeps its layout the same way. Resized after they start, both go on drawing their full-size frame into the smaller window; the [resolution-control work package](agents/slice-resolution-control.md#run-in-the-conformance-machine-2026-09-29) records the measurements. | `X11Resize` alone cannot make such a client cooperate, and the effect cannot see a program's viewport: resized after it started, such a program shows part of its picture enlarged. So under **All applications** the proxy tells every unlisted X11 program the smaller screen when it connects, as it tells a measured entry's program (Jens, 2026-09-29), and such a program starts with the smaller viewport and is presented whole. A program that does not connect through the proxy keeps the old limit. |
-| Fullscreen-desktop Wayland client ignores advertised mode | SuperTuxKart 1.4, Vulkan, in its default borderless fullscreen: advertising 1080p still produced a 4K buffer, because its swapchain follows `SDL_Vulkan_GetDrawableSize`, which SDL 2 derives from the window size and its fractional scale rather than from a mode. | An advertisement that did not reach a window falls back to the surface's fractional scale, which this client follows: 2560 × 1440 at Quality on a 3840 × 2160 output, measured 2026-09-21. |
-| Integer scale cannot express the target | glmark2 2023.01 Wayland and vkmark 2025.01 read scale differently from mode-only clients. The implemented scale methods cannot reduce a scale-1 desktop through a smaller positive integer scale. | No reduction at scale 1; other desktop scales allow only discrete reachable sizes. Report the reachable request separately from the configured wish. |
+| Fullscreen-desktop Wayland client ignores advertised mode | SuperTuxKart 1.4 Vulkan takes its swapchain size from SDL's window and drawable size. The advertised mode alone left it at 4K on the tested scale-1 desktop. | Auto tries the fractional scale, then a smaller fullscreen configure. The configure fallback supplied 2560 × 1440 on the physical 3840 × 2160 output at scale one, with FSR active. Explicit advertisement methods do not use this geometry fallback. |
+| Integer scale cannot express the target | Integer-only scale methods cannot express two thirds on a scale-1 desktop. | This remains a limit of those methods, rather than of every affected application: vkmark 2025.01 now supplies 2560 × 1440 at scale one through Auto's advertised mode and full-output presentation. It still ignores live configure sizes. |
 | Toolkit selects the wrong output | Extreme Tux Racer 0.8.4 with SFML 2.6.2 moved from the secondary display to the primary when recreating its fullscreen window. SFML explicitly selects the primary RandR output. | The shipped profile refuses resolution control on secondary outputs before resizing. Other clients can scale there; secondary displays are not generally excluded. |
 | Requested X11 mode is absent | SFML validates fullscreen modes against its available-mode list; the regression fixture rejects a 2259 × 1271 request on the tested 4K output. | Arbitrary percentages are not guaranteed for X11. The controller refuses missing modes instead of changing the shared output or silently claiming the requested size. |
-| Smaller window loses full-output presentation | The negative glmark2 X11 case supplies no client-owned emulation. Normal smaller borderless windows are not full-output surfaces. | Borderless eligibility requires an undecorated window covering one output to within one device pixel, whose application a profile describes or, while **All applications** is checked, any application. Shrinking an ordinary window is not a substitute for preserving its destination and input mapping. Native Wayland borderless coverage needs separate real-application acceptance. |
+| Smaller window needs full-output presentation | A smaller window alone does not preserve its destination or input mapping. | A normal Wayland window whose surface matches its advertised smaller screen, and a fullscreen window resized by Auto, are drawn over the output with pointer mapping. Ordinary user-sized windows are left alone. Pointer confinement still uses KWin's untransformed window coordinates. |
 | Internal render targets remain fixed | SuperTux 0.6.3, SDL/X11 borderless: the traced outer buffer and viewport changed from 4K to 1080p, while an intermediate framebuffer stayed 1368 × 769. | This proves control of the supplied buffer, not proportional GPU savings or control of every internal target. |
 | Translation and physical-session coverage is incomplete | Wine/Proton paths, mixed output scales, hotplug, pointer confinement and physical HDR/VRR have not completed the production acceptance matrix. | These are unverified combinations, not demonstrated failures of every application using them. |
 
@@ -1824,7 +1824,7 @@ resolution control succeeded.
 
 | Method | Intended behaviour |
 | --- | --- |
-| Auto | **Implemented**, and stateless: nothing it learns is stored. On X11 it is the buffer request, put back where the window stops covering its output. On Wayland it tells the program the smaller screen mode at bind, because a game in SDL's exclusive fullscreen takes its buffer from that and from nothing said later; it means the same whether an entry or the global profile answers, and KWin's own clients - Xwayland, which serves every X11 program, the input method and the screen locker - are never told anything (laid down by Jens on 2026-09-21); once the window exists it asks a surface still drawing at full size for a fractional scale, asserts it again when KWin reapplies the output's scale, and gives it back when the window stops covering its output or no smaller buffer arrives within 30 frames. It asks the window its output would scale once the buffer allowed it, which a window drawing at full size is not yet; it keeps the effect active while it asks, so that nothing else has to; a window that ignored it is not asked again until the window, the ratio or the settings change; and a window that stops qualifying gets its own scale back at once. Wayland Auto has passed with SuperTuxKart 1.4 in a real KWin 6.3.6 session on a 3840 × 2160 output, in all three Wayland presentations: by the advertised mode in OpenGL fullscreen and in Vulkan exclusive fullscreen, and by the surface scale in Vulkan borderless. Wayland Auto is in the supported scope, as Jens decided on 2026-09-29, for the programs that follow one of its two levers: a game in SDL's exclusive fullscreen through the told mode, and GLFW 3.4, Godot 4.7 and SDL 3 with high pixel density through the surface scale. The [resolution-control bench](agents/slice-resolution-control.md#the-bench-run-2026-09-29), run in a virtual machine on 2026-09-29, is that scope's acceptance: it found those three following the surface scale, with the pointer landing where it looks. Qt, vkmark and SDL 3 without high pixel density follow neither lever and stay outside it; for such a program the status shows what was asked of it beside the full-size buffer it supplies, and that nothing is scaled because that buffer is not smaller than the screen. In-session negotiation only: the [four requirements](#four-requirements-that-bound-every-route) leave no launch-time method to fall back to. |
+| Auto | **Implemented**, with no learned result stored. On X11 it requests a smaller buffer and restores the window when it stops qualifying. On Wayland it advertises a smaller mode at bind. At desktop scale one, a fullscreen client without fractional scaling also receives the smaller size in its first configure, before it initializes a fixed viewport. A window still supplying full-size buffers is then asked for a fractional surface scale. If that request is ignored for 30 rendered frames, Auto restores the original scale and asks a fullscreen window for smaller geometry. The effect presents that smaller window over its output and maps pointer coordinates back to it. Ignored requests are withdrawn rather than retried continuously. Geometry and scale are restored when the request ends. The scale-one fallback reaches Qt and desktop-fullscreen SDL clients whose buffers follow configure sizes; a client that ignores those sizes still needs the startup mode or an application-specific solution. Status distinguishes the request from the committed buffer. Confinement, touch and tablet limitations remain as described under presentation. In-session negotiation only: the [four requirements](#four-requirements-that-bound-every-route) leave no launch-time method to fall back to. |
 | Advertised screen mode | **Implemented.** Tell a native Wayland client the effect acts on that its screen has a smaller current mode when it binds the output: a program an enabled entry names by its path alone, or any program once All applications is switched on. It is not confined to measured client/runtime combinations, because a fullscreen slot on Auto advertises the mode as well. This does not control Xwayland games. It needs no launch helper or restart and changes nothing outside that connection. |
 | Wayland negotiation | Generic surface-scale negotiation remains experimental; the implemented advertised scale and mode-and-scale methods are separate profile choices. |
 | X11 buffer request | **Implemented.** Request a smaller drawable. The window keeps the place and size the system gave it; only the size the client renders at changes. A client that establishes Xwayland's fullscreen emulation is enlarged by Xwayland; one that does not is presented across its frame by the effect itself. Only a profile stating `X11RequiresEmulatedMode` requires the client's own emulated mode. |
@@ -2026,9 +2026,9 @@ mode, and Wine's Wayland driver sizes its window from the told mode. KWin
 places that window somewhere on the real, larger screen, and may decorate it
 all the same: GLFW's request for no decoration goes through libdecor, whose
 negotiation left KWin 6.3.6 drawing a title bar in the bench. As Jens decided
-on 2026-09-29, the effect draws such a window - a normal Wayland window that is
-not fullscreen, lying on its output, whose surface has the size its program
-was told for that output - over the whole output, enlarged as a fullscreen
+on 2026-09-29, the effect draws such a window - a normal Wayland window,
+fullscreen or otherwise, lying on its output, whose surface has the size its
+program was told for that output - over the whole output, enlarged as a fullscreen
 window's picture would be and without the decoration, and the program keeps
 the size it asked for. Making the
 window fullscreen instead would have KWin configure it at the screen's own
@@ -2047,6 +2047,27 @@ pointer's motion, buttons and wheel to it, ahead of KWin's decoration and click
 handling, and a press there activates it. While the program confines the
 pointer, KWin keeps it inside the window in the surface's own coordinates, and
 it passes one to one, as for a presented X11 window.
+
+**A fullscreen client that follows configure sizes.** Auto first tries the
+fractional scale. When the client ignores it, Auto restores the original
+scale and sends a smaller fullscreen configure through KWin's window geometry
+API. Qt at scale one and SDL desktop-fullscreen clients can follow this
+configure even when they ignore the advertised mode or a scale below one.
+The resulting window is presented over the original output using the same
+picture and pointer mapping as a window sized to the told screen. Auto keeps
+the requested geometry only while the window qualifies; disabling Auto,
+unloading the effect or leaving fullscreen releases it. A configure that
+produces no smaller buffer is withdrawn. This remains cooperative: clients
+can ignore configure sizes, and their internal render targets are their own.
+At desktop scale one, Auto also sets the first fullscreen configure for a
+client without a fractional-scale object, before its first buffer exists.
+This matters for glmark2: later configures shrink its EGL buffer but leave its
+initial rendering viewport unchanged. Changing a running fixed viewport still
+requires cooperation or a fresh start. Geometry alone is not a universal
+replacement for scale negotiation: low-density SDL clients render one pixel
+per logical unit even on a scaled desktop, and integer-only clients round the
+output scale. The requested logical size therefore does not imply the same
+buffer size across all clients.
 
 **Its visible cost.** The game's own settings screen will offer resolutions
 only up to the advertised size, because that is what the game believes the

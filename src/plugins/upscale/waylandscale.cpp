@@ -38,14 +38,19 @@ static constexpr int patienceInFrames = 30;
 // window leaving fullscreen for a maximized, decorated state still covers its
 // output, but the decoration KWin has scheduled means it presents nothing
 // borderless.
-static bool requestedPresentation(const Window *window)
+bool UpscaleWaylandScale::requestedPresentation(const Window *window) const
 {
+    const QRectF resized = resizedGeometry(window);
+    if (!resized.isEmpty() && window->isRequestedFullScreen() && window->moveResizeGeometry() == resized) {
+        return true;
+    }
     return upscaleRequestCoversOutput(window) && (window->isFullScreen() || !window->nextDecoration());
 }
 
 UpscaleWaylandScale::UpscaleWaylandScale(QObject *parent)
     : QObject(parent)
 {
+    watchInitialSizes();
 }
 
 UpscaleWaylandScale::~UpscaleWaylandScale()
@@ -76,12 +81,14 @@ void UpscaleWaylandScale::observe(Window *window)
         // output's scale changed. KWin's value is the window's own scale from
         // then on, the one a ratio is asked of and the one given back.
         const double current = window->nextTargetScale();
-        const double set = entry->ignored ? entry->original : entry->original * entry->ratio;
+        const double set = entry->ignored || entry->resizing ? entry->original : entry->original * entry->ratio;
         if (std::abs(current - set) <= 0.001) {
             return;
         }
         entry->original = current;
-        if (!entry->ignored) {
+        if (entry->resizing) {
+            release(window);
+        } else if (!entry->ignored) {
             apply(window, *entry);
         }
     });
@@ -94,6 +101,11 @@ void UpscaleWaylandScale::observe(Window *window)
     // window that qualifies, and with nothing qualifying the effect is not
     // even painting.
     const auto recheck = [this, window]() {
+        // The first configure precedes both the first buffer and the effect
+        // window. Its request is judged once that window is mapped.
+        if (!window->readyForPainting()) {
+            return;
+        }
         EffectWindow *effectWindow = window->effectWindow();
         if (!effectWindow || upscaleWindowAwaitingBuffer(effectWindow->screen()) != effectWindow
             || !requestedPresentation(window)) {
@@ -111,7 +123,7 @@ void UpscaleWaylandScale::observe(Window *window)
     connect(window, &Window::minimizedChanged, this, recheck);
 }
 
-void UpscaleWaylandScale::request(EffectWindow *effectWindow, double ratio)
+void UpscaleWaylandScale::request(EffectWindow *effectWindow, double ratio, bool allowResize)
 {
     Window *window = effectWindow ? effectWindow->window() : nullptr;
     if (!window || !effectWindow->isWaylandClient()) {
@@ -129,12 +141,17 @@ void UpscaleWaylandScale::request(EffectWindow *effectWindow, double ratio)
         // replaces it (observe()).
         fresh.original = window->nextTargetScale();
         fresh.ratio = ratio;
+        fresh.allowResize = allowResize;
         entry = m_requests.insert(window, fresh);
         observe(window);
         apply(window, *entry);
         return;
     }
     if (std::abs(entry->ratio - ratio) > 0.001) {
+        if (entry->resizing) {
+            release(window);
+            return;
+        }
         // A different wish replaces the one standing, and the client is given
         // its patience again: it is being asked a new question.
         entry->ratio = ratio;
@@ -160,7 +177,7 @@ void UpscaleWaylandScale::checkAnswer(EffectWindow *effectWindow, Request &reque
     if (buffer.isEmpty() || output.isEmpty()) {
         return;
     }
-    if (!upscaleCoversOutput(effectWindow)) {
+    if (!upscaleCoversOutput(effectWindow) && !upscaleDrawnOverOutput(effectWindow)) {
         // The window stopped covering its screen, which is the one outcome
         // that is visibly wrong rather than merely ineffective. Undo it at
         // once rather than spending the remaining patience on it.
@@ -173,6 +190,9 @@ void UpscaleWaylandScale::checkAnswer(EffectWindow *effectWindow, Request &reque
         return;
     }
     if (++request.frames >= patienceInFrames) {
+        if (!request.resizing && request.allowResize && resize(window, request)) {
+            return;
+        }
         // The client read the hint and did nothing with it, which is what Qt
         // does, and SDL 2 in exclusive fullscreen. Give the scale back so
         // nothing carries a request the client is not acting on, and let the
@@ -181,6 +201,7 @@ void UpscaleWaylandScale::checkAnswer(EffectWindow *effectWindow, Request &reque
         qCInfo(KWIN_UPSCALE) << "Wayland scale ignored: window" << window->internalId() << "buffer" << buffer
                              << "restoring scale" << request.original;
         window->setNextTargetScale(request.original);
+        restoreGeometry(window, request);
     }
 }
 
@@ -221,11 +242,13 @@ void UpscaleWaylandScale::release(Window *window)
     // nextTargetScaleChanged, and while a request stands that is the signal
     // that re-asserts it: in the other order every release was undone the
     // moment it was made.
-    const double original = entry->original;
+    const Request saved = *entry;
+    const double original = saved.original;
     disconnect(window, nullptr, this, nullptr);
     m_requests.remove(window);
     qCInfo(KWIN_UPSCALE) << "Wayland scale restored: window" << window->internalId() << "scale" << original;
     window->setNextTargetScale(original);
+    restoreGeometry(window, saved);
     // A window leaving fullscreen gets its decoration back before it stops
     // qualifying, so KWin built that decoration, and the borders its next
     // configure subtracts, at the scale this effect asked for. Built again at
@@ -248,7 +271,7 @@ void UpscaleWaylandScale::releaseAll()
 double UpscaleWaylandScale::requested(const Window *window) const
 {
     const auto entry = m_requests.constFind(const_cast<Window *>(window));
-    return entry == m_requests.constEnd() || entry->ignored ? 0 : entry->ratio;
+    return entry == m_requests.constEnd() || entry->ignored || entry->resizing ? 0 : entry->ratio;
 }
 
 bool UpscaleWaylandScale::answered(const Window *window) const

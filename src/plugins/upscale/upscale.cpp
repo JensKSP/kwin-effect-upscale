@@ -133,6 +133,7 @@ void UpscaleEffect::prePaintScreen(ScreenPrePaintData &data)
 UpscaleEffect::~UpscaleEffect()
 {
     upscaleSetToldMode(nullptr);
+    upscaleSetResizedGeometry(nullptr);
     m_waylandScale.reset();
     m_x11Resolution.reset();
     effects->makeOpenGLContextCurrent();

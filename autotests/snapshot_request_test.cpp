@@ -47,6 +47,7 @@ void UpscaleSnapshotTest::separatesWhatWasRequestedFromWhatArrived()
     QVERIFY(developer.contains(QStringLiteral("advertised screen mode")));
 
     snapshot.method = KWin::UpscaleMethod::X11Resize;
+    snapshot.presentedAs = UpscalePresentation::X11FullScreen;
     snapshot.advertised = {};
     snapshot.requested = QSize(1920, 1080);
     snapshot.requestFailure = QStringLiteral("The requested mode was ignored.");
@@ -55,6 +56,14 @@ void UpscaleSnapshotTest::separatesWhatWasRequestedFromWhatArrived()
     QVERIFY(refused.contains(snapshot.requestFailure));
     QVERIFY(refused.contains(QStringLiteral("Supplied input: 3840 × 2160")));
     QVERIFY(!refused.contains(QStringLiteral("as its screen mode")));
+
+    snapshot.method = UpscaleMethod::Auto;
+    snapshot.presentedAs = UpscalePresentation::WaylandFullScreen;
+    snapshot.requestFailure.clear();
+    const QString resized = upscaleStatusText(snapshot);
+    QVERIFY(resized.contains(QStringLiteral("1920 × 1080 requested from SuperTuxKart as its Wayland window size")));
+    QVERIFY(resized.contains(QStringLiteral("Supplied input: 3840 × 2160")));
+    QVERIFY(!resized.contains(QStringLiteral("X11 window size")));
 
     // A window nothing in the catalogue describes says so, rather than
     // reporting an empty name or implying a match.

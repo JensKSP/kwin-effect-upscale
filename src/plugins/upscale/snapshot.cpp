@@ -226,6 +226,9 @@ static QString wishText(const UpscaleSnapshot &snapshot)
     const QString width = QString::number(snapshot.desired.width);
     const QString height = QString::number(snapshot.desired.height);
     if (snapshot.requested.isValid()) {
+        if (!upscaleIsX11(snapshot.presentedAs)) {
+            return i18n("%1 requested from %2 as its Wayland window size", upscaleSizeText(snapshot.requested), name);
+        }
         return i18n("%1 requested from %2 as its X11 window size", upscaleSizeText(snapshot.requested), name);
     }
     if (snapshot.scaleRequested > 0) {
