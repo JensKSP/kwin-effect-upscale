@@ -16,8 +16,9 @@ namespace KWin
 {
 
 // KWin reports the Unix loader behind a Wine/Proton window, not the Windows
-// game's executable. Classifying the runtime does not authorize prefix access:
-// the optional helper still proves ownership and obtains the user's consent.
+// game's executable. Wine takes its screen from its prefix when it starts, so
+// such a window is acted on only where the X11 proxy answered its connection;
+// see upscaleServed().
 inline bool upscaleWineRuntime(const QString &executable)
 {
     const QStringView name = QStringView(executable).mid(executable.lastIndexOf(QLatin1Char('/')) + 1);

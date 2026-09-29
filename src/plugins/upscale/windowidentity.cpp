@@ -51,6 +51,25 @@ struct Resolved
 
 static QHash<const Window *, Resolved> resolvedWindows;
 
+// The entry of @p window, its executable resolved once, when it is first asked
+// about.
+static Resolved &resolvedFor(const Window *window)
+{
+    auto found = resolvedWindows.find(window);
+    if (found == resolvedWindows.end() || found->window != window) {
+        // Forget the windows that are gone before remembering another, so the
+        // hash holds what is open rather than everything that ever was.
+        resolvedWindows.removeIf([](const QHash<const Window *, Resolved>::iterator &entry) {
+            return entry->window.isNull();
+        });
+        Resolved fresh;
+        fresh.window = window;
+        fresh.executable = upscaleExecutableOf(window);
+        found = resolvedWindows.insert(window, fresh);
+    }
+    return *found;
+}
+
 // An entry that can never match says so once per reading of the list, in the
 // journal of the session it is in. The editor refuses to store one; this is
 // for a file written by hand.
@@ -68,6 +87,11 @@ static void reportProblems(quint64 generation)
     }
 }
 
+QString upscaleKnownExecutable(const Window *window)
+{
+    return window ? resolvedFor(window).executable : QString();
+}
+
 const UpscaleApplication *upscaleApplicationForWindow(const Window *window)
 {
     if (!window) {
@@ -76,19 +100,7 @@ const UpscaleApplication *upscaleApplicationForWindow(const Window *window)
     upscaleApplications();
     const quint64 generation = upscaleApplicationsGeneration();
     reportProblems(generation);
-    auto found = resolvedWindows.find(window);
-    if (found == resolvedWindows.end() || found->window != window) {
-        // Forget the windows that are gone before remembering another, so the
-        // hash holds what is open rather than everything that ever was.
-        resolvedWindows.removeIf([](const QHash<const Window *, Resolved>::iterator &entry) {
-            return entry->window.isNull();
-        });
-        Resolved fresh;
-        fresh.window = window;
-        fresh.executable = upscaleExecutableOf(window);
-        found = resolvedWindows.insert(window, fresh);
-    }
-    Resolved &resolved = *found;
+    Resolved &resolved = resolvedFor(window);
     if (resolved.generation != generation || resolved.windowClass != window->resourceClass()
         || resolved.instance != window->resourceName()) {
         resolved.generation = generation;

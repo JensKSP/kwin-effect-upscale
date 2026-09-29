@@ -50,6 +50,12 @@ QString upscaleExecutableOf(const Window *window);
 const UpscaleApplication *upscaleApplicationForWindow(const Window *window);
 
 /**
+ * upscaleExecutableOf(@p window) as it was when the window was first asked
+ * about, which is cheap enough for a frame; see upscaleApplicationForWindow().
+ */
+QString upscaleKnownExecutable(const Window *window);
+
+/**
  * Tells the settings page which program a window belongs to.
  *
  * Add from Window picks a window through KWin, whose answer names its class

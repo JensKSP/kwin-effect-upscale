@@ -74,9 +74,6 @@ if(KWin_VERSION VERSION_LESS 6.7)
         ../src/plugins/upscale/observation.cpp
         ../src/plugins/upscale/overlay.cpp
         ../src/plugins/upscale/placement.cpp
-        ../src/plugins/upscale/helper.cpp
-        ../src/plugins/upscale/preparation.cpp
-        ../src/plugins/upscale/question.cpp
         ../src/plugins/upscale/snapshot.cpp
         ../src/plugins/upscale/snapshot_metrics.cpp
         ../src/plugins/upscale/upscale.cpp
@@ -88,7 +85,6 @@ if(KWin_VERSION VERSION_LESS 6.7)
         ../src/plugins/upscale/x11resolution.cpp
         ../src/plugins/upscale/x11resolution_events.cpp
         ../src/plugins/upscale/x11resolution_startup.cpp
-        ../src/plugins/upscale/x11resolution_prepared.cpp
         ../src/plugins/upscale/x11resolution_present.cpp
         ../src/plugins/upscale/x11resolution_validate.cpp
         ../src/plugins/upscale/upscale.h
@@ -143,65 +139,45 @@ if(KWin_VERSION VERSION_LESS 6.7)
     # A game's X11 window in a process of its own; see x11_game_standin.cpp.
     add_executable(upscale_test_x11_game x11_game_standin.cpp x11_client.cpp x11_client_pointer.cpp)
     target_link_libraries(upscale_test_x11_game PRIVATE Qt6::Core XCB::XCB XCB::RANDR XCB::SHAPE)
-    # The X11 sessions: the request path, and a window a helper prepared.
-    foreach(session IN ITEMS integration prepared)
-        add_executable(
-            upscale_x11_${session}_test
-            x11_${session}_test.cpp
-            x11_client.cpp
-            x11_client_pointer.cpp
-        )
-        if(session STREQUAL "integration")
-            target_compile_definitions(
-                upscale_x11_${session}_test
-                PRIVATE
-                    UPSCALE_APPLICATION_DEFAULTS="${CMAKE_SOURCE_DIR}/src/plugins/upscale/kwinupscalerc"
-                    UPSCALE_TEST_KWIN_VERSION="${KWin_VERSION}"
-            )
-            target_sources(
-                upscale_x11_${session}_test
-                PRIVATE
-                    x11_integration_test.h
-                    x11_startup_test.cpp
-                    x11_input_test.cpp
-                    x11_crash_test.cpp
-                    x11_fullscreen_test.cpp
-                    crash_game.h
-                    x11_standin_game.h
-            )
-            # The anonymous game of anUnnamedProgramIsHeldAtItsFirstMapping.
-            target_compile_definitions(
-                upscale_x11_${session}_test
-                PRIVATE UPSCALE_TEST_X11_GAME="$<TARGET_FILE:upscale_test_x11_game>"
-            )
-            add_dependencies(upscale_x11_${session}_test upscale_test_x11_game)
-        else()
-            target_sources(
-                upscale_x11_${session}_test
-                PRIVATE x11_prepared_test.h x11_preparation_gate_test.cpp x11_standin_game.h
-            )
-            # Started under a Wine loader's name; see x11_game_standin.cpp.
-            target_compile_definitions(
-                upscale_x11_${session}_test
-                PRIVATE UPSCALE_TEST_X11_GAME="$<TARGET_FILE:upscale_test_x11_game>"
-            )
-            add_dependencies(upscale_x11_${session}_test upscale_test_x11_game)
-        endif()
-        target_link_libraries(
-            upscale_x11_${session}_test
-            PRIVATE Qt6::Test Qt6::DBus KF6::ConfigCore XCB::XCB XCB::RANDR XCB::SHAPE
-        )
-        add_test(
-            NAME upscale-x11-${session}
-            COMMAND
-                ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-integration-test.py
-                $<TARGET_FILE:upscale_x11_${session}_test> --x11
-        )
-        # Eight fullscreen transitions, each waiting on a client that commits
-        # a buffer every three seconds on the slowest machine this runs on,
-        # need more headroom than one session of the other test does.
-        set_tests_properties(upscale-x11-${session} PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
-    endforeach()
+    # The X11 session: the request path, and what a presented window takes in.
+    add_executable(
+        upscale_x11_integration_test
+        x11_integration_test.cpp
+        x11_integration_test.h
+        x11_client.cpp
+        x11_client_pointer.cpp
+        x11_startup_test.cpp
+        x11_input_test.cpp
+        x11_crash_test.cpp
+        x11_fullscreen_test.cpp
+        x11_wine_test.cpp
+        crash_game.h
+        x11_standin_game.h
+    )
+    # The stand-in game of anUnnamedProgramIsHeldAtItsFirstMapping, which the
+    # Wine cases start under a Wine loader's name; see x11_game_standin.cpp.
+    target_compile_definitions(
+        upscale_x11_integration_test
+        PRIVATE
+            UPSCALE_APPLICATION_DEFAULTS="${CMAKE_SOURCE_DIR}/src/plugins/upscale/kwinupscalerc"
+            UPSCALE_TEST_KWIN_VERSION="${KWin_VERSION}"
+            UPSCALE_TEST_X11_GAME="$<TARGET_FILE:upscale_test_x11_game>"
+    )
+    add_dependencies(upscale_x11_integration_test upscale_test_x11_game)
+    target_link_libraries(
+        upscale_x11_integration_test
+        PRIVATE Qt6::Test Qt6::DBus KF6::ConfigCore XCB::XCB XCB::RANDR XCB::SHAPE
+    )
+    add_test(
+        NAME upscale-x11-integration
+        COMMAND
+            ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-integration-test.py
+            $<TARGET_FILE:upscale_x11_integration_test> --x11
+    )
+    # Eight fullscreen transitions, each waiting on a client that commits a
+    # buffer every three seconds on the slowest machine this runs on, need more
+    # headroom than one session of the other test does.
+    set_tests_properties(upscale-x11-integration PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
     # The same session as a desktop actually has one: a single 4K screen at the
     # scale such a screen is run at. Only the tests that cross between logical
     # and device pixels run here, and the one whose connection is answered
@@ -221,7 +197,6 @@ if(KWin_VERSION VERSION_LESS 6.7)
         upscale-integration
         upscale-integration-outputs
         upscale-x11-integration
-        upscale-x11-prepared
         upscale-x11-scaled
     )
     # A real game that crashes where a case says, for the cases about a game

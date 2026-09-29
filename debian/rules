@@ -49,7 +49,6 @@ override_dh_auto_configure:
 		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
 		-DCMAKE_COMPILE_WARNING_AS_ERROR=OFF \
 		-DUPSCALE_PACKAGE_VERSION=$(DEB_VERSION) \
-		-DUPSCALE_BUILD_WINE_HELPER=OFF \
 		-DUPSCALE_SESSION_TESTS=OFF
 
 # KWin's effect ABI is private. Its common package has the version shared by

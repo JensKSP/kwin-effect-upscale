@@ -142,16 +142,6 @@ QSize UpscaleX11Resolution::requested(const Window *window) const
 #endif
 }
 
-QString UpscaleX11Resolution::failure(const Window *window) const
-{
-#if KWIN_BUILD_X11
-    return m_negotiations.value(keyFor(window)).failure.value_or(QString());
-#else
-    Q_UNUSED(window)
-    return {};
-#endif
-}
-
 // Which of the three X11 cells this window is in. Unlike the Wayland half,
 // this can be answered honestly: the window is already here, so its state and
 // its geometry are both readable. A window the effect itself made smaller
@@ -171,10 +161,27 @@ static UpscalePresentation x11PresentationOf(const Window *window)
 // set, so it is presented across its output rather than asked to resize. One
 // running under Wine whose connection was not answered takes its screen from
 // its prefix instead, which a resize fights in the same way, and it is left
-// alone until it is restarted into a screen the effect did set.
+// alone: a Wine program is acted on only through the proxy's answer.
 static bool upscaleKeepsItsOwnScreen(const X11Window *window)
 {
     return !upscaleServed(window->pid()) && upscaleWineRuntime(upscaleExecutableOf(window));
+}
+
+QString UpscaleX11Resolution::failure(const Window *window) const
+{
+#if KWIN_BUILD_X11
+    // Not a request that failed but one never made, named all the same: the
+    // status is where a person looks for why a game stays at full size. The
+    // status may be asked for every frame, so the path is the one known.
+    const auto x11 = qobject_cast<const X11Window *>(window);
+    if (x11 && !upscaleServed(x11->pid()) && upscaleWineRuntime(upscaleKnownExecutable(x11))) {
+        return i18n("Wine programs are told a smaller screen only by the X11 session proxy, which did not answer this one.");
+    }
+    return m_negotiations.value(keyFor(window)).failure.value_or(QString());
+#else
+    Q_UNUSED(window)
+    return {};
+#endif
 }
 
 // Whether this window is one to ask for a smaller drawable.
@@ -270,9 +277,6 @@ void UpscaleX11Resolution::watch(EffectWindow *effectWindow)
     connect(effectWindow, &EffectWindow::windowDamaged, this, [this, window]() {
         if (m_waitingForBuffer.remove(window)) {
             schedule(window);
-        }
-        if (m_prepared.contains(window) && !m_requests.contains(window)) {
-            pinPrepared(window);
         }
         present(window);
     });
@@ -384,9 +388,6 @@ bool UpscaleX11Resolution::begin(const Request &request)
 void UpscaleX11Resolution::apply(X11Window *window)
 {
     if (window->isDeleted()) {
-        return;
-    }
-    if (applyPrepared(window)) {
         return;
     }
     // Fullscreen is a state, not a size, and upscalePresentation() answers the
@@ -529,7 +530,6 @@ void UpscaleX11Resolution::restore(X11Window *window)
     // client's state from before it could have answered.
     const bool held = upscaleX11EmulatedMode(window, request.position).has_value();
     const QScopedValueRollback restoring(m_restoring, true);
-    unpinPrepared(window);
     // KWin's logical geometry remained authoritative throughout. Hand its
     // normal native size back before ceasing geometry interception. This also
     // brings the X server back into agreement with KWin's geometry caches.

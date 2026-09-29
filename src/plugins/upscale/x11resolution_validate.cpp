@@ -97,12 +97,6 @@ void UpscaleX11Resolution::validate(const QString &key, int generation, int revi
             if (retry(key, generation)) {
                 return;
             }
-            // A client that went on drawing another size may still be one a
-            // helper can prepare for its next start.
-            SurfaceItem *surface = request.window->effectWindow()->windowItem()->surfaceItem();
-            if (m_unfollowed && surface && surface->bufferSize() != request.size) {
-                m_unfollowed(request.window->effectWindow(), request.size);
-            }
             refuse(key, unmet);
             return;
         }

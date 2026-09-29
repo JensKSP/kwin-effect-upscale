@@ -10,7 +10,6 @@
 #include "buildtype.h"
 #include "eligibility.h"
 #include "modeoverride.h"
-#include "preparation.h"
 #include "resolution.h"
 #include "scaler.h"
 #include "settings.h"
@@ -66,10 +65,6 @@ UpscaleEffect::UpscaleEffect(ItemRenderer *renderer)
     m_modeOverride = std::make_unique<UpscaleModeOverride>();
     m_x11Resolution = std::make_unique<UpscaleX11Resolution>();
     m_waylandScale = std::make_unique<UpscaleWaylandScale>();
-    m_preparation = std::make_unique<UpscalePreparation>(this, m_x11Resolution.get());
-    m_x11Resolution->setUnfollowed([this](EffectWindow *window, const QSize &size) {
-        unfollowed(window, size);
-    });
     new UpscaleIdentityService(this);
 #if !UPSCALE_RENDER_DEVICE_API
     if (!m_renderer) {
@@ -157,7 +152,6 @@ void UpscaleEffect::releaseWhatTheGameLeftBehind()
 
 void UpscaleEffect::watchWindow(EffectWindow *window)
 {
-    m_preparation->windowAdded(window);
     connect(window, &QObject::destroyed, this, [this, window]() {
         m_renderedInputs.remove(window);
         m_passRefusals.remove(window);
@@ -258,9 +252,7 @@ bool UpscaleEffect::supported()
 
 bool UpscaleEffect::isActive() const
 {
-    // An open question is drawn whether or not anything is being scaled: the
-    // game it asks about is, by then, drawing at full size.
-    if (candidate() || autoWaiting() || m_preparation->question().isOpen()) {
+    if (candidate() || autoWaiting()) {
         return true;
     }
     // KWin only calls the paint hooks of effects that say they are active, so
@@ -294,7 +286,6 @@ QString UpscaleEffect::records() const
         m_modeOverride->records(),
         m_x11Resolution->records(),
         m_waylandScale->records(),
-        m_preparation->records(),
         QStringLiteral("unsupportedColors=%1 renderedInputs=%2 passRefusals=%3")
             .arg(m_unsupportedColors.size())
             .arg(m_renderedInputs.size())

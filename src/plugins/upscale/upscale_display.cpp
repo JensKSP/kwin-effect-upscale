@@ -4,12 +4,11 @@
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
-// The effect's screen pass and what it reports: the displays and the question
-// drawn after the chain has painted a frame, and the status KWin's support
-// information carries over D-Bus.
+// The effect's screen pass and what it reports: the displays drawn after the
+// chain has painted a frame, and the status KWin's support information carries
+// over D-Bus.
 
 #include "eligibility.h"
-#include "preparation.h"
 #include "snapshot.h"
 #include "upscale.h"
 #include "upscaleconfig.h"
@@ -17,10 +16,8 @@
 
 #include "effect/effecthandler.h"
 #include "effect/effectwindow.h"
-#include "input_event.h"
 
 #include <KLocalizedString>
-#include <QMouseEvent>
 #include <QScopedValueRollback>
 
 namespace KWin
@@ -122,63 +119,12 @@ UpscalePaintResult UpscaleEffect::paintScreen(const RenderTarget &target, const 
         return false;
     }
     paintDisplay(target, viewport, screen);
-    m_preparation->question().paint(target, viewport, screen);
     return true;
 #else
     effects->paintScreen(target, viewport, mask, region, screen);
     paintDisplay(target, viewport, screen);
-    m_preparation->question().paint(target, viewport, screen);
 #endif
 }
-
-void UpscaleEffect::grabbedKeyboardEvent(QKeyEvent *event)
-{
-    m_preparation->question().key(event);
-}
-
-void UpscaleEffect::unfollowed(EffectWindow *window, const QSize &size)
-{
-    m_preparation->unfollowed(window, size);
-}
-
-QString UpscaleEffect::question() const
-{
-    return m_preparation->question().text();
-}
-
-QList<QRectF> UpscaleEffect::questionAnswers() const
-{
-    return m_preparation->question().answerAreas();
-}
-
-// The pointer, while a question intercepts it: hovering an answer selects it
-// and releasing the left button over one chooses it.
-#if UPSCALE_POINTER_EVENT_API
-void UpscaleEffect::pointerMotion(PointerMotionEvent *event)
-{
-    m_preparation->question().pointerMoved(event->position);
-}
-
-void UpscaleEffect::pointerButton(PointerButtonEvent *event)
-{
-    if (event->button == Qt::LeftButton && event->state == PointerButtonState::Released) {
-        m_preparation->question().pointerReleased(event->position);
-    }
-}
-#else
-void UpscaleEffect::windowInputMouseEvent(QEvent *event)
-{
-    if (event->type() != QEvent::MouseMove && event->type() != QEvent::MouseButtonRelease) {
-        return;
-    }
-    const auto mouse = static_cast<QMouseEvent *>(event);
-    if (event->type() == QEvent::MouseMove) {
-        m_preparation->question().pointerMoved(mouse->globalPosition());
-    } else if (mouse->button() == Qt::LeftButton) {
-        m_preparation->question().pointerReleased(mouse->globalPosition());
-    }
-}
-#endif
 
 QString UpscaleEffect::build() const
 {

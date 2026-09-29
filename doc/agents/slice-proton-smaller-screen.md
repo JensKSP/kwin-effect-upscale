@@ -7,17 +7,21 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 ## Status
 
-**Status on 2026-09-28**, above the record of how it got here: the companion that
+**Status on 2026-09-29**, above the record of how it got here: the companion that
 prepared a prefix's screen, which the paragraphs below describe, left the
-default build and the packages on 2026-09-24. The route now is the session X11
+default build and the packages on 2026-09-24 and the source tree on 2026-09-29
+(item 32): its service, the effect's helper client, preparation, question and
+prepared-window path, the settings page's Prepared Games and its tests. What
+stays of it is the guard: a Wine window whose connection the proxy did not
+answer is neither held at its first mapping nor resized, and the status now
+names that reason; `leavesWineToTheProxy` checks it. The route now is the session X11
 proxy: the prefix is the unit, a profile matches the tail of the program's
 path through `wine://<prefix>/<path>`, a Wine component is held until its
 prefix's program is known (ten seconds at most), and each decision logs the
 names it was matched against. No shipped profile names a Wine program yet;
 Wreckfest's needs the path Proton reports, taken with the run on wzpc (item 30).
 Open, as the open list numbers them: acceptance on real games (29 to 31, 34 to
-36), Wine's Wayland driver (35), and the decisions on gates, warm prefixes and
-the legacy companion (25, 27, 32).
+36), Wine's Wayland driver (35), and warm prefixes (27).
 
 Written down on Jens's instruction on 2026-09-22 and accepted by him the same
 day as the route for Wine and Proton games that ignore resizing, on the

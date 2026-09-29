@@ -603,13 +603,6 @@ configuration module, the X11 proxy and the Plasma session hook:
 <sysconfdir>/xdg/plasma-workspace/env/kwin-upscale-x11.sh
 ```
 
-The legacy Wine preparation helper is excluded from normal builds and packages.
-Its sources remain available for development with
-`-DUPSCALE_BUILD_WINE_HELPER=ON`. A manual CMake install does not remove files
-installed by an older build; the old helper binary and its D-Bus and systemd
-activation files must be removed separately. Disabling the helper does not
-undo preparation already written into a Wine prefix.
-
 `kwinupscalerc` holds the effect's own defaults and lands in KDE's
 configuration directory, which is `/etc/xdg` for the default `/usr` prefix. A
 user's own changes go to a file of the same name in their configuration
@@ -913,7 +906,6 @@ for a fixed build.
 src/plugins/upscale/     the effect, laid out exactly as KWin lays out its own
 src/x11proxy/            the X11 session proxy KWin starts in place of Xwayland
 src/buildinfo/           the build identity compiled into the effect
-src/winescreen/          the legacy Wine preparation helper, off by default
 autotests/               unit, render and nested-KWin integration tests
 cmake/                   stand-ins for KWin's in-tree build macros
 containers/              build environments: Trixie minimum, KDE neon unstable,

@@ -31,7 +31,6 @@
 #include <KSharedConfig>
 
 #include <QFile>
-#include <QKeyEvent>
 #include <QStandardPaths>
 #include <QTimer>
 
@@ -120,10 +119,6 @@ class UpscaleTestDriver : public Effect
     // X11 window, rather than a delay that may or may not cover it.
     Q_PROPERTY(bool x11Settled READ x11Settled)
     Q_PROPERTY(int x11Judgements READ x11Judgements)
-    // The question the effect has put in the middle of the screen, if any,
-    // and where its answers are, as x,y,width,height separated by semicolons.
-    Q_PROPERTY(QString question READ question)
-    Q_PROPERTY(QString answers READ answers)
     // What the seat's pointer lock is doing, for the mouse look of a presented
     // game: "engaged", "asked" while the client has one KWin has not taken, or
     // "none".
@@ -161,8 +156,6 @@ public:
         }
         auto poll = new QTimer(this);
         connect(poll, &QTimer::timeout, this, &UpscaleTestDriver::movePointer);
-        connect(poll, &QTimer::timeout, this, &UpscaleTestDriver::pressKey);
-        connect(poll, &QTimer::timeout, this, &UpscaleTestDriver::reportUnfollowed);
         connect(poll, &QTimer::timeout, this, &UpscaleTestDriver::click);
         poll->start(50);
     }
@@ -299,11 +292,6 @@ public:
         }
     }
 
-    QString question() const
-    {
-        return m_effect->question();
-    }
-
     QString inputBounds() const
     {
         EffectWindow *window = effects->activeWindow();
@@ -336,15 +324,6 @@ public:
         return confinement->isConfined() ? QStringLiteral("engaged") : QStringLiteral("asked");
     }
 
-    QString answers() const
-    {
-        QStringList areas;
-        for (const QRectF &area : m_effect->questionAnswers()) {
-            areas.append(QStringLiteral("%1,%2,%3,%4").arg(area.x()).arg(area.y()).arg(area.width()).arg(area.height()));
-        }
-        return areas.join(QLatin1Char(';'));
-    }
-
     // "<x> <y>": a left click there, through KWin's input like the pointer
     // motion above.
     void click()
@@ -353,34 +332,6 @@ public:
         const QList<QByteArray> fields = request ? request->simplified().split(' ') : QList<QByteArray>();
         if (fields.size() == 2) {
             m_pointer.click(QPointF(fields.at(0).toDouble(), fields.at(1).toDouble()));
-        }
-    }
-
-    // A key for the question, by Qt key code, the way the keyboard grab
-    // delivers one. Read and removed like the pointer request.
-    void pressKey()
-    {
-        const std::optional<QByteArray> request = takeRequest(QStringLiteral("upscale-test-key"));
-        if (request) {
-            QKeyEvent event(QEvent::KeyPress, request->toInt(), Qt::NoModifier);
-            m_effect->grabbedKeyboardEvent(&event);
-        }
-    }
-
-    // "<window class> <width> <height>": that window goes on drawing another
-    // size than this, as X11 validation would find of a client that does.
-    void reportUnfollowed()
-    {
-        const std::optional<QByteArray> request = takeRequest(QStringLiteral("upscale-test-unfollowed"));
-        const QList<QByteArray> fields = request ? request->simplified().split(' ') : QList<QByteArray>();
-        if (fields.size() != 3) {
-            return;
-        }
-        for (EffectWindow *window : effects->stackingOrder()) {
-            if (window->window() && window->window()->resourceClass() == QString::fromLatin1(fields.at(0))) {
-                m_effect->unfollowed(window, QSize(fields.at(1).toInt(), fields.at(2).toInt()));
-                return;
-            }
         }
     }
 
