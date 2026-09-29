@@ -516,6 +516,12 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
 
 - **79.** **test, S** – A green nightly that publishes every target; record stage cost.
 - **80.** **impl** – Test the FreeBSD package in an emptied machine or a jail.
+  **Done 2026-09-29, `5c117bd`, pushed:** the machine is emptied between build
+  and test; the verify-only nightly 36501169792 passed it. Recorded in the
+  pipeline slice.
+- **80a.** **fix** – The same nightly's Debian arm64 builds differed, where amd64
+  and three earlier arm64 runs built identically. The comparison now lists the
+  differing files; the next nightly names them. Found 2026-09-29.
 - **81.** **decide** – Nightly checks CI's conclusion through the API instead of
     rerunning `ci.yml`.
 - **82.** **decide/investigate** – The openSUSE amd64 failure you reported; not observed.

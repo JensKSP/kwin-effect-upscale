@@ -238,15 +238,22 @@ Nothing below has run, and none of it may be reported as tested.
 
 ## Remaining work
 
-- **FreeBSD is tested in the machine that built it**, which has that target's
-  build dependencies installed. An undeclared runtime dependency can therefore
-  stay available and a broken package pass. The container targets do not have
-  this weakness: their test runs in a clean image holding an interpreter and
-  the package. Closing it means emptying the machine before the test - delete
-  every package, reinstall an interpreter, install the built package and let
-  pkg resolve its declared dependencies from the repository - or a jail. Not
-  done here: the FreeBSD path has never executed at all, and an unverifiable
-  step added to an unverified path is two failures to tell apart. Raised in
-  review of this slice.
+- **FreeBSD is tested in the machine that built it, emptied first**, since
+  2026-09-29 (item 80 of the open list). `pkg delete -a` removes every package
+  but pkg itself, and what comes back is the interpreter the test runs in,
+  rsync, which the virtual machine action copies results back with, and the
+  package's declared dependencies, read from the file with `pkg query -F` and
+  taken by name from the repository; `pkg add`, which the test uses, looks for
+  missing dependencies only beside the package file. The verify-only nightly
+  36501169792 on `5c117bd` removed 530 packages, installed 325 again, and
+  loaded both plugins, reinstalled and removed the package.
+- **Debian arm64 built differently twice** in that same nightly: the
+  reproducibility comparison failed on arm64 while amd64 built identical
+  packages, and arm64 had passed it in the three nightlies before (`f68eab0`,
+  `7eac56e`, `1bd904e`). The job discarded both builds and named no file, so
+  `tools/build-deb-package.py` now unpacks every differing package from both
+  builds and lists the files that differ in the log. The next nightly says
+  which; whether a change since `f68eab0` or an intermittent difference is the
+  cause is open.
 - Run a verify-only nightly and record what each stage cost and what failed.
 - The two open decisions above.

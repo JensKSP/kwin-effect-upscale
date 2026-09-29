@@ -91,6 +91,39 @@ def build(root: Path, destination: Path, version: str, epoch: int) -> list[Path]
     return packages
 
 
+def unpacked(package: Path, directory: Path) -> dict[str, str]:
+    """Map every file a package installs, and its control data, to a digest."""
+    # dpkg-deb makes the directory it extracts into, but not its parents.
+    directory.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["dpkg-deb", "--raw-extract", str(package), str(directory)], check=True)
+    return {
+        str(path.relative_to(directory)): digest(path)
+        for path in sorted(directory.rglob("*"))
+        if path.is_file() and not path.is_symlink()
+    }
+
+
+def differences(first: list[Path], second: list[Path], scratch: Path) -> list[str]:
+    """Name the packages that differ and, inside each, the files that do.
+
+    The two builds live in the job's own disk and go with it, so what differs
+    has to be said in the log for anyone to see it.
+    """
+    found = []
+    theirs = {path.name: path for path in second}
+    for ours in first:
+        other = theirs.get(ours.name)
+        if other is None or digest(ours) == digest(other):
+            continue
+        left = unpacked(ours, scratch / "first" / ours.name)
+        right = unpacked(other, scratch / "second" / ours.name)
+        changed = sorted(
+            name for name in left.keys() | right.keys() if left.get(name) != right.get(name)
+        )
+        found.append(f"{ours.name}: {', '.join(changed) or 'the archive alone, no file in it'}")
+    return found
+
+
 def publish(root: Path) -> None:
     """Stage the first build's deliverables, whether or not a second ran."""
     artifacts = root / "build/artifacts"
@@ -121,7 +154,9 @@ def main() -> None:
         return
     second = build(root, root / "build/packages/second", version, epoch)
     if {p.name: digest(p) for p in first} != {p.name: digest(p) for p in second}:
-        message = "The two clean package builds differ; retain both builds for diagnosis"
+        for line in differences(first, second, root / "build/packages/differences"):
+            print(f"differs: {line}", flush=True)
+        message = "The two clean package builds differ; the files that do are listed above"
         raise ValueError(message)
     publish(root)
     print("Both clean builds produced identical packages.")
