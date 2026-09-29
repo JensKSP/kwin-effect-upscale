@@ -50,7 +50,7 @@ void upscaleRecordShown(uint game, uint pid);
  * A window no entry names of a process answered for one, a Wine prefix's
  * launcher beside its game for instance, is claimed by that entry: it renders
  * at the screen that entry wanted, so it is presented as that entry's windows
- * are (item 14a, decided by Jens on 2026-09-29). Null for a process the global
+ * are, as Jens decided on 2026-09-29. Null for a process the global
  * profile answered for, or none did.
  */
 const UpscaleApplication *upscaleServedApplication(pid_t pid);

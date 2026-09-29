@@ -7,9 +7,9 @@
 
 Prints `state=passed`, `state=missing` or `state=failed` for GITHUB_OUTPUT. The
 nightly builds a commit whose push, or pull request, already ran CI; running it
-again cost a third of the nightly (item 81 of the open list, decided by Jens on
-2026-09-29). A run that finished counts; one still going or cancelled does not,
-so the nightly then runs CI itself rather than trust something unfinished. The
+again cost a third of the nightly (decided by Jens on 2026-09-29). A run that
+finished counts; one still going or cancelled does not, so the nightly then
+runs CI itself rather than trust something unfinished. The
 token is read from GH_TOKEN, as the gh command line reads it.
 """
 

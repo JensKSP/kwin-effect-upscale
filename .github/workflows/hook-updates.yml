@@ -8,7 +8,7 @@
 #
 # A pull request opened with this run's token starts no workflow, so the run
 # dispatches CI on the pull request's branch itself, and the checks land on its
-# commit (decided by Jens on 2026-09-29, item 89a of the open list). Each week's
+# commit (decided by Jens on 2026-09-29). Each week's
 # branch is new and named for its day, and none is opened while an earlier one
 # is still open, so nothing is ever pushed over.
 

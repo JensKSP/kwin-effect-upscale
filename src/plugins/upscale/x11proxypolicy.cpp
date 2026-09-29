@@ -204,8 +204,8 @@ QVariantMap UpscaleIdentityService::x11ConnectionPolicy(uint pid, const QStringL
     // when it connects, as a measured entry's program is, and not only asked
     // to resize its window later: a program that keeps the viewport it
     // started with, as glmark2 2023.01 and SuperTux 0.6.3 do, would otherwise
-    // show part of its picture enlarged (item 20a, decided by Jens on
-    // 2026-09-29). A disabled entry keeps its refusal.
+    // show part of its picture enlarged, as Jens decided on 2026-09-29. A
+    // disabled entry keeps its refusal.
     const bool global = !selected && answer.value(QStringLiteral("reason")) != QLatin1String("profile disabled") && unlisted(identities);
     if (!selected && !global) {
         return answer;
