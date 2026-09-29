@@ -331,6 +331,22 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   27's change, with the proxy and not without it, while the effect acts on
   neither window. Real launchers are not fullscreen programs; still to trace
   what in the proxy's answers drives it.
+  **Traced 2026-09-29, a decision for Jens:** Wine 10.0's win32u
+  (`map_window_rects_virt_to_raw()`) gives a window whose visible part
+  covers its monitor the whole raw monitor as its visible part. Once the
+  proxy shows the prefix the game's 2560 × 1440, the launcher's raw monitor is
+  2560 × 1440, but KWin keeps its fullscreen window at the output's real
+  3840 × 2160, as it keeps every fullscreen window it was not asked to size
+  otherwise. Wine asks for 2560 × 1440, KWin answers 3840 × 2160, and Wine
+  takes the window as the X size plus the difference between its window and
+  its visible part (`window_rect_from_visible()`): 5120 × 2880, and 1280 × 720
+  more at every answer (traced with `+x11drv,+win,+system` in the
+  conformance machine). The proxy's view and the launcher's window disagree;
+  only the selected game's window is sized to the smaller screen. Either the
+  prefix's other fullscreen windows are presented at the game's screen too,
+  enlarged by the effect although no entry lists them, or connections with a
+  fullscreen window are not shown the smaller screen. For the discussion at
+  the end, with 18 to 20a.
 - **15.** **fix, –** – Incoherent advertisement: `wl_output.mode` falsified beside a
     truthful `xdg_output`; recorded as a defect in shipped code, no fix
     recorded (L1363-1365, L1841-1851).

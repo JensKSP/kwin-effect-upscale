@@ -1117,6 +1117,23 @@ window then grew by 1280 × 720 on each size notification, up to X's limit,
 and a Wine process aborted in libxcb. This happened before the change as well,
 with the proxy and not without it.
 
+Traced later the same day with `WINEDEBUG=+x11drv,+win,+system` on the
+launcher. When the prefix is shown 2560 × 1440, Wine re-reads its displays, and
+win32u's `map_window_rects_virt_to_raw()` gives the launcher's window, whose
+visible part covers the old monitor, the whole new raw monitor as its visible
+part: window 3840 × 2160, visible 2560 × 1440. Wine asks X for the visible
+size; KWin keeps the fullscreen window at the output's 3840 × 2160, as it keeps
+every fullscreen window it was not asked to size otherwise; and
+`window_rect_from_visible()` takes the window as that X size plus the
+difference between window and visible part, 5120 × 2880, which is cropped
+again and grows by 1280 × 720 at each answer. The cause is the disagreement
+between the screen the proxy shows the prefix and the size KWin gives a
+fullscreen window of it that the effect does not present; only the selected
+game's window is sized to the smaller screen. The two ways out, presenting the
+prefix's other fullscreen windows at the game's screen too or not showing the
+smaller screen to a connection that has a fullscreen window, change what
+happens to a program no entry lists, and are Jens's to choose.
+
 ### Proposal prepared for KDE: a presentation transform KWin's input honours (item 29b), 2026-09-29
 
 Decided by Jens on 2026-09-29 to propose; filing is his, with 2e's report. The
