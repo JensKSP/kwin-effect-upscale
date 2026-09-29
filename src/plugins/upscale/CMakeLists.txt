@@ -22,6 +22,7 @@ set(upscale_SOURCES
     placement.cpp
     scaler.cpp
     snapshot.cpp
+    snapshot_headsup.cpp
     snapshot_metrics.cpp
     upscale.cpp
     upscale_display.cpp
@@ -29,6 +30,7 @@ set(upscale_SOURCES
     x11proxypolicy.cpp
     x11geometry.cpp
     x11modes.cpp
+    pictureinput.cpp
     x11input.cpp
     x11resolution.cpp
     x11resolution_events.cpp
@@ -78,6 +80,7 @@ if (KWIN_BUILD_KCMS)
         pattern.cpp
         settings.cpp
         settingcontrols.cpp
+        settingtext.cpp
         inheritedmark.cpp
         methodcontrols.cpp
         applicationeditor.cpp

@@ -87,7 +87,22 @@ enum class UpscaleSizing {
     NotSmaller,
     BelowHalf,
     AspectRatio,
+    // Integer geometry: the picture is larger than its output on an axis.
+    NoWholeFactor,
+    // Integer geometry with FSR, at a whole factor other than two.
+    FilterRange,
 };
+
+/**
+ * Whether @p input has @p output's aspect ratio, within the half pixel on each
+ * axis that rounding both dimensions to whole pixels can move it by. Compared
+ * as cross products, without integer overflow.
+ */
+inline bool upscaleSameAspect(UpscaleSize input, UpscaleSize output)
+{
+    const double difference = std::abs((double(input.width) * output.height) - (double(input.height) * output.width));
+    return difference <= 0.5 * (double(output.width) + output.height);
+}
 
 inline UpscaleSizing upscaleSizing(UpscaleSize input, UpscaleSize output)
 {
@@ -100,10 +115,7 @@ inline UpscaleSizing upscaleSizing(UpscaleSize input, UpscaleSize output)
     if (double(output.width) > 2.0 * input.width || double(output.height) > 2.0 * input.height) {
         return UpscaleSizing::BelowHalf;
     }
-    // Independently rounding both dimensions can move the aspect ratio by
-    // half a pixel on each axis. Use cross products, without integer overflow.
-    const double difference = std::abs((double(input.width) * output.height) - (double(input.height) * output.width));
-    return difference <= 0.5 * (double(output.width) + output.height) ? UpscaleSizing::Supported : UpscaleSizing::AspectRatio;
+    return upscaleSameAspect(input, output) ? UpscaleSizing::Supported : UpscaleSizing::AspectRatio;
 }
 
 /**

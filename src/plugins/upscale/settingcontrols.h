@@ -115,4 +115,7 @@ int upscaleSettingChoiceCount(UpscaleSetting setting);
 /** The label a form puts beside this preference's control. */
 QString upscaleSettingLabel(UpscaleSetting setting);
 
+/** What a preference's control explains when pointed at, where it needs more than its label. */
+QString upscaleSettingToolTip(UpscaleSetting setting);
+
 } // namespace KWin

@@ -37,6 +37,11 @@ SPDX-License-Identifier: GPL-2.0-or-later
         <entry name="MinimumPixels" type="Int"><default>2073600</default><min>0</min></entry>
         <entry name="Sharpening" type="Bool"><default>false</default></entry>
         <entry name="Strength" type="Int"><default>50</default><min>0</min><max>100</max></entry>
+        <!-- Where the enlarged picture goes: 0 fits it to the screen keeping its
+             aspect ratio, 1 enlarges it by a whole number. And how it is
+             sampled: 0 FSR 1, 1 nearest neighbour. A game's entry names them. -->
+        <entry name="Geometry" type="Int"><default>0</default><min>0</min><max>1</max></entry>
+        <entry name="Filter" type="Int"><default>0</default><min>0</min><max>1</max></entry>
         <!-- What the global profile says to a program no profile claimed, one
              answer per way the program can present itself. Auto throughout,
              so that All applications asks every program it answers for in the

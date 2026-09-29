@@ -683,7 +683,8 @@ inside the supported scope stated above: every case below still falls back to
 ordinary KWin rendering and must be named as unsupported in a release that
 ships without it.
 
-Status: required on 2026-09-18; specified, not implemented. The permanent
+Status: required on 2026-09-18; built for 0.3.0 as Jens decided on 2026-09-29,
+Fit and Integer both; real-device acceptance open. The permanent
 [handbook](../upscaling.md#aspect-ratio-and-integer-scaling) defines the behaviour.
 Keep this document until implementation and required testing, including
 real-device acceptance, are complete.
@@ -781,8 +782,8 @@ Planned checks, not observed results:
 
 - [x] Record required scope and distinguish optional later features.
 - [x] Specify geometry, filter separation and acceptance examples.
-- [ ] Establish supported KWin geometry/input integration.
-- [ ] Implement geometry, nearest filtering, settings and status.
+- [x] Establish supported KWin geometry/input integration.
+- [x] Implement geometry, nearest filtering, settings and status.
 - [ ] Complete automated checks, both compiler/container builds and TV acceptance.
 
 Documentation validation, 2026-09-18: `pre-commit run --all-files` and the complete
@@ -791,6 +792,56 @@ pre-push stage passed in Trixie on an isolated copy under
 documents. Local documentation links and heading anchors resolved. No
 implementation, rendering test or real-device acceptance was performed for
 this extension.
+
+### Built, 2026-09-29
+
+Item 76 of the open list. `upscalePicture()` in `picture.h` places the picture
+in the output's device pixels for the geometry and filter in force and names
+what it cannot honour; the eligibility chain refuses by that answer
+(`BufferNoWholeFactor`, `BufferFilterRange` beside the existing sizes), and a
+different aspect ratio is no longer refused. The scaler draws up to four black
+bars from a one-pixel texture through KWin's texture shader, then the picture:
+EASU with optional RCAS into the picture's rectangle, or for Nearest a plain
+copy of the capture, which is sampled nearest already, with sharpening forced
+to zero. The status names the result: "fitted into W × H with bars", or
+"enlarged N times", with the filter.
+
+Input: `UpscalePictureInput`, an input event filter just ahead of KWin's window
+actions, gives the seat the transformation from the picture to the surface,
+scales relative motion by the same factor, and warps a confined pointer back
+onto the picture's edge. It serves native Wayland games and X11 games in a mode
+of their own, which Xwayland's emulation maps from the whole frame onto the
+drawable; KWin keeps such a window at its mode only from 6.6 on. An X11 window
+the effect asked for a size stays with `UpscaleX11Input`, whose presented
+mapping and emulated-mode coverage now take the picture instead of the frame.
+`presentationScale()` answers "not presented" apart from a scale of one: a
+whole factor of one had lost its origin, and the pointer arrived unmapped.
+
+Settings: `Geometry` and `Filter` in `kwinrc`, as numbers, and in an entry by
+name (Fit/Integer, FSR/Nearest), on the Scaling tab of both panels, which
+replaced the Sharpening tab. `settingtext.cpp` split off `settingcontrols.cpp`,
+which the two choices took past the size limit. The test driver now reads its
+check pixel at the picture's corner: at the output's corner a centred picture
+leaves a bar, and the driver aborted KWin.
+
+Tests: `upscale-picture` covers the handbook's examples, both FSR limits,
+factor one, odd bars, no whole factor and the refusals;
+`laysThePictureBetweenBars` renders bars and picture on GL and GLES;
+`mapsThePointerOntoThePicture` runs a native Wayland client with a 64 × 80
+buffer on the 128 × 128 session and checks two positions and the confined clamp
+at both edges; `fitsAnEmulatedModeBetweenBars` sets a 1440 × 1080 mode itself
+and is skipped before KWin 6.6; `centresAPresentedWindowByAWholeFactor` asks for
+2560 × 1440 with Integer and Nearest. Seen failing against the defect each
+guards: the Wayland case with the filter's motion handling disabled, (20, 64)
+unmapped, and with only the clamp disabled, x −11.3; the own-mode case with X11
+excluded again, (254, 100) stretched, on KWin 6.6; the whole-factor case before
+the fix, (940, 660) unmapped. The settings page, a game's tab and an entry read
+and store both choices.
+
+Left open: relative motion was not driven by a relative-pointer client, and a
+locked pointer, popups and subsurfaces of a game with bars, separate overlays,
+HDR and VRR are untested; the real games on the TV, retro and differing-aspect
+titles, and the added processing cost remain the acceptance above.
 
 ## Generic benchmark inputs, 2026-09-28
 

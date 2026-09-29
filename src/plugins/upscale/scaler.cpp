@@ -15,6 +15,7 @@
 #include "scene/workspacescene.h"
 
 #include <QFile>
+#include <QImage>
 #include <QScopeGuard>
 
 #include <array>
@@ -92,7 +93,10 @@ bool UpscaleScaler::initialize()
     m_rcas = loadShader(QStringLiteral(":/effects/upscale/shaders/sharpen.frag"));
     m_easuDirect = loadShader(QStringLiteral(":/effects/upscale/shaders/upscale.frag"), true);
     m_rcasDirect = loadShader(QStringLiteral(":/effects/upscale/shaders/sharpen.frag"), true);
-    return validShader(m_easu.get()) && validShader(m_rcas.get())
+    QImage black(1, 1, QImage::Format_RGB32);
+    black.fill(Qt::black);
+    m_black = GLTexture::upload(black);
+    return m_black && validShader(m_easu.get()) && validShader(m_rcas.get())
         && validShader(m_easuDirect.get()) && validShader(m_rcasDirect.get());
 }
 
@@ -125,7 +129,7 @@ void UpscaleScaler::draw(GLShader *shader, GLTexture *texture, const RenderViewp
 }
 
 bool UpscaleScaler::render(const RenderTarget &target, const RenderViewport &viewport, SurfaceItem *surface,
-                           const UpscaleRectF &destination, const UpscaleRegion &region, double strength)
+                           const UpscaleDrawing &drawing, const UpscaleRegion &region)
 {
     const QSize inputSize = surface->bufferSize();
     // The capture holds the destination encoding as the client committed it.
@@ -161,7 +165,26 @@ bool UpscaleScaler::render(const RenderTarget &target, const RenderViewport &vie
     if (!captured) {
         return false;
     }
-    return renderTexture(target, viewport, m_input.texture.get(), destination, region, strength);
+    return renderTexture(target, viewport, m_input.texture.get(), drawing, region);
+}
+
+// The rest of the frame, in up to four bars around the picture. Black is zero
+// in every encoding a target can have, so the pixel needs no conversion.
+void UpscaleScaler::bars(const RenderViewport &viewport, const UpscaleRectF &frame, const UpscaleRectF &destination,
+                         const UpscaleRegion &region)
+{
+    const std::array<UpscaleRectF, 4> parts{
+        UpscaleRectF(frame.left(), frame.top(), frame.width(), destination.top() - frame.top()),
+        UpscaleRectF(frame.left(), destination.bottom(), frame.width(), frame.bottom() - destination.bottom()),
+        UpscaleRectF(frame.left(), destination.top(), destination.left() - frame.left(), destination.height()),
+        UpscaleRectF(destination.right(), destination.top(), frame.right() - destination.right(), destination.height()),
+    };
+    ShaderBinder binder(ShaderTrait::MapTexture);
+    for (const UpscaleRectF &part : parts) {
+        if (part.width() > 0 && part.height() > 0) {
+            draw(binder.shader(), m_black.get(), viewport, part, region);
+        }
+    }
 }
 
 // The two filter passes themselves. EASU enlarges, and where sharpening is
@@ -215,8 +238,10 @@ void UpscaleScaler::sharpen(const RenderTarget &target, const RenderViewport &vi
 }
 
 bool UpscaleScaler::renderTexture(const RenderTarget &target, const RenderViewport &viewport, GLTexture *input,
-                                  const UpscaleRectF &destination, const UpscaleRegion &region, double strength)
+                                  const UpscaleDrawing &drawing, const UpscaleRegion &region)
 {
+    const UpscaleRectF &destination = drawing.destination;
+    const double strength = drawing.strength;
     if (!supportsUpscaleColors(targetColors(target))) {
         return false;
     }
@@ -230,6 +255,24 @@ bool UpscaleScaler::renderTexture(const RenderTarget &target, const RenderViewpo
             glEnable(GL_SCISSOR_TEST);
         }
     });
+    const bool blending = glIsEnabled(GL_BLEND);
+    glDisable(GL_BLEND);
+    const auto restoreBlending = qScopeGuard([blending]() {
+        if (blending) {
+            glEnable(GL_BLEND);
+        }
+    });
+    if (!drawing.frame.isEmpty()) {
+        bars(viewport, drawing.frame, destination, region);
+    }
+    if (drawing.filter == UpscaleFilter::Nearest) {
+        // The capture is already in the target's encoding and sampled nearest,
+        // so this is a plain copy: each pixel replicated, nothing sharpened.
+        m_scaled.release();
+        ShaderBinder binder(ShaderTrait::MapTexture);
+        draw(binder.shader(), input, viewport, destination, region);
+        return true;
+    }
     const QSize outputSize = (destination.size() * viewport.scale()).toSize();
     if (strength > 0) {
         if (!m_scaled.resize(outputSize, upscaleFilterFormat(targetColors(target)))) {
@@ -241,16 +284,11 @@ bool UpscaleScaler::renderTexture(const RenderTarget &target, const RenderViewpo
         m_scaled.release();
     }
 
-    // The input is opaque. Preserve GL state also when KWin's item renderer
-    // enabled blending for a buffer with an unused alpha channel.
-    const bool blending = glIsEnabled(GL_BLEND);
-    glDisable(GL_BLEND);
+    // The input is opaque. Blending stays off, as set above, also where KWin's
+    // item renderer enabled it for a buffer with an unused alpha channel.
     scale(target, viewport, input, destination, region, strength);
     if (strength > 0) {
         sharpen(target, viewport, destination, region, strength);
-    }
-    if (blending) {
-        glEnable(GL_BLEND);
     }
     return true;
 }

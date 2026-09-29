@@ -41,12 +41,14 @@ struct UpscaleRenderFixture
      * Scale @p pixels and read the result back in storage order.
      *
      * @p targetTransform is the orientation KWin would compose into; its DRM
-     * backend flips every frame, so a test can ask for that here.
+     * backend flips every frame, so a test can ask for that here. A @p picture
+     * is laid inside the output with bars around it, sampled with @p filter.
      */
     std::vector<float> render(const std::vector<float> &pixels, const QSize &inputSize, const QSize &outputSize,
                               TransferFunction transfer, double strength,
                               const UpscaleRegion &region = unlimitedRegion(),
-                              OutputTransform targetTransform = OutputTransform::Normal);
+                              OutputTransform targetTransform = OutputTransform::Normal, const QRect &picture = {},
+                              UpscaleFilter filter = UpscaleFilter::Fsr);
 
     std::unique_ptr<EglDisplay> m_display;
     std::shared_ptr<EglContext> m_context;
@@ -88,7 +90,7 @@ inline void UpscaleRenderFixture::release()
 
 inline std::vector<float> UpscaleRenderFixture::render(const std::vector<float> &pixels, const QSize &inputSize, const QSize &outputSize,
                                                        TransferFunction transfer, double strength, const UpscaleRegion &region,
-                                                       OutputTransform targetTransform)
+                                                       OutputTransform targetTransform, const QRect &picture, UpscaleFilter filter)
 {
     std::unique_ptr<GLTexture> input = allocateFloatTexture(inputSize);
     std::unique_ptr<GLTexture> output = allocateFloatTexture(outputSize);
@@ -118,7 +120,13 @@ inline std::vector<float> UpscaleRenderFixture::render(const std::vector<float> 
     GLVertexBuffer::streamingBuffer()->beginFrame();
     glClearColor(-7, -7, -7, -7);
     glClear(GL_COLOR_BUFFER_BIT);
-    const bool success = m_scaler->renderTexture(target, viewport, input.get(), rectangle, region, strength);
+    const UpscaleDrawing drawing{
+        .destination = picture.isEmpty() ? rectangle : UpscaleRectF(picture),
+        .strength = strength,
+        .filter = filter,
+        .frame = picture.isEmpty() ? UpscaleRectF() : rectangle,
+    };
+    const bool success = m_scaler->renderTexture(target, viewport, input.get(), drawing, region);
     std::vector<float> result(size_t(outputSize.width()) * size_t(outputSize.height()) * 4);
     glReadPixels(0, 0, outputSize.width(), outputSize.height(), GL_RGBA, GL_FLOAT, result.data());
     GLVertexBuffer::streamingBuffer()->endOfFrame();

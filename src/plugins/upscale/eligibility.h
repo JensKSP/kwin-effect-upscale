@@ -7,6 +7,7 @@
 #pragma once
 
 #include "compatibility.h"
+#include "picture.h"
 #include "presentation.h"
 
 #include <QString>
@@ -98,6 +99,8 @@ enum class UpscaleRefusal {
     BufferNotSmaller,
     BufferBelowHalf,
     BufferAspectRatio,
+    BufferNoWholeFactor,
+    BufferFilterRange,
     TransformedBuffer,
     CroppedBuffer,
     TranslucentContent,
@@ -145,6 +148,12 @@ bool upscaleRequestCoversOutput(const Window *window);
  * asks for one.
  */
 UpscaleRefusal windowRefusal(EffectWindow *window);
+
+/**
+ * Where @p window's supplied buffer goes on its output, in device pixels, as
+ * its settings lay it: the one answer eligibility, drawing and input share.
+ */
+UpscalePicture upscalePictureOf(EffectWindow *window);
 
 /**
  * The window this output would scale once its client supplied a smaller

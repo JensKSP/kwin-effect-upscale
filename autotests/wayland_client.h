@@ -7,11 +7,13 @@
 #pragma once
 
 #include "fractional-scale-v1-client.h"
+#include "pointer-constraints-unstable-v1-client.h"
 #include "viewporter-client.h"
 #include "xdg-output-unstable-v1-client.h"
 #include "xdg-shell-client.h"
 
 #include <QList>
+#include <QPointF>
 #include <QSize>
 
 #include <wayland-client.h>
@@ -68,6 +70,16 @@ public:
      */
     bool presentFrames(int count);
 
+    /**
+     * Where the pointer last entered or moved on this client's surface, in
+     * the surface's own coordinates, which a game maps onto its buffer as
+     * though that filled the surface; (-1, -1) before it arrived.
+     */
+    QPointF lastMotion() const;
+    /** Confines the pointer to the surface; pointerConfined() says once KWin engaged it. */
+    bool confinePointer();
+    bool pointerConfined() const;
+
 private:
     // One bound output. The listener is handed this record, so it keeps its
     // address for as long as the client lives.
@@ -90,6 +102,8 @@ private:
     static void outputMode(void *data, wl_output *output, uint32_t flags, int32_t width, int32_t height, int32_t refresh);
     static void outputScale(void *data, wl_output *output, int32_t factor);
     static void framePresented(void *data, wl_callback *callback, uint32_t time);
+    void bindSeat(wl_registry *registry, uint32_t name);
+    void releasePointer();
 
     wl_display *m_display = nullptr;
     wl_registry *m_registry = nullptr;
@@ -115,4 +129,10 @@ private:
     QSize m_destination{128, 128};
     bool m_opaque = true;
     bool m_configured = false;
+    wl_seat *m_seat = nullptr;
+    wl_pointer *m_pointer = nullptr;
+    zwp_pointer_constraints_v1 *m_constraints = nullptr;
+    zwp_confined_pointer_v1 *m_confinement = nullptr;
+    bool m_confined = false;
+    QPointF m_lastMotion{-1, -1};
 };

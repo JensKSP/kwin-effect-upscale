@@ -10,6 +10,7 @@
 #include "buildtype.h"
 #include "eligibility.h"
 #include "modeoverride.h"
+#include "pictureinput.h"
 #include "resolution.h"
 #include "scaler.h"
 #include "settings.h"
@@ -65,6 +66,14 @@ UpscaleEffect::UpscaleEffect(ItemRenderer *renderer)
     m_modeOverride = std::make_unique<UpscaleModeOverride>();
     m_x11Resolution = std::make_unique<UpscaleX11Resolution>();
     m_waylandScale = std::make_unique<UpscaleWaylandScale>();
+    // An X11 window the effect asked for a size is UpscaleX11Input's.
+    m_pictureInput = std::make_unique<UpscalePictureInput>([this](Window *window) -> EffectWindow * {
+        EffectWindow *effectWindow = window ? window->effectWindow() : nullptr;
+        return effectWindow && effectWindow->screen() && candidate(nullptr, effectWindow->screen()) == effectWindow
+                && m_x11Resolution->requested(window).isEmpty()
+            ? effectWindow
+            : nullptr;
+    });
     auto identity = new UpscaleIdentityService(this);
     identity->setReporter([this](EffectWindow *window) {
         return reportFacts(window);
@@ -453,7 +462,19 @@ UpscalePaintResult UpscaleEffect::drawWindow(const RenderTarget &target, const R
 #else
             const UpscaleRegion clip = region == infiniteRegion() ? region : viewport.mapToRenderTarget(region);
 #endif
-            if (!m_failed && m_scaler->render(target, viewport, window->windowItem()->surfaceItem(), window->frameGeometry(), clip, m_frame.settings.sharpening())) {
+            // Placed in device pixels, where bars and a whole factor are exact.
+            const UpscalePicture picture = upscalePictureOf(window);
+            const UpscaleRectF frame = window->frameGeometry();
+            const double pixels = window->screen()->scale();
+            const UpscaleRectF destination(frame.x() + (picture.x / pixels), frame.y() + (picture.y / pixels), picture.width / pixels,
+                                           picture.height / pixels);
+            const UpscaleDrawing drawing{
+                .destination = destination,
+                .strength = m_frame.settings.sharpening(),
+                .filter = m_frame.settings.filter(),
+                .frame = frame,
+            };
+            if (!m_failed && m_scaler->render(target, viewport, window->windowItem()->surfaceItem(), drawing, clip)) {
                 m_renderedInputs.insert(window, window->windowItem()->surfaceItem()->bufferSize());
 #if UPSCALE_RENDER_DEVICE_API
                 return true;

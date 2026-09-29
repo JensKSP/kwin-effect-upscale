@@ -97,7 +97,8 @@ void UpscaleApplicationEditor::buildDetails(QVBoxLayout *details)
     m_settings->build(resolution, this, {UpscaleSetting::Resolution, UpscaleSetting::Percentage});
     m_preview->build(resolution, this, QStringLiteral("applicationPreview"));
     m_settings->build(resolution, this, {UpscaleSetting::MinimumPixels});
-    m_settings->build(addTab(tabs, i18n("Sharpening")), this, {UpscaleSetting::Sharpening, UpscaleSetting::Strength});
+    m_settings->build(addTab(tabs, i18n("Scaling")), this,
+                      {UpscaleSetting::Geometry, UpscaleSetting::Filter, UpscaleSetting::Sharpening, UpscaleSetting::Strength});
     // A display at a time, each switch followed by what it decides and set a
     // little apart from the next, as "All applications" groups them.
     QFormLayout *display = addTab(tabs, i18n("On-Screen Display"));

@@ -4,6 +4,7 @@
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
+#include "eligibility.h"
 #include "test_pointer.h"
 #include "upscale.h"
 
@@ -403,8 +404,11 @@ public:
                 : ColorDescription::sRGB;
 #endif
             const RenderTarget offscreen(m_framebuffer.get(), colors);
-            const RenderViewport offscreenViewport = captureViewport(
-                UpscaleRectF(window->screen()->geometryF().topLeft(), QSizeF(128, 128)), 1, offscreen);
+            // At the picture's own corner, which bars move away from the
+            // output's, so that the pixel read below is one of the picture.
+            const UpscalePicture placed = upscalePictureOf(window);
+            const QPointF corner = window->screen()->geometryF().topLeft() + QPointF(placed.x, placed.y) / window->screen()->scale();
+            const RenderViewport offscreenViewport = captureViewport(UpscaleRectF(corner, QSizeF(128, 128)), 1, offscreen);
             GLFramebuffer::pushFramebuffer(m_framebuffer.get());
             glClearColor(0, 0, 0, 0);
             glClear(GL_COLOR_BUFFER_BIT);

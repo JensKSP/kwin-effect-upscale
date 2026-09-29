@@ -11,6 +11,7 @@
 #include "presentation.h"
 #include "resolution.h"
 
+#include <QRect>
 #include <QSize>
 #include <QString>
 
@@ -91,6 +92,11 @@ struct UpscaleSnapshot
     // Custom's share, in basis points as resolutionRatio() takes it.
     int percentage = 10000;
     double sharpening = 0;
+    // How the picture is sampled, where it lies on the output in device
+    // pixels, and the whole factor Integer enlarged it by.
+    UpscaleFilter filter = UpscaleFilter::Fsr;
+    QRect picture;
+    int factor = 0;
 
     // Geometry
     QSize supplied;

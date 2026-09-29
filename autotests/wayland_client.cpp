@@ -21,6 +21,7 @@ WaylandClient::WaylandClient(uint32_t outputVersion)
 
 WaylandClient::~WaylandClient()
 {
+    releasePointer();
     for (wl_callback *frame : m_frames) {
         wl_callback_destroy(frame);
     }
@@ -114,6 +115,11 @@ void WaylandClient::global(void *data, wl_registry *registry, uint32_t name, con
             xdg_wm_base_pong(shell, serial);
         }};
         xdg_wm_base_add_listener(client->m_shell, &listener, nullptr);
+    } else if (std::strcmp(interface, "wl_seat") == 0 && !client->m_seat) {
+        client->bindSeat(registry, name);
+    } else if (std::strcmp(interface, "zwp_pointer_constraints_v1") == 0) {
+        client->m_constraints = static_cast<zwp_pointer_constraints_v1 *>(
+            wl_registry_bind(registry, name, &zwp_pointer_constraints_v1_interface, 1));
     }
 }
 
