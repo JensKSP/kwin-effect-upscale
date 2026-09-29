@@ -2,10 +2,11 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Make, start, stop and reach the virtual machines the checks run in.
 
-Each machine is a profile: a Debian cloud image, checked against Debian's
-SHA512SUMS, with a disk of its own on top; a seed from a cloud-init template
-under containers/vm-host, filled with a login key and a host key made for that
-machine alone, so that known_hosts is written before the first boot; and QEMU
+Each machine is a profile: a distribution's cloud image, checked against the
+sums file the distribution publishes beside it, with a disk of its own on top;
+a seed from a cloud-init template under containers/vm-host, filled with a login
+key and a host key made for that machine alone, so that known_hosts is written
+before the first boot; and QEMU
 under KVM in containers/vm-host, given /dev/kvm and the repository, which the
 guest mounts at /src, and nothing else of the host. Everything of a machine
 lives under build/<name>. tools/conformance-vm.py and tools/package-vm.py are
@@ -27,10 +28,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 HOST_IMAGE = "localhost/upscale-vm-host:trixie"
-CLOUD = "https://cloud.debian.org/images/cloud/trixie/latest/"
-# The generic image, with Debian's standard kernel: the cloud kernel of the
-# genericcloud image has no 9p, which the repository's share needs (2026-09-29).
-BASE = "debian-13-generic-amd64.qcow2"
+DEBIAN = "https://cloud.debian.org/images/cloud/trixie/latest/"
 SSH_PORT = 2222
 # What makes one machine: removed by --replace. The downloaded base stays.
 MACHINE_FILES = (
@@ -56,6 +54,14 @@ class Machine:
     # A shell command the guest runs once cloud-init is done; the machine is of
     # use only when it succeeds.
     ready: str
+    # Where the cloud image comes from, and the sums it is checked against.
+    # Debian's generic image by default, with Debian's standard kernel: the
+    # cloud kernel of the genericcloud image has no 9p, which the repository's
+    # share needs (2026-09-29).
+    cloud: str = DEBIAN
+    base: str = "debian-13-generic-amd64.qcow2"
+    sums: str = "SHA512SUMS"
+    algorithm: str = "sha512"
     # QEMU's display device. With -vga none the genericcloud image reset the
     # machine before its kernel printed a line (QEMU 10.0.13, 2026-09-29), so
     # there always is one.
@@ -137,31 +143,40 @@ def user_data(template: str, authorized: str, private: str, public: str) -> str:
     return text
 
 
-def checksum(path: Path) -> str:
-    """Hash a file as Debian's SHA512SUMS does."""
+def checksum(path: Path, algorithm: str) -> str:
+    """Hash a file as a distribution's sums file does."""
     with path.open("rb") as stream:
-        return hashlib.file_digest(stream, "sha512").hexdigest()
+        return hashlib.file_digest(stream, algorithm).hexdigest()
 
 
-def download(directory: Path) -> None:
-    """Fetch Debian's current cloud image, unless the one here is still it."""
-    # A constant https address, not something a caller chose.
-    with urllib.request.urlopen(CLOUD + "SHA512SUMS", timeout=60) as response:  # noqa: S310  # nosec B310
-        sums = response.read().decode()
-    expected = next(line.split()[0] for line in sums.splitlines() if line.endswith(" " + BASE))
-    base = directory / BASE
-    if base.exists() and checksum(base) == expected:
+def expected_sum(sums: str, name: str) -> str:
+    """Find a file's sum in a sums file, whether it marks binary files with * or not."""
+    for line in sums.splitlines():
+        fields = line.split()
+        if len(fields) == 2 and fields[1].lstrip("*") == name:  # noqa: PLR2004
+            return fields[0]
+    message = f"{name} is not in the sums file"
+    raise ValueError(message)
+
+
+def download(machine: Machine) -> None:
+    """Fetch the machine's cloud image, unless the one here is still the current one."""
+    # A constant https address from a profile, not something a caller chose.
+    with urllib.request.urlopen(machine.cloud + machine.sums, timeout=60) as response:  # noqa: S310  # nosec B310
+        expected = expected_sum(response.read().decode(), machine.base)
+    base = machine.directory / machine.base
+    if base.exists() and checksum(base, machine.algorithm) == expected:
         return
     partial = base.with_suffix(".partial")
     with (
-        urllib.request.urlopen(CLOUD + BASE, timeout=60) as response,  # noqa: S310  # nosec B310
+        urllib.request.urlopen(machine.cloud + machine.base, timeout=60) as response,  # noqa: S310  # nosec B310
         partial.open("wb") as stream,
     ):
         while chunk := response.read(1 << 20):
             stream.write(chunk)
-    if checksum(partial) != expected:
+    if checksum(partial, machine.algorithm) != expected:
         partial.unlink()
-        message = f"{BASE} does not match Debian's SHA512SUMS"
+        message = f"{machine.base} does not match its {machine.sums}"
         raise ValueError(message)
     partial.replace(base)
 
@@ -180,7 +195,7 @@ def create(machine: Machine, replace: bool) -> None:  # noqa: FBT001 - One comma
     # From the recipe in the tree every time, never from whatever image has the
     # name: a new machine is a statement about what the repository makes.
     run("podman", "build", "--pull", "-t", HOST_IMAGE, "containers/vm-host")
-    download(directory)
+    download(machine)
     for key in ("id_ed25519", "host_ed25519"):
         in_container(
             HOST_IMAGE,
@@ -206,7 +221,7 @@ def create(machine: Machine, replace: bool) -> None:  # noqa: FBT001 - One comma
     # The disk records its base by a name relative to itself.
     in_container(
         HOST_IMAGE,
-        *("qemu-img", "create", "-q", "-f", "qcow2", "-F", "qcow2", "-b", BASE),
+        *("qemu-img", "create", "-q", "-f", "qcow2", "-F", "qcow2", "-b", machine.base),
         *(f"{machine.shared}/disk.qcow2", machine.disk),
     )
     start(machine)

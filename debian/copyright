@@ -28,6 +28,7 @@ Files: .dockerignore
        containers/game-tests/Containerfile
        containers/vm-host/Containerfile
        containers/vm-host/plasma-debian.in
+       containers/vm-host/plasma-kubuntu.in
        containers/vm-host/user-data.in
        containers/wayland-tests/Containerfile
 Copyright: None

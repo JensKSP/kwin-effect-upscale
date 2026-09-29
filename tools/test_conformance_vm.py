@@ -11,7 +11,7 @@ import unittest
 from pathlib import Path
 
 import yaml
-from virtual_machine import ssh, user_data
+from virtual_machine import expected_sum, ssh, user_data
 
 SCRIPT = runpy.run_path(str(Path(__file__).with_name("conformance-vm.py")))
 in_test_image = SCRIPT["in_test_image"]
@@ -59,6 +59,26 @@ class UserDataTest(unittest.TestCase):
         """A template field nobody filled is refused rather than seeded."""
         with self.assertRaisesRegex(ValueError, "@EXTRA@"):
             user_data(TEMPLATE + "@EXTRA@\n", "key", PRIVATE, "key")
+
+
+class SumsTest(unittest.TestCase):
+    """An image is checked against the line its sums file has for it."""
+
+    def test_both_ways_of_writing_a_sum(self) -> None:
+        """Debian writes the name after two spaces, Ubuntu after an asterisk."""
+        debian = "aa11  debian-13-generic-amd64.qcow2\nbb22  debian-13-genericcloud-amd64.qcow2\n"
+        ubuntu = (
+            "cc33 *resolute-server-cloudimg-amd64.img\ndd44 *resolute-server-cloudimg-arm64.img\n"
+        )
+        self.assertEqual(expected_sum(debian, "debian-13-generic-amd64.qcow2"), "aa11")
+        self.assertEqual(expected_sum(ubuntu, "resolute-server-cloudimg-amd64.img"), "cc33")
+
+    def test_a_name_only_contained_is_no_match(self) -> None:
+        """A longer name that contains the one asked for is another file."""
+        with self.assertRaisesRegex(ValueError, "not in the sums file"):
+            expected_sum(
+                "aa11  debian-13-generic-amd64.qcow2.tar\n", "debian-13-generic-amd64.qcow2"
+            )
 
 
 class GuestCommandTest(unittest.TestCase):

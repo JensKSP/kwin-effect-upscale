@@ -42,11 +42,13 @@ step with the package the nightly or a release builds.
 
 ## Approach
 
-`tools/package-vm.py <system>` makes the machine from a cloud-init template
-under `containers/vm-host` (`plasma-debian.in` for Debian), with a 3840 × 2160
-screen on QEMU's VGA, since the effect acts from 1920 × 1080 up by default.
-`check <package>` copies the package into the machine and runs
-`tools/package_check.py` in the guest as root, which checks, in order:
+`tools/package-vm.py <system>` makes the machine from the system's cloud image
+and a cloud-init template under `containers/vm-host` (`plasma-debian.in`,
+`plasma-kubuntu.in`), each image checked against the sums file its
+distribution publishes beside it, with a 3840 × 2160 screen on QEMU's VGA,
+since the effect acts from 1920 × 1080 up by default. `check <package>` copies
+the package into the machine and runs `tools/package_check.py` in the guest as
+root, which finds the system's package manager and checks, in order:
 
 1. a Plasma Wayland session before installing;
 2. the package installed with the system's package manager;
@@ -90,9 +92,32 @@ connection was told 2560 × 1440 by the proxy.
 package. The effect was loaded and supported after logging in again with
 nothing configured, and the settings module opened.
 
+Kubuntu 26.04 amd64, 2026-09-29, on a machine made afresh from Ubuntu's
+`resolute` cloud image with `kubuntu-desktop`, Plasma 6.6.6 and KWin 6.6.6. With
+the nightly's package of `d801766`, eight steps passed and SuperTuxKart was
+never enlarged. Plasma chose a scale of 2.7 for the same 4K screen, at which the
+output is 1422.22 logical pixels wide; the game's fullscreen window can be 1422
+at most, which KWin places at 3839 device pixels of 3840. The effect accepts a
+window within one device pixel of its output's edges, and this is one pixel
+exactly, but the arithmetic returned 1.0000000000002 and the effect refused the
+window as not covering its output. The same hair over one pixel comes out at
+many common scales (1.35, 1.4, 1.55, 1.8, 2.25, 3.0 on common sizes), so this is
+a defect of the effect, not of the machine: the comparison now allows a
+millionth of a pixel for floating point, and `upscale-resolution-test` checks
+it at 2.7, 1.35 and 1.8. With a package built from that tree, the same machine
+passed all nine steps: SuperTuxKart supplied 2560 × 1440, enlarged to
+3840 × 2160, and Extreme Tux Racer was told 2560 × 1440 by the proxy.
+
+The machine also locks its screen after five idle minutes, as Plasma does by
+default, and nothing moves the pointer in it; the effect then reports itself
+inactive, which a game started by hand an hour after the check showed. The
+check's own login starts the idle time afresh, and in the first run
+SuperTuxKart started 23 seconds after it.
+
 ## Remaining work
 
-- The other systems: a template each, their package manager in the check, and
-  arm64 under full system emulation.
+- The other systems: Fedora, openSUSE Tumbleweed and Arch each need a template
+  and a profile (the check already knows dnf, zypper and pacman), FreeBSD a
+  profile of its own, and arm64 full system emulation.
 - Container identity (Flatpak, Snap) and the BSDs for the X11 proxy
   ([resolution control](slice-resolution-control.md#what-the-proxy-costs-and-what-goes-through-it-2026-09-29)).
