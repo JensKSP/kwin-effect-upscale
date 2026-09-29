@@ -115,25 +115,6 @@ static bool showingOnItsOutput(EffectWindow *window)
     return focused && internal && focused->allMainWindows().contains(internal);
 }
 
-// Logical geometry is fractional whenever the output's scale is. A 3840 x 2160
-// output at scale 1.45 is 2648.28 x 1489.66 logical, and a client can only ever
-// commit whole pixels, so no window can equal that rectangle exactly. Comparing
-// the two as they stand therefore refuses a window that covers the screen
-// completely.
-//
-// The question is settled where the answer is defined, in the device pixels the
-// scaler reads and writes. Two edges that round to the same pixel cover the same
-// pixel, and nothing finer than a pixel can be drawn differently.
-static bool samePixel(double first, double second, double scale)
-{
-    // Within one device pixel, rather than rounding each side and comparing.
-    // Rounding on its own is not enough: two edges a fraction of a pixel apart
-    // can still fall either side of a rounding boundary. At scale 1.45,
-    // logical heights of 1490.3 and 1489.7 differ by less than one device
-    // pixel but round to different integers.
-    return std::abs(first - second) * scale <= 1.0;
-}
-
 // Whether the window occupies the whole screen it was given. This is a gate,
 // not a measurement of where to draw: the scaler is given the window's own
 // geometry as its destination, so a window that passes here is one whose
@@ -156,9 +137,9 @@ bool upscaleCoversOutput(const EffectWindow *window)
     const Window *internal = window->window();
     const QSize given = internal ? upscaleServedScreen(internal->pid()) : QSize();
     const auto covers = [&frame, scale](const QRectF &rectangle) {
-        return samePixel(frame.x(), rectangle.x(), scale) && samePixel(frame.y(), rectangle.y(), scale)
-            && samePixel(frame.x() + frame.width(), rectangle.x() + rectangle.width(), scale)
-            && samePixel(frame.y() + frame.height(), rectangle.y() + rectangle.height(), scale);
+        return upscaleSamePixel(frame.x(), rectangle.x(), scale) && upscaleSamePixel(frame.y(), rectangle.y(), scale)
+            && upscaleSamePixel(frame.x() + frame.width(), rectangle.x() + rectangle.width(), scale)
+            && upscaleSamePixel(frame.y() + frame.height(), rectangle.y() + rectangle.height(), scale);
     };
     if (covers(output)) {
         // A display change may withdraw a connection's smaller advertisement.
@@ -188,9 +169,9 @@ bool upscaleRequestCoversOutput(const Window *window)
     const double scale = output->scale();
     const QRectF requested = window->moveResizeGeometry();
     const QRectF screen = output->geometryF();
-    return samePixel(requested.x(), screen.x(), scale) && samePixel(requested.y(), screen.y(), scale)
-        && samePixel(requested.x() + requested.width(), screen.x() + screen.width(), scale)
-        && samePixel(requested.y() + requested.height(), screen.y() + screen.height(), scale);
+    return upscaleSamePixel(requested.x(), screen.x(), scale) && upscaleSamePixel(requested.y(), screen.y(), scale)
+        && upscaleSamePixel(requested.x() + requested.width(), screen.x() + screen.width(), scale)
+        && upscaleSamePixel(requested.y() + requested.height(), screen.y() + screen.height(), scale);
 }
 
 // Which of the six cells this window presents in. Answerable here and not
@@ -325,8 +306,8 @@ static UpscaleRefusal surfaceRefusal(EffectWindow *window, SurfaceItem *surface)
     const double scale = window->screen() ? window->screen()->scale() : 1;
     const QSizeF destination = surface->destinationSize();
     const auto frame = window->frameGeometry().size();
-    if (!samePixel(destination.width(), frame.width(), scale)
-        || !samePixel(destination.height(), frame.height(), scale)) {
+    if (!upscaleSamePixel(destination.width(), frame.width(), scale)
+        || !upscaleSamePixel(destination.height(), frame.height(), scale)) {
         return UpscaleRefusal::ResizedSurface;
     }
     return UpscaleRefusal::None;
