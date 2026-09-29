@@ -200,7 +200,8 @@ as `<libexecdir>/kwin-upscale-x11/Xwayland`, with a Plasma environment hook that
 puts that folder first on `PATH` in a Wayland session, so that KWin starts it
 instead of Xwayland. It starts the stock Xwayland behind it, asks the effect
 about each X11 connection before relaying it, and reports a smaller screen to
-the connections a profile's `X11ConnectionExecutable` names, passing the others
+the connections a profile's `X11ConnectionExecutable` names, and while **All
+applications** is on to every program no entry names, passing the others
 through with their display information unchanged. It is experimental, switched
 on by default through the `X11Proxy` setting, and takes effect only from the
 next login, so for the proxy installing the package is not yet the whole of the
@@ -1760,7 +1761,7 @@ observations; none alone establishes reduced internal rendering cost.
 
 | Gap | Open-source example and evidence | Current consequence |
 | --- | --- | --- |
-| X11 renderer ignores resizing or does not request mode emulation | glmark2 2023.01, X11: its event loop does not handle resize events, and it keeps the viewport it started with. SuperTux 0.6.3 on X11 keeps its layout the same way. Measured in a virtual machine on 2026-09-29: resized to 2560 × 1440, both went on drawing their 3840 × 2160 frame into the smaller window. | `X11Resize` cannot make such a client cooperate, and the effect cannot see a program's viewport: it presents the smaller window over the output, and the screen shows the bottom left two thirds of the picture enlarged. Under **All applications**, Auto uses the resize for every unlisted X11 program, so these programs are shown cropped until they have an entry with another method or All applications is off. |
+| X11 renderer ignores resizing or does not request mode emulation | glmark2 2023.01, X11: its event loop does not handle resize events, and it keeps the viewport it started with. SuperTux 0.6.3 on X11 keeps its layout the same way. Measured in a virtual machine on 2026-09-29: resized to 2560 × 1440, both went on drawing their 3840 × 2160 frame into the smaller window. | `X11Resize` alone cannot make such a client cooperate, and the effect cannot see a program's viewport: resized after it started, it showed the bottom left two thirds of the picture enlarged. So under **All applications** the proxy tells every unlisted X11 program the smaller screen when it connects, as it tells a measured entry's program (Jens, 2026-09-29), and such a program starts with the smaller viewport. Measured again the same day: glmark2 reported a 2560 × 1440 surface, and both were presented whole and centred. A program that does not connect through the proxy keeps the old limit. |
 | Fullscreen-desktop Wayland client ignores advertised mode | SuperTuxKart 1.4, Vulkan, in its default borderless fullscreen: advertising 1080p still produced a 4K buffer, because its swapchain follows `SDL_Vulkan_GetDrawableSize`, which SDL 2 derives from the window size and its fractional scale rather than from a mode. | An advertisement that did not reach a window falls back to the surface's fractional scale, which this client follows: 2560 × 1440 at Quality on a 3840 × 2160 output, measured 2026-09-21. |
 | Integer scale cannot express the target | glmark2 2023.01 Wayland and vkmark 2025.01 read scale differently from mode-only clients. The implemented scale methods cannot reduce a scale-1 desktop through a smaller positive integer scale. | No reduction at scale 1; other desktop scales allow only discrete reachable sizes. Report the reachable request separately from the configured wish. |
 | Toolkit selects the wrong output | Extreme Tux Racer 0.8.4 with SFML 2.6.2 moved from the secondary display to the primary when recreating its fullscreen window. SFML explicitly selects the primary RandR output. | The shipped profile refuses resolution control on secondary outputs before resizing. Other clients can scale there; secondary displays are not generally excluded. |
@@ -1842,7 +1843,10 @@ when the current one started without the proxy.
 The proxy asks the effect for a connection policy before forwarding the client's
 setup bytes. Early selection requires an explicit `X11ConnectionExecutable`
 catalogue pattern; a window-class match alone cannot identify a client before
-its first window. The current policy supports one output at the desktop origin
+its first window. While **All applications** is on, the global profile answers
+for a program no entry names, as an entry answers for its own; a program an
+entry names without a connection pattern is left to that entry, which decides
+once its window exists. The current policy supports one output at the desktop origin
 and requires compatible X11 presentation settings. Unidentified clients retain
 stock display information; recognising a later game window is insufficient. A
 Wine or Proton client is identified by the program Wine runs and its prefix, as

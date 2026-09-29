@@ -1827,7 +1827,11 @@ reading in each entry stands; this is what running it adds.
 - **SuperTux 0.6.3:** on X11, the same as glmark2: its window resized to
   2560 × 1440 and presented, and the screen showed the bottom left two thirds
   of its title screen enlarged, cut off at the top, where it was whole and
-  centred with the effect off. On Wayland its desktop fullscreen was reached by
+  centred with the effect off. **Solved later the same day (item 20a, decided
+  by Jens):** under All applications the proxy tells an unlisted X11 program
+  the smaller screen when it connects. Run again with that: glmark2 reported a
+  2560 × 1440 surface and drew its scene whole, and SuperTux's title screen
+  was presented whole and centred. On Wayland its desktop fullscreen was reached by
   neither lever and stayed 3840 × 2160.
 - **SuperTux's rendering cost:** not run. It needs a GPU; llvmpipe's timings
   would measure the machine.

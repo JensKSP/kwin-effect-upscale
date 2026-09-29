@@ -14,6 +14,7 @@
 #include <QDBusInterface>
 #include <QDBusReply>
 #include <QFile>
+#include <QScopeGuard>
 #include <QTest>
 #include <QVersionNumber>
 
@@ -185,6 +186,61 @@ void UpscaleX11IntegrationTest::winePrefixEligibility()
         expected = false;
     }
     QCOMPARE(answer.value(), expected);
+}
+
+// Under All applications a program no entry names is told the smaller screen
+// when it connects, as an entry's program is, so that it starts with the
+// viewport it keeps (item 20a). Nothing is said with All applications off, nor
+// yet for a program an entry names without a connection pattern, which that
+// entry decides once the window exists.
+void UpscaleX11IntegrationTest::answersUnlistedProgramsUnderAllApplications()
+{
+    KConfigGroup other(KSharedConfig::openConfig(QStringLiteral("kwinupscalerc")), QStringLiteral("Application-other"));
+    other.writeEntry("Name", QStringLiteral("Other"));
+    other.writeEntry("Executable", QStringLiteral(".*/other-game"));
+    other.writeEntry("ExecutableMatch", QStringLiteral("RegularExpression"));
+    other.sync();
+    const auto allApplications = [this](bool on) {
+        KConfigGroup group(KSharedConfig::openConfig(QStringLiteral("kwinrc")), QStringLiteral("Effect-upscale"));
+        group.writeEntry("UnlistedApplications", on);
+        group.sync();
+        configure(true);
+    };
+    const auto restore = qScopeGuard([&allApplications]() {
+        allApplications(false);
+    });
+    QDBusInterface policy(QStringLiteral("org.kde.KWin"), QStringLiteral("/org/kde/KWin/Effect/Upscale1"),
+                          QStringLiteral("org.kde.KWin.Effect.Upscale1"), QDBusConnection::sessionBus());
+    const auto ask = [&policy](const QString &program) {
+        const QDBusReply<QVariantMap> reply =
+            policy.call(QStringLiteral("x11ConnectionPolicy"), uint(QCoreApplication::applicationPid()), QStringList{program});
+        return reply.isValid() ? reply.value() : QVariantMap{{QStringLiteral("reason"), reply.error().message()}};
+    };
+    allApplications(false);
+    QCOMPARE(ask(QStringLiteral("/usr/games/unlisted-game")).value(QStringLiteral("reason")).toString(),
+             QStringLiteral("not in the list, and All applications is off"));
+    allApplications(true);
+    // Until KWin has read Xwayland's modes the answer is to ask again, which
+    // the proxy does within its bounded wait.
+    QVariantMap unlisted;
+    QVERIFY(QTest::qWaitFor([&]() {
+        unlisted = ask(QStringLiteral("/usr/games/unlisted-game"));
+        return !unlisted.value(QStringLiteral("retry")).toBool();
+    }, 10000));
+    const QString reason = unlisted.value(QStringLiteral("reason")).toString();
+    if (reason.contains(QStringLiteral("one enabled output"))) {
+        QSKIP("a connection is answered only for a single screen");
+    }
+    QCOMPARE(reason, QStringLiteral("connection display advertisement"));
+    QCOMPARE(unlisted.value(QStringLiteral("profile")).toString(), QStringLiteral("global"));
+    QCOMPARE(QSize(unlisted.value(QStringLiteral("width")).toInt(), unlisted.value(QStringLiteral("height")).toInt()),
+             QSize(1920, 1080));
+    QCOMPARE(ask(QStringLiteral("/usr/games/other-game")).value(QStringLiteral("reason")).toString(),
+             QStringLiteral("unidentified client"));
+    const QDBusReply<bool> prefix = policy.call(QStringLiteral("x11PrefixMayMatch"), QStringLiteral("/unnamed/prefix"),
+                                                QStringList{QStringLiteral("wine:///unnamed/prefix/C:/windows/system32/winecfg.exe"),
+                                                            QStringLiteral("/usr/bin/wine")});
+    QVERIFY2(prefix.isValid() && prefix.value(), qPrintable(prefix.error().message()));
 }
 
 // A program that leaves _NET_WM_PID unset is known only by the connection that

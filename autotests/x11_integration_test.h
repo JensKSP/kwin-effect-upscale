@@ -69,6 +69,7 @@ private Q_SLOTS:
     void reenteringFullscreenAtOnce();
     void fitsAnEmulatedModeBetweenBars();
     void centresAPresentedWindowByAWholeFactor();
+    void answersUnlistedProgramsUnderAllApplications();
 
 private:
     // The global resolution as kwinrc stores it, spelled out rather than taken

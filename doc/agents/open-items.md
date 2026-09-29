@@ -450,6 +450,15 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   every unlisted X11 program the smaller screen when it connects, as it does
   for measured entries, and the window resize follows as now. Now an
   implementation item.
+  **Done 2026-09-29:** the effect's connection policy answers for a program
+  no entry names with the global profile while All applications is on, and a
+  Wine prefix's components wait for its program as for an entry's.
+  `answersUnlistedProgramsUnderAllApplications` in the single-screen X11
+  session failed against the old policy. Measured in the conformance machine:
+  glmark2 2023.01 reported a 2560 × 1440 surface and SuperTux 0.6.3's title
+  screen was presented whole and centred, where both had shown the bottom left
+  two thirds of their picture. Recorded in the resolution-control slice and the
+  handbook.
 - **21.** **decide, –** – `UserConfigured` method (L2253) versus the later "On/Off
     per presentation" plan (L3586-3588): which one stands.
   **Decided by Jens 2026-09-29:** On/Off per presentation stands and
