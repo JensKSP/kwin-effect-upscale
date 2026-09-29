@@ -39,7 +39,7 @@ QString upscaleSettingLabel(UpscaleSetting setting)
     case UpscaleSetting::Osd:
         return i18n("On-screen display:");
     case UpscaleSetting::OsdDetection:
-        return i18n("Show info at startup:");
+        return i18n("Show information at startup:");
     case UpscaleSetting::OsdSummary:
         return i18n("Include details:");
     case UpscaleSetting::OsdStatistics:
@@ -47,9 +47,9 @@ QString upscaleSettingLabel(UpscaleSetting setting)
     case UpscaleSetting::OsdDeveloper:
         return i18n("Show developer information:");
     case UpscaleSetting::OsdTimeout:
-        return i18n("Show startup info for:");
+        return i18n("Show startup information for:");
     case UpscaleSetting::AnnouncementPosition:
-        return i18n("Startup info position:");
+        return i18n("Startup information position:");
     case UpscaleSetting::StatisticsPosition:
         return i18n("Frame rate position:");
     case UpscaleSetting::DeveloperPosition:
@@ -145,12 +145,12 @@ QString upscaleSettingToolTip(UpscaleSetting setting)
 {
     switch (setting) {
     case UpscaleSetting::Geometry:
-        return i18n("Fitting enlarges the picture as far as the filter allows without stretching it. A whole-number multiple "
-                    "enlarges it by the largest whole factor that fits, for pixel art and older games. Both leave black bars "
-                    "where the picture does not fill the screen.");
+        return i18n("“Fit to the screen” enlarges the picture as far as the filter allows without stretching it. "
+                    "“Whole-number multiple” enlarges it by the largest whole factor that fits, for pixel art and older "
+                    "games. Both leave black bars where the picture does not fill the screen.");
     case UpscaleSetting::Filter:
-        return i18n("FSR 1 enlarges by up to twice, as a whole-number multiple by exactly twice, and can sharpen. Nearest "
-                    "neighbor repeats each pixel exactly and enlarges by any amount.");
+        return i18n("FSR 1 enlarges at most two times, as a whole-number multiple exactly two times, and can sharpen. "
+                    "Nearest neighbor repeats each pixel exactly and enlarges by any amount.");
     default:
         return QString();
     }

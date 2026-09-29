@@ -500,7 +500,7 @@ flickers. So unless the X11 session proxy answered the process's connection with
 a smaller screen, the effect neither holds the window's first mapping nor asks
 it to resize, whether it is fullscreen already or becomes so later, and the
 status names the reason: "Wine programs are told a smaller screen only by the
-X11 session proxy, which did not answer this one." A process the proxy did
+X11 session proxy, which did not answer this one". A process the proxy did
 answer already renders at that size and is presented like any other X11
 program.
 
@@ -1103,7 +1103,7 @@ wording was reviewed with Jens string by string on 2026-09-21.
 
 | Section | Controls |
 | --- | --- |
-| Applications | The list, in matching order, with **All applications** pinned first: the global settings, shown as a profile with no identity, in the same tabs as a game's. Its check box in the list is the one every row has, with the same meaning: whether the entry acts for the windows it claims, which for the global profile are those no other entry matches. It is off by default and never stops the listed games, and its tooltip says so. Its **Resolution Request** tab holds the four global methods: what an application not in the list is asked while **All applications** is checked, and what a game in the list follows for a presentation it states nothing for and the package measured nothing for. There is no separate switch for asking at all: a profile that should be asked nothing says Off in each of its four methods, while the global profile's unset methods mean Auto; **Resolution** holds the render resolution, the resolution scale as a slider with a number field, one line per connected screen with the size a game would render at there, and the resolution limit; **Scaling** the picture size, the scaling filter and sharpening; and **On-Screen Display** the rest, with no two displays sharing a corner. A game's tabs hold its identity, its four measured methods and every preference, each showing in italic the value it follows from **All applications**, applied or not, until the game states its own, with a reset button, **Use the value of All applications**, that makes it follow again. They behave as the global ones do: the limit is the same list of resolutions, the same preview shows the size the game would render at from the values it would use, and stating a scale chooses Custom. Nothing on either panel is greyed out by a switch being off: every global value is a default a game takes when it switches on what the global profile leaves off, and the methods for applications not in the list can be set before their check box is. **Add**, **Add from Window…**, **Remove** and two arrows edit the list; **Export…** and **Import…** move it as a file in `kwinupscalerc`'s format, an import being an edit that Apply stores; **Restore Defaults** returns the games to the list the package ships. System Settings' own **Defaults** restores **All applications** and leaves the games alone. |
+| Applications | The list, in matching order, with **All applications** pinned first: the global settings, shown as a profile with no identity, in the same tabs as a game's. Its check box in the list is the one every row has, with the same meaning: whether the entry acts for the windows it claims, which for the global profile are those no other entry matches. It is off by default and never stops the listed games, and its tooltip says so. Its **Resolution Request** tab holds the four global methods: what an application not in the list is asked while **All applications** is checked, and what a game in the list follows for a presentation it states nothing for and the package measured nothing for. There is no separate switch for asking at all: a profile that should be asked nothing says Off in each of its four methods, while the global profile's unset methods mean Auto; **Resolution** holds the render resolution, the resolution scale as a slider with a number field, one line per connected screen with the size a game would render at there, and the resolution limit; **Scaling** the picture size, the scaling filter and sharpening; and **On-Screen Display** the rest, with no two displays sharing a corner. A game's tabs hold its identity, its four measured methods and every preference, each showing in italic the value it follows from **All applications**, applied or not, until the game states its own, with a reset button, **Use the value of “All applications”**, that makes it follow again. They behave as the global ones do: the limit is the same list of resolutions, the same preview shows the size the game would render at from the values it would use, and stating a scale chooses Custom. Nothing on either panel is greyed out by a switch being off: every global value is a default a game takes when it switches on what the global profile leaves off, and the methods for applications not in the list can be set before their check box is. **Add**, **Add from Window…**, **Remove** and two arrows edit the list; **Export…** and **Import…** move it as a file in `kwinupscalerc`'s format, an import being an edit that Apply stores; **Restore Defaults** returns the games to the list the package ships. System Settings' own **Defaults** restores **All applications** and leaves the games alone. |
 
 The page does not report what the running effect is doing: Jens decided on
 2026-09-21 that status and a refresh button do not belong in settings. That
@@ -1261,8 +1261,8 @@ shipped entries write it.
 ### Game detection OSD
 
 The on-screen display (OSD) optionally announces when a game is
-recognized by an application profile. Provide a **Show info at startup** switch
-and a configurable display timeout in seconds, **Show startup info for**. Both
+recognized by an application profile. Provide a **Show information at startup** switch
+and a configurable display timeout in seconds, **Show startup information for**. Both
 are global settings with sparse per-application overrides: a game's
 **On-Screen Display** tab states its own value or follows **All applications**.
 
@@ -1431,7 +1431,7 @@ wanted 753 x 198 and was laid out at 576 x 155 to fit. A longer window caption
 or a larger session font moves the first two past each other as well.
 
 Implemented: the three passive displays are separate blocks in separate
-corners, each corner stored and offered in the settings page as **Startup info
+corners, each corner stored and offered in the settings page as **Startup information
 position**, **Frame rate position** and **Developer information position**,
 kept distinct, and each block bounded by its quarter. Enabling developer
 information no longer extends or enables the persistent view; the two are
@@ -1845,7 +1845,7 @@ its relay. Settings must distinguish a requested change from the active routing
 state and explain any required restart; they must not silently disconnect X11
 applications or report the proxy stopped while it is still forwarding traffic.
 Changing routing in an active session takes effect at the next login. Until
-then, show **Restart required** and explain that logging out and back in applies
+then, show **Log out required** and explain that logging out and back in applies
 the change; reloading the effect alone does not remove the proxy. Disabling the
 effect stops its upscaling immediately, but the existing proxy transport remains
 active until the session ends. The next login with either control disabled must

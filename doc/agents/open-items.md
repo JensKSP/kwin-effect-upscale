@@ -665,6 +665,12 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   extracted afresh from the source, grouped by where it appears, with a
   proposed wording beside each, on a private review page where Jens accepts,
   rejects or rewrites each one; his answers are applied and tested.
+  **Done 2026-09-29:** 310 strings extracted, 37 wordings proposed with a
+  reason each, the catalogue note among them; Jens accepted all 37 and left
+  the rest as they are. Applied, with the tests and the handbook passages that
+  quote them. The X11 request's failure reasons are clauses now, lowercase and
+  without a full stop, since they follow "request failed:"; sizes use "×"
+  throughout; "Restart required" is "Log out required"; American spelling.
 - **45.** **decide** – Settings page layout, awaiting review in System Settings
     (L1284).
   **Approved by Jens 2026-09-29.** Closed.

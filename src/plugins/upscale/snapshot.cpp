@@ -98,7 +98,7 @@ QString upscaleAnnouncement(const UpscaleSnapshot &snapshot)
     // where its identity matched the catalogue. A window that fills the
     // screen must not be presented as a match on that ground alone.
     if (snapshot.recognized.isEmpty()) {
-        return i18n("Upscale: Detected %1", application(snapshot));
+        return i18n("Upscale: detected %1", application(snapshot));
     }
     return i18n("Upscale: recognized %1", snapshot.recognized);
 }
@@ -336,7 +336,7 @@ QString upscaleStatusText(const UpscaleSnapshot &snapshot)
         lines.append(presented(snapshot));
         lines.append(measurement(snapshot));
     }
-    lines.append(i18n("HDR follows KWin colour management."));
+    lines.append(i18n("HDR follows KWin's color management."));
     lines.append(upscaleMetrics(snapshot));
     return lines.join(QLatin1Char('\n'));
 }
@@ -391,7 +391,7 @@ QString upscaleDeveloperInformation(const UpscaleSnapshot &snapshot)
                       snapshot.failed ? i18n("failed") : i18n("ready"),
                       snapshot.blocksScanout ? i18n("yes") : i18n("no")));
     // Only the destination colour description is observed here.
-    lines.append(i18n("Colour: destination transfer %1, reference luminance %2 cd/m²",
+    lines.append(i18n("Color: destination transfer %1, reference luminance %2 cd/m²",
                       transferName(snapshot.transferFunction),
                       snapshot.referenceLuminance > 0 ? QString::number(snapshot.referenceLuminance, 'f', 0) : upscaleUnknownText()));
     return lines.join(QLatin1Char('\n'));

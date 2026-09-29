@@ -57,8 +57,8 @@ void UpscaleEffectConfig::addDisplayControls(QFormLayout *layout)
     };
     layout->addRow(QString(), m_osdDetection);
     layout->addRow(QString(), m_osdSummary);
-    layout->addRow(i18n("Show startup info for:"), m_osdTimeout);
-    layout->addRow(i18n("Startup info position:"), m_osdAnnouncementPosition);
+    layout->addRow(i18n("Show startup information for:"), m_osdTimeout);
+    layout->addRow(i18n("Startup information position:"), m_osdAnnouncementPosition);
     gap();
     m_osdStatistics->setToolTip(i18n("Shows the average frame rate and the slowest frames while a game is running."));
     layout->addRow(QString(), m_osdStatistics);

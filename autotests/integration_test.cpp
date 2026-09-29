@@ -334,7 +334,7 @@ void UpscaleIntegrationTest::lifecycle()
         // for frames it hands straight back to KWin. A colour change on the
         // output must recover without reconfiguring the effect.
         configureColors(true);
-        QTRY_VERIFY2(status().contains(QStringLiteral("colour handling is not supported")), qPrintable(status()));
+        QTRY_VERIFY2(status().contains(QStringLiteral("color handling is not supported")), qPrintable(status()));
         configureColors(false);
         QTRY_VERIFY2(status().contains(QStringLiteral("FSR 1, sharpening 0%")), qPrintable(status()));
         // Reload while a window already exists exercises initial window
@@ -371,7 +371,7 @@ void UpscaleIntegrationTest::outputPixelPolicy()
         client.dispatch();
     });
     QVERIFY(client.show(QSize(64, 64)));
-    QTRY_VERIFY2(status().contains(QStringLiteral("at or below the configured minimum")), qPrintable(status()));
+    QTRY_VERIFY2(status().contains(QStringLiteral("at or below the resolution limit")), qPrintable(status()));
 
     writeCatalogue(rule + QStringLiteral("MinimumPixels=16383\n"));
     QTRY_VERIFY2(status().contains(QStringLiteral("FSR 1, sharpening")), qPrintable(status()));

@@ -134,7 +134,7 @@ void UpscaleEffectConfig::askForReport(const QString &window)
         m_reporting = false;
         if (!facts.isValid() || facts.value().isEmpty()) {
             QMessageBox::warning(widget(), i18n("Copy Report"),
-                                 i18n("The upscaler observed nothing of that window. It has to be running and the window open."));
+                                 i18n("The effect observed nothing of that window. The application has to be running and its window open."));
             return;
         }
         QGuiApplication::clipboard()->setText(upscaleSubmissionReport(facts.value(), QSysInfo::prettyProductName()));

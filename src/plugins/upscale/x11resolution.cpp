@@ -175,7 +175,7 @@ QString UpscaleX11Resolution::failure(const Window *window) const
     // status may be asked for every frame, so the path is the one known.
     const auto x11 = qobject_cast<const X11Window *>(window);
     if (x11 && !upscaleServed(x11->pid()) && upscaleWineRuntime(upscaleKnownExecutable(x11))) {
-        return i18n("Wine programs are told a smaller screen only by the X11 session proxy, which did not answer this one.");
+        return i18n("Wine programs are told a smaller screen only by the X11 session proxy, which did not answer this one");
     }
     return m_negotiations.value(keyFor(window)).failure.value_or(QString());
 #else
@@ -344,11 +344,11 @@ bool UpscaleX11Resolution::begin(const Request &request)
     // events intercepted with the previous output's position.
     restore(request.window);
     if (request.primaryOnly && !upscaleX11PrimaryOutput(request.position)) {
-        refuse(request.key, i18n("This application's X11 mode selection only supports the primary output."));
+        refuse(request.key, i18n("this application's X11 mode selection only supports the primary output"));
         return false;
     }
     if (!upscaleX11ModeAvailable(request.position, request.size)) {
-        refuse(request.key, i18n("The requested X11 mode is unavailable on this output."));
+        refuse(request.key, i18n("the requested X11 mode is unavailable on this output"));
         return false;
     }
     // Bound recreation loops across successive XIDs. Refusal lasts until the
@@ -362,7 +362,7 @@ bool UpscaleX11Resolution::begin(const Request &request)
         ++attempt.count;
     }
     if (attempt.count > 6) {
-        refuse(request.key, i18n("The application repeatedly replaced its window without accepting the request."));
+        refuse(request.key, i18n("the application repeatedly replaced its window without accepting the request"));
         return false;
     }
     Request live = request;

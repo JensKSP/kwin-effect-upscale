@@ -45,7 +45,7 @@ void UpscaleEffectConfig::addApplicationControls(QFormLayout *layout)
     // The way a game somebody got working reaches the list the package ships.
     auto report = new QPushButton(i18n("Copy Report…"), widget());
     report->setObjectName(QStringLiteral("copyReport"));
-    report->setToolTip(i18n("Pick a game's window and copy what the upscaler observed of it, to send with a new entry"));
+    report->setToolTip(i18n("Pick an application's window and copy what the effect observed of it, to send with a new entry."));
     // What the list is, the way back to the list the package ships, and the
     // way to take it elsewhere. All three act on the games and never on "All
     // applications", whose values System Settings' own Defaults restores.

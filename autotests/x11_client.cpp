@@ -341,8 +341,8 @@ void X11Client::dispatch()
                 // what the effect validates is the buffer: on a slow runner
                 // those round trips outlast the validation window, so it sees
                 // the size from before the resize and refuses the request as
-                // "the application supplied a 3840 x 2160 buffer where
-                // 1920 x 1080 was requested". Painting again afterwards is
+                // "the application supplied a 3840 × 2160 buffer where
+                // 1920 × 1080 was requested". Painting again afterwards is
                 // what a client does once its emulated mode is established.
                 paint(size);
                 if (m_ignoredResizes > 0) {
