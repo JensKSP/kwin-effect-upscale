@@ -117,7 +117,7 @@ made no request, which has not been true since 2026-09-21.
 **Full acceptance**, which authorises calling the requirement met: the above,
 plus `Auto` working on native Wayland, plus real-session acceptance on the
 television - per-game overrides surviving a restart, a game left alone by a
-disabled profile, the global resolution reaching a shipped game, and the six
+disabled profile, the global resolution reaching a shipped game, and the four
 slots exercised across real applications on both window backends.
 
 ## Scope and boundaries

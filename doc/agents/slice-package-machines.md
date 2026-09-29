@@ -116,6 +116,14 @@ SuperTuxKart started 23 seconds after it.
 
 ## Remaining work
 
+PR #23 review follow-up, 2026-09-29: the recoverable-cloud-init diagnostic
+still ran outside the boot deadline. It now has a timeout from the remaining
+boot time and is best effort: cloud-init's warning exit code does not abort
+readiness. The regression covers both a warning and a diagnostic that hangs.
+Both hook stages and the Python regression suite passed in the maintained
+Trixie container (`build/wayland-auto-check/review-lint2.log`). No new
+cloud-image boot was needed for this diagnostic-only correction.
+
 - Fedora 43, openSUSE Tumbleweed and Arch have a template and a profile since
   2026-09-29, and their machines came up logged in to Plasma's Wayland session.
   All three passed the nine steps the same day with nightly 36545995686's

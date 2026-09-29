@@ -1358,3 +1358,13 @@ and targeted static analysis pass with this correction. CI on the earlier
 checkpoint found the display's static eligibility query accessed through an
 instance; its caller now uses the class name. Targeted static analysis, both
 compilers on Trixie and Neon, and the affected display suites pass.
+
+PR #23 review follow-up, 2026-09-29: copied application report facts now include
+the observed output name, and the X11 request record has an empty implementation
+when X11 is disabled. Corrected the handbook's stale claim that the independent
+commit and source-archive identity were unimplemented. GCC and Clang rebuilt
+the effect in Trixie and Neon; the report integration case passed, including
+its output-name assertion. A separate compile with `KWIN_BUILD_X11=0` passed
+for the affected header. Targeted clang-tidy and both hook stages passed.
+Logs are `build/wayland-auto-check/review-{gcc,clang,report,no-x11,tidy}.log`
+and `build/proxy-review-neon/review-{gcc,clang}.log`.

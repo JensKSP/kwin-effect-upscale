@@ -203,6 +203,7 @@ QVariantMap UpscaleEffect::reportFacts(EffectWindow *window) const
         {QStringLiteral("scaleRequested"), state.scaleRequested},
         {QStringLiteral("supplied"), sizeFact(state.supplied)},
         {QStringLiteral("destination"), sizeFact(state.destination)},
+        {QStringLiteral("output"), state.output},
         {QStringLiteral("outputScale"), state.outputScale},
         {QStringLiteral("build"), state.build},
         {QStringLiteral("kwin"), QString(KWIN_VERSION_STRING)},

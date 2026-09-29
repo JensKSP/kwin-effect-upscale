@@ -2075,7 +2075,10 @@ are in `build/conformance-vm/effect/supertuxkart-d95hk5n0/` and `stk-final.log`.
 Wayland crash recovery, including 50 consecutive game crashes, passed all
 five QtTest cases including setup and cleanup; X11 resize crash recovery
 passed all three (`crash-wayland-final.log`, `crash-x11-final.log`). Both
-pre-commit stages passed (`lint-final4.log`). Push and review are still pending.
+pre-commit stages passed (`lint-final4.log`). Pushed as `40cf963` to PR #23;
+CI and review are pending. The final native build and shipped catalogue were
+installed, but KDE was no longer running when a fresh reload was attempted.
+The earlier physical-session evidence above remains the runtime observation.
 
 ### Extreme Tux Racer's own fullscreen is the wrong shape, 2026-09-20
 

@@ -3,8 +3,10 @@
 """Check that the nightly relies only on a CI run that finished."""
 
 import runpy
+import subprocess
 import unittest
 from pathlib import Path
+from unittest import mock
 
 SCRIPT = runpy.run_path(str(Path(__file__).with_name("ci-conclusion.py")))
 state = SCRIPT["state"]
@@ -21,6 +23,15 @@ class ConclusionTest(unittest.TestCase):
     def test_a_green_run_passes(self) -> None:
         """The commit's CI finished green: the nightly need not run it again."""
         self.assertEqual(state([run("completed", "success", "2026-09-29T01:00:00Z")]), "passed")
+
+    def test_a_stalled_api_request_reports_failure(self) -> None:
+        """A request timeout follows the API-error path instead of hanging the job."""
+        with (
+            mock.patch("subprocess.run", side_effect=subprocess.TimeoutExpired("gh", 120)) as api,
+            self.assertRaisesRegex(RuntimeError, "API request timed out"),
+        ):
+            SCRIPT["runs_of"]("owner/repository", "revision")
+        self.assertEqual(api.call_args.kwargs["timeout"], 120)
 
     def test_no_run_is_missing(self) -> None:
         """A commit that never went through CI has the nightly run it."""
