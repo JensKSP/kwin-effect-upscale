@@ -488,13 +488,21 @@ Planned checks, not observed results:
   when its window closes, stops being the one on screen, leaves fullscreen or
   the session locks. The corners this change moved two blocks into are over
   the wallpaper, which is why it showed up now.
-- [ ] Test what a game that never exits cleanly leaves behind, asked for by
+- [x] Test what a game that never exits cleanly leaves behind, asked for by
   Jens on 2026-09-19: `kill -9` on a running game, repeatedly, watching that
   nothing grows. Covered by the fix above for the display's own textures and
   by [resolution control](slice-resolution-control.md) for what was requested
-  of the client. Not yet written; a nested-session test can kill a client
-  between frames, and a native check should watch process and video memory
-  across repeated launches.
+  of the client; the nested sessions' crash cases check the effect's records.
+  The native check ran on 2026-09-29 in the Arch package machine, KWin 6.7.5
+  under llvmpipe with the nightly's package, from a fresh login: SuperTuxKart
+  started twelve times, each time enlarged from 2560 × 1440 and then killed
+  with `kill -9`. KWin's resident memory after a kill rose over the first
+  rounds and then held, 410,228 kB after the fifth and 410,240 kB after the
+  twelfth; its open files and threads came back to 163 and 18 every time.
+  Under llvmpipe the textures the effect allocates are KWin's own memory, so
+  the resident size stands for video memory here; a real GPU's own memory was
+  not watched. A session left idle beforehand had its screen off and drew
+  nothing, which the probe first took for the effect not scaling.
 - [x] Follow the session's font settings and the output's scale factor in the
   OSD. The family and the size now come from the session's fixed-width font,
   and the size is multiplied by the scale factor of the output the text is
