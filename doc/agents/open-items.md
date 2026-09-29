@@ -438,6 +438,9 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   the told mode, GLFW, Godot and SDL 3 with high pixel density through the
   surface scale. The handbook names what follows neither and how the status
   reports it, and the bench cases are the scope's acceptance.
+  **Done 2026-09-29:** the handbook's Auto row states the scope, names Qt,
+  vkmark and SDL 3 without high pixel density as outside it with what the
+  status shows for them, and makes the bench run its acceptance.
 - **20.** **investigate, F** – Six source-led investigations unticked: glmark2 X11,
     integer-scale reachability, ETR secondary output, SuperTux borderless and
     render cost, Wine/Proton D3D presentation (L1546-1634).
