@@ -220,7 +220,13 @@ void UpscaleRenderTest::rejectsOversizedIntermediate()
     GLint maximumSize = 0;
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maximumSize);
     GLFramebuffer::pushFramebuffer(&framebuffer);
-    const bool rendered = m_fixture.m_scaler->renderTexture(target, viewport, input.get(), UpscaleRectF(0, 0, maximumSize + 1, 16), unlimitedRegion(), 1);
+    const UpscaleDrawing drawing{
+        .destination = UpscaleRectF(0, 0, maximumSize + 1, 16),
+        .strength = 1,
+        .filter = UpscaleFilter::Fsr,
+        .frame = UpscaleRectF(),
+    };
+    const bool rendered = m_fixture.m_scaler->renderTexture(target, viewport, input.get(), drawing, unlimitedRegion());
     GLFramebuffer::popFramebuffer();
     QVERIFY(!rendered);
     QCOMPARE(glGetError(), GLenum(GL_NO_ERROR));

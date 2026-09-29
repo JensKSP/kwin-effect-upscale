@@ -53,6 +53,17 @@ static bool nearestReachable(const UpscaleSnapshot &state)
     return QSize(nearest.width, nearest.height) == state.advertised;
 }
 
+// How the picture is sampled, and where it goes when it goes anywhere.
+static void describePicture(UpscaleSnapshot &state, EffectWindow *window, const UpscaleSettings &settings)
+{
+    state.sharpening = settings.sharpening();
+    state.filter = settings.filter();
+    if (const UpscalePicture placed = upscalePictureOf(window); placed.sizing == UpscaleSizing::Supported) {
+        state.picture = QRect(placed.x, placed.y, placed.width, placed.height);
+        state.factor = placed.factor;
+    }
+}
+
 // The output a window is on, and what the settings wish for on it.
 static void describeOutput(UpscaleSnapshot &state, UpscaleOutput *output)
 {
@@ -94,7 +105,7 @@ UpscaleSnapshot UpscaleEffect::snapshot(EffectWindow *window, const RenderTarget
     state.enabled = settings.acts();
     state.preset = settings.resolution();
     state.percentage = settings.value(UpscaleSetting::Percentage);
-    state.sharpening = settings.sharpening();
+    describePicture(state, window, settings);
 
     if (UpscaleOutput *output = window->screen()) {
         describeOutput(state, output);

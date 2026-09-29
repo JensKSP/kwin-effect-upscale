@@ -219,7 +219,7 @@ void UpscaleIntegrationTest::lifecycle()
         // Each refused buffer has to be reported by the condition that
         // refused it. A single sentence reciting the whole eligibility rule
         // cannot tell a game rendering at native resolution apart from one
-        // whose aspect ratio does not match the output.
+        // FSR would have to enlarge more than twice.
         const struct
         {
             QSize size;
@@ -227,12 +227,15 @@ void UpscaleIntegrationTest::lifecycle()
         } refusals[] = {
             {QSize(128, 128), QStringLiteral("not smaller than the destination")},
             {QSize(32, 32), QStringLiteral("less than half the destination size")},
-            {QSize(64, 80), QStringLiteral("different aspect ratio than the destination")},
         };
         for (const auto &refusal : refusals) {
             QVERIFY(client.show(refusal.size));
             QTRY_VERIFY2(status().contains(refusal.reason), qPrintable(status()));
         }
+        // Another aspect ratio is no refusal: the picture is fitted in with
+        // bars beside it.
+        QVERIFY(client.show(QSize(64, 80)));
+        QTRY_VERIFY2(status().contains(QStringLiteral("FSR 1, sharpening 0%")), qPrintable(status()));
         // Refused native-size content only needs composition while its notice
         // is visible. Subsequent damage must not reannounce the same window.
         QVERIFY(client.show(QSize(128, 128)));

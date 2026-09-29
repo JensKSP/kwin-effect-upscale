@@ -315,11 +315,23 @@ static UpscaleRefusal surfaceRefusal(EffectWindow *window, SurfaceItem *surface)
 
 // The buffer the client supplied: its size relative to the destination, and
 // whether the scaler can read it as it stands.
+UpscalePicture upscalePictureOf(EffectWindow *window)
+{
+    SurfaceItem *surface = window->windowItem()->surfaceItem();
+    if (!surface || !window->screen()) {
+        return {};
+    }
+    const QSize input = surface->bufferSize();
+    const QSize destination = window->screen()->pixelSize();
+    const UpscaleSettings settings = upscaleResolveSettings(upscaleApplicationForWindow(window->window()));
+    return upscalePicture({input.width(), input.height()}, {destination.width(), destination.height()}, settings.geometry(),
+                          settings.filter());
+}
+
 static UpscaleRefusal contentRefusal(EffectWindow *window, SurfaceItem *surface)
 {
     const QSize input = surface->bufferSize();
-    const QSize destination = window->screen()->pixelSize();
-    switch (upscaleSizing({input.width(), input.height()}, {destination.width(), destination.height()})) {
+    switch (upscalePictureOf(window).sizing) {
     case UpscaleSizing::Supported:
         break;
     case UpscaleSizing::EmptyBuffer:
@@ -333,6 +345,10 @@ static UpscaleRefusal contentRefusal(EffectWindow *window, SurfaceItem *surface)
         return UpscaleRefusal::BufferBelowHalf;
     case UpscaleSizing::AspectRatio:
         return UpscaleRefusal::BufferAspectRatio;
+    case UpscaleSizing::NoWholeFactor:
+        return UpscaleRefusal::BufferNoWholeFactor;
+    case UpscaleSizing::FilterRange:
+        return UpscaleRefusal::BufferFilterRange;
     }
     if (surface->bufferTransform() != OutputTransform::Normal) {
         return UpscaleRefusal::TransformedBuffer;

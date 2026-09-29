@@ -19,6 +19,7 @@ foreach(
         stable/viewporter/viewporter
         staging/fractional-scale/fractional-scale-v1
         unstable/xdg-output/xdg-output-unstable-v1
+        unstable/pointer-constraints/pointer-constraints-unstable-v1
 )
     get_filename_component(protocol ${path} NAME)
     set(protocol_xml "${WAYLAND_PROTOCOLS}/${path}.xml")
@@ -42,8 +43,10 @@ add_executable(
     integration_output_test.cpp
     integration_crash_test.cpp
     integration_logging_test.cpp
+    integration_picture_test.cpp
     crash_game.h
     wayland_client.cpp
+    wayland_client_pointer.cpp
     ${protocol_sources}
 )
 target_include_directories(upscale_integration_test PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
@@ -75,12 +78,14 @@ if(KWin_VERSION VERSION_LESS 6.7)
         ../src/plugins/upscale/overlay.cpp
         ../src/plugins/upscale/placement.cpp
         ../src/plugins/upscale/snapshot.cpp
+        ../src/plugins/upscale/snapshot_headsup.cpp
         ../src/plugins/upscale/snapshot_metrics.cpp
         ../src/plugins/upscale/upscale.cpp
         ../src/plugins/upscale/upscale_display.cpp
         ../src/plugins/upscale/autorequest.cpp
         ../src/plugins/upscale/x11geometry.cpp
         ../src/plugins/upscale/x11modes.cpp
+        ../src/plugins/upscale/pictureinput.cpp
         ../src/plugins/upscale/x11input.cpp
         ../src/plugins/upscale/x11resolution.cpp
         ../src/plugins/upscale/x11resolution_events.cpp
@@ -152,6 +157,7 @@ if(KWin_VERSION VERSION_LESS 6.7)
         x11_fullscreen_test.cpp
         x11_wine_test.cpp
         x11_report_test.cpp
+        x11_picture_test.cpp
         crash_game.h
         x11_standin_game.h
     )

@@ -7,6 +7,7 @@
 #pragma once
 
 #include "compatibility.h"
+#include "picture.h"
 
 #include <memory>
 
@@ -18,6 +19,20 @@ class GLShader;
 class GLTexture;
 class SurfaceItem;
 
+/**
+ * One window's picture as the scaler draws it: into @c destination, filtered
+ * as @c filter says and sharpened by @c strength, with what of @c frame it
+ * leaves painted black, the bars an aspect ratio or a whole factor leaves. An
+ * empty frame draws the picture alone.
+ */
+struct UpscaleDrawing
+{
+    UpscaleRectF destination;
+    double strength = 0;
+    UpscaleFilter filter = UpscaleFilter::Fsr;
+    UpscaleRectF frame;
+};
+
 class UpscaleScaler
 {
 public:
@@ -26,12 +41,12 @@ public:
 
     bool initialize();
     bool render(const RenderTarget &target, const RenderViewport &viewport, SurfaceItem *surface,
-                const UpscaleRectF &destination, const UpscaleRegion &region, double strength);
+                const UpscaleDrawing &drawing, const UpscaleRegion &region);
     // Input uses the destination colour description. Kept separate from
     // capture so colour and sampling can be tested
     // with floating-point fixtures without a window-system buffer import.
     bool renderTexture(const RenderTarget &target, const RenderViewport &viewport, GLTexture *input,
-                       const UpscaleRectF &destination, const UpscaleRegion &region, double strength);
+                       const UpscaleDrawing &drawing, const UpscaleRegion &region);
 
 private:
     struct Buffer
@@ -49,6 +64,8 @@ private:
                const UpscaleRectF &destination, const UpscaleRegion &region, double strength);
     void sharpen(const RenderTarget &target, const RenderViewport &viewport,
                  const UpscaleRectF &destination, const UpscaleRegion &region, double strength);
+    void bars(const RenderViewport &viewport, const UpscaleRectF &frame, const UpscaleRectF &destination,
+              const UpscaleRegion &region);
     static void setColorUniforms(GLShader *shader, const RenderTarget &target);
     static void draw(GLShader *shader, GLTexture *texture, const RenderViewport &viewport,
                      const UpscaleRectF &destination, const UpscaleRegion &region);
@@ -61,6 +78,8 @@ private:
     std::unique_ptr<GLShader> m_rcas;
     std::unique_ptr<GLShader> m_easuDirect;
     std::unique_ptr<GLShader> m_rcasDirect;
+    // One black pixel, stretched over each bar.
+    std::unique_ptr<GLTexture> m_black;
     ItemRenderer *m_renderer;
 };
 

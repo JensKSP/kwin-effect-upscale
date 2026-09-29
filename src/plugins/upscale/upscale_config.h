@@ -77,6 +77,8 @@ private:
     QSlider *m_percentage;
     QComboBox *m_minimumPixels;
     UpscaleResolutionPreview *m_preview;
+    QComboBox *m_geometry;
+    QComboBox *m_filter;
     QCheckBox *m_sharpening;
     QCheckBox *m_x11Proxy = nullptr;
     QLabel *m_proxyStatus = nullptr;

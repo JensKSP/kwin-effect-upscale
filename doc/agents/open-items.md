@@ -674,6 +674,15 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   Deferred, with the HDR and VRR parts of 70 and 74.
 - **76.** **impl** – Aspect ratio and integer scaling: specified, not implemented
     (L750-757).
+  **Decided by Jens 2026-09-29:** built for 0.3.0, Fit and Integer both.
+  **Built 2026-09-29:** picture geometry in device pixels, black bars, the
+  nearest path without sharpening, the Picture size and Scaling filter
+  settings with entry overrides by name, the status, and pointer mapping onto
+  the picture for Wayland, for X11 in a mode of its own (KWin 6.6 on) and for
+  X11 the effect presents. Unit, render and session tests on GL and GLES, each
+  input case seen failing against its defect. Left: relative pointer, lock,
+  popups and overlays with bars, HDR/VRR, and the TV acceptance with real
+  retro and differing-aspect games. Recorded in the rendering slice.
 - **77.** **test** – PR #14 GLES combined-candidate validation still "pending" (L640).
   **Closed 2026-09-28, `51e56ff`, pushed:** `allocationIgnoresEarlierErrors` passes in
   both render suites in every full check run. Recorded in the slice.

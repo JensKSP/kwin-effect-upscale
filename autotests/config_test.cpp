@@ -8,6 +8,7 @@
 #include "placement.h"
 #include "resolution.h"
 #include "resolutionchoice.h"
+#include "settingcontrols.h"
 #include "sliderfield.h"
 #include "upscale_config.h"
 
@@ -185,11 +186,13 @@ void UpscaleConfigTest::saveAndRestore()
     QSlider *percentage = module.widget()->findChild<QSlider *>(QStringLiteral("percentage"));
     QCheckBox *sharpening = module.widget()->findChild<QCheckBox *>(QStringLiteral("sharpening"));
     QSlider *strength = module.widget()->findChild<QSlider *>(QStringLiteral("strength"));
-    QVERIFY(preset);
-    QVERIFY(percentage);
-    QVERIFY(sharpening);
-    QVERIFY(strength);
+    QComboBox *geometry = module.widget()->findChild<QComboBox *>(QStringLiteral("geometry"));
+    QComboBox *filter = module.widget()->findChild<QComboBox *>(QStringLiteral("filter"));
+    QVERIFY(preset && percentage && sharpening && strength && geometry && filter);
     QVERIFY(!sharpening->isChecked());
+    // Fitted and FSR, as before the choice existed.
+    QCOMPARE(geometry->currentText(), KWin::upscaleSettingChoiceLabel(KWin::UpscaleSetting::Geometry, 0));
+    QCOMPARE(filter->currentText(), KWin::upscaleSettingChoiceLabel(KWin::UpscaleSetting::Filter, 0));
     // Editable while sharpening is off: it is the strength a game that
     // sharpens takes from here.
     QVERIFY(strength->isEnabled());
@@ -201,6 +204,8 @@ void UpscaleConfigTest::saveAndRestore()
     QCOMPARE(KWin::upscaleResolutionPixels(minimum, -1), 3686400);
     sharpening->setChecked(true);
     strength->setValue(0);
+    geometry->setCurrentIndex(int(KWin::UpscaleGeometry::Integer));
+    filter->setCurrentIndex(int(KWin::UpscaleFilter::Nearest));
     module.save();
     const KConfigGroup saved(KSharedConfig::openConfig(QStringLiteral("kwinrc")), QStringLiteral("Effect-upscale"));
     // Written under its current name. The old Preset key numbered the same
@@ -211,7 +216,11 @@ void UpscaleConfigTest::saveAndRestore()
     QCOMPARE(saved.readEntry("MinimumPixels", -1), 3686400);
     QCOMPARE(saved.readEntry("Strength", -1), 0);
     QCOMPARE(saved.readEntry("Sharpening", false), true);
+    QCOMPARE(saved.readEntry("Geometry", -1), 1);
+    QCOMPARE(saved.readEntry("Filter", -1), 1);
     module.defaults();
+    QCOMPARE(geometry->currentIndex(), 0);
+    QCOMPARE(filter->currentIndex(), 0);
     // The default is Quality, index 2, not the first entry: see presetsAndKeyboard.
     QCOMPARE(preset->currentIndex(), 2);
     QVERIFY(!sharpening->isChecked());
@@ -223,6 +232,8 @@ void UpscaleConfigTest::saveAndRestore()
     QVERIFY(sharpening->isChecked());
     QVERIFY(strength->isEnabled());
     QCOMPARE(strength->value(), 0);
+    QCOMPARE(geometry->currentIndex(), int(KWin::UpscaleGeometry::Integer));
+    QCOMPARE(filter->currentIndex(), int(KWin::UpscaleFilter::Nearest));
 }
 
 void UpscaleConfigTest::displayDefaults()

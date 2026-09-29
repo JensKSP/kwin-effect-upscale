@@ -57,6 +57,10 @@ static QString describeBufferRefusal(UpscaleRefusal refusal)
         return i18n("the supplied buffer is less than half the destination size.");
     case UpscaleRefusal::BufferAspectRatio:
         return i18n("the supplied buffer has a different aspect ratio than the destination.");
+    case UpscaleRefusal::BufferNoWholeFactor:
+        return i18n("the supplied buffer is larger than the destination, so no whole-number multiple of it fits.");
+    case UpscaleRefusal::BufferFilterRange:
+        return i18n("FSR 1 enlarges by a whole number only twice; Nearest neighbor enlarges by any.");
     case UpscaleRefusal::TransformedBuffer:
         return i18n("the supplied buffer is rotated or flipped.");
     case UpscaleRefusal::CroppedBuffer:
@@ -147,6 +151,8 @@ QString describeRefusal(UpscaleRefusal refusal)
     case UpscaleRefusal::BufferNotSmaller:
     case UpscaleRefusal::BufferBelowHalf:
     case UpscaleRefusal::BufferAspectRatio:
+    case UpscaleRefusal::BufferNoWholeFactor:
+    case UpscaleRefusal::BufferFilterRange:
     case UpscaleRefusal::TransformedBuffer:
     case UpscaleRefusal::CroppedBuffer:
     case UpscaleRefusal::TranslucentContent:

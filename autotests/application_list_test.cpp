@@ -75,6 +75,7 @@ private Q_SLOTS:
     void aGameFollowsWhatAllApplicationsShows();
     void aGameInheritsItsMethods();
     void clearsEverythingAGameStatesAtOnce();
+    void aGameStatesItsPictureByName();
     void defaultsRestoreOnlyTheGlobalSettings();
     void exportsAndImportsTheList();
 };
@@ -315,6 +316,34 @@ void ApplicationListTest::clearsEverythingAGameStatesAtOnce()
     // And "All applications" offers nothing to clear.
     list->setCurrentRow(0);
     QVERIFY(!clear->isVisible() || !clear->isEnabled());
+}
+
+// A game follows the global picture size and filter until it states its own,
+// which its entry spells by name, as the handbook does.
+void ApplicationListTest::aGameStatesItsPictureByName()
+{
+    QWidget host;
+    KWin::UpscaleEffectConfig module(&host, KPluginMetaData());
+    auto *editor = module.widget()->findChild<KWin::UpscaleApplicationEditor *>();
+    auto *list = editor->findChild<QListWidget *>(QStringLiteral("applicationList"));
+    auto *globalGeometry = module.widget()->findChild<QComboBox *>(QStringLiteral("geometry"));
+    auto *geometry = editor->findChild<QComboBox *>(QStringLiteral("Geometry"));
+    auto *filter = editor->findChild<QComboBox *>(QStringLiteral("Filter"));
+    QVERIFY(list && globalGeometry && geometry && filter);
+    list->setCurrentRow(0);
+    globalGeometry->setCurrentIndex(int(KWin::UpscaleGeometry::Integer));
+    // A shipped game, which has an identity to be stored with.
+    const QList<QListWidgetItem *> kart = list->findItems(QStringLiteral("SuperTuxKart"), Qt::MatchExactly);
+    QCOMPARE(kart.size(), 1);
+    list->setCurrentItem(kart.constFirst());
+    QCOMPARE(geometry->currentIndex(), int(KWin::UpscaleGeometry::Integer));
+    QCOMPARE(inheritance(editor, QStringLiteral("Geometry")), Follows);
+    filter->setCurrentIndex(int(KWin::UpscaleFilter::Nearest));
+    QCOMPARE(inheritance(editor, QStringLiteral("Filter")), States);
+    module.save();
+    QFile stored(upscaleUserApplicationFile());
+    const QByteArray written = stored.open(QIODevice::ReadOnly) ? stored.readAll() : QByteArray();
+    QVERIFY2(written.contains("Filter=Nearest") && !written.contains("Geometry="), written.constData());
 }
 
 // System Settings' Defaults is the global profile's: it restores "All

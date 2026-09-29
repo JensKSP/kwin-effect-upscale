@@ -9,6 +9,10 @@ target_include_directories(upscale_resolution_test PRIVATE ../src/plugins/upscal
 # These assertions are test oracles, including in distribution release builds.
 target_compile_options(upscale_resolution_test PRIVATE -UNDEBUG)
 add_test(NAME upscale-resolution COMMAND upscale_resolution_test)
+add_executable(upscale_picture_test picture_test.cpp)
+target_include_directories(upscale_picture_test PRIVATE ../src/plugins/upscale)
+target_link_libraries(upscale_picture_test PRIVATE Qt6::Test)
+add_test(NAME upscale-picture COMMAND upscale_picture_test)
 if(UPSCALE_FUZZING)
     add_executable(upscale_resolution_fuzz resolution_fuzz.cpp)
     target_include_directories(upscale_resolution_fuzz PRIVATE ../src/plugins/upscale)
@@ -113,6 +117,7 @@ set(snapshot_test_sources
     ../src/plugins/upscale/legacysettings.cpp
     ../src/plugins/upscale/placement.cpp
     ../src/plugins/upscale/snapshot.cpp
+    ../src/plugins/upscale/snapshot_headsup.cpp
     ../src/plugins/upscale/snapshot_metrics.cpp
     ../src/plugins/upscale/eligibility.cpp
     ../src/plugins/upscale/windowidentity.cpp
@@ -139,6 +144,7 @@ set(headsup_test_sources
     ../src/plugins/upscale/legacysettings.cpp
     ../src/plugins/upscale/placement.cpp
     ../src/plugins/upscale/snapshot.cpp
+    ../src/plugins/upscale/snapshot_headsup.cpp
     ../src/plugins/upscale/snapshot_metrics.cpp
     ../src/plugins/upscale/eligibility.cpp
     ../src/plugins/upscale/windowidentity.cpp
@@ -166,6 +172,7 @@ set(placement_test_sources
     ../src/plugins/upscale/overlay.cpp
     ../src/plugins/upscale/placement.cpp
     ../src/plugins/upscale/snapshot.cpp
+    ../src/plugins/upscale/snapshot_headsup.cpp
     ../src/plugins/upscale/snapshot_metrics.cpp
     ../src/plugins/upscale/eligibility.cpp
     ../src/plugins/upscale/windowidentity.cpp
@@ -203,6 +210,7 @@ set(display_test_sources
     ../src/plugins/upscale/overlay.cpp
     ../src/plugins/upscale/placement.cpp
     ../src/plugins/upscale/snapshot.cpp
+    ../src/plugins/upscale/snapshot_headsup.cpp
     ../src/plugins/upscale/snapshot_metrics.cpp
     ../src/plugins/upscale/eligibility.cpp
     ../src/plugins/upscale/windowidentity.cpp
@@ -243,6 +251,7 @@ if(KWIN_BUILD_KCMS)
         ../src/plugins/upscale/applicationeditor_details.cpp
         ../src/plugins/upscale/applicationeditor_window.cpp
         ../src/plugins/upscale/settingcontrols.cpp
+        ../src/plugins/upscale/settingtext.cpp
         ../src/plugins/upscale/inheritedmark.cpp
         ../src/plugins/upscale/identitycontrols.cpp
         ../src/plugins/upscale/methodcontrols.cpp

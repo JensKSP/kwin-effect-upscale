@@ -535,41 +535,60 @@ correctness or performance for this KWin effect without separate validation.
 
 ### Aspect ratio and integer scaling
 
-Required extension, not yet implemented: support fullscreen content whose
-aspect ratio differs from the output, and provide integer scaling for pixel
-art and older games. Add global settings with sparse application overrides.
-This expands the initial geometry restrictions; it does not imply that the
-current FSR path handles these cases.
+Fullscreen content whose aspect ratio differs from the output is fitted in with
+black bars, and pixel art and older games can be enlarged by a whole number with
+nearest-neighbour sampling. Two settings decide it, each a global default with
+sparse application overrides like every other setting: **Picture size** (`Geometry`,
+Fit or Integer) and **Scaling filter** (`Filter`, FSR or Nearest), on the
+**Scaling** tab beside sharpening. They are separate on purpose: nearest
+sampling alone is not integer scaling, and FSR can be laid either way within its
+range.
 
-- **Fit, preserve aspect ratio:** enlarge the complete supplied image as far as
-  the selected filter permits without stretching or cropping it. Centre it and
-  fill the remaining output area with black bars. For example, 1440 × 1080
+- **Fit, preserving the aspect ratio:** the complete supplied image is enlarged
+  as far as the filter permits without stretching or cropping it, centred, and
+  the rest of the output is filled with black bars. For example, 1440 × 1080
   content on a 3840 × 2160 output occupies 2880 × 2160, with 480-pixel bars on
-  each side. Fit is the default geometry when this extension is available.
-- **Integer:** use the largest positive whole-number factor that fits both
-  dimensions, centre the result and leave black bars where needed. Combine it
-  with **Nearest neighbour** filtering for exact pixel replication, with
-  sharpening off. For example, 320 × 240 becomes 2880 × 2160 at 9× on a 4K
-  output. Expose geometry and filtering separately; nearest filtering alone
-  must not be labelled integer scaling.
+  each side. Content of the output's own aspect ratio, within the half pixel
+  that whole client pixels allow, fills the output as before. Fit is the
+  default.
+- **Integer:** the largest positive whole-number factor that fits both
+  dimensions, centred, with bars where needed. For example, 320 × 240 becomes
+  2880 × 2160 at 9× on a 4K output, and 1280 × 720 fills it at 3×. A factor of
+  one is valid: the picture is centred without enlargement.
 
-Calculate the destination in physical pixels, independently of desktop scale.
-Permit at most the unavoidable one-pixel imbalance between opposite bars when
-centering. If no positive integer factor fits, report that integer scaling is
-unavailable and retain normal rendering; do not silently downscale or crop.
-A factor of one is valid centred presentation without enlargement. The wider
-integer range belongs to the nearest-neighbour path; retain FSR's supported
-scale limits and report a filter/geometry combination that cannot be honoured.
-Never apply sharpening to bars or filter across the image boundary.
+FSR 1 keeps its range: it enlarges by more than one and at most two times, so
+with Integer only a factor of two, and Fit refuses content it would have to
+enlarge further. Nearest enlarges by any amount above one, and never sharpens:
+it replicates each pixel exactly, and the sharpening setting does not apply to
+it. A combination that cannot be honoured is refused by name and the window is
+drawn by KWin as usual: content no smaller than its output, content FSR would
+have to enlarge more than twice, content no whole factor fits, and FSR asked for
+a whole factor other than two. Nothing is silently downscaled or cropped.
 
-Preserve the complete image and the physical output mode. A buffer that already
-contains letterboxing is treated as supplied; automatic bar detection or
-cropping is outside this requirement. Geometry changes must also preserve
-absolute pointer mapping, relative motion, confinement, locking, popups and
-separate overlays. Keep this input and surface-tree work explicit rather than
-assuming a different draw rectangle alone implements the feature. Rendering,
-HDR/VRR and real-game acceptance are tracked in the
-[rendering slice](agents/slice-fsr1-hdr-vrr.md#aspect-ratio-and-integer-scaling).
+The destination is calculated in the output's device pixels, independently of
+the desktop scale, and the one pixel by which opposite bars can differ goes to
+the bottom and the right. The bars are drawn black, which is zero in every
+encoding a target can have, and the picture is filtered inside its own
+rectangle, so neither filter samples across the image boundary or sharpens a
+bar. A buffer that already contains letterboxing is treated as supplied;
+automatic bar detection or cropping is outside this feature. The physical output
+mode is never changed.
+
+The pointer follows the picture rather than the surface. A fullscreen game's
+surface still covers the output, and the game maps its surface coordinates onto
+its buffer as though that were stretched over it. For a native Wayland game the
+effect therefore gives KWin's seat the transformation from the picture to the
+surface and scales relative motion by the same factor. An X11 game in a mode it
+set itself is the same case one step later, because Xwayland's emulation maps
+the whole frame onto the drawable; KWin keeps such a window at its mode from
+6.6 on, and on 6.3 sizes it to the output, so there is nothing to fit. In both
+cases a confined pointer is kept on the picture: in a bar it would reach
+nothing of the game. An X11 window the effect asked for a size is mapped by the
+effect's own presentation, which takes the picture's position and factor, a
+whole factor of one included, and passes a confined pointer one to one as it
+always does. HDR, VRR,
+popups, separate overlays and acceptance with real games on the TV are tracked in
+the [rendering slice](agents/slice-fsr1-hdr-vrr.md#aspect-ratio-and-integer-scaling).
 
 ## Processing modes
 
@@ -581,8 +600,8 @@ recovers detail the client never rendered, and both remain subject to the
 existing eligibility, colour, HDR, VRR, damage and lifecycle requirements.
 
 A mode decides what happens to the pixels. It is separate from the geometry and
-filter choices specified under aspect ratio and integer scaling above, which
-decide where the result is drawn and how it is sampled.
+filter choices under aspect ratio and integer scaling above, which decide where
+the result is drawn and how it is sampled.
 
 | Mode | Supplied buffer | Processing |
 | --- | --- | --- |
@@ -676,7 +695,9 @@ candidates.
 The initial path targets opaque RGB surfaces with known colour descriptions,
 their full buffer visible, an unrotated output, matching aspect
 ratios and enlargement of at most two times per axis. Source and destination
-sizes are physical pixels. Unsupported cases use KWin's normal rendering.
+sizes are physical pixels. Unsupported cases use KWin's normal rendering. The
+[aspect ratio and integer scaling](#aspect-ratio-and-integer-scaling) settings
+later extended the geometry beyond matching aspect ratios.
 
 The first prerequisites are access to the original buffer in KWin 6.3.6,
 a defined HDR colour path for EASU/RCAS and VRR during active composition.
@@ -1056,7 +1077,7 @@ wording was reviewed with Jens string by string on 2026-09-21.
 
 | Section | Controls |
 | --- | --- |
-| Applications | The list, in matching order, with **All applications** pinned first: the global settings, shown as a profile with no identity, in the same tabs as a game's. Its check box in the list is the one every row has, with the same meaning: whether the entry acts for the windows it claims, which for the global profile are those no other entry matches. It is off by default and never stops the listed games, and its tooltip says so. Its **Resolution Request** tab holds the four global methods: what an application not in the list is asked while **All applications** is checked, and what a game in the list follows for a presentation it states nothing for and the package measured nothing for. There is no separate switch for asking at all: a profile that should be asked nothing says Off in each of its four methods, while the global profile's unset methods mean Auto; **Resolution** holds the render resolution, the resolution scale as a slider with a number field, one line per connected screen with the size a game would render at there, and the resolution limit; **Sharpening** and **On-Screen Display** the rest, with no two displays sharing a corner. A game's tabs hold its identity, its four measured methods and every preference, each showing in italic the value it follows from **All applications**, applied or not, until the game states its own, with a reset button, **Use the value of All applications**, that makes it follow again. They behave as the global ones do: the limit is the same list of resolutions, the same preview shows the size the game would render at from the values it would use, and stating a scale chooses Custom. Nothing on either panel is greyed out by a switch being off: every global value is a default a game takes when it switches on what the global profile leaves off, and the methods for applications not in the list can be set before their check box is. **Add**, **Add from Window…**, **Remove** and two arrows edit the list; **Export…** and **Import…** move it as a file in `kwinupscalerc`'s format, an import being an edit that Apply stores; **Restore Defaults** returns the games to the list the package ships. System Settings' own **Defaults** restores **All applications** and leaves the games alone. |
+| Applications | The list, in matching order, with **All applications** pinned first: the global settings, shown as a profile with no identity, in the same tabs as a game's. Its check box in the list is the one every row has, with the same meaning: whether the entry acts for the windows it claims, which for the global profile are those no other entry matches. It is off by default and never stops the listed games, and its tooltip says so. Its **Resolution Request** tab holds the four global methods: what an application not in the list is asked while **All applications** is checked, and what a game in the list follows for a presentation it states nothing for and the package measured nothing for. There is no separate switch for asking at all: a profile that should be asked nothing says Off in each of its four methods, while the global profile's unset methods mean Auto; **Resolution** holds the render resolution, the resolution scale as a slider with a number field, one line per connected screen with the size a game would render at there, and the resolution limit; **Scaling** the picture size, the scaling filter and sharpening; and **On-Screen Display** the rest, with no two displays sharing a corner. A game's tabs hold its identity, its four measured methods and every preference, each showing in italic the value it follows from **All applications**, applied or not, until the game states its own, with a reset button, **Use the value of All applications**, that makes it follow again. They behave as the global ones do: the limit is the same list of resolutions, the same preview shows the size the game would render at from the values it would use, and stating a scale chooses Custom. Nothing on either panel is greyed out by a switch being off: every global value is a default a game takes when it switches on what the global profile leaves off, and the methods for applications not in the list can be set before their check box is. **Add**, **Add from Window…**, **Remove** and two arrows edit the list; **Export…** and **Import…** move it as a file in `kwinupscalerc`'s format, an import being an edit that Apply stores; **Restore Defaults** returns the games to the list the package ships. System Settings' own **Defaults** restores **All applications** and leaves the games alone. |
 
 The page does not report what the running effect is doing: Jens decided on
 2026-09-21 that status and a refresh button do not belong in settings. That
@@ -1877,7 +1898,7 @@ optional, and on screens whose colour handling differs from a desktop monitor's.
 | The destination's colour handling | the `ColorDescription` of the frame being painted: its transfer function must be one the shaders decode, and its luminances must be finite and ordered | the window is refused, naming colour handling |
 | The buffer the game supplied | its DRM format code, read from the surface | refused, naming the format code, so the unknown one can be looked up |
 | The orientation of the frame | `RenderTarget::transform()` of the frame being painted | flips are handled by the projection matrix and drawn through; anything else is refused by name and the value is reported |
-| The scaling ratio itself | `upscaleSizing()` against the committed buffer | refused as not smaller, below half, or a different aspect ratio: three distinct answers, because they need three different fixes |
+| The scaling ratio itself | `upscalePicture()` against the committed buffer, with the geometry and filter in force | refused as not smaller, beyond FSR's twofold range, without a whole factor that fits, or FSR at a whole factor other than two: distinct answers, because they need different fixes; another aspect ratio is fitted in with bars |
 | What the game did with the request | the committed buffer size, observed | reported beside the advertised size, never in place of it |
 
 Colour refusals are scoped to individual windows. An output colour or
@@ -2619,8 +2640,8 @@ and its content and frame must cover one output from that output's origin, each
 edge within one device pixel. A program the session proxy told of a smaller
 screen is measured against that smaller screen instead. Equal
 dimensions alone are insufficient. Ordinary smaller windows and windows
-spanning outputs do not qualify. The existing opacity, surface, aspect-ratio
-and buffer-size checks still apply.
+spanning outputs do not qualify. The existing opacity, surface and picture
+size checks still apply.
 
 A Wayland client must retain that logical area while supplying a smaller
 buffer, for example through a viewport or a supported scale policy. A resized

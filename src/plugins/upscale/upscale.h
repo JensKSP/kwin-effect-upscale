@@ -24,6 +24,7 @@ namespace KWin
 {
 
 class UpscaleModeOverride;
+class UpscalePictureInput;
 class UpscaleWaylandScale;
 class UpscaleX11Resolution;
 class UpscaleScaler;
@@ -125,6 +126,8 @@ private:
     std::unique_ptr<UpscaleModeOverride> m_modeOverride;
     std::unique_ptr<UpscaleX11Resolution> m_x11Resolution;
     std::unique_ptr<UpscaleWaylandScale> m_waylandScale;
+    // Maps the pointer onto a Wayland window's picture where it has bars.
+    std::unique_ptr<UpscalePictureInput> m_pictureInput;
 
     /** Auto's Wayland half for the selected window, or giving its scale back. */
     void askForSmallerBuffer(UpscaleOutput *output, EffectWindow *candidate, const UpscaleApplication *claimed);

@@ -38,8 +38,9 @@
 # any of them is read, so it has no entry. An entry that is absent follows
 # the user's global method, which is Auto unless they chose another - nobody has
 # run the application that way yet - and that is not the same as Off, which
-# records that the question was asked and the answer is to ask for nothing. Each name below acts on one protocol only: the advertisements reach
-# a native Wayland client, and the resize reaches an X11 window.
+# records that the question was asked and the answer is to ask for nothing.
+# Each name below acts on one protocol only: the advertisements reach a native
+# Wayland client, and the resize reaches an X11 window.
 #
 # Method is one of:
 #   Auto                   Work it out and verify the result.
@@ -64,6 +65,12 @@
 # measured about the application, never what somebody would prefer: a
 # Resolution here would pin that game and stop the user's own global setting
 # ever reaching it. So no entry states one, the benchmarks included.
+#
+# The settings that are a choice are spelled by name, as Method is: Resolution
+# is Native, UltraQuality, Quality, Balanced, Performance or Custom; Geometry is
+# Fit, which enlarges the picture as far as the filter allows without
+# stretching it, or Integer, the largest whole factor that fits; Filter is FSR,
+# which enlarges by up to twice, or Nearest, which repeats each pixel exactly.
 # Native connection patterns start with `/`, keeping them distinct from Wine
 # identities while a prefix is still starting and its program is not known.
 

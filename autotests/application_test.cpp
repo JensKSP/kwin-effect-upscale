@@ -329,6 +329,11 @@ void ApplicationTest::spellsEveryMethodAndPreset()
         QVERIFY(stored);
         QCOMPARE(KWin::upscaleResolveSettings(stored).resolution(), preset);
     }
+    // The picture's geometry and filter by name too, as the handbook spells them.
+    writeUserConfig(QStringLiteral("[Application-roundtrip]\nInstance=roundtrip\nGeometry=Integer\nFilter=Nearest\n"));
+    const KWin::UpscaleSettings picture = KWin::upscaleResolveSettings(forInstance(QStringLiteral("roundtrip")));
+    QCOMPARE(picture.geometry(), KWin::UpscaleGeometry::Integer);
+    QCOMPARE(picture.filter(), KWin::UpscaleFilter::Nearest);
 
     // A file from a later version can name a method this build does not
     // implement. Recognizing the application and asking it for nothing is the

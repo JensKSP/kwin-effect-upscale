@@ -10,6 +10,7 @@
 #include "methodcontrols.h"
 #include "resolutionchoice.h"
 #include "resolutionpreview.h"
+#include "settingcontrols.h"
 #include "settings.h"
 #include "sliderfield.h"
 
@@ -52,6 +53,7 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <utility>
 
 K_PLUGIN_FACTORY(UpscaleEffectConfigFactory, registerPlugin<KWin::UpscaleEffectConfig>();)
 
@@ -64,6 +66,8 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     , m_percentage(new QSlider(Qt::Horizontal, widget()))
     , m_minimumPixels(new QComboBox(widget()))
     , m_preview(new UpscaleResolutionPreview(this))
+    , m_geometry(new QComboBox(widget()))
+    , m_filter(new QComboBox(widget()))
     , m_sharpening(new QCheckBox(i18n("Sharpen the image"), widget()))
     , m_strength(new QSlider(Qt::Horizontal, widget()))
     , m_osdDetection(new QCheckBox(i18n("Show info at startup"), widget()))
@@ -79,6 +83,8 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
 {
     m_preset->setObjectName(QStringLiteral("preset"));
     m_percentage->setObjectName(QStringLiteral("percentage"));
+    m_geometry->setObjectName(QStringLiteral("geometry"));
+    m_filter->setObjectName(QStringLiteral("filter"));
     m_sharpening->setObjectName(QStringLiteral("sharpening"));
     m_strength->setObjectName(QStringLiteral("strength"));
     QTabWidget *all = buildAllPanel();
@@ -149,8 +155,16 @@ QTabWidget *UpscaleEffectConfig::buildAllPanel()
     m_preview->build(resolution, widget(), QStringLiteral("preview"));
     addThresholdControl(resolution);
 
-    QFormLayout *sharpening = tab(i18n("Sharpening"));
-    sharpening->addRow(QString(), m_sharpening);
+    // In the words and order a game's tab uses, from the same table.
+    QFormLayout *scaling = tab(i18n("Scaling"));
+    for (const auto &[setting, box] : {std::pair{UpscaleSetting::Geometry, m_geometry}, std::pair{UpscaleSetting::Filter, m_filter}}) {
+        for (int value = 0; value < upscaleSettingChoiceCount(setting); ++value) {
+            box->addItem(upscaleSettingChoiceLabel(setting, value));
+        }
+        box->setToolTip(upscaleSettingToolTip(setting));
+        scaling->addRow(upscaleSettingLabel(setting), box);
+    }
+    scaling->addRow(QString(), m_sharpening);
     m_strength->setRange(0, 100);
     m_strengthField = new UpscaleSliderField(m_strength, widget(), 1);
     m_strengthField->field()->setObjectName(QStringLiteral("strengthValue"));
@@ -158,7 +172,7 @@ QTabWidget *UpscaleEffectConfig::buildAllPanel()
     // Zero is a real bypass rather than the weakest setting, so it is named as
     // one instead of being shown as a percentage.
     m_strengthField->field()->setSpecialValueText(i18nc("sharpening strength", "Off"));
-    sharpening->addRow(i18n("Strength:"), m_strengthField->widget());
+    scaling->addRow(i18n("Strength:"), m_strengthField->widget());
 
     addDisplayControls(tab(i18n("On-Screen Display")));
     return all;
@@ -226,6 +240,12 @@ void UpscaleEffectConfig::connectControls()
         updatePreview();
         setNeedsSave(true);
     });
+    for (QComboBox *box : {m_geometry, m_filter}) {
+        connect(box, &QComboBox::currentIndexChanged, this, [this]() {
+            updatePreview();
+            setNeedsSave(true);
+        });
+    }
     connect(m_sharpening, &QCheckBox::toggled, this, [this]() {
         updatePreview();
         setNeedsSave(true);
@@ -325,6 +345,8 @@ UpscaleSettings UpscaleEffectConfig::shownSettings() const
     settings.setValue(UpscaleSetting::Resolution, m_preset->currentIndex());
     settings.setValue(UpscaleSetting::Percentage, m_percentage->value());
     settings.setValue(UpscaleSetting::MinimumPixels, upscaleResolutionPixels(m_minimumPixels, UpscaleConfig::minimumPixels()));
+    settings.setValue(UpscaleSetting::Geometry, m_geometry->currentIndex());
+    settings.setValue(UpscaleSetting::Filter, m_filter->currentIndex());
     settings.setValue(UpscaleSetting::Sharpening, m_sharpening->isChecked());
     settings.setValue(UpscaleSetting::Strength, m_strength->value());
     settings.setValue(UpscaleSetting::OsdDetection, m_osdDetection->isChecked());
@@ -349,6 +371,8 @@ void UpscaleEffectConfig::showSettings()
     upscaleSelectResolution(m_minimumPixels, UpscaleConfig::minimumPixels());
     m_x11Proxy->setChecked(UpscaleConfig::x11Proxy());
     updateProxyStatus();
+    m_geometry->setCurrentIndex(UpscaleConfig::geometry());
+    m_filter->setCurrentIndex(UpscaleConfig::filter());
     m_sharpening->setChecked(UpscaleConfig::sharpening());
     m_strength->setValue(UpscaleConfig::strength());
     m_osdDetection->setChecked(UpscaleConfig::osdDetection());
@@ -382,6 +406,8 @@ void UpscaleEffectConfig::applySettings()
     UpscaleConfig::setPercentage(m_percentage->value() / 100.0);
     UpscaleConfig::setMinimumPixels(upscaleResolutionPixels(m_minimumPixels, UpscaleConfig::minimumPixels()));
     UpscaleConfig::setX11Proxy(m_x11Proxy->isChecked());
+    UpscaleConfig::setGeometry(m_geometry->currentIndex());
+    UpscaleConfig::setFilter(m_filter->currentIndex());
     UpscaleConfig::setSharpening(m_sharpening->isChecked());
     UpscaleConfig::setStrength(m_strength->value());
     UpscaleConfig::setOsdDetection(m_osdDetection->isChecked());

@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "picture.h"
 #include "placement.h"
 #include "presentation.h"
 #include "resolution.h"
@@ -48,6 +49,8 @@ enum class UpscaleSetting {
     MinimumPixels,
     Sharpening,
     Strength,
+    Geometry,
+    Filter,
     Osd,
     OsdDetection,
     OsdSummary,
@@ -161,8 +164,17 @@ public:
     UpscaleCorner corner(UpscaleSetting setting) const;
     ResolutionPreset resolution() const;
 
-    /** The sharpening strength the scaler wants, zero when switched off. */
+    /**
+     * The sharpening strength the scaler wants, zero when switched off, and
+     * zero with nearest-neighbour sampling, which replicates pixels exactly.
+     */
     double sharpening() const;
+
+    /** Where the enlarged picture goes on its screen. */
+    UpscaleGeometry geometry() const;
+
+    /** How the picture is sampled. */
+    UpscaleFilter filter() const;
 
 private:
     bool m_acts = false;

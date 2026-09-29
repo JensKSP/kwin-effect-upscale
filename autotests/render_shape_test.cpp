@@ -8,13 +8,16 @@
 // KWin composes into, and sizes that are not the tidy powers of two a fixture
 // would otherwise use.
 
+#include "picture.h"
 #include "render_fixture.h"
 #include "resolution.h"
 
+#include <QSet>
 #include <QTest>
 
 #include <array>
 #include <cmath>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -29,6 +32,7 @@ private Q_SLOTS:
     void cleanupTestCase();
     void drawsIntoATransformedTarget();
     void scalesOddSizes();
+    void laysThePictureBetweenBars();
 
 private:
     UpscaleRenderFixture m_fixture;
@@ -139,6 +143,72 @@ void UpscaleRenderShapeTest::scalesOddSizes()
                 }
             }
         }
+    }
+}
+
+// A picture of another aspect ratio, or enlarged by a whole factor, is laid in
+// the middle of its output with black bars around it. Fit here enlarges 8 x 6
+// with FSR to 12 x 9 of 16 x 9; Integer replicates each pixel of 4 x 3 into a
+// block of 3 x 3 with nearest sampling, exactly and sharpened nowhere.
+void UpscaleRenderShapeTest::laysThePictureBetweenBars()
+{
+    const QSize outputSize(16, 9);
+#if UPSCALE_REGION_API
+    const double reference = ColorDescription::sRGB->referenceLuminance();
+#else
+    const double reference = ColorDescription::sRGB.referenceLuminance();
+#endif
+    const TransferFunction transfer(TransferFunction::linear, 0, reference);
+    const auto source = [](const QSize &size) {
+        std::vector<float> pixels(size_t(size.width()) * size_t(size.height()) * 4);
+        for (int y = 0; y < size.height(); ++y) {
+            for (int x = 0; x < size.width(); ++x) {
+                const size_t pixel = (size_t(y) * size_t(size.width()) + size_t(x)) * 4;
+                pixels[pixel] = float(x + 1) / float(size.width());
+                pixels[pixel + 1] = float(y + 1) / float(size.height());
+                pixels[pixel + 2] = 0.5F;
+                pixels[pixel + 3] = 1;
+            }
+        }
+        return pixels;
+    };
+    const auto at = [&outputSize](const std::vector<float> &result, int x, int y, int channel) {
+        return result[(size_t(y) * size_t(outputSize.width()) + size_t(x)) * 4 + size_t(channel)];
+    };
+    for (const auto &[inputSize, geometry, filter] : {std::tuple{QSize(8, 6), UpscaleGeometry::Fit, UpscaleFilter::Fsr},
+                                                      std::tuple{QSize(4, 3), UpscaleGeometry::Integer, UpscaleFilter::Nearest}}) {
+        const UpscalePicture picture = upscalePicture({inputSize.width(), inputSize.height()}, {16, 9}, geometry, filter);
+        QCOMPARE(QRect(picture.x, picture.y, picture.width, picture.height), QRect(2, 0, 12, 9));
+        const std::vector<float> result = m_fixture.render(source(inputSize), inputSize, outputSize, transfer, 1.0, unlimitedRegion(),
+                                                           OutputTransform::Normal, QRect(2, 0, 12, 9), filter);
+        QCOMPARE(result.size(), size_t(16 * 9 * 4));
+        for (int y = 0; y < outputSize.height(); ++y) {
+            for (const int x : {0, 1, 14, 15}) {
+                for (int channel = 0; channel < 3; ++channel) {
+                    QVERIFY2(at(result, x, y, channel) == 0.0F, qPrintable(QStringLiteral("bar at %1,%2").arg(x).arg(y)));
+                }
+            }
+            for (int x = 2; x < 14; ++x) {
+                QVERIFY2(at(result, x, y, 2) > 0.25F, qPrintable(QStringLiteral("picture missing at %1,%2").arg(x).arg(y)));
+            }
+        }
+        if (filter != UpscaleFilter::Nearest) {
+            continue;
+        }
+        // Every block one of the input's own colours, all of them used.
+        QSet<QPair<float, float>> colours;
+        for (int block = 0; block < 12; ++block) {
+            const int left = 2 + (block % 4) * 3;
+            const int top = (block / 4) * 3;
+            for (int y = top; y < top + 3; ++y) {
+                for (int x = left; x < left + 3; ++x) {
+                    QCOMPARE(at(result, x, y, 0), at(result, left, top, 0));
+                    QCOMPARE(at(result, x, y, 1), at(result, left, top, 1));
+                }
+            }
+            colours.insert({at(result, left, top, 0), at(result, left, top, 1)});
+        }
+        QCOMPARE(colours.size(), 12);
     }
 }
 
