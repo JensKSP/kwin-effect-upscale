@@ -2201,6 +2201,15 @@ The transitions: honouring, as above; ignoring, as Qt; losing coverage, and
 configuration moving, by `autoAsksTheWindowForAFractionalScale`; KWin
 reapplying the output's scale, below.
 
+#### Wayland Auto's supported scope, decided 2026-09-29
+
+Item 19a. Jens decided that Wayland Auto enters the supported scope for the
+programs that follow one of its levers: SDL's exclusive fullscreen through the
+told mode, and GLFW 3.4, Godot 4.7 and SDL 3 with high pixel density through
+the surface scale. The handbook's Auto row now says so, names Qt, vkmark and
+SDL 3 without high pixel density as outside the scope with what the status
+shows for them, and makes the bench above the scope's acceptance.
+
 ### Auto under test, 2026-09-21
 
 Until this date no automated test drove Auto at runtime: every integration case
