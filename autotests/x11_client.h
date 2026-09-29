@@ -95,6 +95,11 @@ public:
      * that do not ask are about windows whose program is not known.
      */
     void reportProcess(qint64 pid = 0);
+    /**
+     * Leave the window to the window manager's decoration, when shown, rather
+     * than asking for none as a borderless game does.
+     */
+    void keepDecoration();
 
 private:
     xcb_atom_t atom(const QByteArray &name) const;
@@ -124,4 +129,5 @@ private:
     int m_ignoredResizes = 0;
     bool m_fullscreenOnMap = false;
     qint64 m_reportedProcess = 0;
+    bool m_decorated = false;
 };

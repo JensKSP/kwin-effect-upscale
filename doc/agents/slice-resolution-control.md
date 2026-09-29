@@ -2232,7 +2232,11 @@ its screen is smaller and beside the code (`eligibility_over.cpp`,
   code: over a decoration KWin's pointer focus is empty and its decoration
   filter, which runs after the picture filter, takes the motion, so the filter
   now asks KWin's hover window and delivers a claimed pointer's motion itself.
-  The same holds for the X11 filter: item 18b.
+  The same held for the X11 filter (item 18b), shown by
+  `movesThePointerOverAHiddenTitleBar` with Aurorae's Plastik theme switched
+  on: a presented game saw the first motion onto a hidden title bar, which
+  arrives with the filter's re-entry, and not the next one along it (1302,611
+  where 1322,611 was due) until the filter delivered the motion.
 - Run in the conformance machine with `glfw_probe undecorated` under
   `AdvertisedMode` at Quality: the effect selected and scaled the window, a
   capture of the output showed the window's colour across all of 3840 × 2160

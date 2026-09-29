@@ -48,13 +48,14 @@ class Window;
  * the seat itself, whatever KWin's hit test found beside the surface - the
  * desktop, a panel, nothing at all - and restores KWin's focus when the pointer leaves
  * the frame. A window stacked above the presented one, a dialog or an on-screen
- * display, is left to KWin.
+ * display, is left to KWin, its decoration included.
  *
  * Where the pointer is this filter's rather than KWin's, the events for it are
  * delivered here as well, because the filters in between would otherwise act on
  * the window KWin found: a click would raise and activate what lies under the
- * game instead of reaching the game. Motion is left to KWin's forwarding, which
- * sends it to the surface on the seat, the presented one.
+ * game instead of reaching the game, and over a hidden window's decoration the
+ * decoration would take the motion. Where the pointer is KWin's, its motion is
+ * left to KWin's forwarding, which sends it to the surface on the seat.
  */
 class UpscaleX11Input : public InputEventFilter
 {
