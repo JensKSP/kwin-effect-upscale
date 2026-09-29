@@ -16,5 +16,6 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
-        qemu-system-x86 qemu-utils cloud-image-utils openssh-client ca-certificates \
+        qemu-system-x86 qemu-system-arm qemu-efi-aarch64 qemu-utils cloud-image-utils \
+        openssh-client ca-certificates \
     && rm -rf /var/lib/apt/lists/*

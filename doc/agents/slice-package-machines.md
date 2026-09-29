@@ -116,8 +116,20 @@ SuperTuxKart started 23 seconds after it.
 
 ## Remaining work
 
-- The other systems: Fedora, openSUSE Tumbleweed and Arch each need a template
-  and a profile (the check already knows dnf, zypper and pacman), FreeBSD a
-  profile of its own, and arm64 full system emulation.
+- Fedora 43, openSUSE Tumbleweed and Arch have a template and a profile since
+  2026-09-29, and their machines came up logged in to Plasma's Wayland session;
+  their checks wait for a nightly package of the current tree.
+- arm64 has profiles for Debian, Kubuntu, Fedora and openSUSE since 2026-09-29:
+  the amd64 profile with the system's arm64 image, `qemu-system-aarch64` on the
+  virt machine with every host core translating, UEFI from Debian's
+  `qemu-efi-aarch64`, and virtio-gpu at 3840 × 2160 in place of VGA, which the
+  virt machine lacks; openSUSE's template loads virtio_gpu there instead of
+  bochs. Arch publishes no arm64 image. None has booted yet.
+- FreeBSD cannot run Plasma's Wayland session in a machine: KWin needs a
+  DRM/KMS driver, FreeBSD's drm-kmod drives Intel, AMD and NVIDIA hardware
+  only, and virtio-gpu KMS exists only as the open pull request
+  freebsd/drm-kmod#499 (aimed at FreeBSD 15.1, in review on 2026-09-29).
+  Whether FreeBSD's check waits for that driver, runs on real hardware, or
+  builds the module is Jens's decision (item 2f).
 - Container identity (Flatpak, Snap) and the BSDs for the X11 proxy
   ([resolution control](slice-resolution-control.md#what-the-proxy-costs-and-what-goes-through-it-2026-09-29)).
