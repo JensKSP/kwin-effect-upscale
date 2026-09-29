@@ -7,6 +7,7 @@
 #pragma once
 
 #include <QHash>
+#include <QList>
 #include <QObject>
 #include <QPoint>
 #include <QSize>
@@ -32,8 +33,8 @@ class OutputInterface;
  * the told mode, which a game may then pick. KWin offers no hook where a
  * program creates its xdg_output, as it does for wl_output, so this watches
  * the program's new objects for one, learns which output it stands for from
- * the position KWin sends on it, and sends the told size after KWin's own
- * events, before they leave for the program. restore() sends the true size.
+ * the position KWin sends on it, and sends the told size right after KWin's
+ * own, before the done that applies them. restore() sends the true size.
  */
 class UpscaleLogicalSizes : public QObject
 {
@@ -73,6 +74,8 @@ private:
         wl_resource *resource;
         QPoint position;
         bool positioned = false;
+        // KWin has sent its own logical size on it.
+        bool sized = false;
         QString output;
     };
 
@@ -80,7 +83,9 @@ private:
     static void destroyed(wl_listener *listener, void *data);
     static void logged(void *data, wl_protocol_logger_type direction, const wl_protocol_logger_message *message);
     static void idle(void *data);
-    void answer();
+    static OutputInterface *toldOutput(const Resource &resource, const QList<OutputInterface *> &outputs);
+    // Tells the objects waiting for it; with @p done, also applies what it sent.
+    void answer(bool done);
     void forget(Client *client);
     void watchFor(Resource *resource);
 
@@ -88,6 +93,8 @@ private:
     std::vector<std::unique_ptr<Resource>> m_resources;
     wl_protocol_logger *m_logger = nullptr;
     wl_event_source *m_idle = nullptr;
+    // Set while this sends from inside the logger, which then hears its own event.
+    bool m_sending = false;
 };
 
 } // namespace KWin

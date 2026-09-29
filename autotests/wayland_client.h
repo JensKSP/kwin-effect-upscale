@@ -11,6 +11,7 @@
 #include "xdg-output-unstable-v1-client.h"
 #include "xdg-shell-client.h"
 
+#include <QList>
 #include <QSize>
 
 #include <wayland-client.h>
@@ -46,6 +47,8 @@ public:
     int advertisedScale(int output = 0) const;
     /** The logical size that output's xdg_output reported last. */
     QSize advertisedLogicalSize(int output = 0) const;
+    /** The logical size in force at each of that output's done events, in order. */
+    QList<QSize> appliedLogicalSizes(int output = 0) const;
     // Whether the compositor still offers that output. One that goes away is
     // withdrawn from the registry, and the client keeps what it bound.
     bool offered(int output) const;
@@ -76,6 +79,7 @@ private:
         QSize mode;
         int scale = 0;
         QSize logicalSize;
+        QList<QSize> appliedLogicalSizes;
         bool offered = true;
     };
 
