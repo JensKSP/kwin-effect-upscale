@@ -141,7 +141,13 @@ states now; integrated profile/launch acceptance stays with their owning slices.
    independent timed announcements and persistent statistics/developer fields.
    Apply the handbook's Debug/release defaults only to absent preferences.
    Use event-driven bounded sampling; hiding the persistent view stops its
-   sampling work, and hiding all modes releases their rendering resources.
+   own client and repaint sampling, and hiding all modes releases their
+   rendering resources, while the output's presentation sampling continues for
+   the status and the metrics. Settled 2026-09-29 against the code and a run:
+   `UpscaleDisplay::measure()` follows `RenderLoop::framePresented` whatever
+   the display shows, and with the display off the SuperTuxKart check read
+   `presented`, `frames` and `p99` from the metrics and no `client` or
+   `repaints`.
 9. Validate the existing effect with these diagnostics in both build types,
    including capture exclusion, input, output changes, locking and cleanup.
 

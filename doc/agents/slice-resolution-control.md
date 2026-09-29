@@ -1471,7 +1471,7 @@ its screen rather than left small.
 ### Auto, and the lever it would use
 
 The settings model in
-[application profiles](slice-application-profiles.md#the-methods-stay-and-auto-is-a-new-one)
+[application profiles](slice-application-profiles.md#one-method-is-six)
 gives every presentation slot an `Auto` value, and Auto is a method of its own
 rather than a choice among the existing ones. Its X11 half is the resize this
 slice already implements, with verification and a revert. Its Wayland half is

@@ -61,13 +61,15 @@ learning anything about how it works. Concretely, all of the following hold:
   through to the global profile, which is off by default.
 - **Each profile answers per presentation** - Wayland and X11, fullscreen,
   borderless and windowed - with `Auto`, a method its protocol can carry, or
-  `Off`. **An absent slot reads as `Auto` on a game profile and as `Off` on the
-  global profile.** A game profile describes a game somebody looked at, so Auto
-  has something to stand on; the global profile answers for programs nobody
-  measured, which are asked for nothing until a person sets a slot. The two
-  results for the same absent key are deliberate, and each resolver implements
-  its own: `readMethods()` in `application.cpp` for profiles,
-  `upscaleGlobalMethods()` in `settings.cpp` for the global one.
+  `Off`. **A slot a game states nothing for follows the global profile's
+  answer, and the global profile's absent slots are `Auto`**, both decided by
+  Jens on 2026-09-21 (see [one method is six](#one-method-is-six)
+  below). `readMethods()` in `application.cpp` leaves an absent slot unstated,
+  `upscaleMethodFor()` answers it with `upscaleGlobalMethods()`, and that reads
+  an absent global slot as `Auto`. What keeps a program nobody measured
+  untouched is the global profile's own switch, All applications, which is off
+  by default. Settled 2026-09-29 against the code: this bullet said an absent
+  global slot reads as `Off`, the rule the decisions below retired.
 - **The settings page is two switches and a set of preferences.** Methods live
   in a profile's details, and a person who does not open them never meets one.
 - **The editor offers Use global on every inheritable item**, reorders
@@ -1272,7 +1274,7 @@ Planned checks, not observed results:
 - Method slot tests: a method stored under the presentation it was measured
   under, an absent slot resolving to Auto, Auto distinguished from Off, slots
   offering only the methods their protocol carries, and the global profile's
-  slots defaulting to Off.
+  slots defaulting to Auto.
 - Migration tests: a stored `Automatic`, a `-1` threshold, an
   `UnknownApplications` entry and a single `Method` field each read once into
   the new form, with old keys never reinterpreted as new ones. A stored global
