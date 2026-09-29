@@ -4,10 +4,12 @@
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
-// What becomes of an advertisement when one of its two ends goes away, and a
-// client an advertisement cannot be told in full. Members of the same test
-// class. The cases about outputs and scale need a session with two outputs at
-// scale 2, which sessions.cmake starts for them, and skip in any other.
+// What becomes of an advertisement when one of its two ends goes away, a
+// client an advertisement cannot be told in full, and a surface scale asked
+// while the output's own scale changes. Members of the same test class. The
+// cases about outputs and scale need a session with two outputs at scale 2,
+// which sessions.cmake starts for them, and skip in any other; the last one
+// runs in both sessions.
 
 #include "integration_test.h"
 
@@ -23,6 +25,20 @@ void UpscaleIntegrationTest::disableOutput(int index)
     group.sync();
     const QDBusMessage reply = m_effects.call(QStringLiteral("reconfigureEffect"), QStringLiteral("upscale_test_driver"));
     group.deleteEntry("DisabledOutput");
+    group.sync();
+    QVERIFY(reply.type() != QDBusMessage::ErrorMessage);
+}
+
+// Gives every output @p scale, as System Settings would, without reconfiguring
+// the effect.
+void UpscaleIntegrationTest::setOutputScale(double scale)
+{
+    const KSharedConfig::Ptr config = KSharedConfig::openConfig(QStringLiteral("kwinrc"));
+    KConfigGroup group(config, QStringLiteral("Effect-upscale-test"));
+    group.writeEntry("OutputScale", scale);
+    group.sync();
+    const QDBusMessage reply = m_effects.call(QStringLiteral("reconfigureEffect"), QStringLiteral("upscale_test_driver"));
+    group.deleteEntry("OutputScale");
     group.sync();
     QVERIFY(reply.type() != QDBusMessage::ErrorMessage);
 }
@@ -157,4 +173,47 @@ void UpscaleIntegrationTest::anOutputVersionWithoutScaleIsLeftAlone()
     WaylandClient old(1);
     QVERIFY(old.initialize());
     QCOMPARE(old.advertisedMode(), QSize(128, 128));
+}
+
+// KWin gives a window its output's scale again whenever that scale changes. A
+// surface scale asked of it either stands through the change, or ends while
+// the window has not yet taken the output's new size and so does not cover
+// it, which depends on when the effect looks. Either way the window has to be
+// asked of the new scale, and given the new scale back when the request ends,
+// not the one it had when first asked: given the old one, it drew a smaller
+// buffer than it was asked for, and the effect took that as reached. Two
+// thirds of an output at scale 1 is a surface scale of two thirds, at scale 2
+// four thirds.
+void UpscaleIntegrationTest::aSurfaceScaleFollowsTheOutputScale()
+{
+    WaylandClient game;
+    QVERIFY(game.initialize());
+    QSocketNotifier notifier(game.descriptor(), QSocketNotifier::Read);
+    connect(&notifier, &QSocketNotifier::activated, this, [&game]() {
+        game.dispatch();
+    });
+    const int before = game.advertisedScale();
+    const int after = before == 1 ? 2 : 1;
+    const auto restore = qScopeGuard([this, before]() {
+        setOutputScale(before);
+        stopAdvertising();
+    });
+    const QDBusReply<bool> loaded = m_effects.call(QStringLiteral("loadEffect"), QStringLiteral("upscale_test_driver"));
+    QVERIFY(loaded.isValid() && loaded.value());
+    // The entry names no method, so the slot follows the global profile's,
+    // Auto, which switching the effect's requests off below turns off.
+    writeCatalogue(integrationEntry(QStringLiteral("MinimumPixels=0\n")));
+    configureResolution(true, false, Stored::Quality);
+    configureDisplay(false, false);
+    QVERIFY(game.show(QSize(128, 128)));
+    QTRY_VERIFY2(game.preferredScale() == 80 * before, qPrintable(QString::number(game.preferredScale()) + QLatin1Char('\n') + status()));
+    // Answered, so that the request stands for as long as the case needs it.
+    QVERIFY(game.show(QSize(85, 85)));
+    QVERIFY(game.presentFrames(5));
+    setOutputScale(after);
+    // At full size again, as a game given back its scale would draw.
+    QVERIFY(game.show(QSize(128, 128)));
+    QTRY_VERIFY2(game.preferredScale() == 80 * after, qPrintable(QString::number(game.preferredScale()) + QLatin1Char('\n') + status()));
+    configureResolution(false, false, Stored::Quality);
+    QTRY_VERIFY2(game.preferredScale() == 120 * after, qPrintable(QString::number(game.preferredScale()) + QLatin1Char('\n') + status()));
 }

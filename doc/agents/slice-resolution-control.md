@@ -2101,6 +2101,27 @@ outright. Observed: both cases pass on Trixie. Jens's report of Auto working on
 2026-09-21 is consistent with this: on X11 it was unaffected, and a Debug build
 keeps the effect active. Which session it was is still to be recorded.
 
+### Auto when the output's scale changes, 2026-09-29
+
+The fourth transition in the bench's table, KWin reapplying the output's scale,
+had no test, and reading `waylandscale.cpp` for the bench found it wrong. KWin
+sets a window's scale to its output's again whenever that scale changes or the
+window changes output. The effect took every such change for KWin undoing its
+request and asked again of the scale the window had when first asked, and a
+request that ended then gave that old scale back: a window asked at scale 1
+kept being asked two thirds of scale 1 on an output now at scale 2, or got
+scale 1 back there, drew a buffer smaller than the one asked for, and the effect
+took that as reached. A change KWin makes is now the window's own scale from
+then on, the one a ratio is asked of and the one given back.
+
+Whether a request stands through the change or ends while the window has not
+yet taken the output's new size depends on when the effect looks, so the new
+case `aSurfaceScaleFollowsTheOutputScale` checks where both ways end: the
+window, drawing at full size again, is asked four thirds at scale 2, and gets 2
+back when the effect stops asking. It runs in both Wayland sessions, from scale
+1 to 2 and from 2 to 1, through a scale switch added to the test driver. Against
+the old code it failed 3 of 3 in each session; with the change it passed 5 of 5.
+
 ### The X11 request path on KWin 6.6, made deterministic, 2026-09-21
 
 The X11 test on Ubuntu 26.04 failed intermittently: interleaved against

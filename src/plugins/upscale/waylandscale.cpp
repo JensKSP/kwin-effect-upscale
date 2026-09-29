@@ -71,8 +71,17 @@ void UpscaleWaylandScale::observe(Window *window)
         if (entry == m_requests.end()) {
             return;
         }
-        const double wanted = entry->original * entry->ratio;
-        if (!entry->ignored && std::abs(window->nextTargetScale() - wanted) > 0.001) {
+        // Either the value this effect set, heard back, or KWin's: the scale
+        // of the window's output, set again because the window moved or the
+        // output's scale changed. KWin's value is the window's own scale from
+        // then on, the one a ratio is asked of and the one given back.
+        const double current = window->nextTargetScale();
+        const double set = entry->ignored ? entry->original : entry->original * entry->ratio;
+        if (std::abs(current - set) <= 0.001) {
+            return;
+        }
+        entry->original = current;
+        if (!entry->ignored) {
             apply(window, *entry);
         }
     });
@@ -115,9 +124,9 @@ void UpscaleWaylandScale::request(EffectWindow *effectWindow, double ratio)
     auto entry = m_requests.find(window);
     if (entry == m_requests.end()) {
         Request fresh;
-        // The scale the window had before anything was asked of it. Restoring
-        // means putting this back, not assuming the output's current value,
-        // because the output may have changed since.
+        // The scale the window had before anything was asked of it, which is
+        // what it gets back. KWin setting it again while the request stands
+        // replaces it (observe()).
         fresh.original = window->nextTargetScale();
         fresh.ratio = ratio;
         entry = m_requests.insert(window, fresh);

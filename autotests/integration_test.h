@@ -35,6 +35,7 @@ private Q_SLOTS:
     void anOutputThatGoesAwayWhileAdvertised();
     void aProgramThatExitsBeforeRestoration();
     void anOutputVersionWithoutScaleIsLeftAlone();
+    void aSurfaceScaleFollowsTheOutputScale();
     void aGameThatCrashesIsLetGo_data();
     void aGameThatCrashesIsLetGo();
     void crashingGamesLeaveNothingBehind();
@@ -59,6 +60,7 @@ private:
     void writeCatalogue(const QString &contents);
     void reconfigure();
     void disableOutput(int index);
+    void setOutputScale(double scale);
     void startAdvertising(const QString &method);
     void stopAdvertising();
     void startCrashGame();

@@ -90,6 +90,17 @@ public:
 static std::atomic<int> s_effectMessages{0};
 static QtMessageHandler s_passOn = nullptr;
 
+// KWin 6.6 keeps the scale a person chose apart from the one in effect, and
+// applies the first; 6.3 has only the one.
+template<typename Changes>
+static void setScale(Changes &changes, double scale)
+{
+    changes.scale = scale;
+    if constexpr (requires { changes.scaleSetting; }) {
+        changes.scaleSetting = scale;
+    }
+}
+
 static void countEffectMessage(QtMsgType type, const QMessageLogContext &context, const QString &message)
 {
     if (context.category && std::strcmp(context.category, "kwin_effect_upscale") == 0) {
@@ -241,6 +252,17 @@ public:
             const auto outputs = kwinApp()->outputBackend()->outputs();
             for (int index = 0; index < outputs.size(); ++index) {
                 configuration.changeSet(outputs.at(index))->enabled = index != disabled;
+            }
+            workspace()->applyOutputConfiguration(configuration);
+            return;
+        }
+        if (group.hasKey("OutputScale")) {
+            // Gives every output this scale, the way System Settings does,
+            // again without reconfiguring the effect.
+            OutputConfiguration configuration;
+            const auto outputs = kwinApp()->outputBackend()->outputs();
+            for (auto *output : outputs) {
+                setScale(*configuration.changeSet(output), group.readEntry("OutputScale", 1.0));
             }
             workspace()->applyOutputConfiguration(configuration);
             return;
