@@ -1110,7 +1110,46 @@ by another of its threads, and a process's later connections were relayed
 without their prefix, so they were never switched. The session test now opens
 two connections per stand-in process.
 
-Found on the way and kept apart as 14a: when the "launcher" was itself the
-probe in fullscreen at 3840 × 2160, its window grew by 1280 × 720 on each size
-notification after the probe proper set 2560 × 1440, up to X's limit, and a
-Wine process aborted in libxcb; this happened before the change as well.
+Found on the way and kept apart as 14a: the "launcher" was a copy of the probe,
+and both copies set 2560 × 1440 with ChangeDisplaySettings (the runner's
+arguments reached neither, so both ran with their defaults); the first one's
+window then grew by 1280 × 720 on each size notification, up to X's limit,
+and a Wine process aborted in libxcb. This happened before the change as well,
+with the proxy and not without it.
+
+### Proposal prepared for KDE: a presentation transform KWin's input honours (item 29b), 2026-09-29
+
+Decided by Jens on 2026-09-29 to propose; filing is his, with 2e's report. The
+text, for KWin's issue tracker or as a merge request description:
+
+> **An effect that presents a window at another size than its surface cannot
+> tell KWin's input about it**
+>
+> An effect can draw a window's surface larger than the surface is, across its
+> output, the way an upscaler presents a game that renders at 2560 x 1440 on a
+> 3840 x 2160 output. Pointer input can follow through an input event filter,
+> which moves focus and sets the seat's surface transformation. But KWin's own
+> checks work in the surface's coordinates without it:
+> `PointerInputRedirection::applyPointerConfinement()` and
+> `updatePointerConstraints()` test the confinement and lock regions with
+> `Window::mapToLocal()`, which is `point - bufferGeometry().topLeft()`, and
+> `Window::hitTest()` does the same. So a confinement the client asks for,
+> which Wine does for every fullscreen game, keeps the pointer inside the
+> unscaled part of the picture: at 2560 x 1440 on 3840 x 2160 the pointer
+> stops at two thirds of each side (measured with Wine 10.0 on KWin 6.3.6: the
+> game's lower right beyond about 1706 x 960 was out of reach).
+>
+> Proposal: a per-window presentation transform, set by an effect through
+> `EffectWindow` and cleared when it stops presenting, which
+> `Window::mapToLocal()`, `mapFromLocal()`, `inputTransformation()` and the
+> pointer constraint checks apply after the buffer geometry. Without one set,
+> nothing changes. With it, focus, hit testing, confinement and locks all agree
+> with what the user sees, and an effect no longer has to replace KWin's
+> pointer handling in a filter to get there.
+>
+> Until then the upscaler maps the pointer one to one while a confinement is
+> engaged, so the game reaches all of its window, and a system cursor, where
+> one is shown, is drawn where KWin keeps it rather than where the game draws
+> its own.
+
+The measurements behind it are the section on the confined pointer above.

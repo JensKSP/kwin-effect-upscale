@@ -4743,3 +4743,37 @@ tests without skips. GCC's hook initially reported files changing during its
 successful test run because runner edits were still in progress; its final
 compilation and the subsequent Clang check completed normally. The VM has
 been shut down.
+
+### Report prepared for KDE: a window withdrawn at once stays mapped (item 2e), 2026-09-29
+
+Agreed with Jens on 2026-09-28 to report this to KDE; filing is his. The text,
+for bugs.kde.org, product kwin, component xwayland:
+
+> **Title:** X11 window withdrawn right after mapping stays mapped (regression
+> since 6.3)
+>
+> An X11 client that maps a window and withdraws it at once, as ICCCM 4.1.4
+> describes (UnmapWindow, then a synthetic UnmapNotify sent to the root with
+> SubstructureRedirect | SubstructureNotify), expects the window to end up
+> withdrawn and to receive the UnmapNotify for it. A toolkit popup shown and
+> hidden in one go does this.
+>
+> KWin 6.3.6 (Debian 13, Xwayland 24.1.6) withdraws the window, 3 runs of 3.
+> KWin 6.6.6 (Kubuntu 26.04, Xwayland 24.1.10) and KWin master of 2026-09-28
+> with Xwayland 24.1.10 and 24.1.8 leave it mapped, 3 of 3, and the client
+> receives no UnmapNotify. Reproduced in a nested session with QPainter
+> compositing (`KWIN_COMPOSE=Q`) and no third-party effect:
+> `dbus-run-session -- kwin_wayland --virtual --xwayland --width 1920
+> --height 1080 --no-lockscreen --no-global-shortcuts --no-kactivities
+> --exit-with-session ./withdraw`.
+>
+> Reproducer (C, xcb): create a 640 x 480 window with StructureNotify, map it,
+> unmap it, send the synthetic UnmapNotify to the root, flush, then collect
+> events for two seconds and report the window's map state and the number of
+> MapNotify and UnmapNotify received. Expected: map state Unmapped, one
+> UnmapNotify. Actual on 6.6: map state Viewable, no UnmapNotify.
+
+The reproducer is `build/withdraw-repro/withdraw.c` with `run.sh`; its source
+goes into the report as an attachment. The second finding of 2e, a
+QPointingDevice and an OffscreenQuickView leaked per crashing X11 client on
+6.3.6, is not reported, as agreed; it stays suppressed in `autotests/lsan.supp`.

@@ -138,6 +138,8 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   **Agreed with Jens 2026-09-28:** (a) report to KDE, later: prepare the
   report text with the reproducer then; filing is Jens's call. (b) not reported,
   stays suppressed and documented.
+  **Report text prepared 2026-09-29** in the resolution-control slice, with the
+  measured versions and the reproducer's command; filing is Jens's.
 
 - **2f.** **impl, test** – Install every package in a standard installation of
   every system it is built for, and show the effect works without further
@@ -307,13 +309,14 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   2560 × 1440 window for 60 seconds while the effect presented it over the
   output. Input landing stays with 29. Recorded in the slice.
 - **14a.** **investigate** – Found 2026-09-29 while measuring 27: with two
-  fullscreen Wine programs in one prefix - the probe run as a launcher at
-  3840 × 2160, then the probe proper setting 2560 × 1440 - the launcher's
-  window grows by 1280 × 720 on every size notification up to X's limit, and a
-  Wine process then aborts in libxcb (`xcb_conn.c:323: write_vec: Assertion
-  'n == 0'`). Seen before and after 27's change, with the effect acting on
+  fullscreen Wine programs in one prefix, each setting 2560 × 1440 with
+  ChangeDisplaySettings - an unlisted copy of the probe first, the listed
+  probe 20 s later - the first one's window grows by 1280 × 720 on every size
+  notification up to X's limit, and a Wine process then aborts in libxcb
+  (`xcb_conn.c:323: write_vec: Assertion 'n == 0'`). Seen before and after
+  27's change, with the proxy and not without it, while the effect acts on
   neither window. Real launchers are not fullscreen programs; still to trace
-  which of Wine, KWin and the proxy drives the growth.
+  what in the proxy's answers drives it.
 - **15.** **fix, –** – Incoherent advertisement: `wl_output.mode` falsified beside a
     truthful `xdg_output`; recorded as a defect in shipped code, no fix
     recorded (L1363-1365, L1841-1851).
@@ -475,6 +478,8 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   its input path honours, `Window::mapToLocal()` and the pointer constraint
   checks among it, so that a confined pointer is checked in the picture the
   effect presents. Prepared with the report of 2e; filing is Jens's call.
+  **Proposal text prepared 2026-09-29** in the Proton slice, naming the places
+  in KWin 6.3.6 that check without the presentation; filing is Jens's.
 - **30.** **test, S** – Wreckfest on wzpc through the proxy (L468-472, L925-927).
 - **31.** **test, S** – One Wine game outside Steam (L328-330).
 - **32.** **decide/impl** – Legacy Wine guards and the Helper1 path: remove or keep
