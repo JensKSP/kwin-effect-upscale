@@ -14,7 +14,22 @@ ENV DEBIAN_FRONTEND=noninteractive
 COPY debian/control /tmp/upscale-debian-control
 WORKDIR /tmp
 
-RUN test -n "$DEPENDENCY_EPOCH" && apt-get update && apt-get install --no-install-recommends -y \
+# neon's archive is rebuilt all day, and apt refuses indexes caught in the
+# middle of a sync ("File has unexpected size ... Mirror sync in progress?"):
+# the nightly of 2026-09-29 fetched them 80 seconds after a new Release file,
+# and apt gave up at once. So each step that downloads is tried again after a
+# pause, up to four times.
+RUN test -n "$DEPENDENCY_EPOCH" \
+    && fetch() { \
+        for pause in 30 60 120 -; do \
+            "$@" && return; \
+            [ "$pause" != - ] || return 1; \
+            echo "Trying again in $pause seconds: $*" >&2; \
+            sleep "$pause"; \
+        done; \
+    } \
+    && fetch apt-get update \
+    && fetch apt-get install --no-install-recommends -y \
         build-essential \
         ca-certificates \
         devscripts \
@@ -23,7 +38,7 @@ RUN test -n "$DEPENDENCY_EPOCH" && apt-get update && apt-get install --no-instal
         ccache \
         pipx \
         git \
-    && mk-build-deps --install --remove \
+    && fetch mk-build-deps --install --remove \
         --tool "apt-get --no-install-recommends -y" upscale-debian-control \
     && rm -rf /var/lib/apt/lists/*
 
