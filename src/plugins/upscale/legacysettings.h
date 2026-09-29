@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <array>
 #include <optional>
 
 #include "settings.h"
@@ -61,6 +62,19 @@ bool upscaleLegacyUnlisted(const KConfigGroup &global);
  * honoured as it was meant until a person changes it deliberately.
  */
 bool upscaleLegacySwitchedOff(const KConfigGroup &global);
+
+/**
+ * The display's corners, for its messages, statistics and developer blocks in
+ * that order: @p current, unless the old OsdPosition key is stored and no new
+ * statistics position has replaced it.
+ *
+ * The old display moved one block, its statistics; the message and the
+ * developer dump sat in corners of their own. The statistics block therefore
+ * takes the old corner, as decided on 2026-09-29, and a block that held that
+ * corner moves on to the next free one, as it would if the statistics had
+ * been dragged there.
+ */
+std::array<int, 3> upscaleLegacyCorners(const KConfigGroup &global, std::array<int, 3> current);
 
 /**
  * Remove the old keys whose meaning the new ones now carry in full.

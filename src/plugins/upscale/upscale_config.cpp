@@ -362,11 +362,11 @@ void UpscaleEffectConfig::showSettings()
     // Separated on the way in for the same reason the effect separates them:
     // a file edited by hand can name one corner twice, and the page must not
     // show two displays sharing one.
-    std::array<UpscaleCorner, 3> corners{
-        upscaleCorner(UpscaleConfig::osdAnnouncementPosition()),
-        upscaleCorner(UpscaleConfig::osdStatisticsPosition()),
-        upscaleCorner(UpscaleConfig::osdDeveloperPosition()),
-    };
+    // The previous release's single corner is read as the effect reads it.
+    const std::array<int, 3> stored = upscaleLegacyCorners(KConfigGroup(UpscaleConfig::self()->config(), QStringLiteral("Effect-upscale")),
+                                                           {UpscaleConfig::osdAnnouncementPosition(), UpscaleConfig::osdStatisticsPosition(),
+                                                            UpscaleConfig::osdDeveloperPosition()});
+    std::array<UpscaleCorner, 3> corners{upscaleCorner(stored[0]), upscaleCorner(stored[1]), upscaleCorner(stored[2])};
     upscaleSeparateCorners(corners);
     const std::array<QComboBox *, 3> positions = positionControls();
     for (std::size_t entry = 0; entry < positions.size(); ++entry) {

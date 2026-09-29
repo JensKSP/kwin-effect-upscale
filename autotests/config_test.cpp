@@ -316,6 +316,27 @@ void UpscaleConfigTest::displayDefaults()
     QCOMPARE(position->currentIndex(), int(KWin::UpscaleCorner::BottomLeft));
     module.defaults();
     QCOMPARE(position->currentIndex(), int(KWin::UpscaleCorner::TopRight));
+    module.save();
+
+    // The previous release's single corner placed its statistics. The page
+    // reads it as the effect does, the statistics taking it and the message
+    // moving on as dragging would move it, and Apply replaces it with the new
+    // keys.
+    {
+        KConfigGroup group = stored();
+        group.writeEntry("OsdPosition", int(KWin::UpscaleCorner::TopLeft));
+        group.sync();
+    }
+    module.load();
+    QCOMPARE(position->currentIndex(), int(KWin::UpscaleCorner::TopLeft));
+    QCOMPARE(announcementPosition->currentIndex(), int(KWin::UpscaleCorner::TopRight));
+    QCOMPARE(developerPosition->currentIndex(), int(KWin::UpscaleCorner::BottomRight));
+    module.save();
+    QVERIFY(!stored().hasKey("OsdPosition"));
+    QCOMPARE(stored().readEntry("OsdStatisticsPosition", -1), int(KWin::UpscaleCorner::TopLeft));
+    QCOMPARE(stored().readEntry("OsdAnnouncementPosition", -1), int(KWin::UpscaleCorner::TopRight));
+    module.defaults();
+    module.save();
 
     // Which windows the displays describe is not a build-type default: a
     // Debug build has no more reason to draw over a browser at full screen

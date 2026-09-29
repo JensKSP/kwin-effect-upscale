@@ -7,6 +7,7 @@
 #include "legacysettings.h"
 
 #include "application.h"
+#include "placement.h"
 #include "resolution.h"
 
 #include <KConfigGroup>
@@ -46,10 +47,21 @@ bool upscaleLegacySwitchedOff(const KConfigGroup &global)
     return global.hasKey("Enabled") && !global.readEntry("Enabled", true);
 }
 
+std::array<int, 3> upscaleLegacyCorners(const KConfigGroup &global, std::array<int, 3> current)
+{
+    if (!global.hasKey("OsdPosition") || global.hasKey("OsdStatisticsPosition")) {
+        return current;
+    }
+    std::array<UpscaleCorner, 3> corners{upscaleCorner(current[0]), upscaleCorner(current[1]), upscaleCorner(current[2])};
+    upscaleTakeCorner(corners, 1, upscaleCorner(global.readEntry("OsdPosition", 1)));
+    return {int(corners[0]), int(corners[1]), int(corners[2])};
+}
+
 void upscaleForgetLegacySettings(KConfigGroup &global)
 {
     global.deleteEntry("Preset");
     global.deleteEntry("UnknownApplications");
+    global.deleteEntry("OsdPosition");
 }
 
 void upscaleReadLegacyOverrides(const KConfigGroup &profile, UpscaleSettingOverrides &overrides)
