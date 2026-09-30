@@ -16,6 +16,128 @@ READ_CASES = CHECK["read_cases"]
 class VerdictTest(unittest.TestCase):
     """Exercise the failures that made the earlier VM comparison inconclusive."""
 
+    def test_recovery_from_signal_exit_is_an_improvement(self) -> None:
+        """Python reports direct signal exits as negative return codes."""
+        absent = RESULT("suite", "absent", -6, engaged=True, scaled=False, complete=False, cases={})
+        active = RESULT(
+            "suite", "active", 0, engaged=True, scaled=False, complete=True, cases={"row": "pass"}
+        )
+        verdict = COMPARE([absent, active])
+        self.assertEqual(verdict["active_differences"], [])
+        self.assertIn("active/suite/exit: -6 -> 0", verdict["improved"])
+
+    def test_baseline_crash_does_not_excuse_missing_observation(self) -> None:
+        """Every target must still load its compositor and keep its effect."""
+        absent = RESULT(
+            "suite", "absent", 134, engaged=True, scaled=False, complete=False, cases={}
+        )
+        for engaged, lost in ((False, False), (True, True)):
+            target = RESULT(
+                "suite",
+                "active",
+                134,
+                engaged=engaged,
+                scaled=False,
+                complete=False,
+                cases={},
+                effect_lost=lost,
+            )
+            self.assertIn("active/suite", COMPARE([absent, target])["invalid"])
+        absent.engaged = False
+        self.assertIn("absent/suite", COMPARE([absent])["invalid"])
+
+    def test_improvements_are_reported_without_becoming_regressions(self) -> None:
+        """A successful case and process improve on an ordinary baseline failure."""
+        absent = RESULT(
+            "suite", "absent", 1, engaged=True, scaled=False, complete=True, cases={"case": "fail"}
+        )
+        idle = RESULT(
+            "suite", "idle", 0, engaged=True, scaled=False, complete=True, cases={"case": "pass"}
+        )
+        active = RESULT(
+            "suite", "active", 0, engaged=True, scaled=False, complete=True, cases={"case": "pass"}
+        )
+        verdict = COMPARE([absent, idle, active])
+        self.assertEqual(verdict["idle_regressions"], [])
+        self.assertEqual(verdict["active_differences"], [])
+        self.assertEqual(len(verdict["improved"]), 4)
+        # An improvement beside a regression must not hide that regression.
+        absent.cases["other"] = "pass"
+        active.cases["other"] = "fail"
+        active.exit_code = 1
+        self.assertIn(
+            "suite/other: pass -> fail", COMPARE([absent, idle, active])["active_differences"]
+        )
+
+    def test_incomplete_baseline_keeps_unknown_cases_uncompared(self) -> None:
+        """Recovery cannot fabricate baseline outcomes or hide a known regression."""
+        absent = RESULT(
+            "suite",
+            "absent",
+            134,
+            engaged=True,
+            scaled=False,
+            complete=False,
+            cases={"earlier": "pass"},
+        )
+        idle = RESULT(
+            "suite",
+            "idle",
+            0,
+            engaged=True,
+            scaled=False,
+            complete=True,
+            cases={"earlier": "pass", "later": "pass"},
+        )
+        active = RESULT(
+            "suite", "active", 0, engaged=True, scaled=False, complete=True, cases=dict(idle.cases)
+        )
+        verdict = COMPARE([absent, idle, active])
+        self.assertEqual(verdict["idle_regressions"], [])
+        self.assertEqual(verdict["active_differences"], [])
+        self.assertEqual(len(verdict["uncompared"]), 2)
+        self.assertEqual(verdict["baseline_invalid"], ["absent/suite"])
+        self.assertFalse(any("later" in entry for entry in verdict["improved"]))
+        active.cases["earlier"] = "fail"
+        active.exit_code = 1
+        self.assertIn(
+            "suite/earlier: pass -> fail", COMPARE([absent, idle, active])["active_differences"]
+        )
+
+    def test_failed_setup_does_not_make_missing_cases_acceptable(self) -> None:
+        """A baseline that never exercised OpenGL is no comparison at all."""
+        absent = RESULT("suite", "absent", 1, engaged=False, scaled=False, complete=False, cases={})
+        active = RESULT(
+            "suite", "active", 0, engaged=True, scaled=False, complete=True, cases={"case": "pass"}
+        )
+        self.assertIn(
+            "suite/case: missing -> pass", COMPARE([absent, active])["active_differences"]
+        )
+
+    def test_complete_baseline_still_rejects_an_added_case(self) -> None:
+        """Only an incomplete baseline leaves later inventory unknown."""
+        absent = RESULT(
+            "suite",
+            "absent",
+            0,
+            engaged=True,
+            scaled=False,
+            complete=True,
+            cases={"earlier": "pass"},
+        )
+        active = RESULT(
+            "suite",
+            "active",
+            0,
+            engaged=True,
+            scaled=False,
+            complete=True,
+            cases={"earlier": "pass", "later": "pass"},
+        )
+        self.assertIn(
+            "suite/later: missing -> pass", COMPARE([absent, active])["active_differences"]
+        )
+
     def test_unloaded_effect_is_inconclusive(self) -> None:
         """Identical passes do not compensate for an effect that never loaded."""
         cases = {"initTestCase": "pass", "window": "pass", "cleanupTestCase": "pass"}

@@ -3003,13 +3003,25 @@ What exists is narrower than this requirement. `tools/check-conformance.py`
 runs comparisons for three X11 suites through piglit - `xts`, `render`
 (rendercheck) and `glx` - in the image built from `containers/conformance`,
 started by hand with a render device. `tools/check-wayland-conformance.py` runs
-KWin's own Wayland integration tests, unmodified, in three arms - the effect
+KWin's original Wayland integration-test assertions in three arms - the effect
 absent, loaded but acting on nothing, and acting on every program - inside
 `containers/wayland-tests`, and adds cases of its own that require a smaller
 buffer to be committed and drawn. Both need a virtual render device and are run
 in the project VM, never beside a desktop session on its GPU; neither is run by
 a workflow or the default check groups, so the gate is not yet part of the
 release workflow.
+
+The Wayland adapter configures startup and the initialization and cleanup
+fixtures that explicitly unload effects. Test bodies and assertions remain
+unchanged. Those suites reload Upscale before each test row. Destruction during
+an explicit fixture unload is recorded separately; unexpected destruction
+during a test or client teardown still invalidates the comparison.
+
+A failure that becomes a pass is reported as an improvement. When the baseline
+compositor starts but cannot finish, its missing outcomes are reported as
+uncompared, never as passes. Any baseline case whose outcome is available
+still has to be preserved, including when other outcomes are unavailable.
+A baseline that never starts the required compositor provides no comparison.
 
 The XTS runner generates the suite's execution configuration against the live
 display and saves it with each arm's results. Setup failure stops the run.
@@ -3046,7 +3058,7 @@ excluded rather than dropping it, only in the arm named:
 
 | Upstream case | Arm | Why it fails with the effect |
 | --- | --- | --- |
-| `testReinitializeCompositor` (Fade), `testAnimateToplevels` (Fade), `testAnimatePopups`, `testSwitchDesktops` (Fade Desktop), `testMinimizeUnminimize` (Magic Lamp), `testMaximizeRestore` | loaded and acting | the test asserts that exactly one effect is loaded; this one is a second |
+| `testReinitializeCompositor`, `testAnimateToplevels` and `testDontAnimatePopups` (each Fade, Glide and Scale), `testAnimatePopups`, `testAnimateUserActionsPopup`, `testAnimateDecorationTooltips`, `testSwitchDesktops` (Fade Desktop and Slide), `testMinimizeUnminimize` (Magic Lamp and Squash), `testMaximizeRestore` | loaded and acting | the test asserts that exactly one effect is loaded; this one is a second |
 | `testScreenAddRemove` | acting | a program the effect acts on is told the reduced output mode when it binds the output |
 | `testOpenClose` (input method), `testMaximizeApply`, `testMaximizeApplyNow`, `testMaximizeForce`, `testMaximizeForceTemporarily`, `testMaximizeRemember`, `testFullscreen` (server-side deco), `testMaximizedToFullscreen` (server-side deco), `testMaximizeStateRestoredAfterEnablingOutput` (Full Maximization) | acting | the effect acts on the test's window, fullscreen or covering its output without decoration; asking it for another scale, or giving the scale back, sends a configure of its own, one more than the test counts, and when it goes out depends on the frame at which the window qualifies |
 

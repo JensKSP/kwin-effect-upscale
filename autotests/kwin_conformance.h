@@ -13,9 +13,14 @@
 #include <KConfigGroup>
 #include <KSharedConfig>
 #include <QDebug>
+#include <QScopedValueRollback>
 
 namespace KWin
 {
+
+// Scoped only around explicit upstream cleanup unloads, never test bodies or
+// client teardown. Unexpected destruction keeps invalidating the comparison.
+inline bool s_upscaleConformanceFixtureUnloading = false;
 
 // Included only in a private copy of KDE's test application. The original
 // tests still own their clients and assertions. All comparison arms use the
@@ -54,7 +59,8 @@ inline void loadUpscaleConformance()
     if (!effects || !effects->isOpenGLCompositing()) {
         qFatal("Conformance requires the real OpenGL compositor in every arm");
     }
-    if (arm != QLatin1String("absent") && !effects->loadEffect(QStringLiteral("upscale"))) {
+    const bool wasLoaded = effects->isEffectLoaded(QStringLiteral("upscale"));
+    if (arm != QLatin1String("absent") && !wasLoaded && !effects->loadEffect(QStringLiteral("upscale"))) {
         qFatal("Conformance could not load the production upscale effect");
     }
     const bool loaded = effects->isEffectLoaded(QStringLiteral("upscale"));
@@ -67,9 +73,12 @@ inline void loadUpscaleConformance()
     // has to say so. KWin 6.3.6 announces an unload with no public signal,
     // but the unloaded effect is destroyed, and that is heard the same way on
     // every version.
-    if (Effect *effect = effects->findEffect(QStringLiteral("upscale"))) {
+    if (loaded && !wasLoaded) {
+        Effect *effect = effects->findEffect(QStringLiteral("upscale"));
         QObject::connect(effect, &QObject::destroyed, []() {
-            qInfo().noquote() << "UPSCALE_CONFORMANCE state loaded=0";
+            qInfo().noquote() << (s_upscaleConformanceFixtureUnloading
+                                      ? "UPSCALE_CONFORMANCE cleanup loaded=0"
+                                      : "UPSCALE_CONFORMANCE state loaded=0");
         });
     }
     // Do not poll status here: candidate queries can themselves initiate
