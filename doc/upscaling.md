@@ -3022,6 +3022,10 @@ compositor starts but cannot finish, its missing outcomes are reported as
 uncompared, never as passes. Any baseline case whose outcome is available
 still has to be preserved, including when other outcomes are unavailable.
 A baseline that never starts the required compositor provides no comparison.
+An unfinished target is attributed to that baseline only when its compositor
+engages, its effect remains loaded, and its exit code and completion state
+match the baseline. A different crash, timeout or incomplete recovery stays
+invalid independently; observed case regressions still fail either way.
 
 The XTS runner generates the suite's execution configuration against the live
 display and saves it with each arm's results. Setup failure stops the run.

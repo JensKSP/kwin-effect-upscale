@@ -270,3 +270,13 @@ separately. Both Neon compiler builds passed with warnings as errors. The
 unchanged production sources retain the approved master's clang-tidy and
 sanitizer results. Version validation returned `0.3.0`. Review and publication
 of this follow-up remain pending before the release tag.
+
+PR #24 review identified that compositor engagement alone does not attribute
+an unfinished target to its baseline. The checker now also requires matching
+exit codes and completion states before reporting that target as a baseline
+failure. A different signal, a timeout or an incomplete recovery remains
+independently invalid. Matching baseline failures remain recorded under the
+handbook's comparison policy. A regression test covers these boundaries.
+Both hook stages passed after this change, including all 15 verdict tests.
+Recomputing the retained complete runs kept the original failure and the
+corrected run's supported-scope result, with every exclusion still reported.

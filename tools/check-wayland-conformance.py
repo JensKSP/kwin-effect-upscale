@@ -296,6 +296,17 @@ def improvements(control: Result, result: Result) -> list[str]:
     return improved
 
 
+def matches_baseline_failure(control: Result, result: Result) -> bool:
+    """Keep a different crash or incomplete recovery invalid in its own right."""
+    return (
+        baseline_unavailable(control)
+        and result.engaged
+        and not result.effect_lost
+        and result.exit_code == control.exit_code
+        and result.complete == control.complete
+    )
+
+
 def compare(results: list[Result]) -> dict[str, list[str]]:
     """Reject missing or unexercised arms rather than calling them clean."""
     verdict: dict[str, list[str]] = {
@@ -334,18 +345,16 @@ def compare(results: list[Result]) -> dict[str, list[str]]:
         verdict["excluded"].extend(f"{result.arm}: {line}" for line in excluded)
     # A run the baseline cannot complete either is the system's, as a case that
     # fails both ways is: recorded, and not held against the effect.
-    unfinished = {name for name, control in baseline.items() if baseline_unavailable(control)}
-    # A baseline crash cannot excuse a missing compositor or lost effect in
-    # another arm: those are failures of the comparison, not the platform.
-    observable = {
+    # Engagement alone cannot attribute another arm's incomplete execution to
+    # the baseline. Its exit and completion state must also match; observed
+    # case differences are still checked independently above.
+    baseline_failures = {
         f"{result.arm}/{result.name}"
         for result in results
-        if result.engaged and not result.effect_lost
+        if result.name in baseline and matches_baseline_failure(baseline[result.name], result)
     }
     verdict["baseline_invalid"] = [
-        label
-        for label in verdict["invalid"]
-        if label in observable and label.split("/", 1)[1] in unfinished
+        label for label in verdict["invalid"] if label in baseline_failures
     ]
     verdict["invalid"] = [
         label for label in verdict["invalid"] if label not in verdict["baseline_invalid"]

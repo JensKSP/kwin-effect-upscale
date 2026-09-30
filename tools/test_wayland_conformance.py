@@ -26,6 +26,16 @@ class VerdictTest(unittest.TestCase):
         self.assertEqual(verdict["active_differences"], [])
         self.assertIn("active/suite/exit: -6 -> 0", verdict["improved"])
 
+    def test_baseline_crash_does_not_excuse_a_different_target_failure(self) -> None:
+        """Keep a timeout, different signal or incomplete recovery independently invalid."""
+        absent = RESULT("suite", "absent", -6, engaged=True, scaled=False, complete=False, cases={})
+        for code, complete in ((124, False), (-11, False), (0, False), (-6, True)):
+            with self.subTest(code=code, complete=complete):
+                active = RESULT(
+                    "suite", "active", code, engaged=True, scaled=False, complete=complete, cases={}
+                )
+                self.assertIn("active/suite", COMPARE([absent, active])["invalid"])
+
     def test_baseline_crash_does_not_excuse_missing_observation(self) -> None:
         """Every target must still load its compositor and keep its effect."""
         absent = RESULT(
