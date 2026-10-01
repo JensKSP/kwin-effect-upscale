@@ -243,6 +243,13 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   header whether `prePaintScreen()` takes a presentation time; yes on 6.3.6
   and 6.6.6, no on 6.7.5 and master. Built with warnings as errors against all
   four, the 6.7.5 one in the Arch package image as its recipe builds.
+- **96.** **fix, –** – Found with 95: the tests that draw do not compile
+    against KWin 6.7, whose EGL display and context factories already have
+    master's shape while its callbacks do not, and the tests chose by the
+    callbacks. No package builds tests on 6.7, so nothing broke yet.
+  **Fixed 2026-09-30:** `autotests/egl_factory.h` asks the factories'
+  declarations; the render fixture, the display test and the test driver use
+  it. All tests build on Arch's KWin 6.7.5.
 
 ## B. Resolution control – `slice-resolution-control.md`
 

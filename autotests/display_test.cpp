@@ -5,6 +5,7 @@
 */
 
 #include "display_test.h"
+#include "egl_factory.h"
 #include "placement.h"
 #include "upscaleconfig.h"
 
@@ -30,15 +31,9 @@ using namespace KWin;
 void UpscaleDisplayTest::initTestCase()
 {
     const EGLDisplay display = eglGetPlatformDisplayEXT(EGL_PLATFORM_SURFACELESS_MESA, EGL_DEFAULT_DISPLAY, nullptr);
-#if UPSCALE_RENDER_DEVICE_API
-    m_display = EglDisplay::create(display, nullptr);
+    m_display = createEglDisplay<EglDisplay>(display);
     QVERIFY(m_display);
-    m_context = EglContext::create(m_display.get(), EGL_NO_CONFIG_KHR, {});
-#else
-    m_display = EglDisplay::create(display);
-    QVERIFY(m_display);
-    m_context = EglContext::create(m_display.get(), EGL_NO_CONFIG_KHR, EGL_NO_CONTEXT);
-#endif
+    m_context = createEglContext<EglContext>(m_display.get());
     QVERIFY(m_context);
 }
 
