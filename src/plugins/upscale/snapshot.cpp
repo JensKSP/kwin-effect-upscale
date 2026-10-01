@@ -78,7 +78,7 @@ static QString processing(const UpscaleSnapshot &snapshot)
             : i18n("FSR 1, no sharpening");
     }
     if (snapshot.refusal != UpscaleRefusal::None) {
-        return i18n("not scaling: %1", refusalText(snapshot));
+        return i18nc("%1 is a reason, written as a clause", "not scaling: %1", refusalText(snapshot));
     }
     // Eligible, but no frame has come through the scaler yet.
     return i18n("not scaling yet");
@@ -295,12 +295,12 @@ static QString stateText(const UpscaleSnapshot &snapshot)
         } else if (snapshot.refusal != UpscaleRefusal::None) {
             // A selected window carries the reason its last frame was handed
             // back, which describes that frame rather than the window.
-            state = i18n("Eligible buffer; the last frame was not scaled because %1", refusalText(snapshot));
+            state = i18nc("%1 is a reason, written as a clause", "Eligible buffer; the last frame was not scaled because %1", refusalText(snapshot));
         } else {
             state = i18n("Eligible buffer; waiting for a compatible render pass.");
         }
     } else {
-        state = i18n("Inactive: %1", refusalText(snapshot));
+        state = i18nc("%1 is a reason, written as a clause", "Inactive: %1", refusalText(snapshot));
     }
     return state;
 }
@@ -309,7 +309,7 @@ QString upscaleStatusText(const UpscaleSnapshot &snapshot)
 {
     QString wish = wishText(snapshot);
     if (!snapshot.requestFailure.isEmpty()) {
-        wish += i18n("; request failed: %1", snapshot.requestFailure);
+        wish += i18nc("%1 is a reason, written as a clause", "; request failed: %1", snapshot.requestFailure);
     }
     if (const QString presentedBy = x11Presentation(snapshot); !presentedBy.isEmpty()) {
         wish += i18n("; %1", presentedBy);
@@ -369,9 +369,9 @@ QString upscaleDeveloperInformation(const UpscaleSnapshot &snapshot)
                       snapshot.advertised.isValid() ? upscaleSizeText(snapshot.advertised) : i18n("nothing")));
     if (snapshot.method == UpscaleMethod::X11Resize) {
         const QString presentedBy = x11Presentation(snapshot);
-        lines.append(i18n("X11 resize: requested %1, failure %2, %3", upscaleSizeText(snapshot.requested),
-                          snapshot.requestFailure.isEmpty() ? i18n("none reported") : snapshot.requestFailure,
-                          presentedBy.isEmpty() ? i18n("not presented") : presentedBy));
+        lines.append(i18nc("%2 is a reason, written as a clause, or none reported", "X11 resize: requested %1, failure %2, %3", upscaleSizeText(snapshot.requested),
+                           snapshot.requestFailure.isEmpty() ? i18n("none reported") : snapshot.requestFailure,
+                           presentedBy.isEmpty() ? i18n("not presented") : presentedBy));
     }
     lines.append(i18n("Configuration: %1, desired %2, sharpening %3",
                       snapshot.enabled ? i18n("enabled") : i18n("disabled"), desiredText(snapshot),

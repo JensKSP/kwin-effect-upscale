@@ -71,6 +71,7 @@ DESTDIR=%{buildroot} cmake --install build
 %{_datadir}/kwin-effect-upscale/
 %{_libdir}/libexec/kwin-upscale-x11/Xwayland
 %{_sysconfdir}/xdg/plasma-workspace/env/kwin-upscale-x11.sh
+%{_datadir}/locale/*/LC_MESSAGES/kwin_effect_upscale.mo
 
 %changelog
 * Sun Sep 20 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de> - @VERSION@-1

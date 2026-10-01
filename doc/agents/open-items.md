@@ -725,6 +725,8 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   a regular expression; an exported entry matches another user's copy. Not
   checked with two real accounts. Recorded in the slice and the handbook.
 - **49.** **impl** – Translate the catalogue notes (L514-516).
+  **Done 2026-09-30:** the six notes of the shipped list in German, French and
+  Spanish, as `Note[de]` and so on, which KConfig picks by the session's language.
 - **50.** **test, F** – Real-session validation of the recommended values; TV
     (L1253, L1261, L1386).
 - **51.** **decide → investigate, F** – Flatpak/Snap identities for STK/ETR; needs a
@@ -822,6 +824,12 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   development". Recorded in the slice.
 - **68.** **impl, S** – Translations: `Messages.sh`, `po/`, `ki18n_install`, `i18nc`,
     de/fr/es, metadata, incomplete-catalogue check (L1099-1130).
+  **Partly done 2026-09-30:** the template, `po/` with complete German, French
+  and Spanish catalogues, their installation and packaging, the translated
+  metadata, a completeness check as a hook, and `i18nc` context for the
+  refusal and failure reasons and their frames. Left: context for the developer
+  view's other fragments, a reading of each language by someone who speaks it,
+  and the per-language session acceptance. Recorded in the slice.
 - **69.** **doc/decide** – Interactive controls: not started; only a hardware gate,
     so it can never close as written (L942-1021).
   **Decided by Jens 2026-09-29:** a later feature. It stays specified in the

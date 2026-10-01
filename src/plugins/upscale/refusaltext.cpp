@@ -23,20 +23,20 @@ static QString describeEffectRefusal(UpscaleRefusal refusal)
         // Only a previous release's own off switch reaches here now: a profile
         // that is switched off takes no part in matching, so its window is
         // unlisted instead, and says so below.
-        return i18n("upscaling was switched off.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "upscaling was switched off.");
     case UpscaleRefusal::Unlisted:
         // The one line that tells being left alone apart from being broken. It
         // names both halves of the rule, so that the person reading it knows
         // there are two ways to change the answer.
-        return i18n("the application is not in the list, and “All applications” is switched off.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the application is not in the list, and “All applications” is switched off.");
     case UpscaleRefusal::BelowMinimumPixels:
-        return i18n("the screen is at or below the resolution limit.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the screen is at or below the resolution limit.");
     case UpscaleRefusal::ResourceFailure:
-        return i18n("a graphics resource could not be created; apply the settings to try again.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "a graphics resource could not be created; apply the settings to try again.");
     case UpscaleRefusal::ScreenLocked:
-        return i18n("the screen is locked.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the screen is locked.");
     case UpscaleRefusal::OtherFullScreenEffect:
-        return i18n("another fullscreen effect is active.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "another fullscreen effect is active.");
     default:
         return QString();
     }
@@ -48,27 +48,27 @@ static QString describeBufferRefusal(UpscaleRefusal refusal)
 {
     switch (refusal) {
     case UpscaleRefusal::NoBuffer:
-        return i18n("the window has not supplied a buffer yet.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the window has not supplied a buffer yet.");
     case UpscaleRefusal::EmptyBuffer:
-        return i18n("the supplied buffer is empty.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the supplied buffer is empty.");
     case UpscaleRefusal::BufferNotSmaller:
-        return i18n("the supplied buffer is not smaller than the destination.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the supplied buffer is not smaller than the destination.");
     case UpscaleRefusal::BufferBelowHalf:
-        return i18n("the supplied buffer is less than half the destination size.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the supplied buffer is less than half the destination size.");
     case UpscaleRefusal::BufferAspectRatio:
-        return i18n("the supplied buffer has a different aspect ratio than the destination.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the supplied buffer has a different aspect ratio than the destination.");
     case UpscaleRefusal::BufferNoWholeFactor:
-        return i18n("the supplied buffer is larger than the destination, so no whole-number multiple of it fits.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the supplied buffer is larger than the destination, so no whole-number multiple of it fits.");
     case UpscaleRefusal::BufferFilterRange:
-        return i18n("the whole-number factor that fits is not two, the only one FSR 1 enlarges by.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the whole-number factor that fits is not two, the only one FSR 1 enlarges by.");
     case UpscaleRefusal::TransformedBuffer:
-        return i18n("the supplied buffer is rotated or flipped.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the supplied buffer is rotated or flipped.");
     case UpscaleRefusal::CroppedBuffer:
-        return i18n("only part of the supplied buffer is displayed.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "only part of the supplied buffer is displayed.");
     case UpscaleRefusal::TranslucentContent:
-        return i18n("the supplied buffer is not fully opaque.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the supplied buffer is not fully opaque.");
     case UpscaleRefusal::UnsupportedBufferFormat:
-        return i18n("the supplied buffer format cannot be read by the scaler.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the supplied buffer format cannot be read by the scaler.");
     default:
         return QString();
     }
@@ -80,15 +80,15 @@ static QString describePassRefusal(UpscaleRefusal refusal)
 {
     switch (refusal) {
     case UpscaleRefusal::TransformedPass:
-        return i18n("this frame paints the window or the screen with a transformation.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "this frame paints the window or the screen with a transformation.");
     case UpscaleRefusal::TranslucentPass:
-        return i18n("this frame paints the window with reduced opacity.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "this frame paints the window with reduced opacity.");
     case UpscaleRefusal::AdjustedPass:
-        return i18n("this frame paints the window with adjusted brightness or saturation.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "this frame paints the window with adjusted brightness or saturation.");
     case UpscaleRefusal::ScaledPass:
-        return i18n("this frame paints at a different scale than the output.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "this frame paints at a different scale than the output.");
     case UpscaleRefusal::TransformedRenderTarget:
-        return i18n("this frame's render target has an orientation the scaler does not handle.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "this frame's render target has an orientation the scaler does not handle.");
     default:
         return QString();
     }
@@ -107,45 +107,45 @@ QString describeRefusal(UpscaleRefusal refusal)
     case UpscaleRefusal::OtherFullScreenEffect:
         return describeEffectRefusal(refusal);
     case UpscaleRefusal::SeveralCandidates:
-        return i18n("more than one fullscreen window is eligible on this output.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "more than one fullscreen window is eligible on this output.");
     case UpscaleRefusal::UnsupportedColors:
-        return i18n("this output's color handling is not supported.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "this output's color handling is not supported.");
     case UpscaleRefusal::NoWindow:
-        return i18n("there is no window to scale.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "there is no window to scale.");
     case UpscaleRefusal::NotFullScreen:
-        return i18n("the window is not fullscreen or a selected borderless window covering its output.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the window is not fullscreen or a selected borderless window covering its output.");
     case UpscaleRefusal::Closing:
-        return i18n("the window is closing.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the window is closing.");
     case UpscaleRefusal::Minimized:
-        return i18n("the window is minimized.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the window is minimized.");
     case UpscaleRefusal::OtherDesktop:
-        return i18n("the window is on another virtual desktop.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the window is on another virtual desktop.");
     case UpscaleRefusal::OtherActivity:
-        return i18n("the window is on another activity.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the window is on another activity.");
     case UpscaleRefusal::NotActive:
-        return i18n("another window on its output is active.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "another window on its output is active.");
     case UpscaleRefusal::TranslucentWindow:
-        return i18n("the window is translucent.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the window is translucent.");
     case UpscaleRefusal::NoOutput:
-        return i18n("the window is not on an output.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the window is not on an output.");
     case UpscaleRefusal::NoSurface:
-        return i18n("the window has no surface to capture.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the window has no surface to capture.");
     case UpscaleRefusal::TransformedOutput:
-        return i18n("the output is rotated or flipped.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the output is rotated or flipped.");
     case UpscaleRefusal::NotCoveringOutput:
-        return i18n("the window does not exactly cover its output.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the window does not exactly cover its output.");
     case UpscaleRefusal::TransformedWindow:
-        return i18n("the window is being transformed.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the window is being transformed.");
     case UpscaleRefusal::ChildSurfaces:
-        return i18n("the window's surface has child surfaces.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the window's surface has child surfaces.");
     case UpscaleRefusal::TransformedSurface:
-        return i18n("the window's surface is being transformed.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the window's surface is being transformed.");
     case UpscaleRefusal::OffsetSurface:
-        return i18n("the window's surface is offset inside the window.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the window's surface is offset inside the window.");
     case UpscaleRefusal::TranslucentSurface:
-        return i18n("the window's surface is translucent.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the window's surface is translucent.");
     case UpscaleRefusal::ResizedSurface:
-        return i18n("the window's surface is displayed at a different size than the window.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the window's surface is displayed at a different size than the window.");
     case UpscaleRefusal::NoBuffer:
     case UpscaleRefusal::EmptyBuffer:
     case UpscaleRefusal::BufferNotSmaller:

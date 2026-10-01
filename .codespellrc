@@ -16,6 +16,11 @@
 # word that is simply wrong is corrected in the text instead.
 #
 # inout  A GLSL storage qualifier, in the FSR shaders this effect compiles.
+#
+# A translated key, such as Note[de]= in the shipped application list, holds
+# another language, which the check would read as misspelled English, so such
+# lines are left out whole.
 
 [codespell]
 ignore-words-list = inout
+ignore-regex = ^[A-Za-z]+\[[a-z]{2,3}(_[A-Z]{2})?(@[a-z]+)?\]=.*$

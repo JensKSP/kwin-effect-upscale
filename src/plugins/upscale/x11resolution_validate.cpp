@@ -38,30 +38,30 @@ QString UpscaleX11Resolution::unmetCondition(const Request &request)
     // the particular condition that failed.
     X11Window *window = request.window;
     if (!window->output()) {
-        return i18n("the window is not on an output");
+        return i18nc("A reason, after “request failed:” or “failure”", "the window is not on an output");
     }
     SurfaceItem *surface = window->effectWindow()->windowItem()->surfaceItem();
     if (!surface) {
-        return i18n("the window has no surface to read a buffer from");
+        return i18nc("A reason, after “request failed:” or “failure”", "the window has no surface to read a buffer from");
     }
     const QSize supplied = surface->bufferSize();
     if (supplied != request.size) {
-        return i18n("the application supplied a %1 × %2 buffer where %3 × %4 was requested",
-                    supplied.width(), supplied.height(), request.size.width(), request.size.height());
+        return i18nc("A reason, after “request failed:” or “failure”", "the application supplied a %1 × %2 buffer where %3 × %4 was requested",
+                     supplied.width(), supplied.height(), request.size.width(), request.size.height());
     }
     const UpscaleApplication *application = upscaleApplicationForWindow(window);
     if (application && application->x11RequiresEmulatedMode && !upscaleX11ModeMatches(window, request.position, request.size)) {
-        return i18n("the application has not confirmed the requested resolution through its X11 mode");
+        return i18nc("A reason, after “request failed:” or “failure”", "the application has not confirmed the requested resolution through its X11 mode");
     }
     // KWin's frame is what the buffer is presented across, by Xwayland or by
     // this effect, so it has to have stayed on the output either way.
     const QRectF frame = window->frameGeometry();
     const QRectF output = window->output()->geometryF();
     if (frame != output) {
-        return i18n("the window stopped covering its output: it is %1 × %2 at %3, %4 where the output is "
-                    "%5 × %6 at %7, %8",
-                    frame.width(), frame.height(), frame.x(), frame.y(),
-                    output.width(), output.height(), output.x(), output.y());
+        return i18nc("A reason, after “request failed:” or “failure”", "the window stopped covering its output: it is %1 × %2 at %3, %4 where the output is "
+                                                                       "%5 × %6 at %7, %8",
+                     frame.width(), frame.height(), frame.x(), frame.y(),
+                     output.width(), output.height(), output.x(), output.y());
     }
     // Either Xwayland's viewport or present() has made the surface the
     // frame's size by now; which one is reported in status, not decided here.
@@ -69,8 +69,8 @@ QString UpscaleX11Resolution::unmetCondition(const Request &request)
     // in for, because KWin clips the window's paint to it.
     const QSizeF destination = surface->destinationSize();
     if (destination != frame.size()) {
-        return i18n("the supplied buffer is presented at %1 × %2 rather than at the window's %3 × %4",
-                    destination.width(), destination.height(), frame.width(), frame.height());
+        return i18nc("A reason, after “request failed:” or “failure”", "the supplied buffer is presented at %1 × %2 rather than at the window's %3 × %4",
+                     destination.width(), destination.height(), frame.width(), frame.height());
     }
     return {};
 }

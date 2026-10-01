@@ -87,6 +87,9 @@ ExecutableMatch=RegularExpression
 MethodWaylandFullScreen=Auto
 Order=10
 Note=Auto advertises the mode for OpenGL exclusive fullscreen. Vulkan desktop fullscreen follows the surface scale or, at desktop scale one, the smaller fullscreen configure.
+Note[de]=Automatisch kündigt den Modus für das exklusive OpenGL-Vollbild an. Das Vulkan-Desktop-Vollbild folgt der Oberflächenskalierung oder, bei Desktop-Skalierung eins, der kleineren Vollbildkonfiguration.
+Note[es]=Automático anuncia el modo para la pantalla completa exclusiva de OpenGL. La pantalla completa de escritorio de Vulkan sigue la escala de superficie o, con escala de escritorio uno, la configuración de pantalla completa más pequeña.
+Note[fr]=Automatique annonce le mode pour le plein écran exclusif OpenGL. Le plein écran de bureau Vulkan suit l’échelle de surface ou, à l’échelle de bureau un, la configuration plein écran plus petite.
 
 [Application-extremetuxracer]
 Name=Extreme Tux Racer
@@ -103,6 +106,9 @@ X11PrimaryOutputOnly=true
 X11RequiresEmulatedMode=true
 Order=20
 Note=Follows X11 resize requests on the primary display. Its SFML mode selection always uses that display, so requests on other displays are refused. Requested sizes must match an available mode. Its selected mode confirms that the game handled the resize; a smaller window alone can leave its rendering at the old resolution.
+Note[de]=Folgt X11-Größenänderungen auf dem primären Bildschirm. Seine SFML-Modusauswahl nutzt immer diesen Bildschirm, daher werden Anforderungen auf anderen Bildschirmen abgelehnt. Angeforderte Größen müssen einem verfügbaren Modus entsprechen. Sein gewählter Modus bestätigt, dass das Spiel die Größenänderung verarbeitet hat; ein kleineres Fenster allein kann sein Rendern bei der alten Auflösung belassen.
+Note[es]=Sigue las solicitudes de redimensionado X11 en la pantalla principal. Su selección de modo SFML usa siempre esa pantalla, por lo que se rechazan las solicitudes en otras pantallas. Los tamaños solicitados deben coincidir con un modo disponible. El modo que selecciona confirma que el juego procesó el redimensionado; una ventana más pequeña por sí sola puede dejar su renderizado en la resolución anterior.
+Note[fr]=Suit les demandes de redimensionnement X11 sur l’écran principal. Sa sélection de mode SFML utilise toujours cet écran, les demandes sur d’autres écrans sont donc refusées. Les tailles demandées doivent correspondre à un mode disponible. Le mode qu’il sélectionne confirme que le jeu a pris en compte le redimensionnement ; une fenêtre plus petite seule peut laisser son rendu à l’ancienne résolution.
 
 [Application-left4dead2]
 Name=Left 4 Dead 2
@@ -125,6 +131,9 @@ Instance=hl2_linux
 MethodX11FullScreen=X11Resize
 Order=50
 Note=Takes its fullscreen size from the window manager and never asks Xwayland for a mode, so the effect presents the resized window itself and maps pointer input to it. Measured through Steam's pressure-vessel runtime.
+Note[de]=Übernimmt seine Vollbildgröße vom Fenstermanager und fragt Xwayland nie nach einem Modus, daher stellt der Effekt das verkleinerte Fenster selbst dar und rechnet die Zeigereingabe darauf um. Gemessen in Steams Laufzeitumgebung pressure-vessel.
+Note[es]=Toma su tamaño de pantalla completa del gestor de ventanas y nunca pide un modo a Xwayland, por lo que el efecto muestra él mismo la ventana redimensionada y le convierte la entrada del puntero. Medido en el entorno de ejecución pressure-vessel de Steam.
+Note[fr]=Prend sa taille plein écran du gestionnaire de fenêtres et ne demande jamais de mode à Xwayland, l’effet affiche donc lui-même la fenêtre redimensionnée et y convertit l’entrée du pointeur. Mesuré dans l’environnement d’exécution pressure-vessel de Steam.
 
 [Application-wreckfest]
 Name=Wreckfest
@@ -139,6 +148,9 @@ WindowClass=steam_app_228380
 Instance=steam_app_228380
 Order=60
 Note=Recognized by the window class Proton gives it. In exclusive fullscreen Wine keeps its window at the monitor's size and ignores resize requests, so it still supplies the full resolution.
+Note[de]=Erkannt an der Fensterklasse, die Proton ihm gibt. Im exklusiven Vollbild hält Wine sein Fenster auf Monitorgröße und ignoriert Größenänderungen, daher liefert es weiterhin die volle Auflösung.
+Note[es]=Se reconoce por la clase de ventana que le da Proton. En pantalla completa exclusiva, Wine mantiene su ventana al tamaño del monitor e ignora las solicitudes de redimensionado, por lo que sigue entregando la resolución completa.
+Note[fr]=Reconnu par la classe de fenêtre que Proton lui donne. En plein écran exclusif, Wine garde sa fenêtre à la taille du moniteur et ignore les demandes de redimensionnement, il fournit donc toujours la pleine résolution.
 
 [Application-glmark2]
 Name=glmark2
@@ -149,6 +161,9 @@ ExecutableMatch=RegularExpression
 MethodWaylandFullScreen=AdvertisedScale
 Order=30
 Note=The advertised scale is the established path on scaled desktops. Auto also works for fresh starts at desktop scale one; changing size after startup leaves the renderer's viewport unchanged.
+Note[de]=Die angekündigte Skalierung ist der bewährte Weg auf skalierten Desktops. Automatisch funktioniert auch bei frischen Starts mit Desktop-Skalierung eins; eine Größenänderung nach dem Start lässt den Darstellungsbereich des Renderers unverändert.
+Note[es]=La escala anunciada es la vía probada en escritorios escalados. Automático también funciona en arranques nuevos con escala de escritorio uno; cambiar de tamaño tras el arranque deja sin cambios la ventana gráfica del renderizador.
+Note[fr]=L’échelle annoncée est la voie éprouvée sur les bureaux mis à l’échelle. Automatique fonctionne aussi pour les nouveaux démarrages à l’échelle de bureau un ; changer de taille après le démarrage laisse inchangée la zone d’affichage du moteur de rendu.
 
 [Application-vkmark]
 Name=vkmark
@@ -159,3 +174,6 @@ ExecutableMatch=RegularExpression
 MethodWaylandFullScreen=Auto
 Order=40
 Note=Auto advertises the smaller mode at startup and presents the resulting fullscreen surface over the output, including at desktop scale one. The client ignores later configure sizes.
+Note[de]=Automatisch kündigt beim Start den kleineren Modus an und stellt die entstehende Vollbildoberfläche über die Ausgabe dar, auch bei Desktop-Skalierung eins. Das Programm ignoriert spätere Größen aus der Konfiguration.
+Note[es]=Automático anuncia el modo más pequeño al iniciar y muestra la superficie de pantalla completa resultante sobre toda la salida, también con escala de escritorio uno. El cliente ignora los tamaños de configuración posteriores.
+Note[fr]=Automatique annonce le mode plus petit au démarrage et affiche la surface plein écran obtenue sur toute la sortie, y compris à l’échelle de bureau un. Le client ignore les tailles de configuration ultérieures.
