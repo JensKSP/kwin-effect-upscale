@@ -88,6 +88,14 @@ class TranslationCheckTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("no longer have", result.stderr)
 
+    def test_revived_obsolete(self) -> None:
+        """A translation kept only as an obsolete entry is one msgfmt drops."""
+        corner = '#~ msgctxt "A corner"\n#~ msgid "Top left"\n#~ msgstr "Oben links"\n\n'
+        self.catalogue.write_text(HEADER + RENDERS.format("Rendert mit %1") + corner)
+        result = self.check()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("obsolete entries", result.stderr)
+
     def test_placeholder(self) -> None:
         """A translation that invents a placeholder fails msgfmt's check."""
         self.catalogue.write_text(
