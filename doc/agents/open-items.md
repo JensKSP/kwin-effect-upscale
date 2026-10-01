@@ -243,6 +243,9 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   header whether `prePaintScreen()` takes a presentation time; yes on 6.3.6
   and 6.6.6, no on 6.7.5 and master. Built with warnings as errors against all
   four, the 6.7.5 one in the Arch package image as its recipe builds.
+  **Released 2026-10-01:** after #25, `v0.3.0` was recreated on its merge,
+  `3b07407`, as Jens decided, and release run 36919001697 published every
+  package. A verify-only nightly on the same tree had built and tested them.
 - **96.** **fix, –** – Found with 95: the tests that draw do not compile
     against KWin 6.7, whose EGL display and context factories already have
     master's shape while its callbacks do not, and the tests chose by the
@@ -900,6 +903,13 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
 
 - **83.** **test** – First rolling-nightly publication and a stable-tag release, with
     downloaded-asset and provenance verification.
+  **Stable half done 2026-10-01:** `v0.3.0` was published with every package,
+  and each download link in the README's *Latest release* column resolves.
+  The Trixie amd64 `.deb` and the Arch package, downloaded, match
+  `SHA256SUMS`, and GitHub holds in-toto attestations for their digests; their
+  Sigstore signatures were not checked here, where `gh` is too old for
+  `gh attestation verify` and `cosign` is not installed. Still to come: the
+  rolling nightly's first publication from `master`.
 - **84.** **test** – Outside-author pull request; live CodeRabbit approval revocation.
 - **85.** **doc** – Dependabot scheduled run is now observed (#22 today); claimed by
     both this slice and the GitHub one; pick one owner.
