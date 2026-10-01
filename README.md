@@ -388,10 +388,10 @@ what the longer list further down describes.
 | FreeBSD | amd64 | [.pkg](https://github.com/JensKSP/kwin-effect-upscale/releases/latest/download/kwin-effect-upscale-freebsd-amd64.pkg) | [.pkg](https://github.com/JensKSP/kwin-effect-upscale/releases/download/nightly/kwin-effect-upscale-freebsd-amd64.pkg) |
 
 > [!NOTE]
-> The *Nightly* column resolves once a nightly built from the current `master`
-> is published: the stable file names above are newer than the
-> nightly on the [nightly release page](https://github.com/JensKSP/kwin-effect-upscale/releases/tag/nightly),
-> which carries its packages under their versioned names only.
+> The *Nightly* column resolves once the next nightly from `master` is
+> published, which carries these stable names beside its versioned files. The
+> one on the [nightly release page](https://github.com/JensKSP/kwin-effect-upscale/releases/tag/nightly)
+> now predates the stable names and carries versioned files only.
 
 ### Packages
 
