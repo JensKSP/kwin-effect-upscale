@@ -9,9 +9,15 @@
         ],
         "Category": "Appearance",
         "Description": "Render games at a lower resolution and upscale them to the display’s native resolution for better performance.",
+        "Description[de]": "Spiele in niedrigerer Auflösung rendern und für bessere Leistung auf die native Auflösung des Bildschirms hochskalieren.",
+        "Description[es]": "Renderizar los juegos a una resolución más baja y reescalarlos a la resolución nativa de la pantalla para un mejor rendimiento.",
+        "Description[fr]": "Rendre les jeux dans une résolution plus basse et les mettre à l’échelle de la résolution native de l’écran pour de meilleures performances.",
         "EnabledByDefault": true,
         "License": "GPL-2.0-or-later",
         "Name": "Upscale",
+        "Name[de]": "Hochskalierung",
+        "Name[es]": "Reescalado",
+        "Name[fr]": "Mise à l’échelle",
         "Website": "https://github.com/JensKSP/kwin-effect-upscale"
     }
 }

@@ -1120,10 +1120,19 @@ The effect is KDE user interface and follows KDE's translation conventions.
 English is the source language; **German, French and Spanish are required**,
 and adding another language must be adding a catalogue, never a code change.
 
-These are requirements, and beyond the translation domains none of them is
-implemented yet. There is no `Messages.sh`, no `po/` directory, no
-`ki18n_install(po)` and no translated metadata, so no catalogue ships and every
-string appears in English.
+Implemented since 2026-09-30: `Messages.sh` at the repository root produces the
+template for KDE's translation scripts; `po/de`, `po/fr` and `po/es` hold
+complete catalogues, which `ki18n_install(po)` compiles and installs and every
+package ships; the plugin metadata carries the translated name and description,
+and the shipped application list its notes in the same three languages.
+`tools/check-translations.py`, a hook, extracts the template as `Messages.sh`
+does and fails when a catalogue lacks a translation, carries a fuzzy or an
+obsolete one, or fails msgfmt's check of the `%1` placeholders; with
+`--update` it merges the catalogues with the current sources first. None of
+the three catalogues has yet been read by someone who speaks its language. The refusal reasons and the X11 request's failure
+reasons carry `i18nc` context naming the frames they complete, and so do those
+frames. Still open: context for the developer view's other fragments, and the
+acceptance run in a session per language.
 
 - Every user-visible string goes through KI18n with the project's translation
   domain, `kwin_effect_upscale`, which the build defines for the effect, the

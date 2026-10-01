@@ -1231,11 +1231,23 @@ Planned checks, not observed results:
 - [x] Record the language requirements in the handbook, as requested on
   2026-09-18: KDE conventions, the four required languages, composed-string
   context, and the locale exception for pixel counts.
-- [ ] Add the template, the catalogue layout and the installation.
+- [x] Add the template, the catalogue layout and the installation, 2026-09-30:
+  `Messages.sh`, `po/<language>/kwin_effect_upscale.po`, `ki18n_install(po)`
+  and the RPM file list; Debian, Arch and FreeBSD package what is installed.
+  `tools/check-translations.py`, a hook with its own regression test, fails an
+  incomplete, fuzzy, obsolete or placeholder-breaking catalogue.
 - [ ] Give composed strings their context and split what cannot be reordered.
-- [ ] Translate German, French and Spanish, and have each read by someone who
+  Done 2026-09-30 for the refusal reasons and the X11 request's failure
+  reasons, each with a context naming the frames it completes, and for those
+  frames, whose context says %1 is a reason written as a clause. Found while
+  translating: German cannot put such a clause after "because", so "the last
+  frame was not scaled because %1" is translated with a colon in all three
+  languages. Left: the developer view's other fragments, such as the window
+  states and the buffer's way to the GPU.
+- [x] Translate German, French and Spanish, 2026-09-30: 311 strings each,
+  complete, with the catalogue notes; each still to be read by someone who
   speaks it.
-- [ ] Translate the plugin metadata.
+- [x] Translate the plugin metadata, 2026-09-30.
 - [ ] Run and record the per-language session acceptance.
 
 ### Per-game display settings on wzpc, 2026-09-23

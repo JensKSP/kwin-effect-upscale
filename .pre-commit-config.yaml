@@ -186,6 +186,16 @@ repos:
           (^|/)CMakeLists\.txt(\.in)?$
           |\.(c|cc|cpp|cxx|h|hh|hpp|glsl|frag|vert|cmake|py|sh|bash|yml|yaml|toml|ini)(\.in)?$
 
+      # Every shipped catalogue complete for the strings the sources have, so
+      # that a changed text never falls back to English mid-sentence. Needs
+      # gettext, which the containers and any KDE development machine have.
+      - id: translations
+        name: translation catalogues complete
+        entry: python3 -B tools/check-translations.py
+        language: system
+        pass_filenames: false
+        files: ^(src/.*\.(cpp|h)|po/.*\.po|Messages\.sh|tools/check-translations\.py)$
+
       # At push time, not at commit time. The linters look at what changed and
       # take a moment; the regression tests build things in temporary
       # directories and need the whole tree, which is exactly what a commit of

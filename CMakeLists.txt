@@ -224,6 +224,11 @@ include(UpscaleInstrumentation)
 
 add_subdirectory(src/plugins/upscale)
 add_subdirectory(src/x11proxy)
+
+# The translations: po/<language>/kwin_effect_upscale.po, compiled and
+# installed where KI18n looks for the domain the effect, its settings module
+# and the X11 proxy use.
+ki18n_install(po)
 # The third-party notices go with every package, with or without the settings
 # module, where they can be read offline. Beside the data rather than among a
 # distribution's documents, whose directory differs between distributions.

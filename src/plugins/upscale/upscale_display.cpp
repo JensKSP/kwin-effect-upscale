@@ -141,7 +141,7 @@ QString UpscaleEffect::status() const
         window = effects->activeWindow();
     }
     if (!window) {
-        return i18n("Inactive: %1", describeRefusal(UpscaleRefusal::NoWindow));
+        return i18nc("%1 is a reason, written as a clause", "Inactive: %1", describeRefusal(UpscaleRefusal::NoWindow));
     }
     // The measurements live in the display, which is what follows one window
     // and one output for long enough to have them. This snapshot is built

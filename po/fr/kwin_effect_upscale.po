@@ -1,0 +1,1538 @@
+# French translation of kwin-effect-upscale. Not yet read by someone who
+# speaks French; see the handbook on translations.
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: GPL-2.0-or-later
+msgid ""
+msgstr ""
+"Project-Id-Version: kwin-effect-upscale\n"
+"Report-Msgid-Bugs-To: https://github.com/JensKSP/kwin-effect-upscale/issues\n"
+"POT-Creation-Date: 2026-09-29 22:57+0000\n"
+"PO-Revision-Date: 2026-09-30 00:00+0200\n"
+"Last-Translator: \n"
+"Language-Team: French\n"
+"Language: fr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#, kde-format
+msgid "X11 buffer request"
+msgstr "demande de tampon X11"
+
+#, kde-format
+msgid "no resolution request"
+msgstr "aucune demande de résolution"
+
+#, kde-format
+msgid "advertised screen mode"
+msgstr "mode d’écran annoncé"
+
+#, kde-format
+msgid "advertised screen scale"
+msgstr "échelle d’écran annoncée"
+
+#, kde-format
+msgid "advertised screen mode and scale"
+msgstr "mode et échelle d’écran annoncés"
+
+#, kde-format
+msgid "automatic, verified against what the application commits"
+msgstr "automatique, vérifié d’après ce que l’application fournit"
+
+#, kde-format
+msgid "Restore Defaults"
+msgstr "Restaurer les valeurs par défaut"
+
+#, kde-format
+msgid "Export…"
+msgstr "Exporter…"
+
+#, kde-format
+msgid "Import…"
+msgstr "Importer…"
+
+#, kde-format
+msgid "Copy Report…"
+msgstr "Copier le rapport…"
+
+#, kde-format
+msgid ""
+"Pick an application's window and copy what the effect observed of it, to "
+"send with a new entry."
+msgstr ""
+"Choisir la fenêtre d’une application et copier ce que l’effet en a observé, "
+"pour l’envoyer avec une nouvelle entrée."
+
+#, kde-format
+msgid "Contains your changes."
+msgstr "Contient vos modifications."
+
+#, kde-format
+msgid "Default list, updated with each release."
+msgstr "Liste par défaut, mise à jour à chaque version."
+
+#, kde-format
+msgid "Export Application List"
+msgstr "Exporter la liste des applications"
+
+#, kde-format
+msgid "Application lists (*.conf)"
+msgstr "Listes d’applications (*.conf)"
+
+#, kde-format
+msgid "The list could not be written to %1."
+msgstr "Impossible d’écrire la liste dans %1."
+
+#, kde-format
+msgid "Import Application List"
+msgstr "Importer une liste d’applications"
+
+#, kde-format
+msgid "%1 describes no applications."
+msgstr "%1 ne décrit aucune application."
+
+#, kde-format
+msgid "Add"
+msgstr "Ajouter"
+
+#, kde-format
+msgid "Add from Window…"
+msgstr "Ajouter depuis une fenêtre…"
+
+#, kde-format
+msgid "Remove"
+msgstr "Supprimer"
+
+#, kde-format
+msgid "Move Up"
+msgstr "Monter"
+
+#, kde-format
+msgid "Move Down"
+msgstr "Descendre"
+
+#, kde-format
+msgid "All applications"
+msgstr "Toutes les applications"
+
+#, kde-format
+msgid ""
+"Every application follows these settings unless its own entry sets them. "
+"When checked, applications that are not in the list are upscaled as well."
+msgstr ""
+"Chaque application suit ces paramètres, sauf si sa propre entrée les "
+"définit. Si cette case est cochée, les applications absentes de la liste "
+"sont aussi mises à l’échelle."
+
+#, kde-format
+msgid "New application"
+msgstr "Nouvelle application"
+
+#, kde-format
+msgid "Applications"
+msgstr "Applications"
+
+#, kde-format
+msgid "“%1” needs a program, window class or instance."
+msgstr "« %1 » nécessite un programme, une classe de fenêtre ou une instance."
+
+#, kde-format
+msgctxt "%1 is an application, %2 what is wrong with its pattern"
+msgid "The pattern in “%1” cannot be used. %2"
+msgstr "Le motif de « %1 » est inutilisable. %2"
+
+#, kde-format
+msgid "Remove your applications and changes, and restore the default list?"
+msgstr ""
+"Supprimer vos applications et modifications, et restaurer la liste par "
+"défaut ?"
+
+#, kde-format
+msgctxt "@action:button"
+msgid "Use Global Settings"
+msgstr "Utiliser les paramètres globaux"
+
+#, kde-format
+msgctxt "@info:tooltip"
+msgid ""
+"Forget every value this application sets for itself, so that it follows the "
+"global settings again."
+msgstr ""
+"Oublier toutes les valeurs que cette application définit elle-même, pour "
+"qu’elle suive de nouveau les paramètres globaux."
+
+#, kde-format
+msgid "Identification"
+msgstr "Identification"
+
+#, kde-format
+msgid "Name:"
+msgstr "Nom :"
+
+#, kde-format
+msgid "Resolution Request"
+msgstr "Demande de résolution"
+
+#, kde-format
+msgid "Resolution"
+msgstr "Résolution"
+
+#, kde-format
+msgid "Scaling"
+msgstr "Mise à l’échelle"
+
+#, kde-format
+msgid "On-Screen Display"
+msgstr "Affichage à l’écran"
+
+#, kde-format
+msgid "Added by you."
+msgstr "Ajoutée par vous."
+
+#, kde-format
+msgid "Add from Window"
+msgstr "Ajouter depuis une fenêtre"
+
+#, kde-format
+msgid "The window could not be identified: %1"
+msgstr "Impossible d’identifier la fenêtre : %1"
+
+#, kde-format
+msgid "The window does not identify its application."
+msgstr "La fenêtre n’indique pas son application."
+
+#, kde-format
+msgid "Top left"
+msgstr "En haut à gauche"
+
+#, kde-format
+msgid "Top right"
+msgstr "En haut à droite"
+
+#, kde-format
+msgid "Bottom left"
+msgstr "En bas à gauche"
+
+#, kde-format
+msgid "Bottom right"
+msgstr "En bas à droite"
+
+#, kde-format
+msgid ""
+"Each display uses its own corner. Choosing a corner in use moves the other "
+"display to the next free one."
+msgstr ""
+"Chaque affichage utilise son propre coin. Choisir un coin déjà occupé "
+"déplace l’autre affichage vers le suivant libre."
+
+#, kde-format
+msgctxt "Suffix: the unit symbol for seconds"
+msgid " s"
+msgstr " s"
+
+#, kde-format
+msgid "Show startup information for:"
+msgstr "Afficher les informations de démarrage pendant :"
+
+#, kde-format
+msgid "Startup information position:"
+msgstr "Position des informations de démarrage :"
+
+#, kde-format
+msgid ""
+"Shows the average frame rate and the slowest frames while a game is running."
+msgstr ""
+"Affiche la fréquence d’images moyenne et les images les plus lentes pendant "
+"qu’un jeu tourne."
+
+#, kde-format
+msgid "Frame rate position:"
+msgstr "Position de la fréquence d’images :"
+
+#, kde-format
+msgid "Developer information position:"
+msgstr "Position des informations de développement :"
+
+#, kde-format
+msgid ""
+"Normally the displays appear only over applications this effect acts on. "
+"This also shows them over any other window that fills its screen, such as a "
+"browser playing a video, to find out why a game is not recognized."
+msgstr ""
+"Normalement, les affichages n’apparaissent qu’au-dessus des applications sur "
+"lesquelles agit cet effet. Ceci les affiche aussi au-dessus de toute autre "
+"fenêtre qui remplit son écran, comme un navigateur lisant une vidéo, pour "
+"découvrir pourquoi un jeu n’est pas reconnu."
+
+#, kde-format
+msgid "unknown"
+msgstr "inconnu"
+
+#, kde-format
+msgid "%1 (0x%2)"
+msgstr "%1 (0x%2)"
+
+#, kde-format
+msgid "none"
+msgstr "aucun"
+
+#, kde-format
+msgid "Program:"
+msgstr "Programme :"
+
+#, kde-format
+msgid "Window class:"
+msgstr "Classe de fenêtre :"
+
+#, kde-format
+msgid "Window instance:"
+msgstr "Instance de fenêtre :"
+
+#, kde-format
+msgid "Any"
+msgstr "Quelconque"
+
+#, kde-format
+msgid "Exact match"
+msgstr "Correspondance exacte"
+
+#, kde-format
+msgid "Substring match"
+msgstr "Correspondance partielle"
+
+#, kde-format
+msgid "Regular expression"
+msgstr "Expression rationnelle"
+
+#, kde-format
+msgid ""
+"The program's full path. As a regular expression, .*/program matches that "
+"program in any folder."
+msgstr ""
+"Le chemin complet du programme. En expression rationnelle, .*/programme "
+"correspond à ce programme dans n’importe quel dossier."
+
+#, kde-format
+msgid "No open window matches."
+msgstr "Aucune fenêtre ouverte ne correspond."
+
+#, kde-format
+msgctxt "Between window titles"
+msgid ", "
+msgstr ", "
+
+#, kde-format
+msgid "Matches the open window “%2”."
+msgid_plural "Matches %1 open windows: %2"
+msgstr[0] "Correspond à la fenêtre ouverte « %2 »."
+msgstr[1] "Correspond à %1 fenêtres ouvertes : %2"
+
+#, kde-format
+msgid ""
+"It states neither a program nor a window class or instance, so it would "
+"match every window."
+msgstr ""
+"Elle n’indique ni programme, ni classe ou instance de fenêtre, et "
+"correspondrait donc à toutes les fenêtres."
+
+#, kde-format
+msgid ""
+"Its Wayland fullscreen method is sent before the window exists, so it needs "
+"a program and no window class or instance."
+msgstr ""
+"Sa méthode pour le plein écran Wayland est envoyée avant que la fenêtre "
+"n’existe, elle nécessite donc un programme et aucune classe ou instance de "
+"fenêtre."
+
+#, kde-format
+msgid "Wayland fullscreen:"
+msgstr "Plein écran Wayland :"
+
+#, kde-format
+msgid "Wayland borderless:"
+msgstr "Wayland sans bordure :"
+
+#, kde-format
+msgid "Wayland windowed:"
+msgstr "Wayland fenêtré :"
+
+#, kde-format
+msgid "X11 fullscreen:"
+msgstr "Plein écran X11 :"
+
+#, kde-format
+msgid "X11 borderless:"
+msgstr "X11 sans bordure :"
+
+#, kde-format
+msgid "X11 windowed:"
+msgstr "X11 fenêtré :"
+
+#, kde-format
+msgid "Automatic"
+msgstr "Automatique"
+
+#, kde-format
+msgctxt "A resolution request method"
+msgid "Off"
+msgstr "Désactivée"
+
+#, kde-format
+msgid "Smaller screen mode"
+msgstr "Mode d’écran plus petit"
+
+#, kde-format
+msgid "Smaller screen scale"
+msgstr "Échelle d’écran plus petite"
+
+#, kde-format
+msgid "Smaller mode and scale"
+msgstr "Mode et échelle plus petits"
+
+#, kde-format
+msgid "Smaller X11 buffer"
+msgstr "Tampon X11 plus petit"
+
+#, kde-format
+msgid "Use the measured method, or that of “All applications”"
+msgstr ""
+"Utiliser la méthode mesurée, sinon celle de « Toutes les applications »"
+
+#, kde-format
+msgid "Debug"
+msgstr "Debug"
+
+#, kde-format
+msgid "Release"
+msgstr "Release"
+
+#, kde-format
+msgid "OpenGL ES"
+msgstr "OpenGL ES"
+
+#, kde-format
+msgid "OpenGL"
+msgstr "OpenGL"
+
+#, kde-format
+msgctxt "%1 is the pattern, %2 what is wrong with it"
+msgid "“%1” is not a valid regular expression: %2"
+msgstr "« %1 » n’est pas une expression rationnelle valable : %2"
+
+#, kde-format
+msgctxt "%1 is the pattern"
+msgid "“%1” matches everything."
+msgstr "« %1 » correspond à tout."
+
+#, kde-format
+msgid "Enable the X11 proxy at login"
+msgstr "Activer le proxy X11 à la connexion"
+
+#, kde-format
+msgid ""
+"Tell recognized X11 games the smaller screen before they create a window. "
+"Switching this takes effect at the next login."
+msgstr ""
+"Indiquer l’écran plus petit aux jeux X11 reconnus avant qu’ils ne créent une "
+"fenêtre. Le changement prend effet à la prochaine connexion."
+
+#, kde-format
+msgid "Log out required: apply, then log out and back in to use the X11 proxy."
+msgstr ""
+"Déconnexion nécessaire : appliquez, puis déconnectez-vous et reconnectez-"
+"vous pour utiliser le proxy X11."
+
+#, kde-format
+msgid "X11 routing is disabled for the next login."
+msgstr "Le routage X11 est désactivé pour la prochaine connexion."
+
+#, kde-format
+msgid ""
+"Log out required: apply, then log out and back in to stop using the X11 "
+"proxy. X11 programs already running keep using it until then."
+msgstr ""
+"Déconnexion nécessaire : appliquez, puis déconnectez-vous et reconnectez-"
+"vous pour ne plus utiliser le proxy X11. Les programmes X11 déjà lancés "
+"continuent de l’utiliser jusque-là."
+
+#, kde-format
+msgid "This session was configured to use the X11 proxy."
+msgstr "Cette session a été configurée pour utiliser le proxy X11."
+
+#, kde-format
+msgid "This session uses Xwayland directly, without the proxy."
+msgstr "Cette session utilise Xwayland directement, sans le proxy."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "upscaling was switched off."
+msgstr "la mise à l’échelle a été désactivée."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid ""
+"the application is not in the list, and “All applications” is switched off."
+msgstr ""
+"l’application n’est pas dans la liste et « Toutes les applications » est "
+"désactivé."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "the screen is at or below the resolution limit."
+msgstr "l’écran est à la limite de résolution ou en dessous."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid ""
+"a graphics resource could not be created; apply the settings to try again."
+msgstr ""
+"une ressource graphique n’a pas pu être créée ; appliquez les paramètres "
+"pour réessayer."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "the screen is locked."
+msgstr "l’écran est verrouillé."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "another fullscreen effect is active."
+msgstr "un autre effet plein écran est actif."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "the window has not supplied a buffer yet."
+msgstr "la fenêtre n’a pas encore fourni de tampon."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "the supplied buffer is empty."
+msgstr "le tampon fourni est vide."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "the supplied buffer is not smaller than the destination."
+msgstr "le tampon fourni n’est pas plus petit que la destination."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "the supplied buffer is less than half the destination size."
+msgstr "le tampon fourni fait moins de la moitié de la taille de destination."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "the supplied buffer has a different aspect ratio than the destination."
+msgstr "le tampon fourni n’a pas le même rapport d’aspect que la destination."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid ""
+"the supplied buffer is larger than the destination, so no whole-number "
+"multiple of it fits."
+msgstr ""
+"le tampon fourni est plus grand que la destination, aucun multiple entier ne "
+"tient donc."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid ""
+"the whole-number factor that fits is not two, the only one FSR 1 enlarges by."
+msgstr ""
+"le facteur entier qui tient n’est pas deux, le seul par lequel FSR 1 "
+"agrandit."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "the supplied buffer is rotated or flipped."
+msgstr "le tampon fourni est pivoté ou retourné."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "only part of the supplied buffer is displayed."
+msgstr "seule une partie du tampon fourni est affichée."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "the supplied buffer is not fully opaque."
+msgstr "le tampon fourni n’est pas entièrement opaque."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "the supplied buffer format cannot be read by the scaler."
+msgstr "le format du tampon fourni ne peut pas être lu par le redimensionneur."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "this frame paints the window or the screen with a transformation."
+msgstr "cette image dessine la fenêtre ou l’écran avec une transformation."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "this frame paints the window with reduced opacity."
+msgstr "cette image dessine la fenêtre avec une opacité réduite."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "this frame paints the window with adjusted brightness or saturation."
+msgstr ""
+"cette image dessine la fenêtre avec une luminosité ou une saturation ajustée."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "this frame paints at a different scale than the output."
+msgstr "cette image dessine à une autre échelle que la sortie."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid ""
+"this frame's render target has an orientation the scaler does not handle."
+msgstr ""
+"la cible de rendu de cette image a une orientation que le redimensionneur ne "
+"gère pas."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "more than one fullscreen window is eligible on this output."
+msgstr "plus d’une fenêtre plein écran est éligible sur cette sortie."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "this output's color handling is not supported."
+msgstr "la gestion des couleurs de cette sortie n’est pas prise en charge."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "there is no window to scale."
+msgstr "il n’y a aucune fenêtre à mettre à l’échelle."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid ""
+"the window is not fullscreen or a selected borderless window covering its "
+"output."
+msgstr ""
+"la fenêtre n’est ni en plein écran, ni une fenêtre sans bordure sélectionnée "
+"couvrant sa sortie."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "the window is closing."
+msgstr "la fenêtre se ferme."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "the window is minimized."
+msgstr "la fenêtre est réduite."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "the window is on another virtual desktop."
+msgstr "la fenêtre est sur un autre bureau virtuel."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "the window is on another activity."
+msgstr "la fenêtre est dans une autre activité."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "another window on its output is active."
+msgstr "une autre fenêtre de sa sortie est active."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "the window is translucent."
+msgstr "la fenêtre est translucide."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "the window is not on an output."
+msgstr "la fenêtre n’est sur aucune sortie."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "the window has no surface to capture."
+msgstr "la fenêtre n’a aucune surface à capturer."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "the output is rotated or flipped."
+msgstr "la sortie est pivotée ou retournée."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "the window does not exactly cover its output."
+msgstr "la fenêtre ne couvre pas exactement sa sortie."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "the window is being transformed."
+msgstr "la fenêtre est en cours de transformation."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "the window's surface has child surfaces."
+msgstr "la surface de la fenêtre a des surfaces enfants."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "the window's surface is being transformed."
+msgstr "la surface de la fenêtre est en cours de transformation."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "the window's surface is offset inside the window."
+msgstr "la surface de la fenêtre est décalée dans la fenêtre."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "the window's surface is translucent."
+msgstr "la surface de la fenêtre est translucide."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid "the window's surface is displayed at a different size than the window."
+msgstr ""
+"la surface de la fenêtre est affichée à une autre taille que la fenêtre."
+
+#, kde-format
+msgctxt "A screen resolution: width by height"
+msgid "%1 × %2"
+msgstr "%1 × %2"
+
+#, kde-format
+msgid "Any screen"
+msgstr "Tout écran"
+
+#, kde-format
+msgctxt "A resolution belonging to a connected screen"
+msgid "%1 (%2)"
+msgstr "%1 (%2)"
+
+#, kde-format
+msgctxt "A threshold that matches no resolution"
+msgid "%1 pixels"
+msgstr "%1 pixels"
+
+#, kde-format
+msgid "Renders at full resolution. Nothing is upscaled."
+msgstr "Rend en pleine résolution. Rien n’est mis à l’échelle."
+
+#, kde-format
+msgctxt "A screen's name, then its resolution"
+msgid "%1 (%2)"
+msgstr "%1 (%2)"
+
+#, kde-format
+msgctxt "%1 is a screen"
+msgid "%1: not upscaled, at or below the limit"
+msgstr "%1 : pas de mise à l’échelle, à la limite ou en dessous"
+
+#, kde-format
+msgctxt "%1 is a screen, %2 × %3 the render resolution"
+msgid "%1: renders at %2 × %3"
+msgstr "%1 : rendu en %2 × %3"
+
+#, kde-format
+msgctxt "Suffix: a share of the screen's resolution"
+msgid "%"
+msgstr " %"
+
+#, kde-format
+msgctxt "Suffix: a share of the sharpening's full strength"
+msgid "%"
+msgstr " %"
+
+#, kde-format
+msgctxt "Suffix"
+msgid " pixel"
+msgid_plural " pixels"
+msgstr[0] " pixel"
+msgstr[1] " pixels"
+
+#, kde-format
+msgid "Sharpen the image"
+msgstr "Accentuer l’image"
+
+#, kde-format
+msgid "On-screen display"
+msgstr "Affichage à l’écran"
+
+#, kde-format
+msgid "Show information at startup"
+msgstr "Afficher les informations au démarrage"
+
+#, kde-format
+msgid "Include details"
+msgstr "Inclure les détails"
+
+#, kde-format
+msgid "Show frame rate"
+msgstr "Afficher la fréquence d’images"
+
+#, kde-format
+msgid "Show developer information"
+msgstr "Afficher les informations de développement"
+
+#, kde-format
+msgid "Screens at or below this resolution are left alone."
+msgstr "Les écrans à cette résolution ou en dessous sont laissés tels quels."
+
+#, kde-format
+msgctxt "sharpening strength"
+msgid "Off"
+msgstr "Désactivée"
+
+#, kde-format
+msgid "Use the value of “All applications”"
+msgstr "Utiliser la valeur de « Toutes les applications »"
+
+#, kde-format
+msgid "Render resolution:"
+msgstr "Résolution de rendu :"
+
+#, kde-format
+msgid "Resolution scale:"
+msgstr "Échelle de résolution :"
+
+#, kde-format
+msgid "Upscale on screens larger than:"
+msgstr "Mettre à l’échelle sur les écrans plus grands que :"
+
+#, kde-format
+msgid "Sharpen the image:"
+msgstr "Accentuer l’image :"
+
+#, kde-format
+msgid "Strength:"
+msgstr "Intensité :"
+
+#, kde-format
+msgid "Picture size:"
+msgstr "Taille de l’image :"
+
+#, kde-format
+msgid "Scaling filter:"
+msgstr "Filtre de mise à l’échelle :"
+
+#, kde-format
+msgid "On-screen display:"
+msgstr "Affichage à l’écran :"
+
+#, kde-format
+msgid "Show information at startup:"
+msgstr "Afficher les informations au démarrage :"
+
+#, kde-format
+msgid "Include details:"
+msgstr "Inclure les détails :"
+
+#, kde-format
+msgid "Show frame rate:"
+msgstr "Afficher la fréquence d’images :"
+
+#, kde-format
+msgid "Show developer information:"
+msgstr "Afficher les informations de développement :"
+
+#, kde-format
+msgid "Native"
+msgstr "Natif"
+
+#, kde-format
+msgid "Ultra Quality"
+msgstr "Ultra qualité"
+
+#, kde-format
+msgid "Quality"
+msgstr "Qualité"
+
+#, kde-format
+msgid "Balanced"
+msgstr "Équilibré"
+
+#, kde-format
+msgid "Performance"
+msgstr "Performance"
+
+#, kde-format
+msgid "Custom"
+msgstr "Personnalisé"
+
+#, kde-format
+msgctxt "Picture size"
+msgid "Fit to the screen"
+msgstr "Ajuster à l’écran"
+
+#, kde-format
+msgctxt "Picture size"
+msgid "Whole-number multiple"
+msgstr "Multiple entier"
+
+#, kde-format
+msgctxt "Scaling filter"
+msgid "FSR 1"
+msgstr "FSR 1"
+
+#, kde-format
+msgctxt "Scaling filter"
+msgid "Nearest neighbor"
+msgstr "Plus proche voisin"
+
+#, kde-format
+msgid ""
+"“Fit to the screen” enlarges the picture as far as the filter allows without "
+"stretching it. “Whole-number multiple” enlarges it by the largest whole "
+"factor that fits, for pixel art and older games. Both leave black bars where "
+"the picture does not fill the screen."
+msgstr ""
+"« Ajuster à l’écran » agrandit l’image autant que le filtre le permet sans "
+"la déformer. « Multiple entier » l’agrandit du plus grand facteur entier qui "
+"tient, pour le pixel art et les jeux anciens. Les deux laissent des bandes "
+"noires là où l’image ne remplit pas l’écran."
+
+#, kde-format
+msgid ""
+"FSR 1 enlarges at most two times, as a whole-number multiple exactly two "
+"times, and can sharpen. Nearest neighbor repeats each pixel exactly and "
+"enlarges by any amount."
+msgstr ""
+"FSR 1 agrandit au plus deux fois, exactement deux fois en multiple entier, "
+"et peut accentuer. Plus proche voisin répète chaque pixel à l’identique et "
+"agrandit de n’importe quelle valeur."
+
+#, kde-format
+msgid "sRGB"
+msgstr "sRGB"
+
+#, kde-format
+msgid "linear"
+msgstr "linéaire"
+
+#, kde-format
+msgid "PQ"
+msgstr "PQ"
+
+#, kde-format
+msgid "gamma 2.2"
+msgstr "gamma 2.2"
+
+#, kde-format
+msgid "Supplied format: %1."
+msgstr "Format fourni : %1."
+
+#, kde-format
+msgid "nearest neighbor"
+msgstr "plus proche voisin"
+
+#, kde-format
+msgid "FSR 1 with RCAS sharpening %1%"
+msgstr "FSR 1 avec accentuation RCAS %1 %"
+
+#, kde-format
+msgid "FSR 1, no sharpening"
+msgstr "FSR 1, sans accentuation"
+
+#, kde-format
+msgctxt "%1 is a reason, written as a clause"
+msgid "not scaling: %1"
+msgstr "pas de mise à l’échelle : %1"
+
+#, kde-format
+msgid "not scaling yet"
+msgstr "pas encore de mise à l’échelle"
+
+#, kde-format
+msgid "Upscale: detected %1"
+msgstr "Mise à l’échelle : détection de %1"
+
+#, kde-format
+msgid "Upscale: recognized %1"
+msgstr "Mise à l’échelle : reconnaissance de %1"
+
+#, kde-format
+msgid "%1 → %2, %3"
+msgstr "%1 → %2, %3"
+
+#, kde-format
+msgid "fixed refresh"
+msgstr "rafraîchissement fixe"
+
+#, kde-format
+msgid "adaptive sync"
+msgstr "synchronisation adaptative"
+
+#, kde-format
+msgid "tearing"
+msgstr "déchirement"
+
+#, kde-format
+msgid "adaptive sync with tearing"
+msgstr "synchronisation adaptative avec déchirement"
+
+#, kde-format
+msgid "Presented: %1"
+msgstr "Affiché : %1"
+
+#, kde-format
+msgid "Presented: %1/s average"
+msgstr "Affiché : %1/s en moyenne"
+
+#, kde-format
+msgid ", 1% low %1/s"
+msgstr ", 1 % low %1/s"
+
+#, kde-format
+msgid ", 99th percentile %1 ms"
+msgstr ", 99e centile %1 ms"
+
+#, kde-format
+msgid ", worst %1 ms"
+msgstr ", pire %1 ms"
+
+#, kde-format
+msgid " (%1 frame, %2)"
+msgid_plural " (%1 frames, %2)"
+msgstr[0] " (%1 image, %2)"
+msgstr[1] " (%1 images, %2)"
+
+#, kde-format
+msgid "Client buffer updates: %1"
+msgstr "Mises à jour du tampon client : %1"
+
+#, kde-format
+msgid ""
+"Client buffer updates: %1/s, compositor repaints: %2/s (%3 s sample, %4 s "
+"ago)"
+msgstr ""
+"Mises à jour du tampon client : %1/s, redessins du compositeur : %2/s "
+"(échantillon de %3 s, il y a %4 s)"
+
+#, kde-format
+msgid "on the GPU"
+msgstr "sur le GPU"
+
+#, kde-format
+msgid "through main memory"
+msgstr "par la mémoire principale"
+
+#, kde-format
+msgid "%1 (use the supplied buffer)"
+msgstr "%1 (utiliser le tampon fourni)"
+
+#, kde-format
+msgid "%1, %2% of the destination (%3)"
+msgstr "%1, %2 % de la destination (%3)"
+
+#, kde-format
+msgid "active"
+msgstr "active"
+
+#, kde-format
+msgid "not active"
+msgstr "inactive"
+
+#, kde-format
+msgid "fullscreen"
+msgstr "plein écran"
+
+#, kde-format
+msgid "not fullscreen"
+msgstr "pas en plein écran"
+
+#, kde-format
+msgid "selected"
+msgstr "sélectionnée"
+
+#, kde-format
+msgid "not selected"
+msgstr "non sélectionnée"
+
+#, kde-format
+msgid "presented by Xwayland's emulated mode"
+msgstr "affichée par le mode émulé de Xwayland"
+
+#, kde-format
+msgid "presented by this effect, pointer input mapped"
+msgstr "affichée par cet effet, entrée du pointeur convertie"
+
+#, kde-format
+msgid "%1 requested from %2 as its Wayland window size"
+msgstr "%1 demandé à %2 comme taille de fenêtre Wayland"
+
+#, kde-format
+msgid "%1 requested from %2 as its X11 window size"
+msgstr "%1 demandé à %2 comme taille de fenêtre X11"
+
+#, kde-format
+msgid "%1 × %2 requested from %3 as its surface scale"
+msgstr "%1 × %2 demandé à %3 comme échelle de surface"
+
+#, kde-format
+msgid "Native from the next start; %1 was told %2 as its screen mode"
+msgstr "Natif au prochain démarrage ; %2 a été annoncé à %1 comme mode d’écran"
+
+#, kde-format
+msgid "%1 requested from %2 as its screen mode"
+msgstr "%1 demandé à %2 comme mode d’écran"
+
+#, kde-format
+msgid ""
+"%1 requested from %2 as its screen mode, the nearest to %3 × %4 it can be "
+"told"
+msgstr ""
+"%1 demandé à %2 comme mode d’écran, le plus proche de %3 × %4 qui puisse lui "
+"être annoncé"
+
+#, kde-format
+msgid "%1 × %2 from the next start; %3 was told %4 as its screen mode"
+msgstr ""
+"%1 × %2 au prochain démarrage ; %4 a été annoncé à %3 comme mode d’écran"
+
+#, kde-format
+msgid "Native (no request)"
+msgstr "Natif (aucune demande)"
+
+#, kde-format
+msgid "%1 × %2 from the next start of %3"
+msgstr "%1 × %2 au prochain démarrage de %3"
+
+#, kde-format
+msgid "Select %1 × %2 in the game"
+msgstr "Sélectionnez %1 × %2 dans le jeu"
+
+#, kde-format
+msgid "Nearest neighbor"
+msgstr "Plus proche voisin"
+
+#, kde-format
+msgid "FSR 1, sharpening %1%"
+msgstr "FSR 1, accentuation %1 %"
+
+#, kde-format
+msgid "%2, enlarged %1 time"
+msgid_plural "%2, enlarged %1 times"
+msgstr[0] "%2, agrandi %1 fois"
+msgstr[1] "%2, agrandi %1 fois"
+
+#, kde-format
+msgid "%1, fitted into %2 with bars"
+msgstr "%1, ajusté dans %2 avec des bandes"
+
+#, kde-format
+msgctxt "%1 is a reason, written as a clause"
+msgid "Eligible buffer; the last frame was not scaled because %1"
+msgstr "Tampon éligible ; la dernière image n’a pas été mise à l’échelle : %1"
+
+#, kde-format
+msgid "Eligible buffer; waiting for a compatible render pass."
+msgstr "Tampon éligible ; en attente d’une passe de rendu compatible."
+
+#, kde-format
+msgctxt "%1 is a reason, written as a clause"
+msgid "Inactive: %1"
+msgstr "Inactif : %1"
+
+#, kde-format
+msgctxt "%1 is a reason, written as a clause"
+msgid "; request failed: %1"
+msgstr " ; échec de la demande : %1"
+
+#, kde-format
+msgid "; %1"
+msgstr " ; %1"
+
+#, kde-format
+msgid "Nothing has been presented on this screen yet."
+msgstr "Rien n’a encore été affiché sur cet écran."
+
+#, kde-format
+msgid "Presented at %1/s, %2."
+msgstr "Affiché à %1/s, %2."
+
+#, kde-format
+msgid "Desired: %1"
+msgstr "Souhaité : %1"
+
+#, kde-format
+msgid "Supplied input: %1"
+msgstr "Entrée fournie : %1"
+
+#, kde-format
+msgid "Destination: %1"
+msgstr "Destination : %1"
+
+#, kde-format
+msgid "HDR follows KWin's color management."
+msgstr "Le HDR suit la gestion des couleurs de KWin."
+
+#, kde-format
+msgctxt "A rectangle, as position and size"
+msgid "%1,%2 %3 × %4"
+msgstr "%1,%2 %3 × %4"
+
+#, kde-format
+msgid "Build: %1"
+msgstr "Compilation : %1"
+
+#, kde-format
+msgid "Runtime: %1 build, %2, built against KWin %3, Qt %4"
+msgstr "Exécution : compilation %1, %2, compilé avec KWin %3, Qt %4"
+
+#, kde-format
+msgid "Window: %1 (%2) on %3"
+msgstr "Fenêtre : %1 (%2) sur %3"
+
+#, kde-format
+msgid "Selection: %1, %2"
+msgstr "Sélection : %1, %2"
+
+#, kde-format
+msgid "not recognized"
+msgstr "non reconnue"
+
+#, kde-format
+msgid "nothing"
+msgstr "rien"
+
+#, kde-format
+msgid "Application: %1, method %2, advertised %3"
+msgstr "Application : %1, méthode %2, annoncé %3"
+
+#, kde-format
+msgid "none reported"
+msgstr "aucun signalé"
+
+#, kde-format
+msgid "not presented"
+msgstr "non affichée"
+
+#, kde-format
+msgctxt "%2 is a reason, written as a clause, or none reported"
+msgid "X11 resize: requested %1, failure %2, %3"
+msgstr "Redimensionnement X11 : demandé %1, échec %2, %3"
+
+#, kde-format
+msgid "enabled"
+msgstr "activé"
+
+#, kde-format
+msgid "disabled"
+msgstr "désactivé"
+
+#, kde-format
+msgid "RCAS %1%"
+msgstr "RCAS %1 %"
+
+#, kde-format
+msgid "off"
+msgstr "désactivée"
+
+#, kde-format
+msgid "Configuration: %1, desired %2, sharpening %3"
+msgstr "Configuration : %1, souhaité %2, accentuation %3"
+
+#, kde-format
+msgid "Coverage: window %1, output %2"
+msgstr "Couverture : fenêtre %1, sortie %2"
+
+#, kde-format
+msgid "Geometry: supplied %1, destination %2, output scale %3"
+msgstr "Géométrie : fourni %1, destination %2, échelle de sortie %3"
+
+#, kde-format
+msgid "Frame: render target orientation %1, largest texture this GPU allows %2"
+msgstr ""
+"Image : orientation de la cible de rendu %1, plus grande texture permise par "
+"ce GPU %2"
+
+#, kde-format
+msgid "failed"
+msgstr "échec"
+
+#, kde-format
+msgid "ready"
+msgstr "prêt"
+
+#, kde-format
+msgid "yes"
+msgstr "oui"
+
+#, kde-format
+msgid "no"
+msgstr "non"
+
+#, kde-format
+msgid ""
+"Processing: buffer format %1 arrived %2, resources %3, scanout blocked by "
+"this effect: %4"
+msgstr ""
+"Traitement : format de tampon %1, arrivé %2, ressources %3, balayage direct "
+"bloqué par cet effet : %4"
+
+#, kde-format
+msgid "Color: destination transfer %1, reference luminance %2 cd/m²"
+msgstr "Couleur : transfert de destination %1, luminance de référence %2 cd/m²"
+
+#, kde-format
+msgid "4K"
+msgstr "4K"
+
+#, kde-format
+msgid "1440p"
+msgstr "1440p"
+
+#, kde-format
+msgid "1080p"
+msgstr "1080p"
+
+#, kde-format
+msgid "720p"
+msgstr "720p"
+
+#, kde-format
+msgid "%1%"
+msgstr "%1 %"
+
+#, kde-format
+msgid "Wayland"
+msgstr "Wayland"
+
+#, kde-format
+msgid "X11"
+msgstr "X11"
+
+#, kde-format
+msgid "%1 FPS"
+msgstr "%1 IPS"
+
+#, kde-format
+msgctxt "The mean of the slowest hundredth of the frames, as a rate"
+msgid "1% low %1"
+msgstr "1 % low %1"
+
+#, kde-format
+msgctxt "Milliseconds per frame the game drew: its frame time"
+msgid "%1 ms/f"
+msgstr "%1 ms/i"
+
+#, kde-format
+msgid "FSR 1"
+msgstr "FSR 1"
+
+#, kde-format
+msgid "FSR 1 + RCAS"
+msgstr "FSR 1 + RCAS"
+
+#, kde-format
+msgid "%1 → %2"
+msgstr "%1 → %2"
+
+#, kde-format
+msgid "%1 native"
+msgstr "%1 natif"
+
+#, kde-format
+msgid "FSR off"
+msgstr "FSR désactivé"
+
+#, kde-format
+msgctxt "A value the effect cannot observe"
+msgid "unknown"
+msgstr "inconnu"
+
+#, kde-format
+msgid "%1 × %2"
+msgstr "%1 × %2"
+
+#, kde-format
+msgid "Copy Report"
+msgstr "Copier le rapport"
+
+#, kde-format
+msgid ""
+"The effect observed nothing of that window. The application has to be "
+"running and its window open."
+msgstr ""
+"L’effet n’a rien observé de cette fenêtre. L’application doit être en cours "
+"d’exécution et sa fenêtre ouverte."
+
+#, kde-format
+msgid ""
+"The report is on the clipboard. Fill in the marked lines and send it with "
+"the application form."
+msgstr ""
+"Le rapport est dans le presse-papiers. Complétez les lignes marquées et "
+"envoyez-le avec le formulaire d’application."
+
+#, kde-format
+msgid "Show for every fullscreen window"
+msgstr "Afficher pour chaque fenêtre plein écran"
+
+#, kde-format
+msgid "X11 Session"
+msgstr "Session X11"
+
+#, kde-format
+msgid "About"
+msgstr "À propos"
+
+#, kde-format
+msgid "Version:"
+msgstr "Version :"
+
+#, kde-format
+msgid "Authors:"
+msgstr "Auteurs :"
+
+#, kde-format
+msgid "Author:"
+msgstr "Auteur :"
+
+#, kde-format
+msgid ""
+"Screens at or below this resolution are left alone. An application can set "
+"its own limit."
+msgstr ""
+"Les écrans à cette résolution ou en dessous sont laissés tels quels. Une "
+"application peut définir sa propre limite."
+
+#, kde-format
+msgid ""
+"Share of the screen's width and height the game renders at. Snaps to the "
+"common resolutions of %1."
+msgstr ""
+"Part de la largeur et de la hauteur de l’écran à laquelle le jeu effectue "
+"son rendu. S’aligne sur les résolutions courantes de %1."
+
+#, kde-format
+msgid "Unknown"
+msgstr "Inconnu"
+
+#, kde-format
+msgctxt "A reason, after “request failed:” or “failure”"
+msgid ""
+"Wine programs are told a smaller screen only by the X11 session proxy, which "
+"did not answer this one"
+msgstr ""
+"les programmes Wine ne se voient indiquer un écran plus petit que par le "
+"proxy de session X11, qui n’a pas répondu à celui-ci"
+
+#, kde-format
+msgctxt "A reason, after “request failed:” or “failure”"
+msgid "this application's X11 mode selection only supports the primary output"
+msgstr ""
+"la sélection de mode X11 de cette application ne prend en charge que la "
+"sortie principale"
+
+#, kde-format
+msgctxt "A reason, after “request failed:” or “failure”"
+msgid "the requested X11 mode is unavailable on this output"
+msgstr "le mode X11 demandé n’est pas disponible sur cette sortie"
+
+#, kde-format
+msgctxt "A reason, after “request failed:” or “failure”"
+msgid ""
+"the application repeatedly replaced its window without accepting the request"
+msgstr ""
+"l’application a remplacé sa fenêtre à plusieurs reprises sans accepter la "
+"demande"
+
+#, kde-format
+msgctxt "A reason, after “request failed:” or “failure”"
+msgid "the window is not on an output"
+msgstr "la fenêtre n’est sur aucune sortie"
+
+#, kde-format
+msgctxt "A reason, after “request failed:” or “failure”"
+msgid "the window has no surface to read a buffer from"
+msgstr "la fenêtre n’a aucune surface d’où lire un tampon"
+
+#, kde-format
+msgctxt "A reason, after “request failed:” or “failure”"
+msgid "the application supplied a %1 × %2 buffer where %3 × %4 was requested"
+msgstr ""
+"l’application a fourni un tampon de %1 × %2 là où %3 × %4 était demandé"
+
+#, kde-format
+msgctxt "A reason, after “request failed:” or “failure”"
+msgid ""
+"the application has not confirmed the requested resolution through its X11 "
+"mode"
+msgstr "l’application n’a pas confirmé la résolution demandée par son mode X11"
+
+#, kde-format
+msgctxt "A reason, after “request failed:” or “failure”"
+msgid ""
+"the window stopped covering its output: it is %1 × %2 at %3, %4 where the "
+"output is %5 × %6 at %7, %8"
+msgstr ""
+"la fenêtre ne couvre plus sa sortie : elle fait %1 × %2 en %3, %4 alors que "
+"la sortie fait %5 × %6 en %7, %8"
+
+#, kde-format
+msgctxt "A reason, after “request failed:” or “failure”"
+msgid ""
+"the supplied buffer is presented at %1 × %2 rather than at the window's %3 × "
+"%4"
+msgstr ""
+"le tampon fourni est affiché en %1 × %2 au lieu des %3 × %4 de la fenêtre"
+
+#, kde-format
+msgid "Upscale"
+msgstr "Mise à l’échelle"
+
+#, kde-format
+msgid "Log out required"
+msgstr "Déconnexion nécessaire"
+
+#, kde-format
+msgid ""
+"Log out and back in to remove the X11 proxy. X11 programs already running "
+"keep using it until then."
+msgstr ""
+"Déconnectez-vous et reconnectez-vous pour retirer le proxy X11. Les "
+"programmes X11 déjà lancés continuent de l’utiliser jusque-là."
