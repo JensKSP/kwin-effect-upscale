@@ -95,6 +95,13 @@ def problems(catalogue: Path, pot: Path, scratch: Path) -> list[str]:
     checked = run("msgfmt", "--check", "-o", "/dev/null", str(catalogue))
     if checked.returncode != 0:
         found.append(checked.stderr.strip())
+    # msgfmt leaves an obsolete entry out of the compiled catalogue, while the
+    # merge below would revive it for a string the sources have again and so
+    # count it as translated: one is a translation the user never gets.
+    shipped = run("msgattrib", "--only-obsolete", str(catalogue)).stdout
+    shipped_obsolete = len(re.findall(r"^#~ msgid ", shipped, flags=re.MULTILINE))
+    if shipped_obsolete:
+        found.append(f"{shipped_obsolete} obsolete entries, which msgfmt leaves out")
     merged = scratch / f"{catalogue.parent.name}.po"
     result = run(
         "msgmerge", "--quiet", "--no-fuzzy-matching", "-o", str(merged), str(catalogue), str(pot)
