@@ -37,12 +37,23 @@ SCALE_CONFIGURE = (
     "back, sends a configure of its own, one more than the test counts"
 )
 LOADED_EFFECTS_CASES = (
-    "kwin-testDontCrashReinitializeCompositor/testReinitializeCompositor:Fade",
-    "kwin-testToplevelOpenCloseAnimation/testAnimateToplevels:Fade",
-    "kwin-testPopupOpenCloseAnimation/testAnimatePopups",
     "kwin-testDesktopSwitchingAnimation/testSwitchDesktops:Fade Desktop",
-    "kwin-testMinimizeAnimation/testMinimizeUnminimize:Magic Lamp",
+    "kwin-testDesktopSwitchingAnimation/testSwitchDesktops:Slide",
+    "kwin-testDontCrashReinitializeCompositor/testReinitializeCompositor:Fade",
+    "kwin-testDontCrashReinitializeCompositor/testReinitializeCompositor:Glide",
+    "kwin-testDontCrashReinitializeCompositor/testReinitializeCompositor:Scale",
     "kwin-testMaximizeAnimation/testMaximizeRestore",
+    "kwin-testMinimizeAnimation/testMinimizeUnminimize:Magic Lamp",
+    "kwin-testMinimizeAnimation/testMinimizeUnminimize:Squash",
+    "kwin-testPopupOpenCloseAnimation/testAnimateDecorationTooltips",
+    "kwin-testPopupOpenCloseAnimation/testAnimatePopups",
+    "kwin-testPopupOpenCloseAnimation/testAnimateUserActionsPopup",
+    "kwin-testToplevelOpenCloseAnimation/testAnimateToplevels:Fade",
+    "kwin-testToplevelOpenCloseAnimation/testAnimateToplevels:Glide",
+    "kwin-testToplevelOpenCloseAnimation/testAnimateToplevels:Scale",
+    "kwin-testToplevelOpenCloseAnimation/testDontAnimatePopups:Fade",
+    "kwin-testToplevelOpenCloseAnimation/testDontAnimatePopups:Glide",
+    "kwin-testToplevelOpenCloseAnimation/testDontAnimatePopups:Scale",
 )
 SCALE_CONFIGURE_CASES = (
     "kwin-testInputMethod/testOpenClose",
@@ -204,6 +215,11 @@ def run_test(name: str, command: list[str], arm: str, run: Run) -> Result:
         return result
 
 
+def baseline_unavailable(control: Result) -> bool:
+    """Identify an engaged compositor that leaves some cases uncomparable."""
+    return control.engaged and not control.effect_lost and not exercised(control)
+
+
 def differences(control: Result, result: Result) -> tuple[list[str], list[str]]:
     """Describe changed outcomes without treating missing cases as passes.
 
@@ -218,6 +234,13 @@ def differences(control: Result, result: Result) -> tuple[list[str], list[str]]:
         after = result.cases.get(case, "missing")
         if before == after:
             continue
+        # A passing assertion cannot be a regression from a recorded failure
+        # or skip. A crashed baseline supplies no outcome for its missing rows;
+        # report those comparisons separately rather than calling them passes.
+        if after == "pass" and before != "missing":
+            continue
+        if before == "missing" and baseline_unavailable(control):
+            continue
         if result.arm == "active" or before == "pass" or "missing" in (before, after):
             line = f"{result.name}/{case}: {before} -> {after}"
             arms, reason = EXCLUDED.get(f"{result.name}/{case}", ((), ""))
@@ -227,7 +250,10 @@ def differences(control: Result, result: Result) -> tuple[list[str], list[str]]:
                 changed.append(line)
     if result.exit_code != control.exit_code:
         line = f"{result.name}/exit: {control.exit_code} -> {result.exit_code}"
-        (excluded if excluded and not changed else changed).append(line)
+        if excluded and not changed:
+            excluded.append(line)
+        elif changed or result.exit_code != 0 or control.exit_code == 0:
+            changed.append(line)
     return changed, excluded
 
 
@@ -257,6 +283,30 @@ def exercised(result: Result) -> bool:
     return not result.effect_lost
 
 
+def improvements(control: Result, result: Result) -> list[str]:
+    """Report observed recoveries separately from regressions and missing outcomes."""
+    label = f"{result.arm}/{result.name}"
+    improved = [
+        f"{label}/{case}: {control.cases[case]} -> pass"
+        for case in sorted(control.cases.keys() & result.cases.keys())
+        if control.cases[case] != "pass" and result.cases[case] == "pass"
+    ]
+    if control.exit_code != 0 and result.exit_code == 0:
+        improved.append(f"{label}/exit: {control.exit_code} -> 0")
+    return improved
+
+
+def matches_baseline_failure(control: Result, result: Result) -> bool:
+    """Keep a different crash or incomplete recovery invalid in its own right."""
+    return (
+        baseline_unavailable(control)
+        and result.engaged
+        and not result.effect_lost
+        and result.exit_code == control.exit_code
+        and result.complete == control.complete
+    )
+
+
 def compare(results: list[Result]) -> dict[str, list[str]]:
     """Reject missing or unexercised arms rather than calling them clean."""
     verdict: dict[str, list[str]] = {
@@ -266,6 +316,8 @@ def compare(results: list[Result]) -> dict[str, list[str]]:
         "active_differences": [],
         "excluded": [],
         "scaled": [],
+        "improved": [],
+        "uncompared": [],
     }
     baseline = {result.name: result for result in results if result.arm == "absent"}
     for result in results:
@@ -284,21 +336,25 @@ def compare(results: list[Result]) -> dict[str, list[str]]:
         if not control:
             verdict["invalid"].append(f"{label}: missing baseline")
             continue
+        if baseline_unavailable(control):
+            verdict["uncompared"].append(f"{label}: baseline did not complete")
+        verdict["improved"].extend(improvements(control, result))
         key = "idle_regressions" if result.arm == "idle" else "active_differences"
         changed, excluded = differences(control, result)
         verdict[key].extend(changed)
         verdict["excluded"].extend(f"{result.arm}: {line}" for line in excluded)
     # A run the baseline cannot complete either is the system's, as a case that
     # fails both ways is: recorded, and not held against the effect.
-    unfinished = {
-        label.split("/", 1)[1]
-        for label in verdict["invalid"]
-        if label.startswith("absent/") and ":" not in label
+    # Engagement alone cannot attribute another arm's incomplete execution to
+    # the baseline. Its exit and completion state must also match; observed
+    # case differences are still checked independently above.
+    baseline_failures = {
+        f"{result.arm}/{result.name}"
+        for result in results
+        if result.name in baseline and matches_baseline_failure(baseline[result.name], result)
     }
     verdict["baseline_invalid"] = [
-        label
-        for label in verdict["invalid"]
-        if ":" not in label and label.split("/", 1)[1] in unfinished
+        label for label in verdict["invalid"] if label in baseline_failures
     ]
     verdict["invalid"] = [
         label for label in verdict["invalid"] if label not in verdict["baseline_invalid"]

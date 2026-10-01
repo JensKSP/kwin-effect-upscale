@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Copy packaged KWin sources and adapt only integration-test startup.
+"""Copy packaged KWin sources and adapt integration-test startup and cleanup fixtures.
 
 Run in containers/wayland-tests. Test bodies and production KWin sources are
 unchanged. The prepared source is disposable build output, never a checkout
@@ -11,6 +11,8 @@ whose upstream changes could be mistaken for changes to this effect.
 import argparse
 import shutil
 from pathlib import Path
+
+from kwin_conformance_fixtures import adapt_fixtures
 
 
 def replace_once(path: Path, old: str, new: str) -> None:
@@ -47,6 +49,7 @@ def main() -> None:
     integration = args.out / "autotests/integration"
     copy_changed(project / "autotests/kwin_conformance.h", integration / "kwin_conformance.h")
     copy_changed(project / "autotests/kwin_scaling_test.cpp", integration / "kwin_scaling_test.cpp")
+    adapt_fixtures(integration)
     application = integration / "kwin_wayland_test.cpp"
     if not args.refresh:
         replace_once(

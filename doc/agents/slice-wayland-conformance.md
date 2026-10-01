@@ -185,3 +185,98 @@ up in 44 seconds with cloud-init done and no error; `load`, `prepare-kwin` and
 `production` followed, and `testUpscaleProduction` passed all 17 outcomes with
 the effect built from the working tree (`7471d46`, with the day's changes) and
 loaded, on KWin 4:6.3.6-1 built from Debian's source package.
+
+### Release comparison and fixture lifetime, 2026-09-30
+
+PR #23 was approved by CodeRabbit and merged as `312c07c`; its tree matches
+reviewed head `d684baa`. CI on the merged commit passed. The release remains
+untagged because the full Wayland comparison did not qualify.
+
+`build/release-conformance/wayland-0.3.0-final/` ran all 246 upstream
+invocations plus production scaling. Nine suites explicitly unload every
+effect in cleanup. The startup-only adapter therefore loses Upscale after
+their first row: 18 loaded/active invocations are invalid. This confirms why
+the older `full-5` comparison, made before unload detection worked, cannot
+supply current release acceptance. The original failed comparison is retained.
+
+The same run recorded an idle failure of `testUnresponsiveWindow:xdg display`
+at the upstream elapsed-time assertion. Six serial controls, ordered absent,
+idle, active and then active, idle, absent, reproduced that exact assertion
+failure once without the effect and once with it idle; the other four
+invocations passed. All six completed with the intended effect state. Results
+are under `build/release-conformance/wayland-timing-controls-0.3.0/`. This
+demonstrates baseline timing instability, not a passing release comparison.
+
+A proposed fixture adapter is being validated in the disposable prepared
+source. It reloads Upscale before each affected row and distinguishes explicit
+fixture unloads from unexpected effect destruction. Three adapter checks
+passed against the actual upstream fixtures: original test bodies retained,
+idempotent refresh, and rejection of changed cleanup code. The header passed
+a syntax check with KWin's compiler flags; the upstream test executables
+rebuilt successfully in the maintained Trixie container. The complete
+comparison ran under `build/release-conformance/wayland-fixture-proposal-0.3.0/`,
+using a saved copy of the merged production plugin. All 246 upstream
+invocations and production scaling ran. No loaded-effect invocation is invalid
+with the correction. Sliding Popups, for example, passed all 22 outcomes;
+its XML records Upscale loaded in every one of its 20 test rows.
+
+The comparison originally returned failure: later rows now reach the same
+exactly-one-effect assertions as the first rows, and the checker labels
+baseline failures becoming passes as differences. Every additional effect-count
+failure was checked in the XML: actual two, expected one. The proposed named
+list now includes all 17 affected rows under the existing effect-count scope.
+The handbook lists the same rows.
+
+The proposed checker reports improvements separately. Missing outcomes from an
+engaged baseline that cannot finish remain explicitly uncompared; recorded
+baseline passes still cannot regress. New cases against a complete baseline
+and a control that never engages still fail. Its 12 tests passed in the
+maintained container, including regressions beside improvements and known
+regressions beside unavailable baseline outcomes.
+
+Recomputed against the retained full results, the proposed checker still
+rejects the original run: 18 invalid invocations and the idle timing difference.
+For the corrected-fixture run it reports no invalid invocation, no idle
+regression and no active difference; 53 named excluded outcomes, five
+improvements and four comparisons with unavailable baseline results remain
+visible. Input Method aborted in absent and idle, then completed in active;
+Input Capture aborted in every arm. Production scaling passed. These are
+proposal validation results, not acceptance of a published harness revision.
+
+The companion X11 release checks completed: Render compared 23 cases and GLX
+120 with no regression. XTS completed all 4,858 cases in each of its three
+arms with no missing or added cases and no regression. The unchanged-proxy
+arm exactly matched the baseline; four image-transfer cases improved with
+scaling. These results remain under `build/release-conformance/*-0.3.0-final/`.
+
+Jens approved the follow-up branch on 2026-09-30. The correction is now on
+`release/0.3.0-conformance`, based on updated master. The checker also keeps
+unobserved compositors and unexpected effect loss invalid when a baseline
+crashes. Refresh also rejects an additional unguarded cleanup unload.
+
+The tracked correction passed both container hook stages, including 14 verdict
+tests and four fixture-adapter tests. Three further checks against the actual
+packaged upstream fixtures passed, and the final header passed compilation
+with KWin's test flags. Recomputing both retained comparisons with the tracked
+checker preserved the results above: the original run fails and the corrected
+run meets the supported comparison gate with its exclusions and unavailable
+baseline outcomes reported. The runtime header differs from the final header
+only in formatting; production sources are unchanged from approved master.
+
+Trixie GCC and Clang built with warnings as errors and each passed all 31
+runtime suites. The GCC hook wrapper reported concurrent formatter edits,
+although CTest recorded zero failures; its installation was completed
+separately. Both Neon compiler builds passed with warnings as errors. The
+unchanged production sources retain the approved master's clang-tidy and
+sanitizer results. Version validation returned `0.3.0`. Review and publication
+of this follow-up remain pending before the release tag.
+
+PR #24 review identified that compositor engagement alone does not attribute
+an unfinished target to its baseline. The checker now also requires matching
+exit codes and completion states before reporting that target as a baseline
+failure. A different signal, a timeout or an incomplete recovery remains
+independently invalid. Matching baseline failures remain recorded under the
+handbook's comparison policy. A regression test covers these boundaries.
+Both hook stages passed after this change, including all 15 verdict tests.
+Recomputing the retained complete runs kept the original failure and the
+corrected run's supported-scope result, with every exclusion still reported.
