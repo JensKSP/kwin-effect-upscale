@@ -158,6 +158,24 @@ check_cxx_source_compiles(
     int main() { return 0; }"
     UPSCALE_KWIN_PAINT_RETURNS_BOOL
 )
+# Whether prePaintScreen() is still told the frame's presentation time. KWin
+# 6.7 dropped that parameter while its callbacks still return void, so this is
+# a question of its own and not the one above: an override written for either
+# answer fails to compile against the other.
+unset(UPSCALE_KWIN_PREPAINT_PRESENT_TIME CACHE)
+check_cxx_source_compiles(
+    "#include \"effect/effect.h\"
+    #include <chrono>
+    struct Probe : KWin::Effect
+    {
+        void prePaintScreen(KWin::ScreenPrePaintData &data, std::chrono::milliseconds presentTime) override
+        {
+            KWin::Effect::prePaintScreen(data, presentTime);
+        }
+    };
+    int main() { return 0; }"
+    UPSCALE_KWIN_PREPAINT_PRESENT_TIME
+)
 unset(CMAKE_REQUIRED_LIBRARIES)
 unset(CMAKE_REQUIRED_QUIET)
 if(UPSCALE_KWIN_PAINT_RETURNS_BOOL)
@@ -165,7 +183,16 @@ if(UPSCALE_KWIN_PAINT_RETURNS_BOOL)
 else()
     add_definitions(-DUPSCALE_RENDER_DEVICE_API=0)
 endif()
+if(UPSCALE_KWIN_PREPAINT_PRESENT_TIME)
+    add_definitions(-DUPSCALE_PREPAINT_PRESENT_TIME=1)
+else()
+    add_definitions(-DUPSCALE_PREPAINT_PRESENT_TIME=0)
+endif()
 message(STATUS "KWin effect callbacks return bool: ${UPSCALE_KWIN_PAINT_RETURNS_BOOL}")
+message(
+    STATUS
+    "KWin prePaintScreen takes a presentation time: ${UPSCALE_KWIN_PREPAINT_PRESENT_TIME}"
+)
 
 # Build the configuration page the way KWin does when its KCMs are enabled.
 option(KWIN_BUILD_KCMS "Build the effect configuration page" ON)

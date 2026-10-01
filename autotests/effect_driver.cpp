@@ -368,17 +368,17 @@ public:
 
     // What the effect adds to a frame's preparation, without its own taking
     // of the view's renderer, which would replace the capture renderer.
-#if UPSCALE_RENDER_DEVICE_API
-    void prePaintScreen(ScreenPrePaintData &data) override
-    {
-        m_effect->coverDrawnWindow(data);
-        effects->prePaintScreen(data);
-    }
-#else
+#if UPSCALE_PREPAINT_PRESENT_TIME
     void prePaintScreen(ScreenPrePaintData &data, std::chrono::milliseconds presentTime) override
     {
         m_effect->coverDrawnWindow(data);
         effects->prePaintScreen(data, presentTime);
+    }
+#else
+    void prePaintScreen(ScreenPrePaintData &data) override
+    {
+        m_effect->coverDrawnWindow(data);
+        effects->prePaintScreen(data);
     }
 #endif
 

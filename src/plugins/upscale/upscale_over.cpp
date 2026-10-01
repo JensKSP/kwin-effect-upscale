@@ -66,11 +66,18 @@ EffectWindow *UpscaleEffect::drawnAt(const QPointF &position) const
     return drawn && drawn->screen() == output && upscaleDrawnOverOutput(drawn) ? drawn : nullptr;
 }
 
-#if !UPSCALE_RENDER_DEVICE_API
+// The render-device API's own prePaintScreen() is in upscale.cpp.
+#if UPSCALE_PREPAINT_PRESENT_TIME
 void UpscaleEffect::prePaintScreen(ScreenPrePaintData &data, std::chrono::milliseconds presentTime)
 {
     coverDrawnWindow(data);
     effects->prePaintScreen(data, presentTime);
+}
+#elif !UPSCALE_RENDER_DEVICE_API
+void UpscaleEffect::prePaintScreen(ScreenPrePaintData &data)
+{
+    coverDrawnWindow(data);
+    effects->prePaintScreen(data);
 }
 #endif
 

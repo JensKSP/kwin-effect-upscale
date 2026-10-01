@@ -231,6 +231,18 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   cases in `x11proxy_display_test.cpp`, the tools with
   `tools/test_check_presentations.py` and a case in
   `test_measure_frame_times.py`; each new tool test failed on the old code.
+- **95.** **fix, S** – Found 2026-09-30: the first nightly after #23's merge,
+    36697907408 on `312c07c`, failed the Arch, Fedora, openSUSE and FreeBSD
+    packages with "marked 'override', but does not override": the window drawn
+    over its output (item 18) overrides `prePaintScreen()` and took callbacks
+    that return void to mean the signature with a presentation time, which
+    KWin 6.7 dropped while its callbacks still return void. The `v0.3.0`
+    release run 36913783473 of 2026-10-01 failed the same way and published
+    nothing.
+  **Fixed 2026-09-30:** a second probe beside the return type's asks KWin's
+  header whether `prePaintScreen()` takes a presentation time; yes on 6.3.6
+  and 6.6.6, no on 6.7.5 and master. Built with warnings as errors against all
+  four, the 6.7.5 one in the Arch package image as its recipe builds.
 
 ## B. Resolution control – `slice-resolution-control.md`
 
