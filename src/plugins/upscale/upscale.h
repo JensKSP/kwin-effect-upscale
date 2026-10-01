@@ -52,10 +52,10 @@ public:
     void reconfigure(ReconfigureFlags flags) override;
     UpscalePaintResult paintScreen(const RenderTarget &target, const RenderViewport &viewport, int mask,
                                    const UpscaleRegion &region, UpscaleOutput *screen) override;
-#if UPSCALE_RENDER_DEVICE_API
-    void prePaintScreen(ScreenPrePaintData &data) override;
-#else
+#if UPSCALE_PREPAINT_PRESENT_TIME
     void prePaintScreen(ScreenPrePaintData &data, std::chrono::milliseconds presentTime) override;
+#else
+    void prePaintScreen(ScreenPrePaintData &data) override;
 #endif
     bool isActive() const override;
     bool blocksDirectScanout() const override;

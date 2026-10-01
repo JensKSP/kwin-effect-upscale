@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "egl_factory.h"
 #include "scaler.h"
 
 #include "opengl/eglcontext.h"
@@ -60,19 +61,11 @@ inline bool UpscaleRenderFixture::initialize()
     // A headless EGL display exercises KWin's real shader manager and textures
     // under Mesa. It does not establish compositor lifecycle or hardware VRR.
     const EGLDisplay display = eglGetPlatformDisplayEXT(EGL_PLATFORM_SURFACELESS_MESA, EGL_DEFAULT_DISPLAY, nullptr);
-#if UPSCALE_RENDER_DEVICE_API
-    m_display = EglDisplay::create(display, nullptr);
-#else
-    m_display = EglDisplay::create(display);
-#endif
+    m_display = createEglDisplay<EglDisplay>(display);
     if (!m_display) {
         return false;
     }
-#if UPSCALE_RENDER_DEVICE_API
-    m_context = EglContext::create(m_display.get(), EGL_NO_CONFIG_KHR, {});
-#else
-    m_context = EglContext::create(m_display.get(), EGL_NO_CONFIG_KHR, EGL_NO_CONTEXT);
-#endif
+    m_context = createEglContext<EglContext>(m_display.get());
     if (!m_context) {
         return false;
     }

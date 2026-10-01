@@ -57,6 +57,13 @@
 #define UPSCALE_RENDER_DEVICE_API 1
 #endif
 
+// Whether prePaintScreen() is told the frame's presentation time: up to KWin
+// 6.6, and no longer from 6.7, whose other callbacks still return void, so the
+// build asks this separately. Inside KWin's tree the current header decides.
+#ifndef UPSCALE_PREPAINT_PRESENT_TIME
+#define UPSCALE_PREPAINT_PRESENT_TIME 0
+#endif
+
 namespace KWin
 {
 

@@ -4,6 +4,7 @@
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
+#include "egl_factory.h"
 #include "eligibility.h"
 #include "test_pointer.h"
 #include "upscale.h"
@@ -136,11 +137,11 @@ public:
     UpscaleTestDriver()
     {
         const EGLDisplay display = eglGetPlatformDisplayEXT(EGL_PLATFORM_SURFACELESS_MESA, EGL_DEFAULT_DISPLAY, nullptr);
-        m_display = EglDisplay::create(display);
+        m_display = createEglDisplay<EglDisplay>(display);
         if (!m_display) {
             qFatal("Cannot create test EGL display");
         }
-        m_context = EglContext::create(m_display.get(), EGL_NO_CONFIG_KHR, EGL_NO_CONTEXT);
+        m_context = createEglContext<EglContext>(m_display.get());
         if (!m_context) {
             qFatal("Cannot create test EGL context");
         }
@@ -368,17 +369,17 @@ public:
 
     // What the effect adds to a frame's preparation, without its own taking
     // of the view's renderer, which would replace the capture renderer.
-#if UPSCALE_RENDER_DEVICE_API
-    void prePaintScreen(ScreenPrePaintData &data) override
-    {
-        m_effect->coverDrawnWindow(data);
-        effects->prePaintScreen(data);
-    }
-#else
+#if UPSCALE_PREPAINT_PRESENT_TIME
     void prePaintScreen(ScreenPrePaintData &data, std::chrono::milliseconds presentTime) override
     {
         m_effect->coverDrawnWindow(data);
         effects->prePaintScreen(data, presentTime);
+    }
+#else
+    void prePaintScreen(ScreenPrePaintData &data) override
+    {
+        m_effect->coverDrawnWindow(data);
+        effects->prePaintScreen(data);
     }
 #endif
 
@@ -457,7 +458,7 @@ private:
     bool m_unsupportedColors = false;
     std::unique_ptr<EglDisplay> m_display;
     QStringList m_captured;
-    std::unique_ptr<EglContext> m_context;
+    std::shared_ptr<EglContext> m_context;
     std::unique_ptr<UpscaleEffect> m_effect;
     std::unique_ptr<GLTexture> m_texture;
     std::unique_ptr<GLFramebuffer> m_framebuffer;
