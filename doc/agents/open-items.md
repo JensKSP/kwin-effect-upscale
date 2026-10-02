@@ -253,6 +253,22 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   **Fixed 2026-09-30:** `autotests/egl_factory.h` asks the factories'
   declarations; the render fixture, the display test and the test driver use
   it. All tests build on Arch's KWin 6.7.5.
+- **97.** **fix, –** – Found 2026-10-02: nightly 36991809754 on `3e1245c`
+    failed only the openSUSE Tumbleweed arm64 package, in its image, and so
+    published nothing. download.opensuse.org sent the runner to mirrors that
+    answered 404 for aarch64 packages or served a `file-magic` whose checksum
+    did not match the repository, all day and on every rerun; zypper aborts on
+    a wrong checksum instead of trying another mirror, and the four tries of
+    the image's retry loop met the same file.
+  **Fixed 2026-10-02:** the openSUSE image and the clean-distribution test's
+    bootstrap rewrite the repositories' `baseurl` from download.opensuse.org
+    to its origin, downloadcontent.opensuse.org, before the first refresh, so
+    the image and the package's dependencies in the test come from there. On
+    amd64 the image built with the oss, non-oss and update repositories on the
+    origin and the codec repository untouched, the package built in it, and
+    the clean test installed, loaded, reinstalled and removed it with the
+    bootstrap passed as the workflow passes it. The arm64 repository files are
+    rewritten alike; arm64 itself runs only on the runners.
 
 ## B. Resolution control – `slice-resolution-control.md`
 

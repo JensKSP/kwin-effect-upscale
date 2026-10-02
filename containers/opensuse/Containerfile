@@ -15,11 +15,18 @@ ARG DEPENDENCY_EPOCH=local
 COPY debian/control /tmp/upscale/debian/control
 COPY tools/distribution_packages.py tools/distribution-packages.py /tmp/upscale/tools/
 WORKDIR /tmp
-# Everything comes from one host, download.opensuse.org, and libzypp takes an
-# HTTP error from it as final: on 2026-09-20 it refused the repository metadata
-# with 403 once, and the nightly's rerun built the image. So each step that
+# Packages come from openSUSE's own server, downloadcontent.opensuse.org,
+# rather than through download.opensuse.org, which hands each request to a
+# mirror. On 2026-10-02 the mirror the GitHub runners were sent to served
+# aarch64 packages that were missing or did not match the repository's
+# checksums, all day, and zypper gives up on a wrong checksum instead of trying
+# another mirror. The origin has the same files, signed alike, and the image
+# is built at most once a day. libzypp still takes an HTTP error as final: on
+# 2026-09-20 the metadata was refused with 403 once. So each step that
 # downloads is tried again after a pause, up to four times.
 RUN test -n "$DEPENDENCY_EPOCH" \
+    && sed -i 's#^baseurl=https\?://download\.opensuse\.org/#baseurl=https://downloadcontent.opensuse.org/#' \
+        /etc/zypp/repos.d/*.repo \
     && fetch() { \
         for pause in 30 60 120 -; do \
             "$@" && return; \
