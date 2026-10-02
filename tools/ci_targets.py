@@ -105,8 +105,14 @@ TARGETS = (
         container="opensuse",
         image="docker.io/opensuse/tumbleweed",
         architectures=ARCHITECTURES,
+        # From openSUSE's origin rather than its mirrors, as the image does:
+        # containers/opensuse/Containerfile says why. The package's
+        # dependencies are installed after this, from the same repositories.
         bootstrap=(
-            "zypper -n --gpg-auto-import-keys refresh && zypper -n install --no-recommends python3"
+            r"sed -i 's#^baseurl=https\?://download\.opensuse\.org/"
+            r"#baseurl=https://downloadcontent.opensuse.org/#' /etc/zypp/repos.d/*.repo"
+            " && zypper -n --gpg-auto-import-keys refresh"
+            " && zypper -n install --no-recommends python3"
         ),
     ),
     # Arch is x86_64 only, and not as a decision taken here: the official image

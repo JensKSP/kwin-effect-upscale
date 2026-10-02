@@ -39,10 +39,12 @@ class Manager:
     purge: tuple[str, ...] = ()
     # pacman prints "<package> <path>" and lists directories as well.
     prefixed_contents: bool = field(default=False)
-    # How often a download is tried. openSUSE fetches from one host,
-    # download.opensuse.org, and libzypp takes an HTTP error from it as final:
-    # on 2026-09-20 it refused a request with 403 once, and a rerun passed. apt
-    # and dnf try again themselves, and pacman moves on to the next mirror.
+    # How often a download is tried. openSUSE fetches from one host, its
+    # origin downloadcontent.opensuse.org since the bootstrap in ci_targets.py
+    # points there, and libzypp takes an HTTP error from it as final: on
+    # 2026-09-20 download.opensuse.org refused a request with 403 once, and a
+    # rerun passed. apt and dnf try again themselves, and pacman moves on to
+    # the next mirror.
     attempts: int = 1
 
 
