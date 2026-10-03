@@ -20,6 +20,7 @@ import argparse
 import json
 import re
 import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -61,6 +62,23 @@ def speaks(status: str, language: str) -> bool:
     catalogue = CATALOGUES / language / "kwin_effect_upscale.po"
     expected = translation(catalogue.read_text(encoding="utf-8"), ALWAYS)
     return bool(expected) and expected in status and ALWAYS not in status
+
+
+def upstream(version: str) -> str:
+    """The version as the build names itself: without a distribution's suffix or revision."""
+    return re.split(r"[~-]", version, maxsplit=1)[0]
+
+
+def package_version(package: str) -> str:
+    """Ask the package file which version it is, as its own system would."""
+    queries = {
+        ".deb": ["dpkg-deb", "--field", package, "Version"],
+        ".rpm": ["rpm", "--query", "--package", "--queryformat", "%{VERSION}", package],
+        ".zst": ["pacman", "--query", "--file", package],
+    }
+    query = next((command for suffix, command in queries.items() if package.endswith(suffix)), [])
+    answer = subprocess.run(query, capture_output=True, text=True, check=False).stdout.split()
+    return answer[-1] if answer else ""
 
 
 def installed(name: str) -> Path | None:
@@ -106,13 +124,14 @@ def upgrade(old: str, new: str) -> dict[str, object]:
     current = pc.relogin(current)
     after = identity()
     result["after upgrading"] = after
-    wanted = VERSION.search(Path(new).name)
-    result["new version"] = wanted.group(0) if wanted else ""
+    # Read before it is removed: the version the build that was installed names.
+    wanted = upstream(package_version(new))
+    result["new version"] = wanted
     result["passed"] = bool(wanted) and all(
-        any(version.startswith(wanted.group(0)) for version in found)
+        wanted in found
         for key, found in after.items()
         if key.startswith("installed ") and isinstance(found, list)
-    ) and wanted.group(0) in str(after["running effect"])
+    ) and f"upscale {wanted} " in str(after["running effect"])
     return result
 
 

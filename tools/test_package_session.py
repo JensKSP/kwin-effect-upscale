@@ -8,7 +8,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from package_session import ALWAYS, CATALOGUES, speaks, translation, versions_in  # noqa: E402
+from package_session import (  # noqa: E402
+    ALWAYS,
+    CATALOGUES,
+    speaks,
+    translation,
+    upstream,
+    versions_in,
+)
 
 
 class PackageSessionTest(unittest.TestCase):
@@ -22,6 +29,12 @@ class PackageSessionTest(unittest.TestCase):
 
     def test_ignores_bytes_that_only_look_like_digits(self) -> None:
         self.assertEqual(versions_in(b"0.4.0"), [])
+
+    def test_names_the_version_as_the_build_does(self) -> None:
+        self.assertEqual(upstream("0.4.0+git20261002.3c574c62e2~trixie"), "0.4.0+git20261002.3c574c62e2")
+        self.assertEqual(upstream("0.3.0~trixie"), "0.3.0")
+        self.assertEqual(upstream("0.4.0-1"), "0.4.0")
+        self.assertEqual(upstream("0.4.0"), "0.4.0")
 
     def test_every_shipped_language_translates_the_standing_line(self) -> None:
         for language in ("de", "fr", "es"):
