@@ -2051,7 +2051,11 @@ on 2026-09-29, the effect draws such a window - a normal Wayland window,
 fullscreen or otherwise, lying on its output, whose surface has the size its
 program was told for that output - over the whole output, enlarged as a fullscreen
 window's picture would be and without the decoration, and the program keeps
-the size it asked for. Making the
+the size it asked for. That includes a window its program meant as windowed:
+SuperTuxKart, asked for a window larger than the screen it was told, shrinks
+it to that screen, and is then drawn over the output like the rest, because
+on a screen of the told size it would fill it as well (decided by Jens on
+2026-10-03); a smaller window is left alone. Making the
 window fullscreen instead would have KWin configure it at the screen's own
 size, which the program believes larger than its screen. While it is drawn, its
 output is painted whole every frame, window by window from the bottom, leaving
@@ -2191,13 +2195,15 @@ that a later mismatch can be traced rather than guessed at.
 | glmark2 | 2023.01 | program `.*/glmark2-wayland` | class `com.github.glmark2.glmark2`, instance `glmark2-wayland` | Wayland fullscreen: advertised screen scale | follows the global |
 | vkmark | 2025.01 | program `.*/vkmark` | class `com.github.vkmark.vkmark`, instance `vkmark` | Wayland fullscreen: advertised screen mode and scale | follows the global |
 
-Left 4 Dead 2's listed X11 buffer request is not a validated way to reduce its
-internal rendering. On the tested native build, its menu retained a 3840 × 2160
-GL viewport and downscaled into the requested 2560 × 1440 X11 drawable, with
-incorrect pointer targeting. The buffer reported by the compositor describes
-what the client submitted; it cannot prove the size of the client's internal
-render targets. This title needs further work before automatic resizing can be
-considered supported.
+Left 4 Dead 2's listed X11 buffer request was first measured as no validated
+way to reduce its internal rendering: on that native build its menu kept a
+3840 × 2160 GL viewport, downscaled into the requested 2560 × 1440 X11
+drawable, and the pointer missed its targets. On wzpc on 2026-10-03, through
+the session proxy, the game was offered 2560 × 1440 when it connected, its
+2560 × 1440 window was enlarged by the effect, and Jens found menus, pointer
+and play right. The buffer reported by the compositor describes what the
+client submitted; it cannot prove the size of the client's internal render
+targets.
 
 The Wayland entries state their program alone, as a regular expression for the
 file name in any folder, because their method is said before the window

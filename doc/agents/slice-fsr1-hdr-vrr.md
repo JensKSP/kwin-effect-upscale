@@ -332,6 +332,20 @@ effect now sends the profile-specific Wayland/X11 requests documented there.
   Needs the physical output and Jens's session (items 71 and 73 of the open
   list, with the A0/A1 phase-reversed repeats): a nested session on the
   desktop GPU is ruled out since parallel compositor sessions froze wzpc.
+  **Run 2026-10-03 in Jens's session on the television** (KWin 6.3.6,
+  3840 × 2160 at scale 3, `3c574c6`). Scaled frame, active-effect state and
+  fallback observed: SuperTuxKart in all six presentations supplied
+  2560 × 1440, enlarged with `upscale` in `activeEffects`; with the game
+  stopped on one frame, KWin's screenshot of the output matched its plain
+  stretch of the same buffer (likeness 0.05 to 0.19 of 255) with 27 to 31 %
+  more detail; a windowed game was left to direct scanout with the reason
+  named. The overhead is not bounded: in six phase-reversed glmark2 pairs at
+  native size, where the loaded effect reported nothing to do and direct
+  scanout, throughput with it loaded was 0.82 to 0.84 of throughput without
+  it in every scene. The control without any reading of the effect during a
+  run gave 0.84 to 0.85 (item 99 of the open list): the cost is the effect's,
+  about 8 µs per frame at glmark2's 18 000 frames per second. The gate stays
+  open until that is found and bounded (item 102).
 - [x] Complete original-buffer and lifecycle integration acceptance. On the
   OpenGL virtual backend, 2026-09-28 (item 72 of the open list): the VM
   production test `testUpscaleProduction` (`autotests/kwin_scaling_test.cpp`)
