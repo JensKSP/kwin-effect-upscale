@@ -125,7 +125,10 @@ cannot close that gate.
   fuzzing; a commit without a finished run has CI run as before; one whose CI
   failed stops the nightly. Checked against the API on 2026-09-29: `51e56ff`
   passed, `2cbb162` failed, and `d801766`, whose run a later push cancelled,
-  is missing. The first nightly to use it is still to come.
+  is missing. The scheduled nightlies 36847353917 on `312c07c` and
+  36991809754 on `3e1245c` found their commit's master CI green and ran only
+  the instrumented tests; 37053891266, started by hand before the master CI
+  of `3c574c6` had finished, ran CI itself.
 - **openSUSE: found and fixed on 2026-09-29 (item 82).** Not a report of
   Jens's but a failure found here: the nightly 35519298024 of 2026-09-20 on
   master, green overall because its rerun passed, failed `opensuse amd64` in
@@ -150,10 +153,17 @@ cannot close that gate.
   `mk-build-deps` up to four times, after 30, 60 and 120 seconds. Checked
   under dash with a failing and a passing command; the image itself is rebuilt
   by the next nightly, not here.
+- **openSUSE mirrors: fixed on 2026-10-02 (item 97).** The retries above did
+  not help when download.opensuse.org sent the arm64 runners all day to
+  mirrors with missing or mismatched aarch64 packages: zypper aborts on a
+  wrong checksum instead of trying another mirror. The image and the clean
+  test's bootstrap now take the repositories from openSUSE's origin,
+  downloadcontent.opensuse.org; the retries for an HTTP error stay.
 
 ## Progress
 
-Implemented, not yet exercised by a hosted run.
+Implemented, and exercised by hosted runs: verify-only nightlies first, then on
+2026-10-02 nightly 37053891266, which published from master.
 
 **The target table.** `tools/ci_targets.py` holds every target with its label,
 family, container, image, architectures, whether it is built twice, whether its
@@ -242,24 +252,35 @@ resolved, and that it reinstalls, removes and purges. The suite keeps running
 in the pull request checks on both architectures, where `run-render-tests.py`
 drives it through CTest.
 
-### Not verified
+### Established by the nightly of 2026-10-02
 
-Nothing below has run, and none of it may be reported as tested.
+Nightly 37053891266 on `3c574c6` passed every job and published. That meets the
+supported-scope gate above; the full-acceptance gate stays open.
 
-- **No package has been built, installed or tested anywhere.** No workflow in
-  this slice has executed; every statement about the pipeline above is about
-  what the files say, not about a run.
-- **The FreeBSD path has never been executed.** There is no FreeBSD here. That
-  `pkg create` accepts a version containing `+`, as a snapshot version does, is
-  an assumption.
-- **The suite against the installed effect has never run.** It is the piece
-  most likely to need a second pass: those tests were taken out of the package
-  build for timing reasons in the first place.
-- **No alias has ever been published.** The stable download names are created
-  by code that has only run against test fixtures; the README's links resolve
-  to nothing until a nightly publishes them.
-- A hosted nightly with `verify-only` is the first check that can close any of
-  this, and the measurement of what the reorganisation actually saves.
+- **Every target was built once and tested in a clean environment** of its
+  distribution: Debian and Kubuntu on amd64 and arm64, Fedora and openSUSE on
+  both, Arch, and FreeBSD in its emptied machine. Debian was built twice for
+  the reproducibility comparison, as the table says.
+- **The FreeBSD path runs.** `pkg create` accepted the snapshot version with
+  its `+`: the release carries
+  `kwin-effect-upscale-0.4.0+git20261002.3c574c62e2-amd64.pkg`.
+- **The stable download names are published.** The release carries them
+  beside the versioned files, and all ten Nightly links in the README resolve.
+- **Stage cost**, from start to publication 59 minutes, about 292 runner
+  minutes. The check leg ran here because the commit's master CI had not
+  finished: Trixie clang-tidy 53 minutes, the address sanitizer 22, coverage
+  13, Clang 10, the rest under 8. Package builds: Debian amd64 23 and arm64
+  18, the source archive 12, Kubuntu 10 each, openSUSE 7 and 5, Arch 7,
+  Fedora 7 and 6, FreeBSD 6 with its test; every other install test about a
+  minute. KWin master builds 15 and 16 minutes, the Kubuntu checks 14 and 11,
+  publication 39 seconds. A scheduled nightly whose commit has a green master
+  CI runs the instrumented tests instead of the check leg.
+
+Still not run:
+
+- **The suite against the installed effect.** It cannot run in a container,
+  as the finding above says; the suite keeps running in the pull request
+  checks.
 
 ## Remaining work
 
@@ -281,5 +302,4 @@ Nothing below has run, and none of it may be reported as tested.
   36503302445 on `d801766`, whose package sources differ from `5c117bd` in
   nothing, built arm64 identically: the difference is intermittent, and the
   listing names the files when it comes back.
-- Run a verify-only nightly and record what each stage cost and what failed.
 - The two open decisions above.

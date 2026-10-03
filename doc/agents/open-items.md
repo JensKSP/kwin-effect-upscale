@@ -73,6 +73,13 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   **Agreed with Jens 2026-09-28:** waits for #23. After the merge, check that
   the next scheduled nightly publishes, that the release carries the stable
   download names, and that the README's links resolve.
+  **Done 2026-10-02:** after #23 the scheduled nightlies failed on items 95
+  and 97. Once #27 was merged, nightly 37053891266, started by hand on master
+  at `3c574c6`, passed every job and published
+  `0.4.0+git20261002.3c574c62e2`: 52 files, the stable download names among
+  them. All ten Nightly and all ten Latest release links in the README
+  resolve, and the openSUSE aarch64 package matches `SHA256SUMS`. A scheduled
+  nightly builds again once master moves past `3c574c6`.
 
 - **2a.** **fix** – `autotests/kwin_conformance.h:65` (from `ee6b3b2`, #21) connects
   to `EffectsHandler::effectsChanged`, which is a protected member function,
@@ -269,6 +276,10 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
     the clean test installed, loaded, reinstalled and removed it with the
     bootstrap passed as the workflow passes it. The arm64 repository files are
     rewritten alike; arm64 itself runs only on the runners.
+  **Merged 2026-10-02** as #27 (`3c574c6`), after verify-only nightly
+    37035966664 built and tested both openSUSE packages from the origin,
+    without a retry, a 404 or a checksum failure. The publishing nightly of
+    item 2 did the same on master.
 
 ## B. Resolution control – `slice-resolution-control.md`
 
@@ -893,6 +904,8 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
 ## H. Pipeline modules – `slice-pipeline-modules.md`
 
 - **79.** **test, S** – A green nightly that publishes every target; record stage cost.
+  **Done 2026-10-02:** nightly 37053891266 (item 2) published every target.
+  Recorded with its stage cost in the pipeline slice.
 - **80.** **impl** – Test the FreeBSD package in an emptied machine or a jail.
   **Done 2026-09-29, `5c117bd`, pushed:** the machine is emptied between build
   and test; the verify-only nightly 36501169792 passed it. Recorded in the

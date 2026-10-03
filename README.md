@@ -387,12 +387,6 @@ what the longer list further down describes.
 | Arch | x86_64 | [.pkg.tar.zst](https://github.com/JensKSP/kwin-effect-upscale/releases/latest/download/kwin-effect-upscale-arch-x86_64.pkg.tar.zst) | [.pkg.tar.zst](https://github.com/JensKSP/kwin-effect-upscale/releases/download/nightly/kwin-effect-upscale-arch-x86_64.pkg.tar.zst) |
 | FreeBSD | amd64 | [.pkg](https://github.com/JensKSP/kwin-effect-upscale/releases/latest/download/kwin-effect-upscale-freebsd-amd64.pkg) | [.pkg](https://github.com/JensKSP/kwin-effect-upscale/releases/download/nightly/kwin-effect-upscale-freebsd-amd64.pkg) |
 
-> [!NOTE]
-> The *Nightly* column resolves once the next nightly from `master` is
-> published, which carries these stable names beside its versioned files. The
-> one on the [nightly release page](https://github.com/JensKSP/kwin-effect-upscale/releases/tag/nightly)
-> now predates the stable names and carries versioned files only.
-
 ### Packages
 
 These are development artifacts, not a stable release. The alpha warning at
