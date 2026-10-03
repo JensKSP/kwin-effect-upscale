@@ -145,7 +145,10 @@ void UpscaleX11IntegrationTest::winePrefixEligibility_data()
     QTest::addColumn<QString>("change");
     QTest::addColumn<bool>("expected");
     QTest::newRow("shipped-native-catalogue") << QString() << QString() << false;
-    QTest::newRow("wine-program") << QStringLiteral(".*/Wreckfest/Wreckfest\\.exe") << QString() << true;
+    // A pattern that could match in any prefix names a program, which is
+    // asked about once a process names it, and holds no prefix meanwhile.
+    QTest::newRow("wine-program") << QStringLiteral(".*/Wreckfest/Wreckfest\\.exe") << QString() << false;
+    QTest::newRow("wine-program-in-prefix") << QStringLiteral("wine:///test/prefix/.*/Wreckfest\\.exe") << QString() << true;
     QTest::newRow("wine-prefix") << QStringLiteral("wine:///test/prefix/.*") << QString() << true;
     QTest::newRow("other-prefix") << QStringLiteral("wine:///other/prefix/.*") << QString() << false;
     QTest::newRow("known-loader") << QStringLiteral("/usr/bin/wine") << QString() << true;

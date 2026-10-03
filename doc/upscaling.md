@@ -389,20 +389,27 @@ reading the connecting process's command line and environment, and elsewhere it
 identifies no connection and forwards every one unchanged; the effect matches
 that name against a profile's `X11ConnectionExecutable`; the proxy reports the
 smaller screen in that connection's display replies; and the effect presents
-the window of a process it answered across its output. No shipped profile names
-a Wine or Proton program yet, the Wreckfest entry included, and no Wine or
-Proton game acceptance has been established through it.
+the window of a process it answered across its output. The shipped Wreckfest
+entry names its program, and Wreckfest under Proton Experimental was accepted
+through it on wzpc on 2026-10-03 (KWin 6.3.6, 3840 × 2160 at scale 3,
+Quality): it chose 2560 × 1440 in exclusive fullscreen, the effect presented it
+across the output, and Jens found the pointer working.
 
 - **The prefix is the unit.** One prefix is one Wine server, one registry and
   one Windows desktop, so it has exactly one screen size to give. The proxy
   names a connection made by one of the prefix's programs after that program,
   and one made by Wine's own components after the program the prefix last
-  connected with or, before any has, the one it finds running in the prefix,
-  for which it waits up to ten seconds only when an enabled connection profile
-  could select that prefix. An empty or ineligible policy and the shipped
-  native-only patterns do not hold Wine tools for a nonexistent game. Broad
-  custom patterns that could match both native and Wine programs can still
-  require that bounded wait. A prefix whose connections have all
+  connected with or, before any has, the one a process of the prefix names:
+  the program itself, or the launcher that starts it. Proton starts every game
+  as `steam.exe` and the game's Unix path, and Wine's `start.exe` takes one
+  too, so the program is known before the game runs. Only where no process
+  names one yet does the proxy wait, up to ten seconds, and only when an
+  enabled connection profile names that prefix. A pattern that could match in
+  any prefix names a program, is asked about once a process names it, and
+  holds no prefix (decided by Jens on 2026-10-03): holding Proton's desktop
+  until its game appeared held both, because the game waits for the desktop,
+  and Wreckfest never started (wzpc, 2026-10-03). Wine's own tools, run on their own, are therefore never held
+  for a game that does not exist. A prefix whose connections have all
   closed has stopped, and what it ran is forgotten, so the next game started
   in it is found anew. Each process is matched on its own, once: a connection
   it opens while another of its connections is still open receives the same
@@ -442,8 +449,13 @@ Proton game acceptance has been established through it.
   that path there instead, and is named as Wine names it: on the drive whose
   directory holds it most closely among the prefix's `dosdevices`, which is
   `Z:` for a program anywhere and `C:` for one inside the prefix's own drive.
-  Matching a game's launcher works as well as matching the game, because both
-  reach the same desktop.
+  A component started to run a program names it among its arguments, by
+  either path, and that program is the one named: Proton's `steam.exe` with
+  the game's Unix path, which Steam's library drive turns into
+  `S:/steamapps/common/...`. Windows' long-path prefix `\\?\` is no part of a
+  name, and while Wine starts a program its Unix loader, which still comes
+  first in the command line, is passed over. Matching a game's launcher works
+  as well as matching the game, because both reach the same desktop.
 - **A program is named for where it runs as well as for what it is**, in the
   shape of a URI, so that one pattern reaches a program whether it runs on the
   host or inside a runtime. A program of the host keeps its plain path. One
@@ -2175,7 +2187,7 @@ that a later mismatch can be traced rather than guessed at.
 | SuperTuxKart | 1.4 | program `.*/supertuxkart`, X11 connection program `.*/supertuxkart` | class and instance `supertuxkart` | Wayland fullscreen: advertised screen mode | follows the global |
 | Extreme Tux Racer | 0.8.4 | instance `etr`, X11 connection program `.*/etr` | program `etr` | X11 fullscreen: X11 buffer request, primary output only, emulated mode required | follows the global |
 | Left 4 Dead 2 | Steam build 23990068 | program and X11 connection program `.*/Left 4 Dead 2/hl2_linux`, class and instance `hl2_linux` | — | X11 fullscreen: X11 buffer request | follows the global |
-| Wreckfest | Steam build 16986367 | class and instance `steam_app_228380` | its windows' process: Wine's `explorer.exe /desktop`, which every Proton game shares | none stated: its X11 presentation has not been measured | follows the global |
+| Wreckfest | Steam build 16986367 | class and instance `steam_app_228380`, X11 connection program `wine://.*/Wreckfest/Wreckfest(?:_x64)?[.]exe` | its windows' process: Wine's `explorer.exe /desktop`, which every Proton game shares | X11 fullscreen: Auto, through the session proxy's smaller screen | follows the global |
 | glmark2 | 2023.01 | program `.*/glmark2-wayland` | class `com.github.glmark2.glmark2`, instance `glmark2-wayland` | Wayland fullscreen: advertised screen scale | follows the global |
 | vkmark | 2025.01 | program `.*/vkmark` | class `com.github.vkmark.vkmark`, instance `vkmark` | Wayland fullscreen: advertised screen mode and scale | follows the global |
 
@@ -2193,16 +2205,18 @@ exists. Extreme Tux Racer states its window alone for matching a window: an X11
 window's program comes from the PID the client reports, which has not been
 observed for it. Its program appears only as the X11 connection program, which
 the session proxy matches when the game connects. Wreckfest states its window
-alone, the class Proton gives it, because the process its windows report is
-shared by every Proton game. Left 4 Dead 2 states its program's folder as well
+by the class Proton gives it, because the process its windows report is shared
+by every Proton game, and its X11 connection program by the path Proton runs,
+`S:/steamapps/common/Wreckfest/Wreckfest_x64.exe` in a Steam library Proton
+maps to `S:`, because the class arrives only with the window, after the game
+has chosen its mode. Left 4 Dead 2 states its program's folder as well
 as its window, because its program and window are the Source engine's and every
 native Source game shares them; only the folder names the game, in whichever
 Steam library it is installed. Whether its PID resolves to that path under
 Steam's pressure-vessel runtime is still to be observed on a running game;
 where it does not, the entry does not match.
 
-Each entry except Wreckfest states the one method slot it was measured under;
-Wreckfest states none, because its X11 presentation has not been measured. The
+Each entry states the one method slot it was measured under. The
 slots an entry does not state are absent and follow the global methods, which
 are Auto unless the user chose otherwise, so a presentation nobody measured is
 attempted rather than refused. Auto keeps its request only while what it

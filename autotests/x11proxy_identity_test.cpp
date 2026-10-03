@@ -59,6 +59,23 @@ void programPaths()
           "separators and case");
     check(upscaleProgramPath(QStringLiteral("/usr/games/etr")) == QStringLiteral("/usr/games/etr"),
           "a host path is unchanged");
+    check(upscaleProgramPath(QStringLiteral("S:\\Proton\\files\\share\\wine/../xalia/xalia.exe")) == QStringLiteral("S:/Proton/files/share/xalia/xalia.exe"),
+          "a step back out of a folder");
+}
+
+// Windows' long-path prefix stands before a drive and is no part of the name;
+// Wine's loaders are known by name, wherever Wine is installed.
+void startingPrograms()
+{
+    check(upscaleWithoutLongPathPrefix(QStringLiteral("\\\\?\\S:\\steamapps\\x.exe")) == QStringLiteral("S:\\steamapps\\x.exe"), "\\\\?\\");
+    check(upscaleWithoutLongPathPrefix(QStringLiteral("\\??\\C:\\x.exe")) == QStringLiteral("C:\\x.exe"), "\\??\\");
+    check(upscaleWithoutLongPathPrefix(QStringLiteral("C:\\x.exe")) == QStringLiteral("C:\\x.exe"), "an ordinary path is unchanged");
+    check(upscaleWindowsPath(upscaleWithoutLongPathPrefix(QStringLiteral("\\\\?\\S:\\x.exe"))), "a drive path once the prefix is gone");
+    check(upscaleWineLoader(QStringLiteral("/opt/proton/files/lib/wine/x86_64-unix/wine")), "Proton's wine");
+    check(upscaleWineLoader(QStringLiteral("/usr/lib/wine/wine64")), "wine64");
+    check(upscaleWineLoader(QStringLiteral("/opt/proton/files/lib/wine/i386-unix/wine64-preloader")), "the preloader");
+    check(!upscaleWineLoader(QStringLiteral("/usr/bin/winecfg")), "a Wine tool is no loader");
+    check(!upscaleWineLoader(QStringLiteral("C:\\windows\\system32\\steam.exe")), "a Windows program");
 }
 
 // Wine's own components sit on the prefix's drive below its Windows
@@ -146,6 +163,7 @@ int main(int argc, char **argv)
         windowsPaths();
         unixPaths();
         programPaths();
+        startingPrograms();
         components();
         runtimeIdentities();
         candidates();
@@ -154,6 +172,6 @@ int main(int argc, char **argv)
         qCritical() << error.what();
         return 1;
     }
-    qInfo() << "PASS windows paths, unix paths, separators, components, runtime names, candidate order, Flatpak applications";
+    qInfo() << "PASS windows paths, unix paths, separators, starting programs, components, runtime names, candidate order, Flatpak applications";
     return 0;
 }

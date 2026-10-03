@@ -166,7 +166,17 @@ bool UpscaleIdentityService::x11PrefixMayMatch(const QString &prefix, const QStr
         const auto matches = [&expression](const QString &candidate) {
             return expression.match(candidate).hasMatch();
         };
-        if (match.hasMatch() || match.hasPartialMatch() || std::ranges::any_of(candidates, matches)) {
+        // Only a pattern that names this prefix holds it. One that could match
+        // in any prefix names a program, and is decided once that program is
+        // known: by the time Wine's desktop connects, the program or the
+        // launcher Proton or start.exe runs it with already names it. Held
+        // instead, every prefix waited its ten seconds whenever only Wine's
+        // own tools ran, and Proton's desktop, which its game waits for,
+        // kept Wreckfest from starting at all (wzpc, 2026-10-03).
+        const QRegularExpressionMatch anywhere = expression.match(QStringLiteral("wine:///upscale-no-such-prefix/"), 0,
+                                                                  QRegularExpression::PartialPreferCompleteMatch);
+        const bool namesPrefix = !anywhere.hasMatch() && !anywhere.hasPartialMatch();
+        if ((namesPrefix && (match.hasMatch() || match.hasPartialMatch())) || std::ranges::any_of(candidates, matches)) {
             return true;
         }
     }

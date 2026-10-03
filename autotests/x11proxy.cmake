@@ -39,6 +39,8 @@ add_test(NAME upscale-x11proxy-startup COMMAND upscale_x11proxy_startup_test)
 add_executable(
     upscale_x11proxy_session_test
     x11proxy_session_test.cpp
+    x11proxy_session_test.h
+    x11proxy_session_wine_test.cpp
     ../src/x11proxy/session.cpp
     ../src/x11proxy/connection.cpp
     ../src/x11proxy/startup.cpp

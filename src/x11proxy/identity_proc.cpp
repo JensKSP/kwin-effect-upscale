@@ -71,6 +71,27 @@ QList<WineDrive> drivesOf(const QString &prefix)
     }
     return drives;
 }
+
+// The program a component of Wine's was started to run: the first argument
+// naming an .exe that is not Wine's own, by its Windows path or by its Unix
+// one on the drive that holds it, as Wine would name it once it runs.
+QString launchedProgram(const QList<QByteArray> &command, const QString &directory, const QString &prefix)
+{
+    for (qsizetype index = 1; index < command.size(); ++index) {
+        QString argument = upscaleWithoutLongPathPrefix(QString::fromLocal8Bit(command.at(index)));
+        if (!argument.endsWith(QLatin1String(".exe"), Qt::CaseInsensitive)) {
+            continue;
+        }
+        if (!upscaleWindowsPath(argument)) {
+            argument = upscaleWindowsPathFor(resolved(QDir(directory + QStringLiteral("/cwd")).absoluteFilePath(argument)), drivesOf(prefix));
+        }
+        const QString program = argument.isEmpty() ? QString() : upscaleProgramPath(argument);
+        if (!program.isEmpty() && !upscaleWineComponent(program)) {
+            return program;
+        }
+    }
+    return {};
+}
 } // namespace
 
 ProgramIdentity upscaleProgramIdentity(quint32 pid)
@@ -85,11 +106,16 @@ ProgramIdentity upscaleProgramIdentity(quint32 pid)
     if (info.open(QIODevice::ReadOnly)) {
         identity.flatpak = upscaleFlatpakApplication(info.read(qint64(64) * 1024));
     }
-    const QList<QByteArray> command = readList(directory + QStringLiteral("/cmdline"));
+    QList<QByteArray> command = readList(directory + QStringLiteral("/cmdline"));
+    // Wine's loader comes first until Wine has written the program's Windows
+    // name in its place: Proton's steam.exe was seen so on wzpc, 2026-10-03.
+    if (command.size() > 1 && upscaleWineLoader(QString::fromLocal8Bit(command.constFirst()))) {
+        command.removeFirst();
+    }
     if (command.isEmpty()) {
         return identity;
     }
-    QString first = QString::fromLocal8Bit(command.constFirst());
+    QString first = upscaleWithoutLongPathPrefix(QString::fromLocal8Bit(command.constFirst()));
     QString prefix;
     // Wine started with a program's Unix path keeps that path in the command
     // line, where the process runs Wine's loader rather than the program:
@@ -113,6 +139,9 @@ ProgramIdentity upscaleProgramIdentity(quint32 pid)
     identity.program = upscaleProgramPath(first);
     identity.component = upscaleWineComponent(identity.program);
     identity.prefix = prefix.isEmpty() ? prefixOf(readList(directory + QStringLiteral("/environ"))) : prefix;
+    if (identity.component) {
+        identity.launched = launchedProgram(command, directory, identity.prefix);
+    }
     return identity;
 }
 
@@ -133,6 +162,9 @@ QString upscalePrefixProgram(const QString &prefix)
         const ProgramIdentity identity = upscaleProgramIdentity(pid);
         if (identity.prefix == prefix && !identity.component && !identity.program.isEmpty()) {
             return identity.program;
+        }
+        if (identity.prefix == prefix && !identity.launched.isEmpty()) {
+            return identity.launched;
         }
     }
     return {};
