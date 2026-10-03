@@ -1,8 +1,31 @@
 // SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "identity.h"
+#include <QDir>
+#include <QFileInfo>
 namespace UpscaleX11
 {
+QString upscaleWithoutLongPathPrefix(const QString &path)
+{
+    // Proton starts its own helpers so, xalia among them, and a program past
+    // Windows' old path limit may be started so too.
+    for (const QLatin1String prefix : {QLatin1String(R"(\\?\)"), QLatin1String(R"(\??\)")}) {
+        if (path.startsWith(prefix)) {
+            return path.sliced(prefix.size());
+        }
+    }
+    return path;
+}
+
+bool upscaleWineLoader(const QString &path)
+{
+    // By name, as wherever Wine is installed: Debian's /usr/lib/wine, a
+    // Proton build's files/bin, or a build tree.
+    const QString name = QFileInfo(path).fileName();
+    return name == QLatin1String("wine") || name == QLatin1String("wine64") || name == QLatin1String("wine-preloader")
+        || name == QLatin1String("wine64-preloader");
+}
+
 bool upscaleWindowsPath(const QString &program)
 {
     // Wine names a Windows program by an absolute path on a lettered drive.
@@ -40,7 +63,9 @@ QString upscaleProgramPath(const QString &program)
     // drive letter: which Unix path a letter stands for is a property of that
     // prefix and of no other.
     path.replace(QLatin1Char('\\'), QLatin1Char('/'));
-    return path;
+    // A path may step back out of a folder, as Proton's xalia is started from
+    // share/wine/../xalia; the program is named where it is.
+    return QDir::cleanPath(path);
 }
 
 bool upscaleWineComponent(const QString &program)

@@ -79,7 +79,10 @@ void Session::acceptClient(int listener)
     if (pending->identity.isWine()) {
         pending->deadline = QDeadlineTimer(prefixDecisionMilliseconds);
     }
-    if (pending->identity.isWine() && pending->identity.component) {
+    // A component of a prefix whose program a running process already names
+    // is answered for that program at once; only one of a prefix whose
+    // program is unknown asks whether it is worth waiting for.
+    if (pending->identity.isWine() && pending->identity.component && !resolveCandidates(pending)) {
         checkPrefix(pending);
         return;
     }
@@ -114,9 +117,12 @@ bool Session::resolveCandidates(const std::shared_ptr<PendingClient> &client)
     }
     // One prefix is one Wine server, one registry and one Windows desktop, so
     // every connection it makes is answered for the same program. A connection
-    // that is the program itself settles the prefix; the rest reuse that.
+    // that is the program itself, or the launcher that names it, settles the
+    // prefix; the rest reuse that.
     if (!identity.component && !identity.program.isEmpty()) {
         m_prefixPrograms.insert(identity.prefix, identity.program);
+    } else if (!identity.launched.isEmpty()) {
+        m_prefixPrograms.insert(identity.prefix, identity.launched);
     }
     QString program = m_prefixPrograms.value(identity.prefix);
     if (program.isEmpty()) {

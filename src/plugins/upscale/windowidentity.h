@@ -118,7 +118,13 @@ public Q_SLOTS:
      */
     QVariantMap x11ConnectionPolicy(uint pid, const QStringList &candidates) const;
 
-    /** Whether resolving this Wine prefix could select an enabled display policy. */
+    /**
+     * Whether a connection of Wine prefix @p prefix whose program is not known
+     * yet is worth holding until it is: a pattern names this prefix, or
+     * matches one of @p candidates. A pattern that could match in any prefix
+     * holds none; the transport asks for the program's policy directly once
+     * a launcher or the program itself names it.
+     */
     bool x11PrefixMayMatch(const QString &prefix, const QStringList &candidates) const;
 
     /**
