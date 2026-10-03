@@ -372,13 +372,13 @@ public:
 #if UPSCALE_PREPAINT_PRESENT_TIME
     void prePaintScreen(ScreenPrePaintData &data, std::chrono::milliseconds presentTime) override
     {
-        m_effect->coverDrawnWindow(data);
+        m_effect->preparePaintArea(data);
         effects->prePaintScreen(data, presentTime);
     }
 #else
     void prePaintScreen(ScreenPrePaintData &data) override
     {
-        m_effect->coverDrawnWindow(data);
+        m_effect->preparePaintArea(data);
         effects->prePaintScreen(data);
     }
 #endif

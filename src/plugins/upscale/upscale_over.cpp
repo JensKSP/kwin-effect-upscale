@@ -22,6 +22,8 @@
 #include "wayland/surface.h"
 #include "window.h"
 
+#include <algorithm>
+
 namespace KWin
 {
 
@@ -38,19 +40,37 @@ void UpscaleEffect::shareToldModes()
     });
 }
 
-void UpscaleEffect::coverDrawnWindow(ScreenPrePaintData &data)
+void UpscaleEffect::preparePaintArea(ScreenPrePaintData &data)
 {
     UpscaleOutput *output = data.screen;
     EffectWindow *drawn = output ? candidate(nullptr, output) : nullptr;
+    // A window that starts being enlarged changes its whole picture at once,
+    // and one that stops gives the output back: either frame is painted whole,
+    // whatever the commit that caused it damaged. Decided here, once a frame,
+    // rather than by asking at every commit of every window whether it is now
+    // eligible, which a client at 18 000 frames a second paid for (item 102).
+    const bool switched = m_enlarged.value(output) != drawn;
+    if (drawn) {
+        m_enlarged.insert(output, drawn);
+    } else {
+        m_enlarged.remove(output);
+    }
     // The frame after the last one drawn over is painted whole as well, to
     // take the picture off the rest of the output.
     const bool wasDrawn = m_drawnOver.remove(output) > 0;
     if (drawn && upscaleDrawnOverOutput(drawn)) {
         m_drawnOver.insert(output, drawn);
     }
-    if (wasDrawn || m_drawnOver.contains(output)) {
+    if (switched || wasDrawn || m_drawnOver.contains(output)) {
         data.mask |= PAINT_SCREEN_WITH_TRANSFORMED_WINDOWS;
     }
+}
+
+bool UpscaleEffect::enlarged(const EffectWindow *window) const
+{
+    return std::ranges::any_of(m_enlarged, [window](const QPointer<EffectWindow> &shown) {
+        return shown == window;
+    });
 }
 
 bool UpscaleEffect::coveredByDrawn(EffectWindow *window) const
@@ -70,13 +90,13 @@ EffectWindow *UpscaleEffect::drawnAt(const QPointF &position) const
 #if UPSCALE_PREPAINT_PRESENT_TIME
 void UpscaleEffect::prePaintScreen(ScreenPrePaintData &data, std::chrono::milliseconds presentTime)
 {
-    coverDrawnWindow(data);
+    preparePaintArea(data);
     effects->prePaintScreen(data, presentTime);
 }
 #elif !UPSCALE_RENDER_DEVICE_API
 void UpscaleEffect::prePaintScreen(ScreenPrePaintData &data)
 {
-    coverDrawnWindow(data);
+    preparePaintArea(data);
     effects->prePaintScreen(data);
 }
 #endif

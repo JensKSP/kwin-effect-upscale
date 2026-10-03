@@ -83,10 +83,12 @@ public:
      */
     void paintDisplay(const RenderTarget &target, const RenderViewport &viewport, UpscaleOutput *screen);
     /**
-     * What prePaintScreen() adds to KWin's preparation of a frame for a window
-     * drawn over its output. Separate for the same reason as paintDisplay().
+     * What prePaintScreen() adds to KWin's preparation of a frame: the whole
+     * output painted in the frame in which a window starts or stops being
+     * enlarged on it, and in every frame a window is drawn over it. Separate
+     * for the same reason as paintDisplay().
      */
-    void coverDrawnWindow(ScreenPrePaintData &data);
+    void preparePaintArea(ScreenPrePaintData &data);
 
 private:
     // Prepare selection, settings and resolution requests for this paint pass.
@@ -137,6 +139,9 @@ private:
     std::unique_ptr<UpscalePictureInput> m_pictureInput;
     // The window drawn over each output, from its last frame; see upscale_over.cpp.
     QHash<UpscaleOutput *, QPointer<EffectWindow>> m_drawnOver;
+    // The window each output's last frame enlarged; see preparePaintArea().
+    QHash<UpscaleOutput *, QPointer<EffectWindow>> m_enlarged;
+    bool enlarged(const EffectWindow *window) const;
     void shareToldModes();
     bool coveredByDrawn(EffectWindow *window) const;
     EffectWindow *drawnAt(const QPointF &position) const;
