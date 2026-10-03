@@ -1176,6 +1176,15 @@ the list until it is done.
     native size with direct scanout. Find the per-frame work
     that runs while the effect is not active, measure it, and remove or bound
     it, so that the gate's A0/A1 overhead is bounded in the FSR slice.
+  **Fixed 2026-10-03:** the runs of 73 and 99 had the Debug build of Jens's
+    session; built as packaged, the cost was 4.9 µs per frame. A perf profile
+    of the session's KWin put 36 % of its time in the effect's damage handler,
+    which ran `upscaleGlobalSettings()` at every client commit, building
+    configuration groups for each preference. `upscaleKeepGlobalSettings()`
+    now keeps the global layer as `reconfigure()` reads it; the settings page
+    still reads it live. Six phase-reversed pairs: 0.982 to 0.994 of the
+    unloaded throughput, a median of 0.4 µs per frame, the handler at 2.4 % of
+    KWin's time. The FSR slice's gate is closed.
 
 ## G. Wayland conformance – `slice-wayland-conformance.md`
 
