@@ -57,8 +57,11 @@ VRR acceptance either; its recorded configuration has VRR disabled.
 
 This gate is the package's first milestone and the project's next acceptance
 after the [development infrastructure slice](slice-development-infrastructure.md)
-in the original sequence. The defect and regression coverage are now addressed;
-physical-display pixel comparison and lifecycle acceptance remain open.
+in the original sequence. The defect and regression coverage are now addressed,
+and on 2026-10-03 the physical display gave a scaled frame, its pixel
+comparison, the active-effect state and the fallback (see the progress below);
+what stays open is the bound on the loaded effect's overhead (item 102 of the
+open list).
 It was introduced before any real-GPU scaled frame had been observed. Loading
 the plugin, reporting it supported, passing the container and headless tests and
 installing it on the acceptance host have all been achieved and none of them
@@ -343,9 +346,11 @@ effect now sends the profile-specific Wayland/X11 requests documented there.
   native size, where the loaded effect reported nothing to do and direct
   scanout, throughput with it loaded was 0.82 to 0.84 of throughput without
   it in every scene. The control without any reading of the effect during a
-  run gave 0.84 to 0.85 (item 99 of the open list): the cost is the effect's,
-  about 8 µs per frame at glmark2's 18 000 frames per second. The gate stays
-  open until that is found and bounded (item 102).
+  run gave 0.84 to 0.85 (item 99 of the open list): the cost is the effect's.
+  Paired by frame time, the loaded effect added a median of 8.9 µs per frame
+  over the 18 scene pairs (mean 8.9 µs; 6.8 to 10.6 µs per pair across its
+  three scenes, 2.8 to 15.1 µs per single scene). The gate stays open until
+  that is found and bounded (item 102).
 - [x] Complete original-buffer and lifecycle integration acceptance. On the
   OpenGL virtual backend, 2026-09-28 (item 72 of the open list): the VM
   production test `testUpscaleProduction` (`autotests/kwin_scaling_test.cpp`)

@@ -1130,13 +1130,14 @@ the list until it is done.
     do costs per frame.
   **Done 2026-10-03, the effect's:** six more pairs with nothing reading the
     effect during a run gave 0.850, 0.849 and 0.838 (texture 15285 against
-    17982, shading 18100 against 21324, build 22000 against 26264). At some
-    18 000 frames per second that is about 8 µs per frame, which suggests work
-    per commit or presentation; at a game's 120 frames per second it would be
-    about 0.1 %. Where it goes is item 102.
+    17982, shading 18100 against 21324, build 22000 against 26264). Paired by
+    frame time, the loaded effect added a median of 8.9 µs per frame over the
+    18 scene pairs (6.8 to 10.6 µs per pair across its three scenes), which
+    suggests work per commit or presentation; at a game's 120 frames per
+    second it would be about 0.1 %. Where it goes is item 102.
 - **102.** **investigate, S** – What a loaded effect with nothing to do costs per frame
-    (99): about 8 µs at glmark2's 18 000 frames per second, 15 % of its
-    throughput at native size with direct scanout. Find the per-frame work
+    (99): a median of 8.9 µs per frame, 15 % of glmark2's throughput at
+    native size with direct scanout. Find the per-frame work
     that runs while the effect is not active, measure it, and remove or bound
     it, so that the gate's A0/A1 overhead is bounded in the FSR slice.
 
