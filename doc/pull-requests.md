@@ -98,6 +98,14 @@ begins: the merge is his, always.
   ready to merge. Mark it ready for review once the checks and the automated
   review have settled on the current head. Marking ready is not merging; merging
   stays with Jens either way.
+- **Ask CodeRabbit for its review.** Since October 2026 CodeRabbit no longer
+  reviews this repository on its own: it posts a note that the repository has
+  too few stars for automatic reviews, sets its `CodeRabbit` status to
+  "Review skipped", and `CodeRabbit approval` stays pending. A comment of
+  `@coderabbitai review` on the pull request starts the review. It is an
+  ordinary request, not one of the override commands below. Whether a later
+  push is reviewed without a new request has not been seen yet: when
+  `CodeRabbit approval` stays pending after a push, ask again.
 - **`CodeRabbit approval` is a commit status, not a comment.**
   `.github/workflows/review-approval.yml` and `tools/review_approval.py` publish
   it, and it is decided by the bot's authenticated account, never by text that
