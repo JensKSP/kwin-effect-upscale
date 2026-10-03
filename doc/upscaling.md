@@ -1143,8 +1143,12 @@ obsolete one, or fails msgfmt's check of the `%1` placeholders; with
 `--update` it merges the catalogues with the current sources first. None of
 the three catalogues has yet been read by someone who speaks its language. The refusal reasons and the X11 request's failure
 reasons carry `i18nc` context naming the frames they complete, and so do those
-frames. Still open: context for the developer view's other fragments, and the
-acceptance run in a session per language.
+frames, and since 2026-10-03 the developer view's other fragments as well.
+The acceptance run per language passed on 2026-10-03 in the Debian 13 package
+machine, after it had found decimals written with a point in every language
+and the Spanish settings page cutting a label short; the
+[infrastructure work package](agents/slice-development-infrastructure.md#shipping-the-texts-in-every-language)
+records it.
 
 - Every user-visible string goes through KI18n with the project's translation
   domain, `kwin_effect_upscale`, which the build defines for the effect, the

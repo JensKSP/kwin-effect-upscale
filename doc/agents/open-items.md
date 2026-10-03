@@ -1021,6 +1021,11 @@ the list until it is done.
   **Done 2026-09-28, `51e56ff`, pushed, except in a session:** measured with Ninja; only
   `buildinfo.cpp` recompiles, and a new commit reaches the binaries without
   reconfiguring. The installed pair after an upgrade needs a session.
+  **Done in a session 2026-10-03** in the Debian 13 package machine: over
+    `v0.3.0`, a package of `681e918` left the status naming the loaded 0.3.0
+    build until the next login, both modules on disk carrying the new version,
+    and after it the session ran and named the new build; the nightly passed
+    the same way. Recorded in the slice.
 - **59.** **test** – Package and source archive with and without the KCM (L352-355).
   **Done 2026-09-28, `044a366`, pushed.** Recorded in the slice.
 - **60.** **test, S** – Transition-logging acceptance: no flooding, separate debug
@@ -1082,6 +1087,14 @@ the list until it is done.
     strings, carry a context naming what they complete; the three catalogues
     were brought along, two French and two Spanish agreements corrected on the
     way, and the catalogue check passes. The session check per language stays.
+  **Session check done 2026-10-03** in the Debian 13 package machine: with
+    the nightly it found decimals written with a point in every language
+    (`0004144`) and the Spanish settings page cutting the list's summary
+    (`681e918`); with a package of `681e918` it passed in German, French and
+    Spanish, and German at scale 2. Recorded in the slice and the handbook.
+    Left, for Jens: whether the developer view's build line, the identity
+    record the journal carries, stays English in every language as an
+    exception the handbook names.
 - **69.** **doc/decide** – Interactive controls: not started; only a hardware gate,
     so it can never close as written (L942-1021).
   **Decided by Jens 2026-09-29:** a later feature. It stays specified in the
@@ -1185,6 +1198,11 @@ the list until it is done.
     still reads it live. Six phase-reversed pairs: 0.982 to 0.994 of the
     unloaded throughput, a median of 0.4 µs per frame, the handler at 2.4 % of
     KWin's time. The FSR slice's gate is closed.
+  **Closed 2026-10-03:** the remaining 2.4 % was mostly the commit handler
+    deciding whether the window is the one enlarged, decided once a frame
+    since `170e1d7`; the profile per window was already remembered. Its
+    measurement on the television needs Jens's session open, so it moved to
+    the FSR slice's remaining work.
 
 ## G. Wayland conformance – `slice-wayland-conformance.md`
 

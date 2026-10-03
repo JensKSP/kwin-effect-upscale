@@ -537,9 +537,10 @@ not being listed: the first asks for nothing, the second follows the setting.
 The settings model of 2026-09-20 in full: the item table, per-game overrides for
 every preference, the six method slots, the editor's **Use global** controls and
 the migration off `Automatic`, the `-1` sentinel and the single method field.
-Profile ordering in the interface and the notes' translation, which needs the
-localized-entry extraction KDE uses for `.desktop` files, remain part of this
-slice as well.
+Profile ordering in the interface remains part of this slice as well. The
+notes are translated since 2026-09-30: the six notes of the shipped list carry
+`Note[de]`, `Note[fr]` and `Note[es]`, which KConfig picks by the session's
+language.
 
 What an upgrade does with a stored global `Enabled=false`, which has no
 successor switch, is decided and implemented: it is honoured and kept, as
@@ -1787,7 +1788,8 @@ Planned checks, not observed results:
 - [x] Write the trial rule and the four answers into `CONTRIBUTING.md`.
 - [x] Add the application form, `.github/ISSUE_TEMPLATE/application.yml`, with
       the label `area:applications` and its own release-note category. Whether
-      it renders and rejects an empty submission on GitHub is checked with 88.
+      it renders and rejects an empty submission was observed by Jens on
+      GitHub on 2026-10-03.
 - [x] Extend the catalogue tests to the acceptance rule: `catalogue_test.cpp`,
       checked against the shipped list and against a fixture that breaks each
       rule once.

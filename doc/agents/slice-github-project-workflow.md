@@ -259,10 +259,12 @@ rows above. What each check actually returned:
   milestone per release, without due dates (item 87). Milestone 1, "0.3.0",
   exists and holds #23, the only open issue or pull request; its list is the
   blocker filter for the release.
-- **Contribution forms (section 1): on the default branch, acceptance open.**
-  Five templates plus `config.yml` and the PR template are present. Whether the
-  forms render and reject an empty required field has still not been observed
-  on GitHub.
+- **Contribution forms (section 1): on the default branch, accepted.**
+  Five templates plus `config.yml` and the PR template are present. Observed
+  by Jens on GitHub on 2026-10-03: the forms render and reject an empty
+  required field. How a game's settings are reported is to be worked out
+  later, with the submitted applications in the
+  [application profiles](slice-application-profiles.md) slice.
 - **CodeQL (section 2): hosted execution still unobserved.**
   `gh run list --workflow=codeql.yml` returns no runs at all. SARIF upload and
   Security-tab results therefore remain unverified, as the phase 2 record says.
