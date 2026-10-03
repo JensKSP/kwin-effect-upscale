@@ -44,9 +44,10 @@ step with the package the nightly or a release builds.
 
 `tools/package-vm.py <system>` makes the machine from the system's cloud image
 and a cloud-init template under `containers/vm-host` (`plasma-debian.in`,
-`plasma-kubuntu.in`), each image checked against the sums file its
-distribution publishes beside it, with a 3840 × 2160 screen on QEMU's VGA,
-since the effect acts from 1920 × 1080 up by default. `check <package>` copies
+`plasma-kubuntu.in`, `plasma-fedora.in`, `plasma-opensuse.in`,
+`plasma-arch.in`), each image checked against the sums file its distribution
+publishes beside it, with a 3840 × 2160 screen on QEMU's VGA, or virtio-gpu on
+arm64, since the effect acts from 1920 × 1080 up by default. `check <package>` copies
 the package into the machine and runs `tools/package_check.py` in the guest as
 root, which finds the system's package manager and checks, in order:
 
@@ -114,7 +115,35 @@ inactive, which a game started by hand an hour after the check showed. The
 check's own login starts the idle time afresh, and in the first run
 SuperTuxKart started 23 seconds after it.
 
-## Remaining work
+Fedora 43, openSUSE Tumbleweed and Arch have a template and a profile since
+2026-09-29, and their machines came up logged in to Plasma's Wayland session.
+All three passed the nine steps the same day with nightly 36545995686's
+packages of `7ff0fe6`: SuperTuxKart drawn at 2560 × 1440 and enlarged on
+Wayland in each, the X11 game answered by the proxy through its shipped
+entry (Extreme Tux Racer on Fedora; SuperTuxKart on openSUSE and Arch), and
+KWin still running after the package was removed.
+
+arm64 has profiles for Debian, Kubuntu, Fedora and openSUSE since 2026-09-29:
+the amd64 profile with the system's arm64 image, `qemu-system-aarch64` on the
+virt machine with every host core translating, UEFI from Debian's
+`qemu-efi-aarch64`, and virtio-gpu at 3840 × 2160 in place of VGA, which the
+virt machine lacks; openSUSE's template loads virtio_gpu there instead of
+bochs. Arch publishes no arm64 image. The Debian arm64 machine finished its
+first boot on 2026-09-29 in 38 minutes under emulation, logged in to Plasma's
+Wayland session with KWin running, and virtio-gpu offering 3840 × 2160. Its check passed all nine steps the same day
+with the nightly's arm64 package, at the second run. In the first, step 8
+failed: the proxy asked the effect about Extreme Tux Racer's connection while
+the emulated KWin was still busy with the SuperTuxKart killed a moment
+before, and the answer came later than the half second the proxy holds a
+program (D-Bus `NoReply` in the journal), so the game was passed on
+unanswered and the effect resized its window instead. The check now waits
+before the X11 game until KWin uses under a tenth of a core over two
+seconds, at most two minutes; the proxy's bound is the product's and stays.
+
+Kubuntu 26.04, Fedora 43 and openSUSE Tumbleweed arm64 were made and checked
+under emulation the same day, all nine steps passing with nightly
+36545995686's arm64 packages. Every system and architecture but FreeBSD has
+passed (item 2f of the open list).
 
 PR #23 review follow-up, 2026-09-29: the recoverable-cloud-init diagnostic
 still ran outside the boot deadline. It now has a timeout from the remaining
@@ -124,35 +153,21 @@ Both hook stages and the Python regression suite passed in the maintained
 Trixie container (`build/wayland-auto-check/review-lint2.log`). No new
 cloud-image boot was needed for this diagnostic-only correction.
 
-- Fedora 43, openSUSE Tumbleweed and Arch have a template and a profile since
-  2026-09-29, and their machines came up logged in to Plasma's Wayland session.
-  All three passed the nine steps the same day with nightly 36545995686's
-  packages of `7ff0fe6`: SuperTuxKart drawn at 2560 × 1440 and enlarged on
-  Wayland in each, the X11 game answered by the proxy through its shipped
-  entry (Extreme Tux Racer on Fedora; SuperTuxKart on openSUSE and Arch), and
-  KWin still running after the package was removed.
-- arm64 has profiles for Debian, Kubuntu, Fedora and openSUSE since 2026-09-29:
-  the amd64 profile with the system's arm64 image, `qemu-system-aarch64` on the
-  virt machine with every host core translating, UEFI from Debian's
-  `qemu-efi-aarch64`, and virtio-gpu at 3840 × 2160 in place of VGA, which the
-  virt machine lacks; openSUSE's template loads virtio_gpu there instead of
-  bochs. Arch publishes no arm64 image. The Debian arm64 machine finished its
-  first boot on 2026-09-29 in 38 minutes under emulation, logged in to Plasma's
-  Wayland session with KWin running, and virtio-gpu offering 3840 × 2160; the
-  others have not been made yet. Its check passed all nine steps the same day
-  with the nightly's arm64 package, at the second run. In the first, step 8
-  failed: the proxy asked the effect about Extreme Tux Racer's connection while
-  the emulated KWin was still busy with the SuperTuxKart killed a moment
-  before, and the answer came later than the half second the proxy holds a
-  program (D-Bus `NoReply` in the journal), so the game was passed on
-  unanswered and the effect resized its window instead. The check now waits
-  before the X11 game until KWin uses under a tenth of a core over two
-  seconds, at most two minutes; the proxy's bound is the product's and stays.
+## Remaining work
+
 - FreeBSD cannot run Plasma's Wayland session in a machine: KWin needs a
   DRM/KMS driver, FreeBSD's drm-kmod drives Intel, AMD and NVIDIA hardware
   only, and virtio-gpu KMS exists only as the open pull request
   freebsd/drm-kmod#499 (aimed at FreeBSD 15.1, in review on 2026-09-29).
-  Whether FreeBSD's check waits for that driver, runs on real hardware, or
-  builds the module is Jens's decision (item 2f).
+  Decided by Jens on 2026-09-29: FreeBSD keeps the nightly's install, load and
+  removal test in an emptied machine, and its session check waits for that
+  driver.
+- Plasma started without systemd, as startplasma does on the BSDs (item 8 of
+  the open list, moved here on 2026-10-03), is checked by FreeBSD's session
+  check once that can run. On Linux, every machine that passed its nine steps
+  saw the proxy start at step 6 after an SDDM login.
+- Whether GitHub's arm64 runners offer KVM, which would let the arm64
+  machines run there rather than under full emulation (item 2f of the open
+  list); unchecked.
 - Container identity (Flatpak, Snap) and the BSDs for the X11 proxy
   ([resolution control](slice-resolution-control.md#what-the-proxy-costs-and-what-goes-through-it-2026-09-29)).

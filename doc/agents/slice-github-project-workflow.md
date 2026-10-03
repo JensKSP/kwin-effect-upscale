@@ -233,6 +233,18 @@ remain identified as optional in the permanent documentation.
 - CodeQL and dependency review are implemented and locally validated.
   Dependency review has passed a hosted run; CodeQL's hosted execution remains
   pending, and neither check gates a pull request. See the phase 2 record below.
+- Watch, moved from the open list on 2026-10-03 (item 89a): the first
+  scheduled run of `hook-updates.yml` on master, which where hooks moved
+  pushes `hook-updates-<day>`, opens its pull request with the run's token and
+  dispatches CI on the branch, as recorded under hook updates below.
+- For Jens (item 89a): `gh auth refresh -s notifications`, granting the CLI
+  the scope that reads his notification settings for failed scheduled runs
+  and security alerts; the agent then reads and reports them.
+- For Jens (item 91): Settings → Code security, to switch on non-provider
+  secret patterns and validity checks there if GitHub offers them. He decided
+  on 2026-09-29 to have both; the API answered a `PATCH` of
+  `security_and_analysis` with 200 the same day and both stayed disabled,
+  presumably not offered for a public repository of a personal account.
 
 ### State readback, 2026-09-20
 

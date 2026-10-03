@@ -302,4 +302,3 @@ Still not run:
   36503302445 on `d801766`, whose package sources differ from `5c117bd` in
   nothing, built arm64 identically: the difference is intermittent, and the
   listing names the files when it comes back.
-- The two open decisions above.

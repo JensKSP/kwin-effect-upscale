@@ -16,12 +16,13 @@ stays of it is the guard: a Wine window whose connection the proxy did not
 answer is neither held at its first mapping nor resized, and the status now
 names that reason; `leavesWineToTheProxy` checks it. The route now is the session X11
 proxy: the prefix is the unit, a profile matches the tail of the program's
-path through `wine://<prefix>/<path>`, a Wine component is held until its
-prefix's program is known (ten seconds at most), and each decision logs the
-names it was matched against. No shipped profile names a Wine program yet;
-Wreckfest's needs the path Proton reports, taken with the run on wzpc (item 30).
-Open, as the open list numbers them: acceptance on real games (29 to 31, 34 to
-36), Wine's Wayland driver (35), and warm prefixes (27).
+path through `wine://<prefix>/<path>`, a Wine component is answered for the
+program its prefix runs, which the program or the launcher that starts it
+names, and is held for it (ten seconds at most) only when a profile names the
+prefix, and each decision logs the names it was matched against. Since
+2026-10-03 the shipped Wreckfest entry names the program Proton runs, and
+Wreckfest was accepted with it on wzpc (items 30 and 98). What remains is
+under [Remaining work](#remaining-work).
 
 Written down on Jens's instruction on 2026-09-22 and accepted by him the same
 day as the route for Wine and Proton games that ignore resizing, on the
@@ -1200,3 +1201,30 @@ text, for KWin's issue tracker or as a merge request description:
 > its own.
 
 The measurements behind it are the section on the confined pointer above.
+
+## Remaining work
+
+Moved here from the open list on 2026-10-03, by its item numbers. The
+[gates](#gates) say which belong to the supported scope; the K numbers are the
+[known limitations](slice-known-limitations.md).
+
+- For Jens to file, with 2e's report: the proposal to KWin of a per-window
+  presentation transform its input honours (item 29b, K15), its text
+  [above](#proposal-prepared-for-kde-a-presentation-transform-kwins-input-honours-item-29b-2026-09-29).
+- One game under Wine outside Steam, launched normally, through the proxy:
+  the supported scope's second game (item 31).
+- A warm prefix with real games (item 27): Proton's wineserver lifetime and a
+  real launcher started before the game, with the games of items 30 and 31.
+  [The switch](#a-warm-prefix-measured-and-fixed-2026-09-29) is measured only
+  with Debian's Wine 10.0 and the OpenGL probe in the conformance machine.
+- Every flavour under the [additions](#additions-laid-down-by-jens-2026-09-22),
+  with Direct3D 9, 11 and 12, OpenGL and Vulkan, exclusive and borderless, on
+  real hardware (item 36, K10). Only Direct3D 11 on Wine's own renderer and
+  OpenGL have run.
+- Steam as Flatpak and Snap, run (item 34, K9), once
+  [the analysis of 2026-09-27](#steam-as-flatpak-and-snap-2026-09-27), which
+  still reasons with the companion, is restated for the proxy route.
+- Wine's Wayland driver presented (item 35, K3 and K20): a fullscreen window
+  smaller than its output drawn over it from its subsurface's image and its
+  viewport's source, with the pointer mapped, which meets K15's confinement
+  gap; see [Wine's Wayland driver](#wines-wayland-driver-reproduced-2026-09-29).

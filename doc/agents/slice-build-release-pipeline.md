@@ -275,10 +275,13 @@ supersede earlier pending statuses.
   That observation belongs to the
   [GitHub project workflow](slice-github-project-workflow.md) slice, which
   records it; this slice owns the configuration.
-- Observe the first authorized rolling-nightly publication and stable-tag
-  release, including downloaded-asset and provenance verification. Do not
-  create a stable version solely to test publication or count the existing
-  verification-only run as a public release.
+- ~~Observe the first authorized rolling-nightly publication and stable-tag
+  release, including downloaded-asset and provenance verification.~~ Done:
+  `v0.3.0` on 2026-10-01 and the nightly from master on 2026-10-02
+  (37053891266); on 2026-10-03 every file of both but the bundle verified
+  against this repository with GitHub CLI 2.102.0, and each bundle verified a
+  package offline with `release-assets.yml` as the signer (item 83 of the
+  open list).
 - Keep real-device acceptance with the rendering slice. Candidate provenance
   identifies what was tested; this pipeline does not claim hardware acceptance.
 
