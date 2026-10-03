@@ -137,6 +137,7 @@ marked **F** belong here.
 | K18 | The cursor over a hidden decoration | Item 18: the pointer's motion is the game's there, but which cursor KWin shows was not looked at | Possibly a resize cursor at a hidden window border | S | Look in the conformance machine with a decorated window beneath a presented game |
 | K19 | A visible dialog's title bar above a presented X11 game | Item 18b: the filter now asks KWin's hover window; no test, because no test session can present a game with a decorated window above it | The dialog should keep its title bar | S | Find a way to stack a decorated window above a presented one in a test session |
 | K20 | Wine's Wayland driver's pointer | With K3: a smaller surface needs the same mapping, and meets K15's confinement | – | F | With K3 |
+| K21 | Input to a picture with bars beyond the absolute pointer | Item 76: relative motion was not driven by a relative-pointer client; a locked pointer, a game's popups and subsurfaces over the bars, and separate overlays are untested | Unknown: such input may still land where the unscaled window is | F | A relative-pointer client and a locked pointer in the Wayland session with Fit and Integer; a game's popup over the bars |
 
 ## Proposed order
 
@@ -148,7 +149,7 @@ first:
 2. K18 and K19, both small and inside the supported scope.
 3. K4, a test per route that the status says "from the next start".
 4. K6, the nearest listed X11 mode.
-5. K15 once KWin answers the proposal, K16 and K17.
+5. K15 once KWin answers the proposal, K16, K17 and K21.
 6. K3 with K20, then K1 and K2.
 7. K9, K10, K11 and K13 with the machines and hardware they need.
 

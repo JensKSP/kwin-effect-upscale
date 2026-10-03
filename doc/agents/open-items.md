@@ -500,6 +500,8 @@ the list until it is done.
   **Answered 2026-09-28, no code change:** Native enlarges a kept smaller
   buffer with FSR; under other presets the display marks a kept size in the
   warning colour. Wording asking the player to change it goes with 43/44.
+  **Moved 2026-10-03** to slice-known-limitations.md, K8: saying it in the
+    handbook's known limits, which is K8's next step.
 - **18.** **impl, –** – A program that sizes a plain window from the mode it was told
     has to be presented over its screen (L1345-1347).
   Needs Jens first (moved to the decisions, 2026-09-29): no program known to do
@@ -523,6 +525,9 @@ the list until it is done.
   output and saw the pointer at two thirds of its position everywhere, in the
   conformance machine; `drawsAWindowOfTheToldSizeOverItsOutput` covers it in
   the Wayland session. Recorded in the slice.
+  **Moved 2026-10-03** to slice-known-limitations.md, K18: which cursor KWin
+    shows over a hidden decoration beneath a presented game, to be looked at
+    in the conformance machine.
 - **18b.** **impl, –** – Found while building 18, 2026-09-29: over a
     decoration KWin's pointer focus is empty and its decoration filter takes
     the motion. So UpscaleX11Input, which asks whether KWin's focus is above
@@ -542,6 +547,9 @@ the list until it is done.
   both arrive. On Kubuntu 26.04, whose KWin comes without Aurorae, the case
   skips. The half about a visible dialog's title bar has no test: no session
   here can present a game with a decorated window stacked above it.
+  **Moved 2026-10-03** to slice-known-limitations.md, K19: the visible
+    dialog's title bar above a presented X11 game, untested for want of a
+    session that can stack one there.
 - **19.** **test, –** – The seven-item Auto bench was never run (L1853-1886).
   **Done 2026-09-29, in the conformance machine:** the surface scale reaches
   GLFW 3.4, Godot 4.7 and SDL 3 with high pixel density, pointer landing where
@@ -696,6 +704,9 @@ the list until it is done.
   **Checked 2026-09-28, `51e56ff`, pushed:** all five implemented since #21. Missing is a
   shipped Wine entry that uses the path, which needs the path Proton reports
   for Wreckfest (item 30). Recorded in the slice.
+  **Closed 2026-10-03:** the shipped Wreckfest entry states the path Proton
+    runs, `wine://.*/Wreckfest/Wreckfest(?:_x64)?[.]exe`, with which the game
+    was accepted on wzpc (items 30 and 98).
 - **29.** **test, S** – Real Wine input at scale 3 (L748-752, L829-835).
   **Run 2026-09-29: a defect found.** Through the proxy at scale 3 the
   mapping is right until Wine confines the pointer: KWin checks the confinement
@@ -711,6 +722,8 @@ the list until it is done.
     took its pointer at a scale of 2/3, and Jens played it and found the
     pointer working. The game takes a pointer lock while driving. A pointer
     confined by a Wine game on the real display was not separately checked.
+  **Done 2026-10-03** with that run; a confinement on the real display is
+    K15's, with the proposal of 29b.
 - **29a.** **decide** – How the effect meets a confined pointer until KWin honours
   a presentation transform: map one to one while confined (the system cursor
   is drawn in the wrong place), undo KWin's confinement and clamp in the
@@ -747,6 +760,7 @@ the list until it is done.
     game chose 2560 × 1440 in exclusive fullscreen, the effect presented it
     over the output, and Jens played it: "played well, mouse pointer was ok".
     The entry states the pattern and the measured method, Auto.
+  **Done 2026-10-03** with that run.
 - **31.** **test, S** – One Wine game outside Steam (L328-330).
   **Moved 2026-10-03** to slice-proton-smaller-screen.md, Remaining work: one
   game under Wine outside Steam, launched normally, the supported scope's
@@ -831,6 +845,8 @@ the list until it is done.
     10:57:57); at 10:58:02 the game took a pointer lock over its window.
     Whether the reload caused it is not known; killing the game ended it. Not
     reproduced. No reload while a game runs until it is understood.
+  **Moved 2026-10-03** to slice-proton-smaller-screen.md, Remaining work, as
+    a watch.
 
 ## D. Application profiles – `slice-application-profiles.md`
 
@@ -868,6 +884,9 @@ the list until it is done.
   does; the false statement is corrected in the profiles slice, and the
   supported scope stays with 19a.
 - **43.** **decide** – 60 strings from the 2026-09-21 text review (L1350).
+  **Closed 2026-10-03, superseded by 44:** that table was never saved, and
+    the review of 2026-09-29 extracted every string afresh; Jens accepted all
+    37 proposals. The profiles slice's task says so.
 - **44.** **decide → impl** – Text review batch 3 and the texts after it (L1360-1368).
   **Decided by Jens 2026-09-29 for both:** the table of 2026-09-21 was never
   saved and the texts have changed since, so every user-facing string is
@@ -965,6 +984,9 @@ the list until it is done.
   submitted applications' Progress and remaining work: the end-to-end
   rehearsal in a real session, already open there. How a game's settings are
   reported stays here.
+  **Moved 2026-10-03** to slice-application-profiles.md, the submitted
+    applications' progress: how a game's settings are reported, to be worked
+    out with Jens.
 
 ## E. What the effect says – `slice-development-infrastructure.md`
 
@@ -1050,6 +1072,10 @@ the list until it is done.
   refusal and failure reasons and their frames. Left: context for the developer
   view's other fragments, a reading of each language by someone who speaks it,
   and the per-language session acceptance. Recorded in the slice.
+  **Partly moved 2026-10-03** to slice-development-infrastructure.md: the
+    reading by someone who speaks each language, which is full acceptance.
+    The developer view's remaining context and the session check per language,
+    which is the supported scope, stay here.
 - **69.** **doc/decide** – Interactive controls: not started; only a hardware gate,
     so it can never close as written (L942-1021).
   **Decided by Jens 2026-09-29:** a later feature. It stays specified in the
@@ -1081,6 +1107,7 @@ the list until it is done.
     KWin: direct scanout, `upscale` not active, the status naming why. The
     pictures are KWin's screenshot of what it composites, not a camera on the
     panel.
+  **Done 2026-10-03** with that run.
 - **72.** **test, S** – Lifecycle and fallback integration acceptance (L318).
   **Done 2026-09-28, `51e56ff`, pushed:** the VM production test passed all eight cases on
   KWin 6.3.6 with the OpenGL virtual backend. Recorded in the slice.
@@ -1120,6 +1147,9 @@ the list until it is done.
   integer scaling*: the TV acceptance with real retro and differing-aspect
   games, already open there. The rest stays here; HDR and VRR are postponed
   (75).
+  **Moved 2026-10-03** to slice-known-limitations.md, new K21: relative
+    motion from a relative-pointer client, a locked pointer, a game's popups
+    and subsurfaces over the bars, and separate overlays.
 - **77.** **test** – PR #14 GLES combined-candidate validation still "pending" (L640).
   **Closed 2026-09-28, `51e56ff`, pushed:** `allocationIgnoresEarlierErrors` passes in
   both render suites in every full check run. Recorded in the slice.
@@ -1237,11 +1267,15 @@ the list until it is done.
   <https://jensksp.github.io/kwin-effect-upscale/>. Built locally with the Pages
   action's own image: every page and all 27 of the handbook's tables. Its first
   hosted run follows the merge.
+  **Done 2026-10-03:** `pages.yml` has run on master since the merges, green
+    each time, the last on `a7677ec`, and the site answers at its address.
 - **87.** **decide** – Release milestones (none exist).
   **Decided by Jens 2026-09-29:** a 0.3.0 milestone now, without a due date,
   holding the issues and pull requests that block it, and one per release from
   then on. **Done the same day:** milestone 1, "0.3.0", holds #23, the only
   open issue or pull request.
+  **Done 2026-10-03:** after the release, milestone 1, "0.3.0", is closed;
+    milestone 2, "0.4.0", holds #29.
 - **88.** **test** – Issue forms render and reject empty required fields on GitHub.
   **Done 2026-10-03, by Jens on GitHub.** How a game's settings are reported
     is to be reworked later (53).
