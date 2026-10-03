@@ -1404,8 +1404,10 @@ Planned checks, not observed results:
       `upscale-application-list`, basis points in `upscale-resolution`. The
       running effect has to be reloaded after installing: an older effect
       reads the decimal scale wrongly.
-- [ ] Apply the text review of 2026-09-21: sixty strings proposed to Jens in
-      a table, awaiting his answer by number.
+- [x] ~~Apply the text review of 2026-09-21: sixty strings proposed to Jens in
+      a table, awaiting his answer by number.~~ Superseded: that table was
+      never saved, and the review of 2026-09-29 extracted every string afresh;
+      Jens accepted all 37 proposals (item 44 of the open list).
 - [x] Make Add from Window portable, per the handbook's
       [portable lists and settings](../upscaling.md#portable-lists-and-settings),
       required by Jens on 2026-09-21. It stored the full executable path as an
@@ -1792,6 +1794,9 @@ Planned checks, not observed results:
 - [ ] Walk the route once end to end and record what it produced here: a game
       not listed, its report from a real session, its entry in a package, and
       a fresh session recognizing it.
+- [ ] Work out with Jens how a game's settings are reported. He found the
+      forms doing their job on 2026-10-03, but the way of reporting has to be
+      worked out, not then (item 53 of the open list).
 
 ### Standalone exports retain measured methods, 2026-09-24
 

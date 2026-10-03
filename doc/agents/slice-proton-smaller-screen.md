@@ -1208,6 +1208,11 @@ Moved here from the open list on 2026-10-03, by its item numbers. The
 [gates](#gates) say which belong to the supported scope; the K numbers are the
 [known limitations](slice-known-limitations.md).
 
+- Watch (item 101): on 2026-10-03 at 10:58 Jens lost input while Wreckfest
+  ran at native 4K, not presented by the effect, shortly after the effect was
+  reconfigured twice to load an edited game list; at 10:58:02 the game took a
+  pointer lock over its window. Whether the reload caused it is not known; it
+  was not seen again. No reload while a game runs until it is understood.
 - For Jens to file, with 2e's report: the proposal to KWin of a per-window
   presentation transform its input honours (item 29b, K15), its text
   [above](#proposal-prepared-for-kde-a-presentation-transform-kwins-input-honours-item-29b-2026-09-29).

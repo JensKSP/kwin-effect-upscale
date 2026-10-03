@@ -1254,8 +1254,9 @@ Planned checks, not observed results:
   languages. Left: the developer view's other fragments, such as the window
   states and the buffer's way to the GPU.
 - [x] Translate German, French and Spanish, 2026-09-30: 311 strings each,
-  complete, with the catalogue notes; each still to be read by someone who
-  speaks it.
+  complete, with the catalogue notes.
+- [ ] Have each language read by someone who speaks it, which is full
+  acceptance (moved from item 68 of the open list on 2026-10-03).
 - [x] Translate the plugin metadata, 2026-09-30.
 - [ ] Run and record the per-language session acceptance.
 
