@@ -48,7 +48,7 @@ void UpscaleEffect::preparePaintArea(ScreenPrePaintData &data)
     // and one that stops gives the output back: either frame is painted whole,
     // whatever the commit that caused it damaged. Decided here, once a frame,
     // rather than by asking at every commit of every window whether it is now
-    // eligible, which a client at 18 000 frames a second paid for (item 102).
+    // eligible, which a client at 18 000 frames a second paid for.
     const bool switched = m_enlarged.value(output) != drawn;
     if (drawn) {
         m_enlarged.insert(output, drawn);
