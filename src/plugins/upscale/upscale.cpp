@@ -210,6 +210,7 @@ void UpscaleEffect::reconfigure(ReconfigureFlags flags)
     UpscaleConfig::self()->config()->reparseConfiguration();
     UpscaleConfig::self()->read();
     // Configuration is disk work, so it happens here and never in a frame.
+    upscaleKeepGlobalSettings();
     upscaleReloadApplications();
     qCInfo(KWIN_UPSCALE) << "Configuration reloaded; re-evaluating active requests";
     // Nothing global is cached here any more. Both controllers resolve what

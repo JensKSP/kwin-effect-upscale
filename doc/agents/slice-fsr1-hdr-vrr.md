@@ -59,9 +59,9 @@ This gate is the package's first milestone and the project's next acceptance
 after the [development infrastructure slice](slice-development-infrastructure.md)
 in the original sequence. The defect and regression coverage are now addressed,
 and on 2026-10-03 the physical display gave a scaled frame, its pixel
-comparison, the active-effect state and the fallback (see the progress below);
-what stays open is the bound on the loaded effect's overhead (item 102 of the
-open list).
+comparison, the active-effect state and the fallback, and the loaded effect's
+overhead was bounded with phase-reversed repeats once its cause was removed
+(see the progress below): the gate is closed.
 It was introduced before any real-GPU scaled frame had been observed. Loading
 the plugin, reporting it supported, passing the container and headless tests and
 installing it on the acceptance host have all been achieved and none of them
@@ -330,7 +330,7 @@ effect now sends the profile-specific Wayland/X11 requests documented there.
 - [x] Implement colour conversions and record automated shader/configuration tests.
 - [x] Measure A0 and A1 on the real output; record the unusable aggregate score.
 - [x] Isolate and fix the orientation refusal and extend automated coverage.
-- [ ] Close the physical-display scaler-effective gate with observed pixel
+- [x] Close the physical-display scaler-effective gate with observed pixel
   comparison, active-effect state and fallback on the accepted candidate.
   Needs the physical output and Jens's session (items 71 and 73 of the open
   list, with the A0/A1 phase-reversed repeats): a nested session on the
@@ -349,8 +349,19 @@ effect now sends the profile-specific Wayland/X11 requests documented there.
   run gave 0.84 to 0.85 (item 99 of the open list): the cost is the effect's.
   Paired by frame time, the loaded effect added a median of 8.9 µs per frame
   over the 18 scene pairs (mean 8.9 µs; 6.8 to 10.6 µs per pair across its
-  three scenes, 2.8 to 15.1 µs per single scene). The gate stays open until
-  that is found and bounded (item 102).
+  three scenes, 2.8 to 15.1 µs per single scene).
+  **Bounded the same day (item 102).** Those runs had the Debug build Jens's
+  session uses; built as the packages are, RelWithDebInfo, the loaded effect
+  still added a median of 4.9 µs per frame (0.88 to 0.90 of glmark2's
+  throughput). A profile of the session's KWin showed why: the effect's
+  handler of a window's damage, which runs at every client commit, spent 36 %
+  of KWin's time, most of it in `upscaleGlobalSettings()` building
+  configuration groups for each preference. The effect now keeps the global
+  layer as read in `reconfigure()`. Six pairs again, phase-reversed, with
+  nothing reading the effect during a run: 0.982 to 0.994 of the unloaded
+  throughput, a median of 0.4 µs per frame over the 18 scene pairs; in the
+  profile the handler fell to 2.4 % of KWin's time and the configuration
+  library dropped out of it.
 - [x] Complete original-buffer and lifecycle integration acceptance. On the
   OpenGL virtual backend, 2026-09-28 (item 72 of the open list): the VM
   production test `testUpscaleProduction` (`autotests/kwin_scaling_test.cpp`)

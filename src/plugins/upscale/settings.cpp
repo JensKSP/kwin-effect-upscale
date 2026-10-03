@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <optional>
 
 namespace KWin
 {
@@ -339,7 +340,21 @@ UpscaleFilter UpscaleSettings::filter() const
     return value(UpscaleSetting::Filter) == int(UpscaleFilter::Nearest) ? UpscaleFilter::Nearest : UpscaleFilter::Fsr;
 }
 
-UpscaleMethods upscaleGlobalMethods()
+// The global layer as the effect last read it, once it asks for that; see
+// upscaleKeepGlobalSettings().
+struct UpscaleKeptGlobal {
+    UpscaleSettings settings;
+    UpscaleMethods methods;
+    bool switchedOff = false;
+};
+
+static std::optional<UpscaleKeptGlobal> &keptGlobal()
+{
+    static std::optional<UpscaleKeptGlobal> kept;
+    return kept;
+}
+
+static UpscaleMethods readGlobalMethods()
 {
     UpscaleMethods methods;
     const KConfigGroup group = globalGroup();
@@ -365,6 +380,11 @@ UpscaleMethods upscaleGlobalMethods()
     return methods;
 }
 
+UpscaleMethods upscaleGlobalMethods()
+{
+    return keptGlobal() ? keptGlobal()->methods : readGlobalMethods();
+}
+
 void upscaleSetGlobalMethods(const UpscaleMethods &methods)
 {
     // Through the generated setters rather than the group, so that the page's
@@ -377,7 +397,7 @@ void upscaleSetGlobalMethods(const UpscaleMethods &methods)
     UpscaleConfig::setMethodX11Borderless(upscaleMethodKey(methods[std::size_t(UpscalePresentation::X11Borderless)]));
 }
 
-UpscaleSettings upscaleGlobalSettings()
+static UpscaleSettings readGlobalSettings()
 {
     UpscaleSettings settings;
     for (const UpscaleSettingInfo &info : upscaleSettingTable()) {
@@ -389,6 +409,17 @@ UpscaleSettings upscaleGlobalSettings()
     settings.setActs((UpscaleConfig::unlistedApplications() || upscaleLegacyUnlisted(group))
                      && !upscaleLegacySwitchedOff(group));
     return settings;
+}
+
+UpscaleSettings upscaleGlobalSettings()
+{
+    return keptGlobal() ? keptGlobal()->settings : readGlobalSettings();
+}
+
+void upscaleKeepGlobalSettings()
+{
+    keptGlobal().reset();
+    keptGlobal() = UpscaleKeptGlobal{readGlobalSettings(), readGlobalMethods(), upscaleLegacySwitchedOff(globalGroup())};
 }
 
 UpscaleSettings upscaleResolveSettings(const UpscaleApplication *claimed)
@@ -405,7 +436,7 @@ UpscaleSettings upscaleResolveSettings(const UpscaleApplication *claimed)
     // Participation is the profile's own and is never inherited: a profile
     // that claimed this window answers for it, whatever the global profile
     // does about the windows nothing claimed.
-    settings.setActs(claimed->enabled && !upscaleLegacySwitchedOff(globalGroup()));
+    settings.setActs(claimed->enabled && !(keptGlobal() ? keptGlobal()->switchedOff : upscaleLegacySwitchedOff(globalGroup())));
     return settings;
 }
 
