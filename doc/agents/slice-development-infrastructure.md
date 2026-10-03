@@ -832,11 +832,13 @@ smaller.
 4. Crop whatever still exceeds the budget after the floor. The quarter is then
    an invariant rather than an intention.
 5. Add `OsdAnnouncementPosition` and `OsdDeveloperPosition`, and rename
-   `OsdPosition` to `OsdStatisticsPosition` so the three read alike. A stored
-   `OsdPosition` is migrated since Jens decided it on 2026-09-29: the
-   statistics block takes the old corner, as the
-   [application profiles](slice-application-profiles.md) slice records with
-   `upscaleLegacyCorners()`. Defaults: announcement top
+   `OsdPosition` to `OsdStatisticsPosition` so the three read alike. Since Jens
+   decided it on 2026-09-29, a stored `OsdPosition` is read as the statistics
+   corner while no `OsdStatisticsPosition` is stored, `upscaleLegacyCorners()`
+   in the effect and on the page, as the
+   [application profiles](slice-application-profiles.md) slice records. Nothing
+   rewrites the old key on its own; the settings page removes it when it next
+   saves. Defaults: announcement top
    left, heads-up top right, developer bottom right, bottom left free.
 6. Enforce distinct corners in two places. The settings page moves the
    displaced display as the user changes a box, so the move is visible. The
