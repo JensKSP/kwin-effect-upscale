@@ -565,6 +565,31 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   containers and the BSDs go with 2f and 51. Recorded in the slice.
 - **24.** **test, –** – SuperTuxKart on X11 through the proxy never recorded; source
     of Jens's Auto report; ~1 s stalls on 6.6 (L1918-1920, L1950, L3687-3690).
+  **Run 2026-10-03 on wzpc** (KWin 6.3.6, `3c574c6`, Jens's session on the
+    television, 3840 × 2160 at scale 3): through the proxy in all three X11
+    presentations, OpenGL fullscreen, Vulkan borderless and Vulkan exclusive,
+    the proxy logged profile `supertuxkart`, 2560 × 1440, "connection display
+    advertisement", and the effect enlarged the 2560 × 1440 window to the
+    output; the pictures are under item 71.
+  **Done 2026-10-03:** a race of four AI karts on lighthouse through the
+    proxy, OpenGL fullscreen under SDL's X11 driver, read every two seconds for
+    a minute after 15 s of warm-up: all 30 readings show the game enlarged from
+    2560 × 1440, presented at 120.0/s throughout, its slowest frame 8.3 ms, no
+    frame of 500 ms or more. No stall on KWin 6.3.6; the 6.6 report concerned
+    a KWin wzpc does not run.
+- **100.** **decide, –** – Found 2026-10-03 with item 71's runs on wzpc: SuperTuxKart
+    windowed on Wayland, under the AdvertisedMode profile Jens's own
+    kwinupscalerc gives it, clamps its window to the 2560 × 1440 screen it was
+    told ("The window size specified in user config is larger than your
+    screen!", even for 1920 × 1080, because it measures in logical units at
+    scale 3), and the effect then draws that decorated window over the whole
+    output, title bar hidden: `upscaleDrawnOverOutput()` ignores decoration on
+    purpose, for GLFW 3.4's borderless windows that KWin decorates. At
+    800 × 450 the window was left alone. For discussion with Jens: a windowed
+    game made to fill the screen the effect told it.
+  **Decided by Jens 2026-10-03:** keep it. The game believes that window is
+    its whole screen, and drawing it over the output shows what a screen of
+    the told size would. Recorded in the handbook beside the decision of 18.
 
 ## C. Proton smaller screen – `slice-proton-smaller-screen.md`
 
@@ -614,6 +639,11 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   (2550, 1425) of its 2560 × 1440 window at scale 3, its lower right, which
   before stopped at about two thirds. Input on a real display remains, with
   Jens (supported scope, 94a).
+  **Run 2026-10-03 on wzpc**: Wreckfest under Proton Experimental (item 30),
+    2560 × 1440 presented over the 3840 × 2160 output at scale 3; the effect
+    took its pointer at a scale of 2/3, and Jens played it and found the
+    pointer working. The game takes a pointer lock while driving. A pointer
+    confined by a Wine game on the real display was not separately checked.
 - **29a.** **decide** – How the effect meets a confined pointer until KWin honours
   a presentation transform: map one to one while confined (the system cursor
   is drawn in the wrong place), undo KWin's confinement and clamp in the
@@ -635,6 +665,16 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   in KWin 6.3.6 that check without the presentation; filing is Jens's.
   The limitation it would remove is K15 in the [known limitations](slice-known-limitations.md).
 - **30.** **test, S** – Wreckfest on wzpc through the proxy (L468-472, L925-927).
+  **Run 2026-10-03 on wzpc**: first at native 4K, because the shipped entry
+    recognized the game only by its window class, which arrives after the
+    game has chosen its mode. The proxy recorded the path Proton runs:
+    `wine://<prefix>/S:/steamapps/common/Wreckfest/Wreckfest_x64.exe`. With that
+    as the entry's connection pattern the proxy held Proton's desktop for the
+    game, which waits for the desktop, and the game never started (item 98).
+    With 98 fixed the proxy named the game from Proton's launcher at once, the
+    game chose 2560 × 1440 in exclusive fullscreen, the effect presented it
+    over the output, and Jens played it: "played well, mouse pointer was ok".
+    The entry states the pattern and the measured method, Auto.
 - **31.** **test, S** – One Wine game outside Steam (L328-330).
 - **32.** **decide/impl** – Legacy Wine guards and the Helper1 path: remove or keep
     (L663-671, L744).
@@ -657,6 +697,8 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   development build that enabled the companion leaves behind.
 - **33.** **wzpc** – Restore global `OsdStatistics=true` from
     `build/wzpc-clean-start-94a6804/` (L632-636).
+  **Found done 2026-10-03:** `[Effect-upscale] OsdStatistics=true` is in
+    Jens's kwinrc.
 - **34.** **test/investigate, F** – Steam as Flatpak and Snap; the 09-27 analysis
     still reasons with the companion (L870-927).
   Listed as K9 in the [known limitations](slice-known-limitations.md).
@@ -676,6 +718,35 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
     handbook update in proxy form (L575-579, L592).
   **Closed 2026-09-28, `51e56ff`, pushed:** moot since the companion left the default
   build; the handbook already describes the proxy route. Recorded in the slice.
+- **98.** **fix, S** – Found 2026-10-03 on wzpc with item 30: a connection pattern
+    naming Wreckfest's program made every Wine prefix one that may match, and
+    the proxy held Proton's desktop, `explorer.exe /desktop`, until the game
+    appeared, ten seconds and then ten more, because Steam first runs an
+    install script through Proton in the same prefix. The game waits for the
+    desktop and then never connected; Proton's log ended the second the hold
+    did.
+  **Fixed 2026-10-03:** Proton starts every game as `steam.exe` and the game's
+    Unix path, and that launcher runs before the desktop (0.6 s before it on
+    wzpc, the game 1.4 s after it). The proxy names a component's program from
+    such an argument, by Unix path through the prefix's drives or by Windows
+    path, past Wine's loader while it still leads the command line and past
+    the long-path prefix `\\?\`; a component whose program a process names is
+    answered at once, without asking whether to wait; and only a pattern that
+    names the prefix holds it, so one that could match in any prefix, as the
+    shipped Wreckfest entry's does, holds none (Jens chose this over the old
+    hold for program patterns on 2026-10-03). The eligibility test's
+    `wine-program` row, which expected such a pattern to hold every prefix,
+    now expects none, beside a new row for a program pattern pinned to a
+    prefix. `aLauncherNamesTheProgramBeforeItStarts` failed all three of its
+    rows before the fix and passes; six eligibility rows failed with the
+    shipped pattern before the gate changed. On wzpc Wreckfest then started
+    at 2560 × 1440 with no connection held (item 30).
+- **101.** **watch, –** – 2026-10-03 10:58 on wzpc: Jens lost input while the first
+    Wreckfest ran at native 4K, not presented by the effect, shortly after the
+    effect was reconfigured twice to load an edited game list (10:57:49 and
+    10:57:57); at 10:58:02 the game took a pointer lock over its window.
+    Whether the reload caused it is not known; killing the game ended it. Not
+    reproduced. No reload while a game runs until it is understood.
 
 ## D. Application profiles – `slice-application-profiles.md`
 
@@ -756,6 +827,14 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   Spanish, as `Note[de]` and so on, which KConfig picks by the session's language.
 - **50.** **test, F** – Real-session validation of the recommended values; TV
     (L1253, L1261, L1386).
+  **Run 2026-10-03 on the television**, Jens's session, the shipped entries
+    for the games: SuperTuxKart in all six presentations (71), Extreme Tux
+    Racer (the proxy offered 2560 × 1440 when it connected; the effect accepted
+    the 2560 × 1440 window), Left 4 Dead 2 (offered when it connected, X11
+    resize accepted, the effect selected and enlarged it) and Wreckfest (30).
+    Jens played the last three and found picture and pointer right;
+    SuperTuxKart ran in the automated check of 71. Left: glmark2 and vkmark at
+    their stated methods.
 - **51.** **decide → investigate, F** – Flatpak/Snap identities for STK/ETR; needs a
     Flathub remote and snapd on the host (L1744-1831).
   **Flatpak observed 2026-09-29** in the Fedora 43 package machine, not on the
@@ -782,6 +861,8 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   effect's `reportFacts`, **Copy Report…** and its report, the acceptance rule
   as a catalogue test, `CONTRIBUTING.md` and the application form. Left: the
   end-to-end rehearsal in a real session, and the form checked on GitHub (88).
+  **Jens, 2026-10-03:** the forms do their job for now, but how a game's
+    settings are reported has to be worked out, not today.
 
 ## E. What the effect says – `slice-development-infrastructure.md`
 
@@ -864,15 +945,39 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   beside the hardware gate when it is taken up. Deferred.
 - **70.** **test, F** – Displays on the TV (legibility, SDR/HDR, VRR, lock), placement
     at scale 3, footer and metadata by eye (L342-346, L691-694, L927-930).
+  **Run 2026-10-03 by Jens on the television** at scale 3, in SDR: the
+    displays read well from his seat and sit in sensible corners, none shows
+    on the lock screen, and the settings page's footer is right. Left: HDR,
+    and VRR, which this link cannot do (75).
 
 ## F. FSR rendering – `slice-fsr1-hdr-vrr.md`
 
 - **71.** **test, S** – A scaled frame on hardware: pixel comparison, `activeEffects`,
     fallback (L60-70, L316).
+  **Run 2026-10-03 on wzpc**: SuperTuxKart in all six presentations, native
+    Wayland and Xwayland with OpenGL fullscreen, Vulkan borderless and Vulkan
+    exclusive, each supplied 2560 × 1440, enlarged to 3840 × 2160 with
+    `upscale` in `activeEffects`, which it left once the game closed. With the
+    game stopped on one frame, Spectacle's picture of the output matched
+    KWin's plain stretch of the same buffer, taken with the effect unloaded
+    (likeness 0.05 to 0.19 of 255, limit 6), with 27 to 31 % more detail
+    (limit 10 %), as in the conformance machine. A windowed game was left to
+    KWin: direct scanout, `upscale` not active, the status naming why. The
+    pictures are KWin's screenshot of what it composites, not a camera on the
+    panel.
 - **72.** **test, S** – Lifecycle and fallback integration acceptance (L318).
   **Done 2026-09-28, `51e56ff`, pushed:** the VM production test passed all eight cases on
   KWin 6.3.6 with the OpenGL virtual backend. Recorded in the slice.
 - **73.** **test, S** – A0/A1 with phase-reversed repeats (L28-31, L570).
+  **Run 2026-10-03 on wzpc**, a finding: glmark2-wayland fullscreen, six pairs
+    in alternating order, texture, shading and build at 8 s each. With the
+    effect loaded at Native, which leaves glmark2's 3840 × 2160 buffer alone
+    (`scaling=0`, `scanout=direct` in every reading), the medians were 0.837,
+    0.836 and 0.823 of those with the effect unloaded: texture 15676 against
+    18736, shading 18572 against 22222, build 21850 against 26552. Only the
+    loaded runs read the effect's status every 6 s, a query that returns in
+    under 10 ms; a control run without that reading is open as item 99.
+  **Done 2026-10-03;** the overhead is the effect's: see 99 and 102.
 - **74.** **test, F** – B–D cost matrix, real games, image quality, HDR (L320-323).
 - **75.** **decide, F** – VRR: HDMI-A-1 on wzpc reports adaptive sync incapable, the
     NVIDIA host has VRR disabled; which host/link (L38-41, L541-546).
@@ -893,6 +998,22 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
 - **77.** **test** – PR #14 GLES combined-candidate validation still "pending" (L640).
   **Closed 2026-09-28, `51e56ff`, pushed:** `allocationIgnoresEarlierErrors` passes in
   both render suites in every full check run. Recorded in the slice.
+- **99.** **test, S** – Control for item 73: the same glmark2 A0/A1 pairs without
+    reading the effect's status during the loaded runs, to tell whether the
+    16 to 18 % lower throughput with the effect loaded is the effect's or the
+    measurement's; if the effect's, find what a loaded effect with nothing to
+    do costs per frame.
+  **Done 2026-10-03, the effect's:** six more pairs with nothing reading the
+    effect during a run gave 0.850, 0.849 and 0.838 (texture 15285 against
+    17982, shading 18100 against 21324, build 22000 against 26264). At some
+    18 000 frames per second that is about 8 µs per frame, which suggests work
+    per commit or presentation; at a game's 120 frames per second it would be
+    about 0.1 %. Where it goes is item 102.
+- **102.** **investigate, S** – What a loaded effect with nothing to do costs per frame
+    (99): about 8 µs at glmark2's 18 000 frames per second, 15 % of its
+    throughput at native size with direct scanout. Find the per-frame work
+    that runs while the effect is not active, measure it, and remove or bound
+    it, so that the gate's A0/A1 overhead is bounded in the FSR slice.
 
 ## G. Wayland conformance – `slice-wayland-conformance.md`
 
@@ -976,6 +1097,8 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   then on. **Done the same day:** milestone 1, "0.3.0", holds #23, the only
   open issue or pull request.
 - **88.** **test** – Issue forms render and reject empty required fields on GitHub.
+  **Done 2026-10-03, by Jens on GitHub.** How a game's settings are reported
+    is to be reworked later (53).
 - **89.** **impl** – Hook-update pull requests; failure notifications.
   **Partly done 2026-09-28, `49cf326`, pushed:** `tools/update-hooks.py` proposes updates
   every Monday in the run's summary, holding clang-format to 19 and never moving

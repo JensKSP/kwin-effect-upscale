@@ -487,7 +487,12 @@ as the existing design notes explain; the current recovery checks do not
 prove preservation of an unrelated edit made between the read and rename.
 
 Jens's next hardware acceptance sequence is Wreckfest, Extreme Tux Racer,
-SuperTuxKart and Left 4 Dead 2 on wzpc. Final review and merge follow only if
+SuperTuxKart and Left 4 Dead 2 on wzpc. **Run 2026-10-03 on the television**
+(KWin 6.3.6, 3840 × 2160 at scale 3, Quality): all four were offered
+2560 × 1440 by the session proxy or advertised it on Wayland, and the
+effect enlarged each. Jens played Wreckfest, after item 98 of the open list,
+Extreme Tux Racer and Left 4 Dead 2 and found picture and pointer right;
+SuperTuxKart ran in all six presentations in the automated check of item 71. Final review and merge follow only if
 those results and the PR checks are satisfactory. Further listed OSS games
 and Flatpak/Snap experiments follow that baseline; they are not acceptance
 claims for this candidate.
@@ -823,12 +828,13 @@ matches from any prefix (`x11proxy_identity_test.cpp`, `matching_test.cpp`);
 a launcher is matched the same way; windowed programs are left alone since the
 windowed slots went on 2026-09-25; and every decision's log line names the
 candidates it was matched against (`names=` in `connection.cpp`), with the
-program each prefix runs logged once. What is missing is a shipped Wine entry
-that uses it: Wreckfest's entry still recognizes the game by the window class
-Proton gives it, which arrives only with the window, too late for the proxy.
-Its connection pattern needs the path Proton reports for the game's
-executable, which no measurement here has recorded; it is taken with the
-Wreckfest run on wzpc (item 30) rather than guessed.
+program each prefix runs logged once. Wreckfest's entry, which recognized the
+game only by the window class Proton gives it, too late for the proxy, now
+states the path Proton reports for the game,
+`wine://<prefix>/S:/steamapps/common/Wreckfest/Wreckfest_x64.exe`, recorded
+in the Wreckfest run on wzpc on 2026-10-03 (item 30). With it the game chose
+2560 × 1440 in exclusive fullscreen, the effect presented it over the
+3840 × 2160 output at scale 3, and Jens played it with the pointer working.
 
 Open, in this order:
 
@@ -845,8 +851,19 @@ Open, in this order:
   (`prefixDecisionMilliseconds`) rather than the 500 ms of an ordinary
   connection. `selectedWineComponentWaitsForProgram` covers it, and now waits
   for the session's own "waiting for the program of prefix" rather than for
-  300 ms; it fails when the prefix is refused. The interval on a real prefix
-  stays unmeasured, and belongs to the acceptance below.
+  300 ms; it fails when the prefix is refused.
+  **Measured and replaced on 2026-10-03 (item 98).** On wzpc Proton started
+  `steam.exe` with the game's Unix path, the desktop 0.6 s later, and the game
+  1.4 s after that; Steam first ran its install script the same way in the
+  same prefix. Held for the game, the desktop held the game, which waits for
+  it, and Wreckfest never connected. The launcher already names the program,
+  so the proxy now takes it from there, and a component whose program a
+  process names is answered at once. Only a pattern that names the prefix
+  still holds it for its ten seconds; one that could match in any prefix,
+  the shipped Wreckfest entry's among them, holds none, so Wine's own tools
+  run on their own are never held (decided by Jens on 2026-10-03). `aLauncherNamesTheProgramBeforeItStarts`
+  covers Proton's launcher in the form Wine leaves, with its loader still
+  first, and with a long path.
 - A prefix whose wineserver still runs from an earlier program receives no new
   connection, so its screen was decided for that program. No answer proposed.
 - Acceptance across fullscreen, borderless and windowed presentation, for a
