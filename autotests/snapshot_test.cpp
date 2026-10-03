@@ -221,7 +221,10 @@ void UpscaleSnapshotTest::figuresFollowTheLocale()
     const QString developer = upscaleDeveloperInformation(snapshot);
     const QString status = upscaleStatusText(snapshot);
     QLocale::setDefault(previous);
-    for (const QString &expected : {QStringLiteral("59,8/s"), QStringLiteral("output scale 1,05"), QStringLiteral("3657,1 × 2057,1")}) {
+    // The position's two figures stay apart in the source language's frame
+    // too, which a session with English texts and German formats reads.
+    for (const QString &expected :
+         {QStringLiteral("59,8/s"), QStringLiteral("output scale 1,05"), QStringLiteral("(0,0; 0,0) 3657,1 × 2057,1")}) {
         QVERIFY2(developer.contains(expected), qPrintable(developer));
     }
     QVERIFY2(!developer.contains(QStringLiteral("3.657")), qPrintable(developer));
@@ -318,8 +321,8 @@ void UpscaleSnapshotTest::namesTheClientItIsLookingAt()
     covered.windowArea = UpscaleRectF(0, 0, 2560, 1440);
     covered.outputArea = UpscaleRectF(0, 0, 2648.28, 1489.66);
     const QString areas = upscaleDeveloperInformation(covered);
-    QVERIFY2(areas.contains(QStringLiteral("window 0.0,0.0 2560.0 × 1440.0")), qPrintable(areas));
-    QVERIFY2(areas.contains(QStringLiteral("output 0.0,0.0 2648.3 × 1489.7")), qPrintable(areas));
+    QVERIFY2(areas.contains(QStringLiteral("window (0.0; 0.0) 2560.0 × 1440.0")), qPrintable(areas));
+    QVERIFY2(areas.contains(QStringLiteral("output (0.0; 0.0) 2648.3 × 1489.7")), qPrintable(areas));
 
     // The first thing to check when a request had no effect is which window
     // system the client speaks: a Wayland method cannot reach an Xwayland

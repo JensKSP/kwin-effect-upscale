@@ -348,7 +348,7 @@ static QString areaText(const UpscaleRectF &area)
 {
     return i18nc("A rectangle, as position and size. Where the decimal separator is a comma, "
                  "keep the position's two figures apart with something else",
-                 "%1,%2 %3 × %4",
+                 "(%1; %2) %3 × %4",
                  upscaleFigureText(area.x(), 1), upscaleFigureText(area.y(), 1),
                  upscaleFigureText(area.width(), 1), upscaleFigureText(area.height(), 1));
 }

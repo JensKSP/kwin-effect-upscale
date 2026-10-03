@@ -1259,7 +1259,7 @@ msgstr "Le HDR suit la gestion des couleurs de KWin."
 msgctxt ""
 "A rectangle, as position and size. Where the decimal separator is a comma, "
 "keep the position's two figures apart with something else"
-msgid "%1,%2 %3 × %4"
+msgid "(%1; %2) %3 × %4"
 msgstr "(%1 ; %2) %3 × %4"
 
 #, kde-format
