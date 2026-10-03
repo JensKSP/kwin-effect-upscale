@@ -111,11 +111,24 @@ def output(command: list[str], timeout: float = 60, input_text: str | None = Non
 
 
 def kwin() -> str:
-    """Name the tester's compositor process, or nothing."""
+    """Name the tester's newest compositor process, or nothing."""
     found = subprocess.run(
-        ["pgrep", "-u", USER, "-x", "kwin_wayland"], capture_output=True, text=True, check=False
+        ["pgrep", "-n", "-u", USER, "-x", "kwin_wayland"],
+        capture_output=True,
+        text=True,
+        check=False,
     ).stdout.split()
     return found[0] if found else ""
+
+
+def seat_sessions() -> list[str]:
+    """Name the tester's login sessions on a seat, the ones a logout ends."""
+    sessions = output(["loginctl", "show-user", USER, "--property=Sessions", "--value"]).split()
+    return [
+        session
+        for session in sessions
+        if output(["loginctl", "show-session", session, "--property=Seat", "--value"]).strip()
+    ]
 
 
 def effects(method: str, argument: str) -> str:
@@ -159,12 +172,23 @@ def relogin(previous: str) -> str:
     session the check runs in is a scope of its own and stays. SDDM is reached
     as display-manager.service, the name systemd gives whichever display
     manager a system runs, which on openSUSE is the only name it has.
+
+    Where Plasma could not start as units, its KWin runs in the login
+    session itself, which outlives SDDM when the system keeps a user's
+    processes after logout, and the next login met it (Debian 13, 2026-10-03).
+    So the sessions on a seat are ended too.
     """
     subprocess.run(["systemctl", "stop", "display-manager"], check=False)
+    for session in seat_sessions():
+        subprocess.run(["loginctl", "terminate-session", session], check=False)
     subprocess.run(["systemctl", "restart", f"user@{UID}.service"], check=False)
     gone = time.monotonic() + 60
     while kwin() and time.monotonic() < gone:
         time.sleep(1)
+    # A session already closing when it is ended keeps its abandoned scope,
+    # and a KWin there that waits on SIGTERM never exits (Debian 13,
+    # 2026-10-03). It is killed, as a logout's stop timeout would kill it.
+    subprocess.run(["pkill", "--signal", "KILL", "-u", USER, "-x", "kwin_wayland"], check=False)
     subprocess.run(["systemctl", "start", "display-manager"], check=False)
     deadline = time.monotonic() + 300
     while time.monotonic() < deadline:
@@ -265,6 +289,13 @@ def proxy_routed(step: Step, session: Session) -> None:
     step.detail = f"routed {routed}, proxy started {started}"
 
 
+def set_up_game() -> None:
+    """Give SuperTuxKart the settings a player at a 4K screen has."""
+    configuration = f"/home/{USER}/.config/supertuxkart/config-0.10"
+    output(as_user("mkdir", "-p", configuration))
+    output(as_user("sh", "-c", f"cat > {configuration}/config.xml"), input_text=GAME)
+
+
 def wayland_game(step: Step, session: Session) -> None:
     """Check that SuperTuxKart on Wayland is drawn smaller and enlarged.
 
@@ -274,9 +305,7 @@ def wayland_game(step: Step, session: Session) -> None:
     3840 x 2160, where a fresh configuration would draw 1024 x 768, which the
     effect rightly leaves alone as under half the screen.
     """
-    configuration = f"/home/{USER}/.config/supertuxkart/config-0.10"
-    output(as_user("mkdir", "-p", configuration))
-    output(as_user("sh", "-c", f"cat > {configuration}/config.xml"), input_text=GAME)
+    set_up_game()
     environment = session.environment | {"SDL_VIDEODRIVER": "wayland"}
     found = watch(RACE, environment, 300, enlarged_game)
     step.outcome, step.detail = ("passed", found) if found else ("failed", str(metrics()))

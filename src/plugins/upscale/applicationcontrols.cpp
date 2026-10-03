@@ -49,13 +49,16 @@ void UpscaleEffectConfig::addApplicationControls(QFormLayout *layout)
     // What the list is, the way back to the list the package ships, and the
     // way to take it elsewhere. All three act on the games and never on "All
     // applications", whose values System Settings' own Defaults restores.
-    auto status = new QHBoxLayout;
-    status->addWidget(m_applications, 1);
-    status->addWidget(exportList);
-    status->addWidget(importList);
-    status->addWidget(report);
-    status->addWidget(m_resetApplications);
-    layout->addRow(status);
+    // The summary has a row of its own: wrapped beside the buttons it was
+    // given fewer lines than a longer translation needs.
+    layout->addRow(m_applications);
+    auto actions = new QHBoxLayout;
+    actions->addStretch(1);
+    actions->addWidget(exportList);
+    actions->addWidget(importList);
+    actions->addWidget(report);
+    actions->addWidget(m_resetApplications);
+    layout->addRow(actions);
     connect(m_resetApplications, &QPushButton::clicked, this, &UpscaleEffectConfig::resetApplications);
     connect(exportList, &QPushButton::clicked, this, &UpscaleEffectConfig::exportApplications);
     connect(importList, &QPushButton::clicked, this, &UpscaleEffectConfig::importApplications);

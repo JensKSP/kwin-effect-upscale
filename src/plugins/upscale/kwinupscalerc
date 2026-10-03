@@ -142,15 +142,24 @@ MeasuredVersion=Steam build 16986367
 # instance to steam_app_ and the game's Steam ID: 228380. That is the identity:
 # the PID its windows report is Wine's explorer.exe /desktop, run by Proton's
 # wine64-preloader, which every Proton game shares. Read off the running game
-# with Proton Experimental on 2026-09-21. No method is stated: the X11
-# presentation has not been measured, so it follows the global method.
+# with Proton Experimental on 2026-09-21.
+# The class arrives with the window, after the game has chosen its mode, so
+# the session proxy recognises the game by the program Proton runs instead:
+# wine://<prefix>/S:/steamapps/common/Wreckfest/Wreckfest_x64.exe on wzpc on
+# 2026-10-03, S: being the Steam library Proton maps. Its crash handler in
+# the same folder is not the game. Told the smaller screen when it connected,
+# it chose 2560 x 1440 in exclusive fullscreen at Quality, and the effect
+# presented it over the 3840 x 2160 output, pointer included, under Auto,
+# which is the method stated.
+X11ConnectionExecutable=wine://.*/Wreckfest/Wreckfest(?:_x64)?[.]exe
 WindowClass=steam_app_228380
 Instance=steam_app_228380
+MethodX11FullScreen=Auto
 Order=60
-Note=Recognized by the window class Proton gives it. In exclusive fullscreen Wine keeps its window at the monitor's size and ignores resize requests, so it still supplies the full resolution.
-Note[de]=Erkannt an der Fensterklasse, die Proton ihm gibt. Im exklusiven Vollbild hält Wine sein Fenster auf Monitorgröße und ignoriert Größenänderungen, daher liefert es weiterhin die volle Auflösung.
-Note[es]=Se reconoce por la clase de ventana que le da Proton. En pantalla completa exclusiva, Wine mantiene su ventana al tamaño del monitor e ignora las solicitudes de redimensionado, por lo que sigue entregando la resolución completa.
-Note[fr]=Reconnu par la classe de fenêtre que Proton lui donne. En plein écran exclusif, Wine garde sa fenêtre à la taille du moniteur et ignore les demandes de redimensionnement, il fournit donc toujours la pleine résolution.
+Note=Recognized by the program Proton starts, before it chooses its mode, so it is told the smaller screen and renders at that size in exclusive fullscreen. Its window is recognized by the class Proton gives it.
+Note[de]=Erkannt an dem Programm, das Proton startet, bevor es seinen Modus wählt. So wird ihm der kleinere Bildschirm mitgeteilt, und es rendert im exklusiven Vollbild in dieser Größe. Sein Fenster wird an der Klasse erkannt, die Proton ihm gibt.
+Note[es]=Se reconoce por el programa que inicia Proton, antes de que elija su modo, así que se le comunica la pantalla más pequeña y renderiza a ese tamaño en pantalla completa exclusiva. Su ventana se reconoce por la clase que le da Proton.
+Note[fr]=Reconnu par le programme que Proton lance, avant qu’il ne choisisse son mode : l’écran plus petit lui est donc annoncé et il effectue son rendu à cette taille en plein écran exclusif. Sa fenêtre est reconnue par la classe que Proton lui donne.
 
 [Application-glmark2]
 Name=glmark2

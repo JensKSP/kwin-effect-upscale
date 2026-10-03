@@ -16,12 +16,13 @@ stays of it is the guard: a Wine window whose connection the proxy did not
 answer is neither held at its first mapping nor resized, and the status now
 names that reason; `leavesWineToTheProxy` checks it. The route now is the session X11
 proxy: the prefix is the unit, a profile matches the tail of the program's
-path through `wine://<prefix>/<path>`, a Wine component is held until its
-prefix's program is known (ten seconds at most), and each decision logs the
-names it was matched against. No shipped profile names a Wine program yet;
-Wreckfest's needs the path Proton reports, taken with the run on wzpc (item 30).
-Open, as the open list numbers them: acceptance on real games (29 to 31, 34 to
-36), Wine's Wayland driver (35), and warm prefixes (27).
+path through `wine://<prefix>/<path>`, a Wine component is answered for the
+program its prefix runs, which the program or the launcher that starts it
+names, and is held for it (ten seconds at most) only when a profile names the
+prefix, and each decision logs the names it was matched against. Since
+2026-10-03 the shipped Wreckfest entry names the program Proton runs, and
+Wreckfest was accepted with it on wzpc (items 30 and 98). What remains is
+under [Remaining work](#remaining-work).
 
 Written down on Jens's instruction on 2026-09-22 and accepted by him the same
 day as the route for Wine and Proton games that ignore resizing, on the
@@ -487,7 +488,12 @@ as the existing design notes explain; the current recovery checks do not
 prove preservation of an unrelated edit made between the read and rename.
 
 Jens's next hardware acceptance sequence is Wreckfest, Extreme Tux Racer,
-SuperTuxKart and Left 4 Dead 2 on wzpc. Final review and merge follow only if
+SuperTuxKart and Left 4 Dead 2 on wzpc. **Run 2026-10-03 on the television**
+(KWin 6.3.6, 3840 × 2160 at scale 3, Quality): all four were offered
+2560 × 1440 by the session proxy or advertised it on Wayland, and the
+effect enlarged each. Jens played Wreckfest, after item 98 of the open list,
+Extreme Tux Racer and Left 4 Dead 2 and found picture and pointer right;
+SuperTuxKart ran in all six presentations in the automated check of item 71. Final review and merge follow only if
 those results and the PR checks are satisfactory. Further listed OSS games
 and Flatpak/Snap experiments follow that baseline; they are not acceptance
 claims for this candidate.
@@ -661,7 +667,8 @@ On wzpc, the user-authorized clean-start reset removed Wreckfest's preparation
 through the helper and temporarily removed personal upscaler overrides.
 Backups are retained in `build/wzpc-clean-start-94a6804/`. The original global
 `OsdStatistics=true` override must be restored after this test, preserving any
-new choices Jens makes. The earlier Wreckfest run had active upscaling and
+new choices Jens makes. Found restored on 2026-10-03: the global
+`[Effect-upscale] OsdStatistics=true` is back in Jens's kwinrc on wzpc. The earlier Wreckfest run had active upscaling and
 accurate edge input but used existing preparation; clean-start acceptance
 is still outstanding.
 
@@ -823,12 +830,13 @@ matches from any prefix (`x11proxy_identity_test.cpp`, `matching_test.cpp`);
 a launcher is matched the same way; windowed programs are left alone since the
 windowed slots went on 2026-09-25; and every decision's log line names the
 candidates it was matched against (`names=` in `connection.cpp`), with the
-program each prefix runs logged once. What is missing is a shipped Wine entry
-that uses it: Wreckfest's entry still recognizes the game by the window class
-Proton gives it, which arrives only with the window, too late for the proxy.
-Its connection pattern needs the path Proton reports for the game's
-executable, which no measurement here has recorded; it is taken with the
-Wreckfest run on wzpc (item 30) rather than guessed.
+program each prefix runs logged once. Wreckfest's entry, which recognized the
+game only by the window class Proton gives it, too late for the proxy, now
+states the path Proton reports for the game,
+`wine://<prefix>/S:/steamapps/common/Wreckfest/Wreckfest_x64.exe`, recorded
+in the Wreckfest run on wzpc on 2026-10-03 (item 30). With it the game chose
+2560 × 1440 in exclusive fullscreen, the effect presented it over the
+3840 × 2160 output at scale 3, and Jens played it with the pointer working.
 
 Open, in this order:
 
@@ -845,8 +853,19 @@ Open, in this order:
   (`prefixDecisionMilliseconds`) rather than the 500 ms of an ordinary
   connection. `selectedWineComponentWaitsForProgram` covers it, and now waits
   for the session's own "waiting for the program of prefix" rather than for
-  300 ms; it fails when the prefix is refused. The interval on a real prefix
-  stays unmeasured, and belongs to the acceptance below.
+  300 ms; it fails when the prefix is refused.
+  **Measured and replaced on 2026-10-03 (item 98).** On wzpc Proton started
+  `steam.exe` with the game's Unix path, the desktop 0.6 s later, and the game
+  1.4 s after that; Steam first ran its install script the same way in the
+  same prefix. Held for the game, the desktop held the game, which waits for
+  it, and Wreckfest never connected. The launcher already names the program,
+  so the proxy now takes it from there, and a component whose program a
+  process names is answered at once. Only a pattern that names the prefix
+  still holds it for its ten seconds; one that could match in any prefix,
+  the shipped Wreckfest entry's among them, holds none, so Wine's own tools
+  run on their own are never held (decided by Jens on 2026-10-03). `aLauncherNamesTheProgramBeforeItStarts`
+  covers Proton's launcher in the form Wine leaves, with its loader still
+  first, and with a long path.
 - A prefix whose wineserver still runs from an earlier program receives no new
   connection, so its screen was decided for that program. No answer proposed.
 - Acceptance across fullscreen, borderless and windowed presentation, for a
@@ -1183,3 +1202,35 @@ text, for KWin's issue tracker or as a merge request description:
 > its own.
 
 The measurements behind it are the section on the confined pointer above.
+
+## Remaining work
+
+Moved here from the open list on 2026-10-03, by its item numbers. The
+[gates](#gates) say which belong to the supported scope; the K numbers are the
+[known limitations](slice-known-limitations.md).
+
+- Watch (item 101): on 2026-10-03 at 10:58 Jens lost input while Wreckfest
+  ran at native 4K, not presented by the effect, shortly after the effect was
+  reconfigured twice to load an edited game list; at 10:58:02 the game took a
+  pointer lock over its window. Whether the reload caused it is not known; it
+  was not seen again. No reload while a game runs until it is understood.
+- For Jens to file, with 2e's report: the proposal to KWin of a per-window
+  presentation transform its input honours (item 29b, K15), its text
+  [above](#proposal-prepared-for-kde-a-presentation-transform-kwins-input-honours-item-29b-2026-09-29).
+- One game under Wine outside Steam, launched normally, through the proxy:
+  the supported scope's second game (item 31).
+- A warm prefix with real games (item 27): Proton's wineserver lifetime and a
+  real launcher started before the game, with the games of items 30 and 31.
+  [The switch](#a-warm-prefix-measured-and-fixed-2026-09-29) is measured only
+  with Debian's Wine 10.0 and the OpenGL probe in the conformance machine.
+- Every flavour under the [additions](#additions-laid-down-by-jens-2026-09-22),
+  with Direct3D 9, 11 and 12, OpenGL and Vulkan, exclusive and borderless, on
+  real hardware (item 36, K10). Only Direct3D 11 on Wine's own renderer and
+  OpenGL have run.
+- Steam as Flatpak and Snap, run (item 34, K9), once
+  [the analysis of 2026-09-27](#steam-as-flatpak-and-snap-2026-09-27), which
+  still reasons with the companion, is restated for the proxy route.
+- Wine's Wayland driver presented (item 35, K3 and K20): a fullscreen window
+  smaller than its output drawn over it from its subsurface's image and its
+  viewport's source, with the pointer mapped, which meets K15's confinement
+  gap; see [Wine's Wayland driver](#wines-wayland-driver-reproduced-2026-09-29).

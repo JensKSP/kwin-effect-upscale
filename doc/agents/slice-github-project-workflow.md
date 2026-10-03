@@ -233,6 +233,18 @@ remain identified as optional in the permanent documentation.
 - CodeQL and dependency review are implemented and locally validated.
   Dependency review has passed a hosted run; CodeQL's hosted execution remains
   pending, and neither check gates a pull request. See the phase 2 record below.
+- Watch, moved from the open list on 2026-10-03 (item 89a): the first
+  scheduled run of `hook-updates.yml` on master, which where hooks moved
+  pushes `hook-updates-<day>`, opens its pull request with the run's token and
+  dispatches CI on the branch, as recorded under hook updates below.
+- For Jens (item 89a): `gh auth refresh -s notifications`, granting the CLI
+  the scope that reads his notification settings for failed scheduled runs
+  and security alerts; the agent then reads and reports them.
+- For Jens (item 91): Settings → Code security, to switch on non-provider
+  secret patterns and validity checks there if GitHub offers them. He decided
+  on 2026-09-29 to have both; the API answered a `PATCH` of
+  `security_and_analysis` with 200 the same day and both stayed disabled,
+  presumably not offered for a public repository of a personal account.
 
 ### State readback, 2026-09-20
 
@@ -247,10 +259,12 @@ rows above. What each check actually returned:
   milestone per release, without due dates (item 87). Milestone 1, "0.3.0",
   exists and holds #23, the only open issue or pull request; its list is the
   blocker filter for the release.
-- **Contribution forms (section 1): on the default branch, acceptance open.**
-  Five templates plus `config.yml` and the PR template are present. Whether the
-  forms render and reject an empty required field has still not been observed
-  on GitHub.
+- **Contribution forms (section 1): on the default branch, accepted.**
+  Five templates plus `config.yml` and the PR template are present. Observed
+  by Jens on GitHub on 2026-10-03: the forms render and reject an empty
+  required field. How a game's settings are reported is to be worked out
+  later, with the submitted applications in the
+  [application profiles](slice-application-profiles.md) slice.
 - **CodeQL (section 2): hosted execution still unobserved.**
   `gh run list --workflow=codeql.yml` returns no runs at all. SARIF upload and
   Security-tab results therefore remain unverified, as the phase 2 record says.

@@ -125,7 +125,7 @@ void UpscaleEffect::prePaintScreen(ScreenPrePaintData &data)
         m_scaler.reset();
         m_renderer = renderer;
     }
-    coverDrawnWindow(data);
+    preparePaintArea(data);
     effects->prePaintScreen(data);
 }
 #endif
@@ -193,9 +193,11 @@ void UpscaleEffect::watchWindow(EffectWindow *window)
         releaseWhatTheGameLeftBehind();
     });
     connect(window, &EffectWindow::windowDamaged, this, [this, window]() {
-        if (eligible(window)) {
+        if (enlarged(window)) {
             // EASU and RCAS read neighbouring pixels. Full-window damage is
             // conservative and follows client commits, never a repaint timer.
+            // Only the window being enlarged: the frame in which one starts
+            // or stops is painted whole by preparePaintArea().
             window->addRepaintFull();
         }
         if (!effects->isScreenLocked()) {
@@ -210,6 +212,7 @@ void UpscaleEffect::reconfigure(ReconfigureFlags flags)
     UpscaleConfig::self()->config()->reparseConfiguration();
     UpscaleConfig::self()->read();
     // Configuration is disk work, so it happens here and never in a frame.
+    upscaleKeepGlobalSettings();
     upscaleReloadApplications();
     qCInfo(KWIN_UPSCALE) << "Configuration reloaded; re-evaluating active requests";
     // Nothing global is cached here any more. Both controllers resolve what

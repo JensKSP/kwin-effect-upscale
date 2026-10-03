@@ -537,9 +537,10 @@ not being listed: the first asks for nothing, the second follows the setting.
 The settings model of 2026-09-20 in full: the item table, per-game overrides for
 every preference, the six method slots, the editor's **Use global** controls and
 the migration off `Automatic`, the `-1` sentinel and the single method field.
-Profile ordering in the interface and the notes' translation, which needs the
-localized-entry extraction KDE uses for `.desktop` files, remain part of this
-slice as well.
+Profile ordering in the interface remains part of this slice as well. The
+notes are translated since 2026-09-30: the six notes of the shipped list carry
+`Note[de]`, `Note[fr]` and `Note[es]`, which KConfig picks by the session's
+language.
 
 What an upgrade does with a stored global `Enabled=false`, which has no
 successor switch, is decided and implemented: it is honoured and kept, as
@@ -1310,6 +1311,11 @@ Planned checks, not observed results:
 - [x] Compare reuse options and specify sparse inheritance and editing.
 - [x] Observe the catalogue identities of both test games and ship them.
 - [ ] Validate the recommended values on real applications in a real session.
+      Run 2026-10-03 on the television, Jens's session, with the shipped
+      entries (item 50 of the open list): SuperTuxKart in all six
+      presentations in the automated check of item 71, and Extreme Tux Racer,
+      Left 4 Dead 2 and Wreckfest, which Jens played and found picture and
+      pointer right. Left: glmark2 and vkmark at their stated methods.
 - [x] Implement catalogue model, layered persistence, editor and preset/pixel policy.
 - [x] Specify the settings model: item table, inheritance, method slots, 2026-09-20.
 - [x] Implement the item table and resolution, replacing the static
@@ -1399,8 +1405,10 @@ Planned checks, not observed results:
       `upscale-application-list`, basis points in `upscale-resolution`. The
       running effect has to be reloaded after installing: an older effect
       reads the decimal scale wrongly.
-- [ ] Apply the text review of 2026-09-21: sixty strings proposed to Jens in
-      a table, awaiting his answer by number.
+- [x] ~~Apply the text review of 2026-09-21: sixty strings proposed to Jens in
+      a table, awaiting his answer by number.~~ Superseded: that table was
+      never saved, and the review of 2026-09-29 extracted every string afresh;
+      Jens accepted all 37 proposals (item 44 of the open list).
 - [x] Make Add from Window portable, per the handbook's
       [portable lists and settings](../upscaling.md#portable-lists-and-settings),
       required by Jens on 2026-09-21. It stored the full executable path as an
@@ -1447,6 +1455,21 @@ Planned checks, not observed results:
       the settings page table, the two gates, reordering, the method slots
       and Auto, and the catalogue.
 - [ ] Run acceptance tests, both compiler/container builds and TV checks.
+- [ ] Check an exported entry with two real user accounts (item 48 of the
+      open list); the portable form is covered only by the test cases above.
+- [ ] See a Flatpak program named `flatpak://<id>/app/...` in a session with
+      a build that has it (item 47 of the open list). Implemented 2026-09-29:
+      the proxy reads the application's ID from
+      `/proc/<pid>/root/.flatpak-info`, and the effect names a Wayland program
+      from the security context's app ID KWin keeps, for a path below `/app`;
+      unit cases in the proxy's identity test and the matching test.
+- [ ] The rest of the Flatpak and Snap identities (item 51 of the open list,
+      K9 in the [known limitations](slice-known-limitations.md)). Observed
+      2026-09-29 in the Fedora 43 package machine: Flathub's SuperTuxKart 1.5
+      on Wayland, resolved to `/app/bin/supertuxkart` and connected through a
+      security context, was claimed by the shipped entry and supplied the
+      2560 × 1440 it was asked for. Left: the same with a build that has item
+      47, the X11 route through the proxy, and Snap.
 
 Observed documentation validation, 2026-09-18: `pre-commit run --all-files`
 passed in the Trixie container on an isolated working-tree copy under
@@ -1765,13 +1788,17 @@ Planned checks, not observed results:
 - [x] Write the trial rule and the four answers into `CONTRIBUTING.md`.
 - [x] Add the application form, `.github/ISSUE_TEMPLATE/application.yml`, with
       the label `area:applications` and its own release-note category. Whether
-      it renders and rejects an empty submission on GitHub is checked with 88.
+      it renders and rejects an empty submission was observed by Jens on
+      GitHub on 2026-10-03.
 - [x] Extend the catalogue tests to the acceptance rule: `catalogue_test.cpp`,
       checked against the shipped list and against a fixture that breaks each
       rule once.
 - [ ] Walk the route once end to end and record what it produced here: a game
       not listed, its report from a real session, its entry in a package, and
       a fresh session recognizing it.
+- [ ] Work out with Jens how a game's settings are reported. He found the
+      forms doing their job on 2026-10-03, but the way of reporting has to be
+      worked out, not then (item 53 of the open list).
 
 ### Standalone exports retain measured methods, 2026-09-24
 

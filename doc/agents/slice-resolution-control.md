@@ -16,7 +16,15 @@ nightly now runs every test on Kubuntu 26.04, and master is built. Fixed on
 `release/0.3.0` for #23: the map hold identifies a program on 6.6 through XRes
 (item 2d), re-entering fullscreen waits for the withdrawn mode (6a),
 `xdg_output` agrees with the told mode (15), and the proxy kills an Xwayland
-that ignores SIGTERM (10). On hardware Jens reports Left 4 Dead 2 correct at 4K,
+that ignores SIGTERM (10). CodeRabbit's review 5342421790 of #23 at `74de7c8`
+asked for five changes, each holding against the code, fixed in `a64aed9` and
+`d73802c` and merged with #23 as `312c07c`: the proxy withdraws its display
+policy when the monitor reply shows one monitor spanning several outputs, as
+the resources reply already did, and when the backend no longer offers the
+modes `outputInfo()` knows; `tools/check-presentations.py` fails an explicitly
+requested case whose program is missing and expects no action for a windowed
+presentation; `tools/measure-frame-times.py` checks the program before it
+changes kwinrc. Each has a case that failed on the old code. On hardware Jens reports Left 4 Dead 2 correct at 4K,
 mouse look included, and ETR's startup negotiation is accepted. Open, as the
 open list numbers them: the SuperTuxKart matrix (16), the Auto bench and plain
 windows (18, 19), the source-led investigations (20), proxy coverage of Vulkan,
@@ -1298,6 +1306,15 @@ surface-local position it is handed. That is exactly as shallow as Xwayland's
 own emulation, which never changes the real root size either.
 
 ## Remaining work
+
+- For Jens to file, moved from the open list on 2026-10-03: the KDE report on
+  an X11 window withdrawn right after mapping that stays mapped on KWin 6.6
+  (item 2e); its text and reproducer are under
+  [report prepared for KDE](#report-prepared-for-kde-a-window-withdrawn-at-once-stays-mapped-item-2e-2026-09-29).
+- For Jens to file with it, moved from the open list on 2026-10-03: the
+  proposal that KWin tell effects when a client creates its `xdg_output`,
+  the lasting fix of item 15; its text is under
+  [proposal prepared for KDE](#proposal-prepared-for-kde-telling-effects-when-a-client-makes-its-xdg_output-item-15-2026-10-03).
 
 ### SuperTuxKart in all six presentations, 2026-09-21
 
@@ -4336,8 +4353,10 @@ are figures from a virtual machine with six cores and no GPU, not from wzpc.
 Vulkan and presentation through the proxy: the SuperTuxKart check's Xwayland
 Vulkan cells, borderless and exclusive, ran through it with lavapipe on
 2026-09-29 and passed, as did its OpenGL cell. A GPU driver's DRI3 path, with
-buffers from the GPU, is not covered by that; it stays with the hardware
-checks. Container identity (Flatpak, Snap, Docker) needs those runtimes in a
+buffers from the GPU, went through it on wzpc on 2026-10-03: the same three
+Xwayland cells on its AMD GPU presented GPU buffers through the proxy and were
+enlarged, and a minute's race through it held 120 frames a second with no
+frame longer than 8.3 ms. Container identity (Flatpak, Snap, Docker) needs those runtimes in a
 machine and belongs with the package machines (item 2f) and the Flatpak and
 Snap identities (51); the BSDs need a FreeBSD session, likewise item 2f.
 
@@ -5049,3 +5068,40 @@ The reproducer is `build/withdraw-repro/withdraw.c` with `run.sh`; its source
 goes into the report as an attachment. The second finding of 2e, a
 QPointingDevice and an OffscreenQuickView leaked per crashing X11 client on
 6.3.6, is not reported, as agreed; it stays suppressed in `autotests/lsan.supp`.
+
+### Proposal prepared for KDE: telling effects when a client makes its `xdg_output` (item 15), 2026-10-03
+
+The lasting fix for item 15, written up for KDE beside 2e's report; filing is
+Jens's. The text, for bugs.kde.org, product kwin, component wayland, as a
+wishlist entry:
+
+> **Title:** Let an effect learn when a client creates its zxdg_output_v1, as
+> OutputInterface::bound does for wl_output
+>
+> An effect that tells one client a different output mode, through
+> `OutputInterface::bound` and the `wl_output` resource it hands over, cannot
+> keep that client's `zxdg_output_v1` consistent with it: KWin 6.3, 6.6 and
+> master create the client's `xdg_output` in `xdgoutput_v1.cpp`, whose
+> `XdgOutputV1Interface` is private, and no signal says a client made one. The
+> client then sees a `wl_output.mode` and an `xdg_output` logical size that
+> disagree. SDL 3 processes both and keeps both sizes in its mode list, which
+> leaves its exclusive-fullscreen choice to chance.
+>
+> `ClientConnection::setScaleOverride()` scales a client's `xdg_output` but
+> not `wl_output.mode`, so it cannot say the same thing in both.
+>
+> Proposal: a signal on `XdgOutputManagerV1Interface`, carrying the client and
+> the new resource, emitted when a client creates its `zxdg_output_v1`, as
+> `OutputInterface::bound` is for `wl_output`; or, more generally, a per-client
+> mode override that KWin applies to `wl_output.mode` and the `xdg_output`
+> logical size together.
+>
+> Today the effect works around it through libwayland's public API: a
+> resource-created listener on the told client, a protocol logger that reads
+> the `logical_position` KWin sends on the new object to learn its output, and
+> an idle callback that sends the told logical size and `done` after KWin's.
+> It works on 6.3.6 and 6.6, but it reads KWin's own traffic to find out what
+> KWin could say.
+
+The workaround is `src/plugins/upscale/logicalsize.cpp`, with the session tests
+named in [the fix of item 15](#a-defect-this-review-found-in-shipped-code).
