@@ -13,7 +13,10 @@ so that drift over the run weighs on both alike, and nothing reads the effect
 during a run. The answer is per scene: the medians of both, their ratio, and
 the frame time each pair added.
 
-Run it in the session to measure, on its own output, with nothing else running:
+Run it in the session to measure, on its own output, with nothing else running.
+It refuses to start while the machine is busy, since a build or a virtual
+machine beside it turns the pairs into noise (it did on 2026-10-03), and stops
+at the first run glmark2 does not finish, with what glmark2 said:
 the effect's settings are set to Native with the displays off for the run and
 put back afterwards, and the screen saver is held off meanwhile. --plugin loads
 another build of the effect for the run under a name of its own, as
@@ -50,6 +53,8 @@ SCENES = ("texture", "shading", "build")
 # in composition, which is exactly the cost this must not measure.
 RUN_SETTINGS = {"Resolution": "0", "Osd": "false"}
 FPS = re.compile(r"\[(\w+)\].*FPS:\s*(\d+)")
+# The load average above which the machine is too busy to measure on.
+BUSY = 2.0
 # What kreadconfig6 answers for a key that is not stored, which no value is.
 UNSET = "measure-idle-overhead: not stored"
 
@@ -181,11 +186,22 @@ def effect_from(plugin: Path | None) -> Iterator[str]:
 
 
 def run_glmark2(seconds: int) -> dict[str, int]:
-    """Run glmark2 fullscreen through the three scenes and read its rates."""
+    """Run glmark2 fullscreen through the three scenes and read its rates, or fail with why."""
     command = ["glmark2-wayland", "--fullscreen"]
     for scene in SCENES:
         command += ["-b", f"{scene}:duration={seconds}"]
-    return parse_fps(run_command(command).stdout)
+    done = run_command(command)
+    rates = parse_fps(done.stdout)
+    if set(rates) != set(SCENES):
+        said = (done.stderr.strip() or done.stdout.strip())[-400:]
+        message = f"glmark2 exited {done.returncode} with rates for {sorted(rates)}: {said}"
+        raise RuntimeError(message)
+    return rates
+
+
+def busy() -> float:
+    """The machine's load over the last minute."""
+    return float(Path("/proc/loadavg").read_text().split()[0])
 
 
 def measure(name: str, pairs: int, seconds: int) -> list[Run]:
@@ -212,8 +228,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--plugin", type=Path, help="another build's upscale.so, loaded for the run")
     parser.add_argument("--report", type=Path, help="where to keep the runs and the summary as JSON")
     options = parser.parse_args(argv)
-    with screen_saver_held(), run_settings(), effect_from(options.plugin) as name:
-        runs = measure(name, options.pairs, options.seconds)
+    if (load := busy()) > BUSY:
+        print(f"the machine is busy (load {load:.1f}); measure when nothing else runs")
+        return 2
+    try:
+        with screen_saver_held(), run_settings(), effect_from(options.plugin) as name:
+            runs = measure(name, options.pairs, options.seconds)
+    except RuntimeError as error:
+        # The runs so far were printed as they finished; the settings, the
+        # effect and the screen saver are back as they were.
+        print(f"stopped: {error}")
+        return 1
     summary = summarize(runs)
     print(json.dumps(summary, indent=1))
     if options.report:

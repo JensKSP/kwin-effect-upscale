@@ -7,6 +7,8 @@
     package-vm.py SYSTEM start | stop | status
     package-vm.py SYSTEM guest COMMAND...     a command in the guest
     package-vm.py SYSTEM check PACKAGE        install, check, remove; report
+    package-vm.py SYSTEM upgrade OLD NEW      install OLD, upgrade to NEW; report
+    package-vm.py SYSTEM languages PACKAGE    the session in each shipped language
 
 A machine per system and architecture, each the system's own cloud image with
 the Plasma desktop its installer offers, logged in by SDDM into Plasma's Wayland
@@ -150,6 +152,22 @@ def check(machine: vm.Machine, package: Path) -> int:
     return subprocess.run(command, cwd=vm.ROOT, check=False).returncode
 
 
+def session(machine: vm.Machine, command: str, packages: dict[str, Path]) -> int:
+    """Copy packages into the machine's directory, and run a check of package_session.py."""
+    arguments: list[str] = []
+    for option, package in packages.items():
+        shutil.copyfile(package, machine.directory / package.name)
+        arguments += [option, f"{machine.shared}/{package.name}"]
+    report = f"{machine.shared}/{command}.json"
+    guest = vm.ssh(
+        machine,
+        *("sudo", "python3", "-B", "/src/tools/package_session.py", command),
+        *arguments,
+        *("--report", report),
+    )
+    return subprocess.run(guest, cwd=vm.ROOT, check=False).returncode
+
+
 def main(argv: list[str] | None = None) -> int:
     """Carry out one command on one system's machine."""
     parser = argparse.ArgumentParser(
@@ -164,6 +182,10 @@ def main(argv: list[str] | None = None) -> int:
     # Everything after the command's name is the guest's, options included.
     commands.add_parser("guest").add_argument("words", nargs=argparse.REMAINDER)
     commands.add_parser("check").add_argument("package", type=Path)
+    upgrading = commands.add_parser("upgrade")
+    upgrading.add_argument("old", type=Path)
+    upgrading.add_argument("new", type=Path)
+    commands.add_parser("languages").add_argument("package", type=Path)
     arguments = parser.parse_args(argv)
     machine = SYSTEMS[arguments.system]
     if arguments.command == "create":
@@ -176,6 +198,10 @@ def main(argv: list[str] | None = None) -> int:
         print(vm.state(machine))
     elif arguments.command == "check":
         return check(machine, arguments.package)
+    elif arguments.command == "upgrade":
+        return session(machine, "upgrade", {"--from": arguments.old, "--to": arguments.new})
+    elif arguments.command == "languages":
+        return session(machine, "languages", {"--package": arguments.package})
     else:
         guest = vm.ssh(machine, *arguments.words)
         return subprocess.run(guest, cwd=vm.ROOT, check=False).returncode
