@@ -185,6 +185,10 @@ def relogin(previous: str) -> str:
     gone = time.monotonic() + 60
     while kwin() and time.monotonic() < gone:
         time.sleep(1)
+    # A session already closing when it is ended keeps its abandoned scope,
+    # and a KWin there that waits on SIGTERM never exits (Debian 13,
+    # 2026-10-03). It is killed, as a logout's stop timeout would kill it.
+    subprocess.run(["pkill", "--signal", "KILL", "-u", USER, "-x", "kwin_wayland"], check=False)
     subprocess.run(["systemctl", "start", "display-manager"], check=False)
     deadline = time.monotonic() + 300
     while time.monotonic() < deadline:
