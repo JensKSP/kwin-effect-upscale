@@ -337,6 +337,19 @@ Planned checks, not observed results:
   `buildinfo.cpp` objects, relinked the two modules, and the generated source
   named the new full hash. What remains of this item is the installed pair and
   the report after an upgrade, which need a session.
+
+  Observed in a session on 2026-10-03, in the Debian 13 amd64 package machine
+  (`tools/package-vm.py debian-13-amd64 upgrade OLD NEW`). The `v0.3.0` package
+  was installed and the tester logged in again: the status named
+  `upscale 0.3.0~trixie`, and both installed modules carried that version. A
+  package of `681e918` was installed over it with apt-get: until the next login
+  the status still named the 0.3.0 build KWin had loaded, while the effect and
+  the settings module on disk both carried `0.4.0+git20261003.681e91807a~trixie`;
+  after the login the session ran that build and named it. The nightly
+  `0.4.0+git20261002.3c574c62e2` had passed the same upgrade earlier that day.
+  The check found its own logout leaving a KWin running, in a login session
+  Plasma had started outside the tester's service manager, and now ends the
+  seat's sessions and such a leftover with them.
 - The settings use standard KDE interaction on the supported target, with
   accessible labels, focus and keyboard activation. Opening/closing About and
   following a details/license link leave unsaved configuration unchanged.
@@ -820,8 +833,10 @@ smaller.
    an invariant rather than an intention.
 5. Add `OsdAnnouncementPosition` and `OsdDeveloperPosition`, and rename
    `OsdPosition` to `OsdStatisticsPosition` so the three read alike. A stored
-   `OsdPosition` is not migrated; the only release carrying it is the rolling
-   nightly and the value is a cosmetic preference. Defaults: announcement top
+   `OsdPosition` is migrated since Jens decided it on 2026-09-29: the
+   statistics block takes the old corner, as the
+   [application profiles](slice-application-profiles.md) slice records with
+   `upscaleLegacyCorners()`. Defaults: announcement top
    left, heads-up top right, developer bottom right, bottom left free.
 6. Enforce distinct corners in two places. The settings page moves the
    displaced display as the user changes a box, so the move is visible. The
@@ -1263,7 +1278,31 @@ Planned checks, not observed results:
 - [ ] Have each language read by someone who speaks it, which is full
   acceptance (moved from item 68 of the open list on 2026-10-03).
 - [x] Translate the plugin metadata, 2026-09-30.
-- [ ] Run and record the per-language session acceptance.
+- [x] Run and record the per-language session acceptance, 2026-10-03, in the
+  Debian 13 amd64 package machine (`tools/package-vm.py debian-13-amd64
+  languages`). For each language the check writes the formats and the
+  translations as Plasma's own settings do, generates the locale, logs in
+  again, and takes KWin's picture of the settings page and of the display over
+  SuperTuxKart enlarged from 2560 × 1440, every block shown, reading the status
+  while the game is enlarged; German is pictured again on a desktop scaled
+  twice. With the nightly `0.4.0+git20261002.3c574c62e2` it found three
+  defects. The developer view and the status wrote their decimals with a point
+  in every language, beside the heads-up's "636,9"; they now follow the
+  locale, never grouped, and a rectangle's position is written "(0,0; 0,0)"
+  (`0004144`). The Spanish settings page cut the list's summary after "cada",
+  wrapped to three lines in a row two lines high; the summary now has a row
+  of its own (`681e918`). Each fix has a test that failed on the old code. The
+  developer view's build line stays English in every language: it is the
+  identity record the journal and a copied report carry, and whether it stays
+  so, as an exception the handbook names beside pixel counts, is for Jens to
+  decide (item 68 of the open list). With a package of
+  `681e918` the check passed in all three languages: each status translated,
+  each picture taken, figures written as the locale writes them ("5,8/s",
+  "Ausgabemaßstab 1,00"), the Spanish summary whole, the corrected French and
+  Spanish agreements on screen, and in German at scale 2 the settings page and
+  every block of the display inside the output. The pictures were read by eye;
+  French and Spanish keep "1 % low" and "1 % más bajo" as the catalogues
+  chose.
 
 ### Per-game display settings on wzpc, 2026-09-23
 

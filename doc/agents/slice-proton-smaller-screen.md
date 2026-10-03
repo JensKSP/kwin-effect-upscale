@@ -667,7 +667,8 @@ On wzpc, the user-authorized clean-start reset removed Wreckfest's preparation
 through the helper and temporarily removed personal upscaler overrides.
 Backups are retained in `build/wzpc-clean-start-94a6804/`. The original global
 `OsdStatistics=true` override must be restored after this test, preserving any
-new choices Jens makes. The earlier Wreckfest run had active upscaling and
+new choices Jens makes. Found restored on 2026-10-03: the global
+`[Effect-upscale] OsdStatistics=true` is back in Jens's kwinrc on wzpc. The earlier Wreckfest run had active upscaling and
 accurate edge input but used existing preparation; clean-start acceptance
 is still outstanding.
 

@@ -16,7 +16,15 @@ nightly now runs every test on Kubuntu 26.04, and master is built. Fixed on
 `release/0.3.0` for #23: the map hold identifies a program on 6.6 through XRes
 (item 2d), re-entering fullscreen waits for the withdrawn mode (6a),
 `xdg_output` agrees with the told mode (15), and the proxy kills an Xwayland
-that ignores SIGTERM (10). On hardware Jens reports Left 4 Dead 2 correct at 4K,
+that ignores SIGTERM (10). CodeRabbit's review 5342421790 of #23 at `74de7c8`
+asked for five changes, each holding against the code, fixed in `a64aed9` and
+`d73802c` and merged with #23 as `312c07c`: the proxy withdraws its display
+policy when the monitor reply shows one monitor spanning several outputs, as
+the resources reply already did, and when the backend no longer offers the
+modes `outputInfo()` knows; `tools/check-presentations.py` fails an explicitly
+requested case whose program is missing and expects no action for a windowed
+presentation; `tools/measure-frame-times.py` checks the program before it
+changes kwinrc. Each has a case that failed on the old code. On hardware Jens reports Left 4 Dead 2 correct at 4K,
 mouse look included, and ETR's startup negotiation is accepted. Open, as the
 open list numbers them: the SuperTuxKart matrix (16), the Auto bench and plain
 windows (18, 19), the source-led investigations (20), proxy coverage of Vulkan,
