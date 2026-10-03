@@ -5,9 +5,12 @@
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+import package_check
+import package_session
 from package_session import (
     ALWAYS,
     CATALOGUES,
@@ -71,6 +74,32 @@ class PackageSessionTest(unittest.TestCase):
         failed = {"settings": "de-settings.png", "game picture": "No screenshot was taken"}
         self.assertFalse(pictured(failed))
         self.assertFalse(pictured({"settings": "", "game picture": ""}))
+
+    def test_a_failed_way_back_hides_neither_error(self) -> None:
+        """Keep the check's own error, record each failed step back, and still log in again."""
+        failure = RuntimeError("no picture")
+        relogins: list[str] = []
+        steps = {
+            "install": mock.DEFAULT,
+            "show_everything": mock.DEFAULT,
+            "provide": mock.DEFAULT,
+            "speak": mock.DEFAULT,
+            "look": mock.Mock(side_effect=failure),
+            "scale": mock.Mock(side_effect=RuntimeError("kscreen-doctor failed")),
+        }
+        result: dict[str, object] = {}
+        with (
+            mock.patch.multiple(package_session, **steps),
+            mock.patch.object(package_check, "kwin", return_value="1"),
+            mock.patch.object(package_check, "session_environment", return_value={}),
+            mock.patch.object(package_check, "relogin", side_effect=relogins.append),
+            self.assertRaises(RuntimeError) as raised,
+        ):
+            package_session.languages("package.deb", result, Path())
+        self.assertIs(raised.exception, failure)
+        self.assertEqual(result["cleanup"], ["kscreen-doctor failed"])
+        # Once for the first language, once on the way back.
+        self.assertEqual(len(relogins), 2)
 
 
 if __name__ == "__main__":
