@@ -138,13 +138,17 @@ def run_settings() -> Iterator[None]:
     before = {key: run_command([*read, key]).stdout.rstrip("\n") for key in RUN_SETTINGS}
     try:
         for key, value in RUN_SETTINGS.items():
-            run_command(["kwriteconfig6", "--file", "kwinrc", "--group", GROUP, "--key", key, value])
+            run_command(
+                ["kwriteconfig6", "--file", "kwinrc", "--group", GROUP, "--key", key, value]
+            )
         effects("org.kde.kwin.Effects.reconfigureEffect", "upscale")
         yield
     finally:
         for key, value in before.items():
             restore = [value] if value != UNSET else ["--delete"]
-            run_command(["kwriteconfig6", "--file", "kwinrc", "--group", GROUP, "--key", key, *restore])
+            run_command(
+                ["kwriteconfig6", "--file", "kwinrc", "--group", GROUP, "--key", key, *restore]
+            )
         effects("org.kde.kwin.Effects.reconfigureEffect", "upscale")
 
 
@@ -200,7 +204,7 @@ def run_glmark2(seconds: int) -> dict[str, int]:
 
 
 def busy() -> float:
-    """The machine's load over the last minute."""
+    """Read the machine's load over the last minute."""
     return float(Path("/proc/loadavg").read_text().split()[0])
 
 
@@ -223,10 +227,16 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--pairs", type=int, default=6, help="pairs of runs, alternating their order")
+    parser.add_argument(
+        "--pairs", type=int, default=6, help="pairs of runs, alternating their order"
+    )
     parser.add_argument("--seconds", type=int, default=8, help="length of each scene")
-    parser.add_argument("--plugin", type=Path, help="another build's upscale.so, loaded for the run")
-    parser.add_argument("--report", type=Path, help="where to keep the runs and the summary as JSON")
+    parser.add_argument(
+        "--plugin", type=Path, help="another build's upscale.so, loaded for the run"
+    )
+    parser.add_argument(
+        "--report", type=Path, help="where to keep the runs and the summary as JSON"
+    )
     options = parser.parse_args(argv)
     if (load := busy()) > BUSY:
         print(f"the machine is busy (load {load:.1f}); measure when nothing else runs")

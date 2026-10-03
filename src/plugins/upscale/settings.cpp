@@ -342,7 +342,8 @@ UpscaleFilter UpscaleSettings::filter() const
 
 // The global layer as the effect last read it, once it asks for that; see
 // upscaleKeepGlobalSettings().
-struct UpscaleKeptGlobal {
+struct UpscaleKeptGlobal
+{
     UpscaleSettings settings;
     UpscaleMethods methods;
     bool switchedOff = false;
