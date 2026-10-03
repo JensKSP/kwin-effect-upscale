@@ -1076,6 +1076,10 @@ the list until it is done.
     reading by someone who speaks each language, which is full acceptance.
     The developer view's remaining context and the session check per language,
     which is the supported scope, stay here.
+  **Context done 2026-10-03:** the developer view's remaining fragments, 31
+    strings, carry a context naming what they complete; the three catalogues
+    were brought along, two French and two Spanish agreements corrected on the
+    way, and the catalogue check passes. The session check per language stays.
 - **69.** **doc/decide** – Interactive controls: not started; only a hardware gate,
     so it can never close as written (L942-1021).
   **Decided by Jens 2026-09-29:** a later feature. It stays specified in the

@@ -43,13 +43,13 @@ static QString transferName(int transferFunction)
 {
     switch (transferFunction) {
     case int(TransferFunction::sRGB):
-        return i18n("sRGB");
+        return i18nc("A transfer function, completing “destination transfer %1”", "sRGB");
     case int(TransferFunction::linear):
-        return i18n("linear");
+        return i18nc("A transfer function, completing “destination transfer %1”", "linear");
     case int(TransferFunction::PerceptualQuantizer):
-        return i18n("PQ");
+        return i18nc("A transfer function, completing “destination transfer %1”", "PQ");
     case int(TransferFunction::gamma22):
-        return i18n("gamma 2.2");
+        return i18nc("A transfer function, completing “destination transfer %1”", "gamma 2.2");
     default:
         return upscaleUnknownText();
     }
@@ -70,18 +70,18 @@ static QString refusalText(const UpscaleSnapshot &snapshot)
 static QString processing(const UpscaleSnapshot &snapshot)
 {
     if (snapshot.scaling && snapshot.filter == UpscaleFilter::Nearest) {
-        return i18n("nearest neighbor");
+        return i18nc("What the effect does with the buffer, after the sizes or a window's states", "nearest neighbor");
     }
     if (snapshot.scaling) {
         return snapshot.sharpening > 0
-            ? i18n("FSR 1 with RCAS sharpening %1%", qRound(snapshot.sharpening * 100))
-            : i18n("FSR 1, no sharpening");
+            ? i18nc("What the effect does with the buffer, after the sizes or a window's states", "FSR 1 with RCAS sharpening %1%", qRound(snapshot.sharpening * 100))
+            : i18nc("What the effect does with the buffer, after the sizes or a window's states", "FSR 1, no sharpening");
     }
     if (snapshot.refusal != UpscaleRefusal::None) {
         return i18nc("%1 is a reason, written as a clause", "not scaling: %1", refusalText(snapshot));
     }
     // Eligible, but no frame has come through the scaler yet.
-    return i18n("not scaling yet");
+    return i18nc("What the effect does with the buffer, after the sizes or a window's states", "not scaling yet");
 }
 
 static QString application(const UpscaleSnapshot &snapshot)
@@ -113,13 +113,13 @@ static QString presentationName(int mode)
 {
     switch (static_cast<PresentationMode>(mode)) {
     case PresentationMode::VSync:
-        return i18n("fixed refresh");
+        return i18nc("How the screen presents, completing “Presented at %1/s, %2.” or a frame count", "fixed refresh");
     case PresentationMode::AdaptiveSync:
-        return i18n("adaptive sync");
+        return i18nc("How the screen presents, completing “Presented at %1/s, %2.” or a frame count", "adaptive sync");
     case PresentationMode::Async:
-        return i18n("tearing");
+        return i18nc("How the screen presents, completing “Presented at %1/s, %2.” or a frame count", "tearing");
     case PresentationMode::AdaptiveAsync:
-        return i18n("adaptive sync with tearing");
+        return i18nc("How the screen presents, completing “Presented at %1/s, %2.” or a frame count", "adaptive sync with tearing");
     }
     return upscaleUnknownText();
 }
@@ -139,15 +139,15 @@ static QString presented(const UpscaleSnapshot &snapshot)
         // A literal percent sign, written once: KLocalizedString substitutes
         // numbered placeholders and does not collapse a doubled one the way
         // printf does, so "%%" would reach the screen as it stands here.
-        text += i18n(", 1% low %1/s", QString::number(snapshot.presentedLow, 'f', 1));
+        text += i18nc("Appended to “Presented: %1/s average”", ", 1% low %1/s", QString::number(snapshot.presentedLow, 'f', 1));
     }
     if (snapshot.presentedPercentile > 0) {
-        text += i18n(", 99th percentile %1 ms", QString::number(snapshot.presentedPercentile, 'f', 1));
+        text += i18nc("Appended to “Presented: %1/s average”", ", 99th percentile %1 ms", QString::number(snapshot.presentedPercentile, 'f', 1));
     }
     if (snapshot.presentedWorst > 0) {
-        text += i18n(", worst %1 ms", QString::number(snapshot.presentedWorst, 'f', 1));
+        text += i18nc("Appended to “Presented: %1/s average”", ", worst %1 ms", QString::number(snapshot.presentedWorst, 'f', 1));
     }
-    return text + i18np(" (%1 frame, %2)", " (%1 frames, %2)", snapshot.presentedFrames, presentationName(snapshot.presentation));
+    return text + i18ncp("Appended to “Presented: %1/s average”; %2 is how the screen presents", " (%1 frame, %2)", " (%1 frames, %2)", snapshot.presentedFrames, presentationName(snapshot.presentation));
 }
 
 static QString measurement(const UpscaleSnapshot &snapshot)
@@ -171,9 +171,9 @@ static QString bufferArrival(const UpscaleSnapshot &snapshot)
 {
     switch (snapshot.bufferKind) {
     case UpscaleBufferKind::Gpu:
-        return i18n("on the GPU");
+        return i18nc("How the buffer reached the compositor, completing “buffer format %1 arrived %2”", "on the GPU");
     case UpscaleBufferKind::SharedMemory:
-        return i18n("through main memory");
+        return i18nc("How the buffer reached the compositor, completing “buffer format %1 arrived %2”", "through main memory");
     case UpscaleBufferKind::Unknown:
         break;
     }
@@ -197,9 +197,9 @@ static QString desiredText(const UpscaleSnapshot &snapshot)
 static QString selection(const UpscaleSnapshot &snapshot)
 {
     QStringList states;
-    states.append(snapshot.activeWindow ? i18n("active") : i18n("not active"));
-    states.append(snapshot.fullScreen ? i18n("fullscreen") : i18n("not fullscreen"));
-    states.append(snapshot.selected ? i18n("selected") : i18n("not selected"));
+    states.append(snapshot.activeWindow ? i18nc("A window's state, one of three listed after “Selection:”, joined by commas", "active") : i18nc("A window's state, one of three listed after “Selection:”, joined by commas", "not active"));
+    states.append(snapshot.fullScreen ? i18nc("A window's state, one of three listed after “Selection:”, joined by commas", "fullscreen") : i18nc("A window's state, one of three listed after “Selection:”, joined by commas", "not fullscreen"));
+    states.append(snapshot.selected ? i18nc("A window's state, one of three listed after “Selection:”, joined by commas", "selected") : i18nc("A window's state, one of three listed after “Selection:”, joined by commas", "not selected"));
     return states.join(QStringLiteral(", "));
 }
 
@@ -210,9 +210,9 @@ static QString x11Presentation(const UpscaleSnapshot &snapshot)
 {
     switch (snapshot.x11Presentation) {
     case UpscaleX11Presentation::Xwayland:
-        return i18n("presented by Xwayland's emulated mode");
+        return i18nc("How a resized X11 window is shown, after “; ” or in the X11 resize line", "presented by Xwayland's emulated mode");
     case UpscaleX11Presentation::Effect:
-        return i18n("presented by this effect, pointer input mapped");
+        return i18nc("How a resized X11 window is shown, after “; ” or in the X11 resize line", "presented by this effect, pointer input mapped");
     case UpscaleX11Presentation::None:
         break;
     }
@@ -364,18 +364,18 @@ QString upscaleDeveloperInformation(const UpscaleSnapshot &snapshot)
                       snapshot.output.isEmpty() ? upscaleUnknownText() : snapshot.output));
     lines.append(i18n("Selection: %1, %2", selection(snapshot), processing(snapshot)));
     lines.append(i18n("Application: %1, method %2, advertised %3",
-                      snapshot.recognized.isEmpty() ? i18n("not recognized") : snapshot.recognized,
+                      snapshot.recognized.isEmpty() ? i18nc("No catalogue entry matched, completing “Application: %1”", "not recognized") : snapshot.recognized,
                       describeControlMethod(snapshot.method),
-                      snapshot.advertised.isValid() ? upscaleSizeText(snapshot.advertised) : i18n("nothing")));
+                      snapshot.advertised.isValid() ? upscaleSizeText(snapshot.advertised) : i18nc("No size was advertised, completing “advertised %1”", "nothing")));
     if (snapshot.method == UpscaleMethod::X11Resize) {
         const QString presentedBy = x11Presentation(snapshot);
         lines.append(i18nc("%2 is a reason, written as a clause, or none reported", "X11 resize: requested %1, failure %2, %3", upscaleSizeText(snapshot.requested),
-                           snapshot.requestFailure.isEmpty() ? i18n("none reported") : snapshot.requestFailure,
-                           presentedBy.isEmpty() ? i18n("not presented") : presentedBy));
+                           snapshot.requestFailure.isEmpty() ? i18nc("No failure, completing “failure %1”", "none reported") : snapshot.requestFailure,
+                           presentedBy.isEmpty() ? i18nc("How a resized X11 window is shown, after “; ” or in the X11 resize line", "not presented") : presentedBy));
     }
     lines.append(i18n("Configuration: %1, desired %2, sharpening %3",
-                      snapshot.enabled ? i18n("enabled") : i18n("disabled"), desiredText(snapshot),
-                      snapshot.sharpening > 0 ? i18n("RCAS %1%", qRound(snapshot.sharpening * 100)) : i18n("off")));
+                      snapshot.enabled ? i18nc("The effect's state, completing “Configuration: %1”", "enabled") : i18nc("The effect's state, completing “Configuration: %1”", "disabled"), desiredText(snapshot),
+                      snapshot.sharpening > 0 ? i18n("RCAS %1%", qRound(snapshot.sharpening * 100)) : i18nc("No sharpening, completing “sharpening %1”", "off")));
     lines.append(i18n("Coverage: window %1, output %2", areaText(snapshot.windowArea),
                       areaText(snapshot.outputArea)));
     lines.append(i18n("Geometry: supplied %1, destination %2, output scale %3",
@@ -391,8 +391,8 @@ QString upscaleDeveloperInformation(const UpscaleSnapshot &snapshot)
                       snapshot.maximumTexture > 0 ? QString::number(snapshot.maximumTexture) : upscaleUnknownText()));
     lines.append(i18n("Processing: buffer format %1 arrived %2, resources %3, scanout blocked by this effect: %4",
                       snapshot.format.isEmpty() ? upscaleUnknownText() : snapshot.format, bufferArrival(snapshot),
-                      snapshot.failed ? i18n("failed") : i18n("ready"),
-                      snapshot.blocksScanout ? i18n("yes") : i18n("no")));
+                      snapshot.failed ? i18nc("The scaler's resources, completing “resources %1”", "failed") : i18nc("The scaler's resources, completing “resources %1”", "ready"),
+                      snapshot.blocksScanout ? i18nc("Whether this effect blocks direct scanout", "yes") : i18nc("Whether this effect blocks direct scanout", "no")));
     // Only the destination colour description is observed here.
     lines.append(i18n("Color: destination transfer %1, reference luminance %2 cd/m²",
                       transferName(snapshot.transferFunction),
