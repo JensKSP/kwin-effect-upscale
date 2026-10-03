@@ -476,6 +476,8 @@ the list until it is done.
   and sends the told logical size after KWin's, and KWin's back on restore;
   both sessions test it. The lasting fix is a `bound` signal on KWin's
   `xdg_output` global, for the KDE report. Recorded in the slice.
+  **Moved 2026-10-03** to slice-resolution-control.md, Remaining work: the
+    proposal to KDE, its text now prepared there, for Jens to file with 2e.
 - **16.** **impl/test, –** – SuperTuxKart hard requirement: automated matrix of all
     six cells with output capture; live in-game changes (L1233, L1321-1325).
   **Agreed with Jens 2026-09-28:** `tools/check-supertuxkart.py` runs the six
