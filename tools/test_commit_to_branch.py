@@ -80,6 +80,16 @@ class CommitToBranchTest(unittest.TestCase):
         self.assertEqual(self.git("rev-parse", "--abbrev-ref", "HEAD"), "main")
         self.assertEqual(self.git("rev-parse", "main"), self.git("rev-parse", "work~1"))
 
+    def test_ignores_an_inherited_repository(self) -> None:
+        """Commit to the named repository even when a hook's GIT_DIR names another."""
+        other = self.root / "other"
+        self.git("init", "-q", "-b", "main", str(other), where=self.root)
+        os.environ["GIT_DIR"] = str(other / ".git")
+        commit(self.repository, "work", self.message, self.copy, ["kept.txt"])
+        del os.environ["GIT_DIR"]
+        self.assertEqual(self.git("show", "work:kept.txt"), "changed")
+        self.assertEqual(self.git("for-each-ref", "refs/heads/work", where=other), "")
+
     def test_refuses_an_empty_commit(self) -> None:
         """Refuse paths that the branch already has as the copy does."""
         (self.copy / "kept.txt").write_text("kept\n")

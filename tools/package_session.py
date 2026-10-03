@@ -269,6 +269,7 @@ def languages(package: str, result: dict[str, object], directory: Path) -> None:
     show_everything(shown=True)
     spoken: list[bool] = []
     looks: list[dict[str, str]] = []
+    cleanup: list[str] = []
     try:
         for code, locale in LANGUAGES.items():
             provide(locale)
@@ -284,10 +285,22 @@ def languages(package: str, result: dict[str, object], directory: Path) -> None:
         result["de at scale 2"] = looks[-1]
     finally:
         speak("")
-        show_everything(shown=False)
-        scale("1", pc.session_environment())
-        pc.relogin(current)
-    result["passed"] = len(spoken) == len(LANGUAGES) and all(spoken) and all(map(pictured, looks))
+        # Each step back is tried on its own and recorded, so that a failing
+        # one neither skips the next nor hides what the check itself found.
+        for step in (
+            lambda: show_everything(shown=False),
+            lambda: scale("1", pc.session_environment()),
+            lambda: pc.relogin(current),
+        ):
+            try:
+                step()
+            except RuntimeError as error:
+                cleanup.append(str(error))
+        if cleanup:
+            result["cleanup"] = cleanup
+    result["passed"] = (
+        not cleanup and len(spoken) == len(LANGUAGES) and all(spoken) and all(map(pictured, looks))
+    )
 
 
 def main(argv: list[str] | None = None) -> int:

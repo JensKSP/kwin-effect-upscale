@@ -29,14 +29,20 @@ import sys
 import tempfile
 from pathlib import Path
 
+from git_fixture import without_repository
+
 
 def git(repository: Path, *arguments: str, environment: dict[str, str] | None = None) -> str:
-    """Run git in the repository and answer what it printed, or fail with what it said."""
+    """Run git in the repository and answer what it printed, or fail with what it said.
+
+    A repository location the process inherited, as from a hook, would win
+    over -C, and the commit would land in that repository instead.
+    """
     done = subprocess.run(
         ["git", "-C", str(repository), *arguments],
         capture_output=True,
         text=True,
-        env=environment,
+        env=environment or without_repository(dict(os.environ)),
         check=False,
     )
     if done.returncode:
@@ -50,7 +56,8 @@ def commit(repository: Path, branch: str, message: Path, source: Path, paths: li
     reference = f"refs/heads/{branch}"
     start = git(repository, "rev-parse", "--verify", reference)
     with tempfile.TemporaryDirectory(prefix="commit-to-branch-") as scratch:
-        environment = dict(os.environ) | {"GIT_INDEX_FILE": str(Path(scratch) / "index")}
+        index = {"GIT_INDEX_FILE": str(Path(scratch) / "index")}
+        environment = without_repository(dict(os.environ)) | index
         git(repository, "read-tree", start, environment=environment)
         for path in paths:
             file = source / path
