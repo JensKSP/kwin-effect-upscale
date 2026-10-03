@@ -212,7 +212,7 @@ UpscaleSettings upscaleGlobalSettings();
  * upscaleGlobalMethods() and upscaleResolveSettings() from that copy until this
  * is called again. Reading it builds a configuration group for each of several
  * preferences, which at a client's every commit cost a fullscreen glmark2 a
- * tenth of its frames (item 102 of the open list), so the effect calls this
+ * tenth of its frames, so the effect calls this
  * where it reads its configuration and no frame reads it again. The settings
  * page never calls it: its values change while it is open.
  */
