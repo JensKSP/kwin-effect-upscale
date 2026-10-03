@@ -12,6 +12,10 @@ login, and whether a session in German, French or Spanish shows the effect in
 that language. Run as root in a machine made by tools/package-vm.py, like the
 package check, whose session helpers this uses; the package is removed at the
 end either way.
+
+The language check also takes KWin's picture of the settings page and of the
+display over an enlarged game in each language, and in German, the longest,
+on a desktop scaled twice. They go beside the report, to be read by eye.
 """
 
 from __future__ import annotations
@@ -31,8 +35,14 @@ LIBRARIES = Path("/usr/lib")
 PLUGINS = ("kwin/effects/plugins/upscale.so", "kwin/effects/configs/kwin_upscale_config.so")
 CATALOGUES = Path(__file__).resolve().parent.parent / "po"
 LOCALE = Path("/home") / pc.USER / ".config/plasma-localerc"
-# A line the effect's status always carries, whatever it sees.
+# A line the effect's status carries once it presents a window.
 ALWAYS = "HDR follows KWin's color management."
+# Each shipped language with the formats a person choosing it gets.
+LANGUAGES = {"de": "de_DE", "fr": "fr_FR", "es": "es_ES"}
+# Where a system keeps the locale definitions apart from the C library.
+DEFINITIONS = {"apt-get": "locales", "dnf": "glibc-locale-source", "zypper": "glibc-i18ndata"}
+# The display with every block, kept long enough to be pictured.
+SHOWN = {"OsdStatistics": "true", "OsdDeveloper": "true", "OsdTimeout": "60"}
 VERSION = re.compile(r"\d+\.\d+\.\d+(?:[~+][0-9A-Za-z.~+-]*)?")
 
 
@@ -65,8 +75,8 @@ def speaks(status: str, language: str) -> bool:
 
 
 def upstream(version: str) -> str:
-    """The version as the build names itself: without a distribution's suffix or revision."""
-    return re.split(r"[~-]", version, maxsplit=1)[0]
+    """Name the version as the build does: the package's, without its packaging revision."""
+    return version.rsplit("-", 1)[0]
 
 
 def package_version(package: str) -> str:
@@ -88,7 +98,7 @@ def installed(name: str) -> Path | None:
 
 
 def identity() -> dict[str, object]:
-    """What the session runs and what is installed, after the last login."""
+    """Say what the session runs and what is installed, after the last login."""
     status = pc.effects("supportInformation", "upscale")
     running = next((line for line in status.splitlines() if line.startswith("build: ")), "")
     files = {name: installed(name) for name in PLUGINS}
@@ -110,60 +120,174 @@ def install(package: str) -> None:
 def remove() -> None:
     """Remove the package, whatever state the run left it in."""
     _install, command = pc.manager()
-    pc.output(command, timeout=900)
+    pc.output(list(command), timeout=900)
 
 
-def upgrade(old: str, new: str) -> dict[str, object]:
+def upgrade(old: str, new: str, result: dict[str, object]) -> None:
     """Install the old package, log in, upgrade to the new one, log in again."""
-    result: dict[str, object] = {}
     current = pc.kwin()
     install(old)
     current = pc.relogin(current)
     result["after installing the old package"] = identity()
     install(new)
+    # Until the next login KWin keeps the effect it loaded, and its status has
+    # to name that build, not the one now installed.
+    before = identity()
+    result["after upgrading, before logging in again"] = before
     current = pc.relogin(current)
     after = identity()
     result["after upgrading"] = after
-    # Read before it is removed: the version the build that was installed names.
-    wanted = upstream(package_version(new))
+    # Read before they are removed: the versions the two builds name.
+    kept, wanted = upstream(package_version(old)), upstream(package_version(new))
     result["new version"] = wanted
-    result["passed"] = bool(wanted) and all(
-        wanted in found
-        for key, found in after.items()
-        if key.startswith("installed ") and isinstance(found, list)
-    ) and f"upscale {wanted} " in str(after["running effect"])
-    return result
+    result["passed"] = (
+        bool(kept and wanted)
+        and f"upscale {kept} " in str(before["running effect"])
+        and all(
+            wanted in found
+            for key, found in after.items()
+            if key.startswith("installed ") and isinstance(found, list)
+        )
+        and f"upscale {wanted} " in str(after["running effect"])
+    )
+
+
+def provide(locale: str) -> None:
+    """Make the locale exist, as a system does once its language is chosen."""
+    if f"{locale}.utf8" in pc.output(["locale", "-a"]).split():
+        return
+    if not Path("/usr/share/i18n/locales", locale).exists():
+        for program, package in DEFINITIONS.items():
+            if shutil.which(program):
+                install(package)
+    pc.output(["localedef", "-i", locale, "-f", "UTF-8", f"{locale}.UTF-8"])
 
 
 def speak(code: str) -> None:
-    """Set the tester's session language, or the system's when the code is empty."""
+    """Set the tester's language and formats as Plasma's settings write them, or none."""
     if code:
         LOCALE.parent.mkdir(parents=True, exist_ok=True)
-        LOCALE.write_text(f"[Translations]\nLANGUAGE={code}\n")
+        LOCALE.write_text(
+            f"[Formats]\nLANG={LANGUAGES[code]}.UTF-8\n\n[Translations]\nLANGUAGE={code}\n"
+        )
         shutil.chown(LOCALE, pc.USER, pc.USER)
     else:
         LOCALE.unlink(missing_ok=True)
 
 
-def languages(package: str) -> dict[str, object]:
+def show_everything(*, shown: bool) -> None:
+    """Turn every block of the display on for the tester, or back to the defaults."""
+    for key, value in SHOWN.items():
+        written = [value] if shown else ["--delete"]
+        command = ("kwriteconfig6", "--file", "kwinrc", "--group", "Effect-upscale", "--key", key)
+        pc.output(pc.as_user(*command, *written))
+
+
+def scale(factor: str, environment: dict[str, str]) -> None:
+    """Scale every enabled output of the session's desktop."""
+    shown = json.loads(pc.output(pc.as_user("kscreen-doctor", "--json", environment=environment)))
+    for screen in shown["outputs"]:
+        if screen.get("enabled"):
+            change = f"output.{screen['name']}.scale.{factor}"
+            pc.output(pc.as_user("kscreen-doctor", change, environment=environment))
+
+
+def picture(path: Path, environment: dict[str, str]) -> str:
+    """Take KWin's picture of the whole desktop, as its screenshot program does."""
+    command = ("spectacle", "--background", "--nonotify", "--fullscreen", "--output", str(path))
+    taken = subprocess.run(
+        pc.as_user(*command, environment=environment),
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    return path.name if taken.returncode == 0 and path.exists() else taken.stderr.strip()[-200:]
+
+
+def settings_picture(path: Path, environment: dict[str, str]) -> str:
+    """Open the settings page in the session and picture it."""
+    page = subprocess.Popen(
+        pc.as_user(
+            "kcmshell6", "kwin/effects/configs/kwin_upscale_config", environment=environment
+        ),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        # Nothing outside the page says when it has drawn its first frame.
+        time.sleep(10)
+        return picture(path, environment)
+    finally:
+        page.terminate()
+        page.wait(timeout=15)
+
+
+def game_picture(path: Path, environment: dict[str, str]) -> dict[str, str]:
+    """Run the race until the effect enlarges it, picture the display, read the status."""
+    found = {"enlarged": "", "picture": "", "status": ""}
+
+    def seen() -> str:
+        if enlarged := pc.enlarged_game():
+            # The rates need a few frames before the statistics show them.
+            time.sleep(5)
+            found.update(
+                enlarged=enlarged,
+                picture=picture(path, environment),
+                status=pc.effects("supportInformation", "upscale"),
+            )
+        return found["enlarged"]
+
+    pc.set_up_game()
+    pc.watch(pc.RACE, environment | {"SDL_VIDEODRIVER": "wayland"}, 300, seen)
+    return found
+
+
+def look(name: str, directory: Path, current: str) -> dict[str, str]:
+    """Picture the settings page and the display over the game in the session."""
+    environment = pc.session_environment()
+    pc.settle(current)
+    settings = settings_picture(directory / f"{name}-settings.png", environment)
+    game = game_picture(directory / f"{name}-game.png", environment)
+    return {
+        "settings": settings,
+        "game": game["enlarged"],
+        "game picture": game["picture"],
+        "status while enlarged": game["status"],
+    }
+
+
+def pictured(seen: dict[str, str]) -> bool:
+    """Say whether both pictures were taken."""
+    return seen["settings"].endswith(".png") and seen["game picture"].endswith(".png")
+
+
+def languages(package: str, result: dict[str, object], directory: Path) -> None:
     """Install the package and log in once per shipped language, reading the effect's status."""
-    result: dict[str, object] = {}
     current = pc.kwin()
     install(package)
+    show_everything(shown=True)
+    spoken: list[bool] = []
+    looks: list[dict[str, str]] = []
     try:
-        for code in ("de", "fr", "es"):
+        for code, locale in LANGUAGES.items():
+            provide(locale)
             speak(code)
             current = pc.relogin(current)
-            time.sleep(5)
-            status = pc.effects("supportInformation", "upscale")
-            result[code] = {"speaks": speaks(status, code), "status": status.splitlines()[:8]}
+            looks.append(look(code, directory, current))
+            spoken.append(speaks(looks[-1]["status while enlarged"], code))
+            result[code] = {"speaks": spoken[-1], **looks[-1]}
+        speak("de")
+        scale("2", pc.session_environment())
+        current = pc.relogin(current)
+        looks.append(look("de-scaled", directory, current))
+        result["de at scale 2"] = looks[-1]
     finally:
         speak("")
+        show_everything(shown=False)
+        scale("1", pc.session_environment())
         pc.relogin(current)
-    result["passed"] = all(
-        isinstance(entry, dict) and entry["speaks"] for key, entry in result.items() if key != "passed"
-    )
-    return result
+    result["passed"] = len(spoken) == len(LANGUAGES) and all(spoken) and all(map(pictured, looks))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -180,12 +304,15 @@ def main(argv: list[str] | None = None) -> int:
     speaking.add_argument("--package", required=True)
     speaking.add_argument("--report", required=True)
     options = parser.parse_args(argv)
+    # Filled as the check goes, so that a failure still reports what was found.
     result: dict[str, object] = {"passed": False}
     try:
         if options.command == "upgrade":
-            result = upgrade(options.old, options.new)
+            upgrade(options.old, options.new, result)
         else:
-            result = languages(options.package)
+            languages(options.package, result, Path(options.report).parent)
+    except RuntimeError as error:
+        result["error"] = str(error)
     finally:
         try:
             remove()
