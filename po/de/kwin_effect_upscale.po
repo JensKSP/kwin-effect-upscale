@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: kwin-effect-upscale\n"
 "Report-Msgid-Bugs-To: https://github.com/JensKSP/kwin-effect-upscale/issues\n"
-"POT-Creation-Date: 2026-10-03 18:32+0000\n"
+"POT-Creation-Date: 2026-10-03 20:33+0000\n"
 "PO-Revision-Date: 2026-09-30 00:00+0200\n"
 "Last-Translator: \n"
 "Language-Team: German\n"
@@ -1260,9 +1260,11 @@ msgid "HDR follows KWin's color management."
 msgstr "HDR folgt der Farbverwaltung von KWin."
 
 #, kde-format
-msgctxt "A rectangle, as position and size"
+msgctxt ""
+"A rectangle, as position and size. Where the decimal separator is a comma, "
+"keep the position's two figures apart with something else"
 msgid "%1,%2 %3 × %4"
-msgstr "%1,%2 %3 × %4"
+msgstr "(%1; %2) %3 × %4"
 
 #, kde-format
 msgid "Build: %1"
