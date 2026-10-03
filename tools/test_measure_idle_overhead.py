@@ -3,9 +3,11 @@
 """Regression tests for reading and pairing the idle-overhead measurement."""
 
 import runpy
+import subprocess
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 # The script imports its sibling the way every tool here does, which works
 # because Python puts a script's own directory on the path. Loading it by path
@@ -17,6 +19,7 @@ Run = TOOL["Run"]
 parse_fps = TOOL["parse_fps"]
 frame_time_deltas = TOOL["frame_time_deltas"]
 summarize = TOOL["summarize"]
+run_glmark2 = TOOL["run_glmark2"]
 
 # glmark2's lines as it prints them, with the noise around them.
 OUTPUT = """=======================================================
@@ -68,6 +71,17 @@ class IdleOverheadTest(unittest.TestCase):
         # Nine deltas, six of them nothing: the median over all is nothing.
         self.assertEqual(summary["added_microseconds_median"], 0.0)
         self.assertEqual(summary["added_microseconds_range"], [0.0, 12.5])
+
+    def test_a_run_without_every_scene_stops_with_what_glmark2_said(self) -> None:
+        failed = subprocess.CompletedProcess([], 1, "", "Error: Failed to set up the window")
+        with mock.patch.dict(run_glmark2.__globals__, {"run_command": lambda _: failed}):
+            with self.assertRaisesRegex(RuntimeError, "Failed to set up the window"):
+                run_glmark2(8)
+
+    def test_a_complete_run_answers_its_rates(self) -> None:
+        done = subprocess.CompletedProcess([], 0, OUTPUT, "")
+        with mock.patch.dict(run_glmark2.__globals__, {"run_command": lambda _: done}):
+            self.assertEqual(run_glmark2(8)["build"], 26119)
 
     def test_no_runs_summarize_to_nothing(self) -> None:
         summary = summarize([])
