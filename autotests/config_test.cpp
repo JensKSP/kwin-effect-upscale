@@ -63,6 +63,7 @@ private Q_SLOTS:
     void displayDefaults();
     void proxyRestartStatus();
     void installedBuildVersion();
+    void longSummaryKeepsItsLines();
 };
 
 void UpscaleConfigTest::proxyRestartStatus()
@@ -417,6 +418,28 @@ void UpscaleConfigTest::installedBuildVersion()
     // Nothing reports the running effect any more.
     QVERIFY(!module.widget()->findChild<QLabel *>(QStringLiteral("status")));
     QVERIFY(!module.widget()->findChild<QPushButton *>(QStringLiteral("refreshStatus")));
+}
+
+void UpscaleConfigTest::longSummaryKeepsItsLines()
+{
+    // A Spanish session on Debian showed "Lista predeterminada, actualizada con
+    // cada" and lost "versión." on 2026-10-03: beside the list's four buttons
+    // the label wrapped to three lines in a row only two lines high.
+    QWidget host;
+    KWin::UpscaleEffectConfig module(&host, KPluginMetaData());
+    auto *summary = module.widget()->findChild<QLabel *>(QStringLiteral("applicationSummary"));
+    QVERIFY(summary);
+    summary->setText(QStringLiteral("Lista predeterminada, actualizada con cada versión."));
+    QWidget *window = summary->window();
+    window->show();
+    QVERIFY(QTest::qWaitForWindowExposed(window));
+    const int narrowest = window->minimumSizeHint().width();
+    for (int width = narrowest; width <= narrowest + 600; width += 25) {
+        window->resize(width, window->heightForWidth(width) > 0 ? window->heightForWidth(width) : window->sizeHint().height());
+        QCoreApplication::processEvents();
+        QVERIFY2(summary->height() >= summary->heightForWidth(summary->width()),
+                 qPrintable(QStringLiteral("%1 wide: %2 of %3").arg(width).arg(summary->height()).arg(summary->heightForWidth(summary->width()))));
+    }
 }
 
 int main(int argc, char **argv)
