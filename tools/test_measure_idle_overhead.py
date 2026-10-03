@@ -34,18 +34,24 @@ OUTPUT = """=======================================================
 
 
 class IdleOverheadTest(unittest.TestCase):
+    """Read glmark2's output, pair the runs and summarize them."""
+
     def test_reads_each_scene(self) -> None:
+        """Read every scene's rate and nothing of the noise around them."""
         self.assertEqual(parse_fps(OUTPUT), {"texture": 18316, "shading": 21370, "build": 26119})
 
     def test_a_failed_run_reads_nothing(self) -> None:
+        """Read no rate from a run that failed to start."""
         self.assertEqual(parse_fps("Error: main: Could not initialize canvas"), {})
 
     def test_pairs_by_frame_time(self) -> None:
+        """Compare a pair by the time a frame takes, not by its rate."""
         # 20 000 against 16 000 frames a second is 50 against 62.5 microseconds.
         runs = [Run(0, "A0", {"texture": 20000}), Run(0, "A1", {"texture": 16000})]
         self.assertAlmostEqual(frame_time_deltas(runs)["texture"][0], 12.5)
 
     def test_pairs_in_either_order(self) -> None:
+        """Pair the runs whichever came first."""
         runs = [
             Run(0, "A0", {"texture": 20000}),
             Run(0, "A1", {"texture": 20000}),
@@ -55,10 +61,12 @@ class IdleOverheadTest(unittest.TestCase):
         self.assertEqual(frame_time_deltas(runs)["texture"], [0.0, 50.0])
 
     def test_a_pair_missing_a_run_is_left_out(self) -> None:
+        """Leave out a pair that lacks one of its runs."""
         runs = [Run(0, "A0", {"texture": 20000}), Run(1, "A1", {"texture": 10000})]
         self.assertEqual(frame_time_deltas(runs), {})
 
     def test_summary(self) -> None:
+        """Summarize the ratios and the added time per scene and over all."""
         runs = []
         for pair in range(3):
             runs.append(Run(pair, "A0", {"texture": 20000, "shading": 25000, "build": 40000}))
@@ -73,17 +81,22 @@ class IdleOverheadTest(unittest.TestCase):
         self.assertEqual(summary["added_microseconds_range"], [0.0, 12.5])
 
     def test_a_run_without_every_scene_stops_with_what_glmark2_said(self) -> None:
+        """Stop on a run without every scene, with glmark2's own message."""
         failed = subprocess.CompletedProcess([], 1, "", "Error: Failed to set up the window")
-        with mock.patch.dict(run_glmark2.__globals__, {"run_command": lambda _: failed}):
-            with self.assertRaisesRegex(RuntimeError, "Failed to set up the window"):
-                run_glmark2(8)
+        with (
+            mock.patch.dict(run_glmark2.__globals__, {"run_command": lambda _: failed}),
+            self.assertRaisesRegex(RuntimeError, "Failed to set up the window"),
+        ):
+            run_glmark2(8)
 
     def test_a_complete_run_answers_its_rates(self) -> None:
+        """Answer the rates of a run that has every scene."""
         done = subprocess.CompletedProcess([], 0, OUTPUT, "")
         with mock.patch.dict(run_glmark2.__globals__, {"run_command": lambda _: done}):
             self.assertEqual(run_glmark2(8)["build"], 26119)
 
     def test_no_runs_summarize_to_nothing(self) -> None:
+        """Summarize no runs as nothing measured."""
         summary = summarize([])
         self.assertEqual(summary["scenes"], {})
         self.assertIsNone(summary["added_microseconds_median"])

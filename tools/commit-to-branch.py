@@ -15,6 +15,9 @@ repository is configured with, like any other.
 
 A copy under build/ is never where work stays: commit each step from it as
 soon as it is done, since build/ holds only what can be thrown away.
+
+No hook runs on such a commit. Run both pre-commit stages in the copy first,
+in the maintained container, as doc/checks.md asks of every commit.
 """
 
 from __future__ import annotations
@@ -60,7 +63,14 @@ def commit(repository: Path, branch: str, message: Path, source: Path, paths: li
                     environment=environment,
                 )
             else:
-                git(repository, "update-index", "--force-remove", "--", path, environment=environment)
+                git(
+                    repository,
+                    "update-index",
+                    "--force-remove",
+                    "--",
+                    path,
+                    environment=environment,
+                )
         tree = git(repository, "write-tree", environment=environment)
     if tree == git(repository, "rev-parse", f"{start}^{{tree}}"):
         message_text = "nothing to commit: the paths are as the branch has them"
