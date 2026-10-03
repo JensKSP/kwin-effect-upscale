@@ -1245,14 +1245,19 @@ Planned checks, not observed results:
   and the RPM file list; Debian, Arch and FreeBSD package what is installed.
   `tools/check-translations.py`, a hook with its own regression test, fails an
   incomplete, fuzzy, obsolete or placeholder-breaking catalogue.
-- [ ] Give composed strings their context and split what cannot be reordered.
+- [x] Give composed strings their context and split what cannot be reordered.
   Done 2026-09-30 for the refusal reasons and the X11 request's failure
   reasons, each with a context naming the frames it completes, and for those
   frames, whose context says %1 is a reason written as a clause. Found while
   translating: German cannot put such a clause after "because", so "the last
   frame was not scaled because %1" is translated with a colon in all three
-  languages. Left: the developer view's other fragments, such as the window
-  states and the buffer's way to the GPU.
+  languages. Done 2026-10-03 for the developer view's other fragments: the
+  window states, the buffer's way to the compositor, the transfer functions,
+  the presentation modes, what the effect does with the buffer, the pieces
+  appended to the presented rate, and the values that complete its lines,
+  each with a context naming the sentence or list it completes. In French and
+  Spanish the context showed two wrong agreements, the scaler's resources
+  being plural: "prêtes" and "en échec", "listos" and "con error".
 - [x] Translate German, French and Spanish, 2026-09-30: 311 strings each,
   complete, with the catalogue notes.
 - [ ] Have each language read by someone who speaks it, which is full

@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: kwin-effect-upscale\n"
 "Report-Msgid-Bugs-To: https://github.com/JensKSP/kwin-effect-upscale/issues\n"
-"POT-Creation-Date: 2026-09-29 22:57+0000\n"
+"POT-Creation-Date: 2026-10-03 18:32+0000\n"
 "PO-Revision-Date: 2026-09-30 00:00+0200\n"
 "Last-Translator: \n"
 "Language-Team: German\n"
@@ -948,18 +948,22 @@ msgstr ""
 "Pixel exakt und vergrößert um jeden Betrag."
 
 #, kde-format
+msgctxt "A transfer function, completing “destination transfer %1”"
 msgid "sRGB"
 msgstr "sRGB"
 
 #, kde-format
+msgctxt "A transfer function, completing “destination transfer %1”"
 msgid "linear"
 msgstr "linear"
 
 #, kde-format
+msgctxt "A transfer function, completing “destination transfer %1”"
 msgid "PQ"
 msgstr "PQ"
 
 #, kde-format
+msgctxt "A transfer function, completing “destination transfer %1”"
 msgid "gamma 2.2"
 msgstr "Gamma 2.2"
 
@@ -968,14 +972,20 @@ msgid "Supplied format: %1."
 msgstr "Geliefertes Format: %1."
 
 #, kde-format
+msgctxt ""
+"What the effect does with the buffer, after the sizes or a window's states"
 msgid "nearest neighbor"
 msgstr "nächster Nachbar"
 
 #, kde-format
+msgctxt ""
+"What the effect does with the buffer, after the sizes or a window's states"
 msgid "FSR 1 with RCAS sharpening %1%"
 msgstr "FSR 1 mit RCAS-Schärfung %1 %"
 
 #, kde-format
+msgctxt ""
+"What the effect does with the buffer, after the sizes or a window's states"
 msgid "FSR 1, no sharpening"
 msgstr "FSR 1, ohne Schärfung"
 
@@ -985,6 +995,8 @@ msgid "not scaling: %1"
 msgstr "keine Skalierung: %1"
 
 #, kde-format
+msgctxt ""
+"What the effect does with the buffer, after the sizes or a window's states"
 msgid "not scaling yet"
 msgstr "noch keine Skalierung"
 
@@ -1001,18 +1013,26 @@ msgid "%1 → %2, %3"
 msgstr "%1 → %2, %3"
 
 #, kde-format
+msgctxt ""
+"How the screen presents, completing “Presented at %1/s, %2.” or a frame count"
 msgid "fixed refresh"
 msgstr "feste Bildwiederholrate"
 
 #, kde-format
+msgctxt ""
+"How the screen presents, completing “Presented at %1/s, %2.” or a frame count"
 msgid "adaptive sync"
 msgstr "adaptive Synchronisierung"
 
 #, kde-format
+msgctxt ""
+"How the screen presents, completing “Presented at %1/s, %2.” or a frame count"
 msgid "tearing"
 msgstr "Tearing"
 
 #, kde-format
+msgctxt ""
+"How the screen presents, completing “Presented at %1/s, %2.” or a frame count"
 msgid "adaptive sync with tearing"
 msgstr "adaptive Synchronisierung mit Tearing"
 
@@ -1025,18 +1045,22 @@ msgid "Presented: %1/s average"
 msgstr "Dargestellt: %1/s im Mittel"
 
 #, kde-format
+msgctxt "Appended to “Presented: %1/s average”"
 msgid ", 1% low %1/s"
 msgstr ", 1 %-Low %1/s"
 
 #, kde-format
+msgctxt "Appended to “Presented: %1/s average”"
 msgid ", 99th percentile %1 ms"
 msgstr ", 99. Perzentil %1 ms"
 
 #, kde-format
+msgctxt "Appended to “Presented: %1/s average”"
 msgid ", worst %1 ms"
 msgstr ", schlechtestes %1 ms"
 
 #, kde-format
+msgctxt "Appended to “Presented: %1/s average”; %2 is how the screen presents"
 msgid " (%1 frame, %2)"
 msgid_plural " (%1 frames, %2)"
 msgstr[0] " (%1 Bild, %2)"
@@ -1055,10 +1079,16 @@ msgstr ""
 "%2/s (%3 s Stichprobe, vor %4 s)"
 
 #, kde-format
+msgctxt ""
+"How the buffer reached the compositor, completing “buffer format %1 arrived "
+"%2”"
 msgid "on the GPU"
 msgstr "auf der GPU"
 
 #, kde-format
+msgctxt ""
+"How the buffer reached the compositor, completing “buffer format %1 arrived "
+"%2”"
 msgid "through main memory"
 msgstr "über den Hauptspeicher"
 
@@ -1071,34 +1101,50 @@ msgid "%1, %2% of the destination (%3)"
 msgstr "%1, %2 % des Ziels (%3)"
 
 #, kde-format
+msgctxt ""
+"A window's state, one of three listed after “Selection:”, joined by commas"
 msgid "active"
 msgstr "aktiv"
 
 #, kde-format
+msgctxt ""
+"A window's state, one of three listed after “Selection:”, joined by commas"
 msgid "not active"
 msgstr "nicht aktiv"
 
 #, kde-format
+msgctxt ""
+"A window's state, one of three listed after “Selection:”, joined by commas"
 msgid "fullscreen"
 msgstr "Vollbild"
 
 #, kde-format
+msgctxt ""
+"A window's state, one of three listed after “Selection:”, joined by commas"
 msgid "not fullscreen"
 msgstr "kein Vollbild"
 
 #, kde-format
+msgctxt ""
+"A window's state, one of three listed after “Selection:”, joined by commas"
 msgid "selected"
 msgstr "ausgewählt"
 
 #, kde-format
+msgctxt ""
+"A window's state, one of three listed after “Selection:”, joined by commas"
 msgid "not selected"
 msgstr "nicht ausgewählt"
 
 #, kde-format
+msgctxt ""
+"How a resized X11 window is shown, after “; ” or in the X11 resize line"
 msgid "presented by Xwayland's emulated mode"
 msgstr "dargestellt durch den emulierten Modus von Xwayland"
 
 #, kde-format
+msgctxt ""
+"How a resized X11 window is shown, after “; ” or in the X11 resize line"
 msgid "presented by this effect, pointer input mapped"
 msgstr "dargestellt durch diesen Effekt, Zeigereingabe umgerechnet"
 
@@ -1235,10 +1281,12 @@ msgid "Selection: %1, %2"
 msgstr "Auswahl: %1, %2"
 
 #, kde-format
+msgctxt "No catalogue entry matched, completing “Application: %1”"
 msgid "not recognized"
 msgstr "nicht erkannt"
 
 #, kde-format
+msgctxt "No size was advertised, completing “advertised %1”"
 msgid "nothing"
 msgstr "nichts"
 
@@ -1247,10 +1295,13 @@ msgid "Application: %1, method %2, advertised %3"
 msgstr "Anwendung: %1, Methode %2, angekündigt %3"
 
 #, kde-format
+msgctxt "No failure, completing “failure %1”"
 msgid "none reported"
 msgstr "keiner gemeldet"
 
 #, kde-format
+msgctxt ""
+"How a resized X11 window is shown, after “; ” or in the X11 resize line"
 msgid "not presented"
 msgstr "nicht dargestellt"
 
@@ -1260,10 +1311,12 @@ msgid "X11 resize: requested %1, failure %2, %3"
 msgstr "X11-Größenänderung: angefordert %1, Fehler %2, %3"
 
 #, kde-format
+msgctxt "The effect's state, completing “Configuration: %1”"
 msgid "enabled"
 msgstr "aktiviert"
 
 #, kde-format
+msgctxt "The effect's state, completing “Configuration: %1”"
 msgid "disabled"
 msgstr "deaktiviert"
 
@@ -1272,6 +1325,7 @@ msgid "RCAS %1%"
 msgstr "RCAS %1 %"
 
 #, kde-format
+msgctxt "No sharpening, completing “sharpening %1”"
 msgid "off"
 msgstr "aus"
 
@@ -1294,18 +1348,22 @@ msgstr ""
 "%2"
 
 #, kde-format
+msgctxt "The scaler's resources, completing “resources %1”"
 msgid "failed"
 msgstr "fehlgeschlagen"
 
 #, kde-format
+msgctxt "The scaler's resources, completing “resources %1”"
 msgid "ready"
 msgstr "bereit"
 
 #, kde-format
+msgctxt "Whether this effect blocks direct scanout"
 msgid "yes"
 msgstr "ja"
 
 #, kde-format
+msgctxt "Whether this effect blocks direct scanout"
 msgid "no"
 msgstr "nein"
 
