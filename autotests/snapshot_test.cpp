@@ -205,6 +205,29 @@ void UpscaleSnapshotTest::pixelSizesAreNotGrouped()
     QVERIFY2(!developer.contains(QStringLiteral("3.840")), qPrintable(developer));
 }
 
+void UpscaleSnapshotTest::figuresFollowTheLocale()
+{
+    // A German session read "1.6/s" and "output scale 1.05" in the developer
+    // view while the heads-up beside it wrote 636,9, found in the Debian
+    // package machine on 2026-10-03. A figure is never grouped either, so a
+    // fractional coordinate reads like the pixel sizes beside it.
+    const QLocale previous = QLocale();
+    QLocale::setDefault(QLocale(QLocale::German, QLocale::Germany));
+    UpscaleSnapshot snapshot = scaling();
+    snapshot.outputScale = 1.05;
+    snapshot.windowArea = UpscaleRectF(0, 0, 3657.1, 2057.1);
+    snapshot.presentedRate = 59.9;
+    snapshot.presentation = int(PresentationMode::VSync);
+    const QString developer = upscaleDeveloperInformation(snapshot);
+    const QString status = upscaleStatusText(snapshot);
+    QLocale::setDefault(previous);
+    for (const QString &expected : {QStringLiteral("59,8/s"), QStringLiteral("output scale 1,05"), QStringLiteral("3657,1 × 2057,1")}) {
+        QVERIFY2(developer.contains(expected), qPrintable(developer));
+    }
+    QVERIFY2(!developer.contains(QStringLiteral("3.657")), qPrintable(developer));
+    QVERIFY2(status.contains(QStringLiteral("Presented at 59,9/s")), qPrintable(status));
+}
+
 void UpscaleSnapshotTest::developerInformationCoversTheState()
 {
     UpscaleSnapshot snapshot = scaling();

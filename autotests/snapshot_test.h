@@ -26,6 +26,7 @@ private Q_SLOTS:
     void reportsThePathActuallyTaken();
     void doesNotInventUnknownValues();
     void pixelSizesAreNotGrouped();
+    void figuresFollowTheLocale();
     void developerInformationCoversTheState();
     void namesEveryPresetAndTransferFunction();
     void metricsNameEveryPresentationTheSameInEveryLanguage();

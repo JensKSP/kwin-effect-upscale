@@ -134,18 +134,18 @@ static QString presented(const UpscaleSnapshot &snapshot)
     if (snapshot.presentedRate < 0) {
         return i18n("Presented: %1", upscaleUnknownText());
     }
-    QString text = i18n("Presented: %1/s average", QString::number(snapshot.presentedRate, 'f', 1));
+    QString text = i18n("Presented: %1/s average", upscaleFigureText(snapshot.presentedRate, 1));
     if (snapshot.presentedLow > 0) {
         // A literal percent sign, written once: KLocalizedString substitutes
         // numbered placeholders and does not collapse a doubled one the way
         // printf does, so "%%" would reach the screen as it stands here.
-        text += i18nc("Appended to “Presented: %1/s average”", ", 1% low %1/s", QString::number(snapshot.presentedLow, 'f', 1));
+        text += i18nc("Appended to “Presented: %1/s average”", ", 1% low %1/s", upscaleFigureText(snapshot.presentedLow, 1));
     }
     if (snapshot.presentedPercentile > 0) {
-        text += i18nc("Appended to “Presented: %1/s average”", ", 99th percentile %1 ms", QString::number(snapshot.presentedPercentile, 'f', 1));
+        text += i18nc("Appended to “Presented: %1/s average”", ", 99th percentile %1 ms", upscaleFigureText(snapshot.presentedPercentile, 1));
     }
     if (snapshot.presentedWorst > 0) {
-        text += i18nc("Appended to “Presented: %1/s average”", ", worst %1 ms", QString::number(snapshot.presentedWorst, 'f', 1));
+        text += i18nc("Appended to “Presented: %1/s average”", ", worst %1 ms", upscaleFigureText(snapshot.presentedWorst, 1));
     }
     return text + i18ncp("Appended to “Presented: %1/s average”; %2 is how the screen presents", " (%1 frame, %2)", " (%1 frames, %2)", snapshot.presentedFrames, presentationName(snapshot.presentation));
 }
@@ -158,8 +158,8 @@ static QString measurement(const UpscaleSnapshot &snapshot)
     // Name what is counted. A compositor repaint is not the game's frame rate,
     // so the two are reported separately and never merged into one "FPS".
     return i18n("Client buffer updates: %1/s, compositor repaints: %2/s (%3 s sample, %4 s ago)",
-                QString::number(snapshot.clientUpdates, 'f', 1), QString::number(snapshot.repaints, 'f', 1),
-                QString::number(snapshot.interval, 'f', 1), QString::number(snapshot.sampleAge, 'f', 1));
+                upscaleFigureText(snapshot.clientUpdates, 1), upscaleFigureText(snapshot.repaints, 1),
+                upscaleFigureText(snapshot.interval, 1), upscaleFigureText(snapshot.sampleAge, 1));
 }
 
 // How the buffer reached the compositor, for the display that carries the
@@ -321,7 +321,7 @@ QString upscaleStatusText(const UpscaleSnapshot &snapshot)
     // otherwise report a rate of minus one per second.
     const QString presentation = snapshot.presentedRate < 0
         ? i18n("Nothing has been presented on this screen yet.")
-        : i18n("Presented at %1/s, %2.", QString::number(snapshot.presentedRate, 'f', 1),
+        : i18n("Presented at %1/s, %2.", upscaleFigureText(snapshot.presentedRate, 1),
                presentationName(snapshot.presentation));
     QStringList lines;
     lines.append(i18n("Desired: %1", wish));
@@ -346,9 +346,11 @@ QString upscaleStatusText(const UpscaleSnapshot &snapshot)
 
 static QString areaText(const UpscaleRectF &area)
 {
-    return i18nc("A rectangle, as position and size", "%1,%2 %3 × %4",
-                 QString::number(area.x(), 'f', 1), QString::number(area.y(), 'f', 1),
-                 QString::number(area.width(), 'f', 1), QString::number(area.height(), 'f', 1));
+    return i18nc("A rectangle, as position and size. Where the decimal separator is a comma, "
+                 "keep the position's two figures apart with something else",
+                 "%1,%2 %3 × %4",
+                 upscaleFigureText(area.x(), 1), upscaleFigureText(area.y(), 1),
+                 upscaleFigureText(area.width(), 1), upscaleFigureText(area.height(), 1));
 }
 
 QString upscaleDeveloperInformation(const UpscaleSnapshot &snapshot)
@@ -380,7 +382,7 @@ QString upscaleDeveloperInformation(const UpscaleSnapshot &snapshot)
                       areaText(snapshot.outputArea)));
     lines.append(i18n("Geometry: supplied %1, destination %2, output scale %3",
                       upscaleSizeText(snapshot.supplied), upscaleSizeText(snapshot.destination),
-                      QString::number(snapshot.outputScale, 'f', 2)));
+                      upscaleFigureText(snapshot.outputScale, 2)));
     lines.append(measurement(snapshot));
     // The frames the screen actually showed, and the mode it showed them in.
     // Whether variable refresh was in use is read from that mode, so this view
@@ -396,7 +398,7 @@ QString upscaleDeveloperInformation(const UpscaleSnapshot &snapshot)
     // Only the destination colour description is observed here.
     lines.append(i18n("Color: destination transfer %1, reference luminance %2 cd/m²",
                       transferName(snapshot.transferFunction),
-                      snapshot.referenceLuminance > 0 ? QString::number(snapshot.referenceLuminance, 'f', 0) : upscaleUnknownText()));
+                      snapshot.referenceLuminance > 0 ? upscaleFigureText(snapshot.referenceLuminance, 0) : upscaleUnknownText()));
     return lines.join(QLatin1Char('\n'));
 }
 

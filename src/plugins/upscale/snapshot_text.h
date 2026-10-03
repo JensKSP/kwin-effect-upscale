@@ -14,6 +14,7 @@
 
 #include <KLocalizedString>
 
+#include <QLocale>
 #include <QSize>
 #include <QString>
 
@@ -32,6 +33,16 @@ inline QString upscaleSizeText(const QSize &size)
     // numbers rather than as a resolution.
     return size.isEmpty() ? upscaleUnknownText()
                           : i18n("%1 × %2", QString::number(size.width()), QString::number(size.height()));
+}
+
+inline QString upscaleFigureText(double value, int decimals)
+{
+    // A measured figure in the reader's own notation: a German session reads
+    // 59,9 where the source language reads 59.9. Never grouped, so that a
+    // fractional coordinate reads like the pixel sizes beside it.
+    QLocale locale;
+    locale.setNumberOptions(locale.numberOptions() | QLocale::OmitGroupSeparator);
+    return locale.toString(value, 'f', decimals);
 }
 
 // The size the game draws at, marked for the warning colour where it is not
