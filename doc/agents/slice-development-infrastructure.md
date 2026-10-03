@@ -516,6 +516,14 @@ Planned checks, not observed results:
   out again when the font differs. `followsTheSessionFont` in the placement
   test fails without the new layout. What the platform theme reports after a
   change in System Settings is its own: not yet watched in a real session.
+- [ ] In Jens's session, what the platform theme reports after a font change
+  in System Settings, and the displays following it (item 63 of the open
+  list).
+- [ ] The displays on the television in HDR, and with VRR, which wzpc's link
+  to it cannot do (item 70 of the open list), postponed with HDR and VRR to a
+  later version (item 75). Read by Jens on 2026-10-03 at scale 3 in SDR:
+  legible from his seat, in sensible corners, none on the lock screen, and
+  the settings page's footer right.
 - [ ] Complete automated, package and native acceptance; preserve lasting design
   in source/human documentation before removing this slice.
 
@@ -925,9 +933,10 @@ above: the Clang build that could not find the new configuration entries, and
 a pre-push stage that reported two hooks modifying files. Both came from other
 sessions writing to the shared checkout during a run.
 
-Real-device acceptance on the television is open, and is also where the
-starting configuration above should be read off. Nothing in this package has
-been seen on screen yet.
+Real-device acceptance on the television ran on 2026-10-03 in SDR at scale 3:
+Jens read the displays from his seat, found them legible and placed in
+sensible corners, none on the lock screen, and the settings page's footer
+right. HDR and VRR are postponed (item 75 of the open list).
 
 ## The metadata the settings show
 

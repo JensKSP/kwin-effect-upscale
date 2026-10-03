@@ -1310,6 +1310,11 @@ Planned checks, not observed results:
 - [x] Compare reuse options and specify sparse inheritance and editing.
 - [x] Observe the catalogue identities of both test games and ship them.
 - [ ] Validate the recommended values on real applications in a real session.
+      Run 2026-10-03 on the television, Jens's session, with the shipped
+      entries (item 50 of the open list): SuperTuxKart in all six
+      presentations in the automated check of item 71, and Extreme Tux Racer,
+      Left 4 Dead 2 and Wreckfest, which Jens played and found picture and
+      pointer right. Left: glmark2 and vkmark at their stated methods.
 - [x] Implement catalogue model, layered persistence, editor and preset/pixel policy.
 - [x] Specify the settings model: item table, inheritance, method slots, 2026-09-20.
 - [x] Implement the item table and resolution, replacing the static
@@ -1447,6 +1452,21 @@ Planned checks, not observed results:
       the settings page table, the two gates, reordering, the method slots
       and Auto, and the catalogue.
 - [ ] Run acceptance tests, both compiler/container builds and TV checks.
+- [ ] Check an exported entry with two real user accounts (item 48 of the
+      open list); the portable form is covered only by the test cases above.
+- [ ] See a Flatpak program named `flatpak://<id>/app/...` in a session with
+      a build that has it (item 47 of the open list). Implemented 2026-09-29:
+      the proxy reads the application's ID from
+      `/proc/<pid>/root/.flatpak-info`, and the effect names a Wayland program
+      from the security context's app ID KWin keeps, for a path below `/app`;
+      unit cases in the proxy's identity test and the matching test.
+- [ ] The rest of the Flatpak and Snap identities (item 51 of the open list,
+      K9 in the [known limitations](slice-known-limitations.md)). Observed
+      2026-09-29 in the Fedora 43 package machine: Flathub's SuperTuxKart 1.5
+      on Wayland, resolved to `/app/bin/supertuxkart` and connected through a
+      security context, was claimed by the shipped entry and supplied the
+      2560 × 1440 it was asked for. Left: the same with a build that has item
+      47, the X11 route through the proxy, and Snap.
 
 Observed documentation validation, 2026-09-18: `pre-commit run --all-files`
 passed in the Trixie container on an isolated working-tree copy under

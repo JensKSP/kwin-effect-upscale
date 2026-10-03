@@ -1299,6 +1299,11 @@ own emulation, which never changes the real root size either.
 
 ## Remaining work
 
+- For Jens to file, moved from the open list on 2026-10-03: the KDE report on
+  an X11 window withdrawn right after mapping that stays mapped on KWin 6.6
+  (item 2e); its text and reproducer are under
+  [report prepared for KDE](#report-prepared-for-kde-a-window-withdrawn-at-once-stays-mapped-item-2e-2026-09-29).
+
 ### SuperTuxKart in all six presentations, 2026-09-21
 
 This slice owns the handbook's hard requirement
@@ -4336,8 +4341,10 @@ are figures from a virtual machine with six cores and no GPU, not from wzpc.
 Vulkan and presentation through the proxy: the SuperTuxKart check's Xwayland
 Vulkan cells, borderless and exclusive, ran through it with lavapipe on
 2026-09-29 and passed, as did its OpenGL cell. A GPU driver's DRI3 path, with
-buffers from the GPU, is not covered by that; it stays with the hardware
-checks. Container identity (Flatpak, Snap, Docker) needs those runtimes in a
+buffers from the GPU, went through it on wzpc on 2026-10-03: the same three
+Xwayland cells on its AMD GPU presented GPU buffers through the proxy and were
+enlarged, and a minute's race through it held 120 frames a second with no
+frame longer than 8.3 ms. Container identity (Flatpak, Snap, Docker) needs those runtimes in a
 machine and belongs with the package machines (item 2f) and the Flatpak and
 Snap identities (51); the BSDs need a FreeBSD session, likewise item 2f.
 

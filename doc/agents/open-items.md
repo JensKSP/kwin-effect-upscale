@@ -14,6 +14,13 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
 **investigate**, **doc**. Gate: **S** supported scope, **F** full acceptance,
 **–** none stated. Status: open unless marked.
 
+Jens decided on 2026-10-03 that what cannot finish here moves to its slice:
+tests on his hardware and games, full-acceptance work, and anything waiting
+on someone outside the project go into the remaining work of the slice that
+owns the item, and into the known limitations slice where they are a limit of
+the effect, and the item is closed here. What an agent can still do stays in
+the list until it is done.
+
 ## A. Broken right now (in no slice document)
 
 - **1.** **fix, S** – Kubuntu 26.04 package build fails on amd64 and arm64 in
@@ -42,6 +49,11 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   `sleep`, and Ubuntu 26.04's uutils `sleep` is a multi-call binary that
   exits at once under another name. Proposed, not approved: a test-built
   stand-in that blocks on stdin, used by both tests that start `sleep`.
+  **Closed 2026-10-03:** the resolution-control slice records how the nine
+  went with item 6: the Wine stand-in is a process of its own,
+  `autotests/x11_game_standin.cpp`, the preconditions accept both Xwayland
+  versions' input shape, and `withdrawnWhileHeld` skips on KWin 6.6 (2e). The
+  Kubuntu 26.04 checks passed on both architectures in nightly 37053891266.
 - **1b.** **investigate/impl** – Avoid sleeping in tests where possible: 49 fixed
   waits (`QTest::qWait`, `time.sleep`) in `autotests/` and `tools/`, most in
   `x11_integration_test.cpp` (11) and `x11_prepared_test.cpp` (6). Some can
@@ -135,6 +147,9 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   `anUnnamedProgramIsHeldAtItsFirstMapping` fails without it on KWin 6.6 (3 of
   3) and passes with it (3 of 3). Committed as `a7e18d5`, pushed; the hosted
   run on KWin 6.6 is the first nightly after the merge.
+  **Closed 2026-10-03:** nightly 37053891266, the first to publish from master
+  after the merge, passed every job, the Kubuntu 26.04 checks on KWin 6.6 on
+  both architectures among them.
 - **2e.** **upstream?** – KWin 6.6.6 / Xwayland 24.1.10 leaves a window its client
   withdraws right after mapping it mapped, and the client hears no
   UnmapNotify, with or without the effect; KWin 6.3.6 withdraws it. KWin
@@ -147,6 +162,8 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   stays suppressed and documented.
   **Report text prepared 2026-09-29** in the resolution-control slice, with the
   measured versions and the reproducer's command; filing is Jens's.
+  **Moved 2026-10-03** to slice-resolution-control.md, Remaining work: the
+  KDE report on (a), for Jens to file, its text prepared in that slice.
 
 - **2f.** **impl, test** – Install every package in a standard installation of
   every system it is built for, and show the effect works without further
@@ -215,6 +232,11 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   2026-09-29,** each machine made and checked under emulation, all nine steps,
   with nightly 36545995686's arm64 packages. Every system and architecture but
   FreeBSD has passed.
+  **Closed 2026-10-03:** the package-machines slice now records every pass in
+  its progress, and FreeBSD's session check, which waits there for virtio-gpu
+  KMS as decided, with item 8. Whether GitHub's arm64 runners offer KVM, which
+  would let the arm64 machines run there rather than under full emulation, was
+  never checked; it went to that slice's remaining work as well.
 
 - **2g.** **fix, S** – CodeRabbit asked for changes on #23 (review 5342421790
   at `74de7c8`), found 2026-09-28: five comments, each checked against the
@@ -260,6 +282,8 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   **Fixed 2026-09-30:** `autotests/egl_factory.h` asks the factories'
   declarations; the render fixture, the display test and the test driver use
   it. All tests build on Arch's KWin 6.7.5.
+  **Closed 2026-10-03:** the fix is that build, every test against Arch's
+  KWin 6.7.5; no package builds the tests on 6.7, so no hosted run checks it.
 - **97.** **fix, –** – Found 2026-10-02: nightly 36991809754 on `3e1245c`
     failed only the openSUSE Tumbleweed arm64 package, in its image, and so
     published nothing. download.opensuse.org sent the runner to mirrors that
@@ -295,11 +319,19 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   **Done 2026-09-28, `57d491a`, pushed; CI pending.** Crash tests with a real
   game (glmark2), records accessor, and the growing-record defect fixed.
   an X11 resize, kill/relaunch cycles with memory watched (L1376-1380).
+  **Closed 2026-10-03:** the crash cases passed in containers/trixie with GCC
+  and failed without the fix (resolution-control slice, *A game that never
+  exits*); they run only where `UPSCALE_CRASH_GAME` points at the crash
+  build, which CI does not build. Memory on a real GPU went with item 64.
 - **6.** **test, S** – Hosted confirmation of the KWin 6.6 withdrawal fix on the
   **Done 2026-09-28, `7547788`, pushed** (with 1a): nightly job on Kubuntu
   26.04 / KWin 6.6; X11 tests pass there locally. Hosted: verify-only
   nightly 36456685843 running.
   resolute runners; X11 test duration on CI (L1956-1966, L2530). Blocked by 1.
+  **Closed 2026-10-03:** the first hosted run failed one case on amd64, fixed
+  as 6a, its X11 session taking 154 s against 62 s locally; nightly
+  37053891266 passed every job, the Kubuntu 26.04 checks on both
+  architectures among them.
 - **6a.** **investigate/fix, S** – First hosted run of the new KWin 6.6 job
   (verify-only nightly 36456685843 at `7eac56e`): Kubuntu 26.04 arm64 passed,
   amd64 failed one case, `repeatedFullscreenTransitions`
@@ -315,10 +347,14 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   while the client still owed the withdrawal of its previous mode; it now
   leaves that to `apply()`. New case `reenteringFullscreenAtOnce`: 8/8 failed
   on KWin 6.6.6 before, 8/8 passed after. Written up in the slice.
+  **Closed 2026-10-03:** on the runners, the Kubuntu 26.04 checks passed on
+  amd64 and arm64 in nightly 37053891266, which passed every job.
 - **7.** **test, S** – Normal launch: re-enable from a session started directly;
   **Done 2026-09-28, `7eac56e`, pushed; CI pending.** (a) covered by
   `proxyRestartStatus`; (b) new `effectSwitchedOffMidSession`.
   disabling stops upscaling at once (L3629-3633).
+  **Closed 2026-10-03:** CI's check leg passed on master in nightly
+  37053891266 at `3c574c6`, which ran it itself (pipeline-modules slice).
 - **8.** **test, S** – systemd-managed Plasma login path (L3487).
   **Agreed with Jens 2026-09-28:** make it work through each distribution's
   default path (SDDM, Plasma with KWin as a systemd user service; startplasma
@@ -330,6 +366,10 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   then hand the environment to systemd before the session starts; wzpc's
   `plasma-kwin_wayland.service` journal shows the proxy starting at three
   logins. Written up in the slice; other distributions with 2f.
+  **Moved 2026-10-03** to slice-package-machines.md, Remaining work: Plasma
+  started without systemd on the BSDs, checked by FreeBSD's session check once
+  virtio-gpu KMS ships (freebsd/drm-kmod#499, K11); on Linux every machine of
+  2f saw the proxy start after an SDDM login.
 - **9.** **test, S** – Neon runtime session, needs a render device (L3479).
   **Closed with Jens 2026-09-28, superseded:** KWin master stays build-only by
   design (`doc/checks.md`); the nightly runs every test on KWin 6.6 (item 6), and
@@ -354,11 +394,16 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   suite's windows kept from the window manager (override redirect). The run with
   KWin managing them is reported beside it for information, its known
   window-manager races named; a new failure there beyond them is still looked at.
+  **Closed 2026-10-03:** recorded in the resolution-control slice beside the
+  XTS runs, and followed by the isolated protocol acceptance Jens approved the
+  same day (*Separate protocol acceptance*).
 - **12.** **test, F** – Live L4D2 at 4K with mouse look after the `updateShape()` fix;
     last attempt blocked, KWin reported zero screens (L3781-3797).
   **Closed 2026-09-28 on Jens's report:** L4D2 live at 4K, mouse look
   included, tested by Jens and OK. His report, not a recorded measurement; into
   the resolution-control slice with the next commit.
+  **Closed 2026-10-03:** the slice's status records it, and on the television
+  that day Jens played Left 4 Dead 2 and found picture and pointer right (50).
 - **13.** **decide → impl, F** – Early Wine/Proton identity: Wreckfest starts at 4K
     unidentified; reading `SteamAppId` needs an exception to "no `/proc`"
     (L3752-3755, L3815-3818).
@@ -446,6 +491,10 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   2560 × 1440 drawn to 3840 × 2160 and 25 to 29 % sharper than KWin's plain
   stretch of the same stopped frame. Changes inside the running game stay with
   the checks in Jens's session. Recorded in the slice and the handbook.
+  **Moved 2026-10-03** to slice-resolution-control.md, Remaining work
+  (*SuperTuxKart in all six presentations*): changes inside the running game
+  and effect settings changed during play, in Jens's session, which the slice
+  already states.
 - **17.** **investigate, –** – SuperTuxKart writes the reduced mode into its own
     configuration; to be answered from the compositor side (L1256-1264).
   **Answered 2026-09-28, no code change:** Native enlarges a kept smaller
@@ -525,6 +574,9 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   Two defects fixed with tests that failed before: the report named a reachable
   step as a wish for the next start, and a Wine program started by its Unix
   path was never identified by the proxy. One finding for Jens: 20a.
+  **Moved 2026-10-03** to slice-resolution-control.md, *Run in the
+  conformance machine*: SuperTux's rendering cost, which needs a GPU, already
+  stated there as not run (K7); official Proton is item 36's.
 - **20a.** **decide** – Under All applications, Auto's X11 resize reaches
   programs that keep the viewport they started with, glmark2 2023.01 and
   SuperTux 0.6.3, and the screen shows the bottom left two thirds of their
@@ -553,9 +605,15 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   `UserConfigured` is dropped: a slot set to Off sends nothing, a smaller buffer
   the player chose is enlarged all the same, and the status already names the
   size to choose. The handbook's section on it and the slice's task go.
+  **Closed 2026-10-03:** the resolution-control slice strikes its task through
+  as dropped by Jens (item 21).
 - **22.** **test, F** – Physical acceptance: mixed resolutions and scales, output
     movement, input and confinement, TV (L2116-2125).
   Listed as K13 in the [known limitations](slice-known-limitations.md).
+  **Moved 2026-10-03** to slice-resolution-control.md, *Independent output
+  policy and pixel threshold*: physical acceptance of mixed resolutions and
+  scales, output movement, input and confinement and the TV, already open
+  there; K13 links to it.
 - **23.** **impl/test, F** – Proxy: Vulkan and presentation sync, overhead, container
     identity (Flatpak, Snap, Docker), BSD (L3308-3310, L3360-3363, L3487-3489).
   **Partly done 2026-09-29:** the overhead is measured (about 30 microseconds a
@@ -563,6 +621,12 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   Vulkan and presentation went through the proxy with lavapipe in the
   SuperTuxKart check. A GPU driver's DRI3 path stays with the hardware checks;
   containers and the BSDs go with 2f and 51. Recorded in the slice.
+  **Closed 2026-10-03:** a GPU driver's DRI3 path went through the proxy on
+  wzpc: SuperTuxKart's Xwayland cells, OpenGL fullscreen and Vulkan
+  borderless and exclusive, presented GPU buffers through it and were
+  enlarged (71), and a minute's race held 120 frames a second (24). Container
+  identity and the BSDs are the package machines' last remaining item (K9,
+  K11), where they now stand.
 - **24.** **test, –** – SuperTuxKart on X11 through the proxy never recorded; source
     of Jens's Auto report; ~1 s stalls on 6.6 (L1918-1920, L1950, L3687-3690).
   **Run 2026-10-03 on wzpc** (KWin 6.3.6, `3c574c6`, Jens's session on the
@@ -623,6 +687,9 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   process's later connections, one per Wine thread, were never registered with
   their prefix, and explorer's desktop thread is one of them. Proton's
   wineserver lifetime and a real launcher stay with the games (30, 31).
+  **Moved 2026-10-03** to slice-proton-smaller-screen.md, Remaining work: the
+  warm prefix with real games, Proton's wineserver lifetime and a real
+  launcher started first (30, 31).
 - **28.** **impl/test, S** – The 2026-09-25 decisions: prefix as the unit, path-tail
     matching, launchers, windowed left alone, per-prefix candidate report
     (L764-787).
@@ -657,6 +724,9 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   the output; the old mapping gave 900 × 525. The upstream half is 29b. On
   Kubuntu 26.04 Xwayland locks rather than confines for a window without a
   cursor of its own; the test client sets one, as Wine does, and passes there.
+  **Closed 2026-10-03:** the interim mapping is built and tested, and Wine
+  10.0, confined, reaches its window's lower right (29); the upstream half,
+  29b, went to the Proton slice for Jens to file.
 - **29b.** **upstream** – Propose to KWin a per-window presentation transform that
   its input path honours, `Window::mapToLocal()` and the pointer constraint
   checks among it, so that a confined pointer is checked in the picture the
@@ -664,6 +734,8 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   **Proposal text prepared 2026-09-29** in the Proton slice, naming the places
   in KWin 6.3.6 that check without the presentation; filing is Jens's.
   The limitation it would remove is K15 in the [known limitations](slice-known-limitations.md).
+  **Moved 2026-10-03** to slice-proton-smaller-screen.md, Remaining work: the
+  proposal to KWin, for Jens to file, its text prepared in that slice (K15).
 - **30.** **test, S** – Wreckfest on wzpc through the proxy (L468-472, L925-927).
   **Run 2026-10-03 on wzpc**: first at native 4K, because the shipped entry
     recognized the game only by its window class, which arrives after the
@@ -676,6 +748,9 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
     over the output, and Jens played it: "played well, mouse pointer was ok".
     The entry states the pattern and the measured method, Auto.
 - **31.** **test, S** – One Wine game outside Steam (L328-330).
+  **Moved 2026-10-03** to slice-proton-smaller-screen.md, Remaining work: one
+  game under Wine outside Steam, launched normally, the supported scope's
+  second game.
 - **32.** **decide/impl** – Legacy Wine guards and the Helper1 path: remove or keep
     (L663-671, L744).
   **Decided by Jens 2026-09-29:** remove the companion service, its `Helper1`
@@ -702,6 +777,9 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
 - **34.** **test/investigate, F** – Steam as Flatpak and Snap; the 09-27 analysis
     still reasons with the companion (L870-927).
   Listed as K9 in the [known limitations](slice-known-limitations.md).
+  **Moved 2026-10-03** to slice-proton-smaller-screen.md, Remaining work:
+  Steam as Flatpak and Snap, run, with the analysis of 2026-09-27 restated
+  for the proxy route (K9).
 - **35.** **impl, F** – Present Wine's Wayland driver (L313-319).
   **Reproduced 2026-09-29, not implemented:** under Wine 10.0's Wayland driver the
   window stays at the told 2560 × 1440 and the effect refuses it as not
@@ -711,9 +789,15 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   subsurface, which the effect refuses even at full size, with buffer heights
   rounded up to a multiple of 128.
   Listed as K3 and K20 in the [known limitations](slice-known-limitations.md).
+  **Moved 2026-10-03** to slice-proton-smaller-screen.md, Remaining work: a
+  smaller fullscreen surface drawn over its output from its subsurface, with
+  the pointer mapped (K3, K20).
 - **36.** **test, F** – Every flavour × D3D9/11/12/OpenGL/Vulkan × exclusive/borderless
     (L169-174, L335-339).
   Listed as K10 in the [known limitations](slice-known-limitations.md).
+  **Moved 2026-10-03** to slice-proton-smaller-screen.md, Remaining work: the
+  full matrix on real hardware, every flavour, graphics path and presentation
+  (K10).
 - **37.** **doc** – Close the moot helper translation-domain question; owe the
     handbook update in proxy form (L575-579, L592).
   **Closed 2026-09-28, `51e56ff`, pushed:** moot since the companion left the default
@@ -816,12 +900,17 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   for a path below `/app`, at bind and for its window. Unit cases in the
   proxy's identity test and the matching test, with the description and path
   51 observed; not yet seen in a session with a build that has it.
+  **Moved 2026-10-03** to slice-application-profiles.md, Progress and
+  remaining work: the Flatpak naming seen in a session with a build that has
+  it, with 51 (K9).
 - **48.** **impl/test** – Portable "Add from Window" (path below the library root as
     a pattern), export/import across users (L1352-1359).
   **Done 2026-09-29, `aa7053b`, pushed:** a Steam game is stored by its folder in the
   library and its path there, anything else by its file name in any folder, as
   a regular expression; an exported entry matches another user's copy. Not
   checked with two real accounts. Recorded in the slice and the handbook.
+  **Moved 2026-10-03** to slice-application-profiles.md, Progress and
+  remaining work: an exported entry checked with two real accounts.
 - **49.** **impl** – Translate the catalogue notes (L514-516).
   **Done 2026-09-30:** the six notes of the shipped list in German, French and
   Spanish, as `Note[de]` and so on, which KConfig picks by the session's language.
@@ -835,6 +924,9 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
     Jens played the last three and found picture and pointer right;
     SuperTuxKart ran in the automated check of 71. Left: glmark2 and vkmark at
     their stated methods.
+  **Moved 2026-10-03** to slice-application-profiles.md, Progress and
+  remaining work: glmark2 and vkmark at their stated methods in a real
+  session.
 - **51.** **decide → investigate, F** – Flatpak/Snap identities for STK/ETR; needs a
     Flathub remote and snapd on the host (L1744-1831).
   **Flatpak observed 2026-09-29** in the Fedora 43 package machine, not on the
@@ -848,12 +940,18 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   enlarged only because the machine's screen had locked while idle. Left: the
   same with a build that has 47, the X11 route through the proxy, and Snap.
   Its remainder is listed as K9 in the [known limitations](slice-known-limitations.md).
+  **Moved 2026-10-03** to slice-application-profiles.md, Progress and
+  remaining work: the same with a build that has 47, the X11 route through
+  the proxy, and Snap (K9).
 - **52.** **decide** – Submitted applications: ship unverified submissions? credit?
     scale? (L1681)
   **Decided by Jens 2026-09-29:** accepted submissions ship active, with their
   provenance in the entry; credit through Git history and release notes, no
   names in the installed file; and the list is indexed by program and window
   identity at load time now, rather than measured later. The index goes with 53.
+  **Closed 2026-10-03:** the decisions are in the submitted-applications
+  plan, and the load-time index was built with 53
+  (`theIndexAnswersAsTheListDoes`).
 - **53.** **impl/test, S** – Submitted applications route: program name in the
     report, copy action, `CONTRIBUTING.md`, issue form, catalogue tests,
     end-to-end rehearsal (L1681-1688). Not started.
@@ -863,6 +961,10 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   end-to-end rehearsal in a real session, and the form checked on GitHub (88).
   **Jens, 2026-10-03:** the forms do their job for now, but how a game's
     settings are reported has to be worked out, not today.
+  **Rehearsal moved 2026-10-03** to slice-application-profiles.md, the
+  submitted applications' Progress and remaining work: the end-to-end
+  rehearsal in a real session, already open there. How a game's settings are
+  reported stays here.
 
 ## E. What the effect says – `slice-development-infrastructure.md`
 
@@ -878,6 +980,8 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   tag, full commit and the date's origin are fields, a source archive records
   its provenance, the log gets the whole record, and the notices are installed
   offline. Left for 56a.
+  **Closed 2026-10-03:** what was left, the settings page, Jens decided
+  against in 56a; KWin's own About in the Desktop Effects list serves.
 - **56a.** **decide** – Whether the settings page gets an About dialog with the
   notices: `KAboutPluginDialog` and `KAboutApplicationDialog` need KXmlGui as a
   new build dependency of the settings module (item 54). Found 2026-09-28.
@@ -902,6 +1006,8 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
 - **61.** **impl** – Shortcut to toggle the displays (L385).
   Needs Jens first: which displays one key toggles, and its default key.
   **Jens 2026-09-29:** a later feature, not part of this release. Deferred.
+  **Closed 2026-10-03:** deferred by Jens to a later version, as recorded
+  above.
 - **62.** **impl, S** – Heads-up wording: "native" only when sizes are equal, named
     resolutions only at exact sizes (L436-444).
   **Closed 2026-09-28:** done since #17 (`35b6a53`) and covered by two
@@ -909,6 +1015,9 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
 - **63.** **impl** – Lay the text out again when fonts change (L430-432).
   **Done 2026-09-28, `439d625`, pushed;** what the platform theme reports after
   a change in a real session goes with the hardware checks.
+  **Moved 2026-10-03** to slice-development-infrastructure.md, Progress and
+  remaining work: what the platform theme reports after a font change in
+  System Settings, in Jens's session.
 - **64.** **test, S/F** – `kill -9` a game repeatedly, watch memory (L418-424).
   **Done 2026-09-29, native half:** in the Arch package machine (KWin
   6.7.5, llvmpipe, the nightly's package), SuperTuxKart was started twelve
@@ -918,6 +1027,9 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   18 every time. Under llvmpipe textures are KWin's own memory, so this
   covers the video memory the effect allocates. The nested-session half is
   the crash cases' records check. Recorded in the infrastructure slice.
+  **Moved 2026-10-03** to slice-resolution-control.md, Remaining work (*A
+  game that never exits*): process and a real GPU's own memory over many
+  launches on wzpc, already stated there as still open.
 - **65.** **test, S** – Per-game display settings against the opposite global
     (L1144-1146).
   **Closed 2026-09-28, `51e56ff`, pushed:** covered since #21 by
@@ -943,12 +1055,16 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   **Decided by Jens 2026-09-29:** a later feature. It stays specified in the
   handbook as planned and leaves this release's gates; automated checks come
   beside the hardware gate when it is taken up. Deferred.
+  **Closed 2026-10-03:** deferred by Jens to a later version, as recorded
+  above.
 - **70.** **test, F** – Displays on the TV (legibility, SDR/HDR, VRR, lock), placement
     at scale 3, footer and metadata by eye (L342-346, L691-694, L927-930).
   **Run 2026-10-03 by Jens on the television** at scale 3, in SDR: the
     displays read well from his seat and sit in sensible corners, none shows
     on the lock screen, and the settings page's footer is right. Left: HDR,
     and VRR, which this link cannot do (75).
+  **Moved 2026-10-03** to slice-development-infrastructure.md, Progress and
+  remaining work: the displays in HDR and with VRR, postponed with 75.
 
 ## F. FSR rendering – `slice-fsr1-hdr-vrr.md`
 
@@ -979,11 +1095,16 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
     under 10 ms; a control run without that reading is open as item 99.
   **Done 2026-10-03;** the overhead is the effect's: see 99 and 102.
 - **74.** **test, F** – B–D cost matrix, real games, image quality, HDR (L320-323).
+  **Moved 2026-10-03** to slice-fsr1-hdr-vrr.md, Progress and remaining work:
+  runs B to D on the physical output, real games and image quality, already
+  open there; HDR is postponed with 75.
 - **75.** **decide, F** – VRR: HDMI-A-1 on wzpc reports adaptive sync incapable, the
     NVIDIA host has VRR disabled; which host/link (L38-41, L541-546).
   **Decided by Jens 2026-09-29:** HDR and VRR are postponed to a later version.
   When taken up, VRR is accepted on the NVIDIA host (pcjensd) and on wzpc.
   Deferred, with the HDR and VRR parts of 70 and 74.
+  **Closed 2026-10-03:** deferred by Jens to a later version, as recorded
+  above.
 - **76.** **impl** – Aspect ratio and integer scaling: specified, not implemented
     (L750-757).
   **Decided by Jens 2026-09-29:** built for 0.3.0, Fit and Integer both.
@@ -995,6 +1116,10 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   input case seen failing against its defect. Left: relative pointer, lock,
   popups and overlays with bars, HDR/VRR, and the TV acceptance with real
   retro and differing-aspect games. Recorded in the rendering slice.
+  **TV half moved 2026-10-03** to slice-fsr1-hdr-vrr.md, *Aspect ratio and
+  integer scaling*: the TV acceptance with real retro and differing-aspect
+  games, already open there. The rest stays here; HDR and VRR are postponed
+  (75).
 - **77.** **test** – PR #14 GLES combined-candidate validation still "pending" (L640).
   **Closed 2026-09-28, `51e56ff`, pushed:** `allocationIgnoresEarlierErrors` passes in
   both render suites in every full check run. Recorded in the slice.
@@ -1036,6 +1161,9 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   differing files. The next nightly, 36503302445 on nearly the same sources,
   built arm64 identically, so the difference is intermittent; the listing names
   the files when it comes back. Found 2026-09-29.
+  **Moved 2026-10-03** to slice-pipeline-modules.md, Remaining work: a watch,
+  already stated there, for the listing of the differing files should Debian
+  arm64 build differently again.
 - **81.** **decide** – Nightly checks CI's conclusion through the API instead of
     rerunning `ci.yml`.
   **Decided by Jens 2026-09-29:** check through the API; CI runs itself only for a
@@ -1045,6 +1173,9 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   **First nightly 2026-09-29, verify-only 36545995686 on `7ff0fe6`:** the `ci`
   job read the pull request's green run as passed, CI was skipped, and the
   instrumented builds ran with the nightly's fuzzing, all three green.
+  **Closed 2026-10-03:** the scheduled nightlies 36847353917 and 36991809754
+  found their commit's master CI green and ran only the instrumented tests;
+  37053891266, started before its commit's CI had finished, ran CI itself.
 - **82.** **investigate/fix** – An openSUSE amd64 package failure; not observed in
   ten nightlies. **Jens 2026-09-29:** found by the agent, not reported by him;
   the agent finds it and solves it.
@@ -1056,6 +1187,9 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   failure was the same kind of thing elsewhere: neon's archive mid-sync ("File
   has unexpected size ... Mirror sync in progress?") failed the neon Clang
   image. The neon image now retries its downloads the same way.
+  **Closed 2026-10-03:** with item 97's origin repositories as well, nightly
+  37053891266 built and tested both openSUSE packages and built against KWin
+  master, every job green.
 
 ## I. Build and release pipeline – `slice-build-release-pipeline.md`
 
@@ -1068,7 +1202,17 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   Sigstore signatures were not checked here, where `gh` is too old for
   `gh attestation verify` and `cosign` is not installed. Still to come: the
   rolling nightly's first publication from `master`.
+  **Done 2026-10-03:** the nightly half came with nightly 37053891266 (items
+  2 and 79). Attestations verified with GitHub CLI 2.102.0: every file of
+  v0.3.0 and of the nightly but the bundle itself, 51 each, verifies against
+  this repository, and each release's provenance.sigstore.json verifies a
+  package offline with release-assets.yml as the signer workflow
+  (refs/tags/v0.3.0 from the tag push; refs/heads/master from
+  workflow_dispatch).
 - **84.** **test** – Outside-author pull request; live CodeRabbit approval revocation.
+  **Moved 2026-10-03** to slice-build-release-pipeline.md, Remaining work: a
+  pull request by an outside author and a live revocation of CodeRabbit's
+  approval, both already open there.
 - **85.** **doc** – Dependabot scheduled run is now observed (#22 today); claimed by
     both this slice and the GitHub one; pick one owner.
   **Done 2026-09-28:** the GitHub workflow slice owns the observation (#22,
@@ -1081,6 +1225,7 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   **Done 2026-09-28 except Pages, `ffad4a7`, pushed:** categorized release notes, a
   summary for every check job, and an SPDX SBOM in every release, validated
   and attested. Pages is 86a. Recorded in the slice.
+  **Closed 2026-10-03:** its remaining part, Pages, is item 86a.
 - **86a.** **decide** – GitHub Pages for the handbook: turning it on is a
   repository setting, and what the site holds and excludes follows from it.
   **Decided by Jens 2026-09-29:** yes; a workflow publishes the handbook and the
@@ -1103,6 +1248,8 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   **Partly done 2026-09-28, `49cf326`, pushed:** `tools/update-hooks.py` proposes updates
   every Monday in the run's summary, holding clang-format to 19 and never moving
   a pin back. Left for 89a.
+  **Closed 2026-10-03:** its remaining part, the pull request and the
+  notifications, is item 89a.
 - **89a.** **decide** – How the hook update opens its pull request: a PR made
   with the run's own token starts no workflow, so it needs a GitHub App or a
   fine-grained token as a secret, or a CI dispatch on its branch. And Jens's
@@ -1119,6 +1266,10 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   earlier one is open, so nothing is pushed over. Not run yet: its first run is
   the scheduled one on master. The notification half waits for Jens's
   `gh auth refresh -s notifications`.
+  **Moved 2026-10-03** to slice-github-project-workflow.md, Observed progress
+  and remaining work: a watch on the first scheduled run of
+  `hook-updates.yml` on master, and, for Jens, granting the CLI the
+  `notifications` scope, after which his settings are read and reported.
 - **90.** **doc/investigate** – CodeQL ran once (2026-09-21, success); the document
     says never; findings not assessed.
   **Done 2026-09-28, `51e56ff`, pushed:** analyses on 2026-09-21 and 2026-09-28 for all
@@ -1129,6 +1280,9 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   disabled. Presumably not offered for a public repository of a personal
   account; Jens checks Settings → Code security, where they would be switched
   on if offered.
+  **Moved 2026-10-03** to slice-github-project-workflow.md, Observed progress
+  and remaining work: for Jens, Settings → Code security, switching both on
+  there if GitHub offers them.
 
 ## K. The documents themselves
 
@@ -1147,6 +1301,9 @@ Type: **fix**, **impl**ementation, **test**, **decide** (Jens),
   inherits, the global one is Auto); sampling while hidden follows the code
   and a run (presentation sampling continues, the display's own stops). Left
   for 94a.
+  **Closed 2026-10-03:** the third, physical input, Jens decided in 94a, and
+  the resolution-control slice's gates now put input on a real display in the
+  supported scope.
 - **94a.** **decide** – Physical input in the supported scope or in full
   acceptance: the resolution slice's supported scope asks for physical-display
   acceptance of the supported client class, while its later gate and the full
