@@ -351,8 +351,8 @@ struct UpscaleKeptGlobal
 
 static std::optional<UpscaleKeptGlobal> &keptGlobal()
 {
-    static std::optional<UpscaleKeptGlobal> kept;
-    return kept;
+    static std::optional<UpscaleKeptGlobal> s_kept;
+    return s_kept;
 }
 
 static UpscaleMethods readGlobalMethods()
@@ -383,7 +383,8 @@ static UpscaleMethods readGlobalMethods()
 
 UpscaleMethods upscaleGlobalMethods()
 {
-    return keptGlobal() ? keptGlobal()->methods : readGlobalMethods();
+    const std::optional<UpscaleKeptGlobal> &kept = keptGlobal();
+    return kept ? kept->methods : readGlobalMethods();
 }
 
 void upscaleSetGlobalMethods(const UpscaleMethods &methods)
@@ -414,7 +415,8 @@ static UpscaleSettings readGlobalSettings()
 
 UpscaleSettings upscaleGlobalSettings()
 {
-    return keptGlobal() ? keptGlobal()->settings : readGlobalSettings();
+    const std::optional<UpscaleKeptGlobal> &kept = keptGlobal();
+    return kept ? kept->settings : readGlobalSettings();
 }
 
 void upscaleKeepGlobalSettings()
@@ -437,7 +439,8 @@ UpscaleSettings upscaleResolveSettings(const UpscaleApplication *claimed)
     // Participation is the profile's own and is never inherited: a profile
     // that claimed this window answers for it, whatever the global profile
     // does about the windows nothing claimed.
-    settings.setActs(claimed->enabled && !(keptGlobal() ? keptGlobal()->switchedOff : upscaleLegacySwitchedOff(globalGroup())));
+    const std::optional<UpscaleKeptGlobal> &kept = keptGlobal();
+    settings.setActs(claimed->enabled && !(kept ? kept->switchedOff : upscaleLegacySwitchedOff(globalGroup())));
     return settings;
 }
 
