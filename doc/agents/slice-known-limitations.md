@@ -13,8 +13,8 @@ smaller, where the picture is not right, and where the pointer is not where the
 player sees it. Collected from the handbook's
 [known compatibility limits](../upscaling.md#known-compatibility-limits), its
 eligibility and presentation sections, the open list and the other slices, and
-from the work of 2026-09-29. Nothing below has been started in this slice yet;
-the entries record what was known when it was made.
+from the work of 2026-09-29. The entries record what was known when it was
+made; work started on 2026-10-04, in the order under Progress.
 
 Each limitation has an identifier here, **K1** onwards, which this document
 alone uses. An entry names the evidence, what the player sees, what the status
@@ -114,7 +114,7 @@ marked **F** belong here.
 | K5 | A toolkit that picks another output | Extreme Tux Racer 0.8.4 with SFML 2.6.2 moves to the primary output when it recreates its fullscreen window | The shipped entry refuses control on a secondary output; the status says so | S, stated | Stays stated unless SFML changes |
 | K6 | A requested X11 mode the program does not list | SFML validates fullscreen modes against its list; the fixture refuses 2259 × 1271 on the 4K output | The request is refused and named; the game stays at full size | S, stated | Offer the nearest listed mode instead, as the Wayland scale does with reachable steps |
 | K7 | Internal render targets that keep their size | SuperTux 0.6.3: the outer buffer and viewport went from 4K to 1080p, an intermediate framebuffer stayed 1368 × 769 | Nothing visible; the saving in GPU time is smaller than the buffer suggests | F | A measurement question for the cost matrix (item 74), not a defect; stated |
-| K8 | A game that keeps the smaller size in its own settings | SuperTuxKart 1.4 writes the told mode into its configuration (item 17) | Under Native the effect enlarges the kept smaller buffer; under other presets the display marks the kept size in the warning colour | S, stated | Say it in the handbook's known limits; nothing to change in the effect |
+| K8 | A game that keeps the smaller size in its own settings | SuperTuxKart 1.4 writes the told mode into its configuration (item 17) | Under Native the effect enlarges the kept smaller buffer; under other presets the display marks the kept size in the warning colour | S, stated | Stated in the handbook's known limits since 2026-10-04; nothing to change in the effect |
 | K9 | Programs in Flatpak and Snap | Item 51: Flatpak's SuperTuxKart 1.5 on Wayland was claimed and asked in the Fedora 43 machine; the X11 route through the proxy and Snap are not observed; item 47's naming is not yet seen in a session; Steam as Flatpak or Snap is item 34 | Unknown where not observed | F | 51's and 47's remainder in [application profiles](slice-application-profiles.md#progress-and-remaining-work), 34 in the [Proton slice](slice-proton-smaller-screen.md#remaining-work), run in the package machines |
 | K10 | Wine and Proton across the graphics paths | Only Direct3D 11 on Wine's own renderer and OpenGL were run; official Proton and Direct3D 9, 12 and Vulkan, exclusive and borderless, are item 36 | Unknown where not run | F | Item 36, in the [Proton slice](slice-proton-smaller-screen.md#remaining-work) |
 | K11 | FreeBSD and the BSDs | FreeBSD's nightly installs, loads and removes the effect in an emptied machine; no session check, and the proxy is not run there (items 2f, 23) | Unknown | F | The session check once the virtio-gpu driver allows one |
@@ -154,6 +154,14 @@ first:
 7. K9, K10, K11 and K13 with the machines and hardware they need.
 
 ## Progress
+
+Jens confirmed the proposed order on 2026-10-04. Step 1 is done the same day:
+the handbook's [known compatibility limits](../upscaling.md#known-compatibility-limits)
+now state K4, K5, K6, K8 and K12, and the input K15 to K17 and K21 leave
+unmapped; the row on smaller windows says what item 18 and its windowed
+follow-up made of it, presentation over the whole output with what it covers
+(K14) and the confined pointer's interim mapping (K15); and the coverage row
+names what is still unverified. Next is step 2, K18 and K19.
 
 K1 and K2 are being addressed in the
 [scale-one Auto work](slice-resolution-control.md#wayland-auto-at-scale-one-2026-09-29).
