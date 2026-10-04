@@ -1295,9 +1295,9 @@ Planned checks, not observed results:
   wrapped to three lines in a row two lines high; the summary now has a row
   of its own (`681e918`). Each fix has a test that failed on the old code. The
   developer view's build line stays English in every language: it is the
-  identity record the journal and a copied report carry, and whether it stays
-  so, as an exception the handbook names beside pixel counts, is for Jens to
-  decide (item 68 of the open list). With a package of
+  identity record the journal and a copied report carry, and Jens decided on
+  2026-10-04 that it stays so, an exception the handbook names beside pixel
+  counts. With a package of
   `681e918` the check passed in all three languages: each status translated,
   each picture taken, figures written as the locale writes them ("5,8/s",
   "Ausgabemaßstab 1,00"), the Spanish summary whole, the corrected French and
