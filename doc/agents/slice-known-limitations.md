@@ -137,7 +137,7 @@ marked **F** belong here.
 | K18 | The cursor over a hidden decoration | Removed 2026-10-06: KWin gave the hidden decoration the pointer and showed its cursor; both filters now take it away where they claim the pointer, see Progress | The game's cursor | S | Done |
 | K19 | A visible dialog's title bar above a presented X11 game | Removed 2026-10-06: tested, the title bar keeps the pointer; see Progress | The dialog keeps its title bar | S | Done |
 | K20 | Wine's Wayland driver's pointer | With K3: a smaller surface needs the same mapping, and meets K15's confinement | – | F | With K3 |
-| K21 | Input to a picture with bars beyond the absolute pointer | Item 76: relative motion was not driven by a relative-pointer client; a locked pointer, a game's popups and subsurfaces over the bars, and separate overlays are untested | Unknown: such input may still land where the unscaled window is | F | A relative-pointer client and a locked pointer in the Wayland session with Fit and Integer; a game's popup over the bars |
+| K21 | Input to a picture with bars beyond the absolute pointer | Tested 2026-10-06, see Progress: relative motion and a locked pointer are mapped under Fit and Integer, a popup over a bar takes its own pointer; subsurfaces are refused (K12), overlays drawn into the game's buffer are its picture | Relative motion and a lock as the game expects; a popup at its unscaled place | F | Stays stated for popups' placement |
 
 ## Proposed order
 
@@ -233,6 +233,24 @@ proxy under Balanced, and `choosesTheNearestListedSize` tests the choice; the
 proxy's case failed on the old policy, which told nothing. Step 4 is done;
 what follows in the order needs KWin's answer (K15), new input mapping (K16,
 K17, K21) or the hardware and machines of step 7.
+
+K21, tested 2026-10-06, the first of step 5, K15 waiting for KWin's answer to
+the proposal of 29b. The Wayland test client now binds the relative pointer,
+can lock the pointer and open a popup, and the test driver moves its pointer
+by a relative motion. `carriesRelativeMotionOntoThePicture`, under Fit (64 × 80
+fitted into 102 × 128, bars left and right) and Integer (64 × 48 enlarged
+twice, bars above and below): a relative motion reaches the game scaled to its
+surface, and once the game holds the pointer locked only relative motion
+arrives, scaled the same, the position held. It passed as the code stood and
+fails with the filter's scaling of relative motion taken out.
+`leavesAPopupOverTheBarsItsOwnPointer`: a popup the game opens at its surface's
+(2, 40) lies there on the output, over the left bar, unenlarged, and the
+pointer there is the popup's at (3, 3); the game hears nothing. That a popup
+does not lie where the picture shows what it belongs to is stated in the
+handbook. Subsurfaces are refused with the window (K12), so its input is
+KWin's own; an overlay drawn into the game's buffer is part of its picture,
+and one drawn as a window of its own is input of its own. Next in step 5 are
+K16 and K17.
 
 K1 and K2 are being addressed in the
 [scale-one Auto work](slice-resolution-control.md#wayland-auto-at-scale-one-2026-09-29).
