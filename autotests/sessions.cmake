@@ -146,6 +146,7 @@ if(KWin_VERSION VERSION_LESS 6.7)
             $<TARGET_FILE:upscale_integration_test> --scale=2 --outputs=2
             anOutputThatGoesAwayWhileAdvertised aProgramThatExitsBeforeRestoration
             anOutputVersionWithoutScaleIsLeftAlone aSurfaceScaleFollowsTheOutputScale
+            drawsAWindowOfTheToldPixelsOverItsOutput
     )
     set_tests_properties(upscale-integration-outputs PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
     # A game's X11 window in a process of its own; see x11_game_standin.cpp.

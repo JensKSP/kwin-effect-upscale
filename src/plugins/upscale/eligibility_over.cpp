@@ -63,8 +63,19 @@ bool upscaleDrawnOverOutput(const EffectWindow *window)
     const double scale = screen->scale();
     const auto client = internal->clientGeometry();
     const auto output = screen->geometryF();
-    return upscaleSamePixel(client.width(), told.width() / scale, scale) && upscaleSamePixel(client.height(), told.height() / scale, scale)
-        && output.contains(client);
+    if (upscaleSamePixel(client.width(), told.width() / scale, scale) && upscaleSamePixel(client.height(), told.height() / scale, scale)
+        && output.contains(client)) {
+        return true;
+    }
+    // Wine's Wayland driver sizes a window in the Windows pixels of the screen
+    // it was told, one to a logical unit unless Wine's own DPI setting says
+    // otherwise, whatever the output's scale, and keeps a fullscreen window at
+    // that size (Wine 10.0, seen at desktop scale 1.05 on KWin 6.3.6,
+    // 2026-10-07). On a scaled desktop that is not the told size in logical
+    // units, and can be larger than the output; its picture is the told size
+    // all the same, and from the output's corner it is drawn over the output.
+    const SurfaceItem *picture = upscalePictureSurface(window);
+    return window->isFullScreen() && picture && upscaleSuppliedSize(picture) == told && client.topLeft() == output.topLeft();
 }
 
 UpscaleRectF upscalePresentedFrame(const EffectWindow *window)

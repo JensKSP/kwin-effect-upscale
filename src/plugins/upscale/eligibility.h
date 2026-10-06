@@ -192,7 +192,7 @@ UpscaleRefusal windowRefusal(EffectWindow *window);
  * covering it whole, above the window's own buffer, which Wine's Wayland
  * driver draws a game into. Null without a surface.
  */
-SurfaceItem *upscalePictureSurface(EffectWindow *window);
+SurfaceItem *upscalePictureSurface(const EffectWindow *window);
 
 /**
  * Where @p window's supplied buffer goes on its output, in device pixels, as

@@ -47,6 +47,7 @@ private Q_SLOTS:
     void leavesAPopupOverTheBarsItsOwnPointer();
     void mapsTouchOntoThePicture();
     void drawsAWindowOfTheToldSizeOverItsOutput();
+    void drawsAWindowOfTheToldPixelsOverItsOutput();
     void autoResizesAClientThatIgnoresScale();
     void autoConfiguresAnIntegerClientBeforeItsFirstBuffer_data();
     void autoConfiguresAnIntegerClientBeforeItsFirstBuffer();

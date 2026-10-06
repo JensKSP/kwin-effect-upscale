@@ -327,7 +327,7 @@ static UpscaleRefusal surfaceRefusal(EffectWindow *window, SurfaceItem *surface)
 
 // The buffer the client supplied: its size relative to the destination, and
 // whether the scaler can read it as it stands.
-SurfaceItem *upscalePictureSurface(EffectWindow *window)
+SurfaceItem *upscalePictureSurface(const EffectWindow *window)
 {
     SurfaceItem *surface = window && window->windowItem() ? window->windowItem()->surfaceItem() : nullptr;
     const QList<Item *> children = surface ? surface->childItems() : QList<Item *>();
