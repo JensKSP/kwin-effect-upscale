@@ -310,15 +310,17 @@ UpscaleX11Resolution::Request UpscaleX11Resolution::requestFor(X11Window *window
     if (key.isEmpty() || m_negotiations.value(key).failure.has_value()) {
         return {};
     }
-    const QSize size = upscaleWantedSize(window);
-    if (size.isEmpty()) {
-        return {};
-    }
-    const UpscaleApplication *application = upscaleApplicationForWindow(window);
     // Output ownership comes from this window, never from the active screen.
     const qreal scale = kwinApp()->xwaylandScale();
     const QPoint position(qRound(window->output()->geometryF().x() * scale),
                           qRound(window->output()->geometryF().y() * scale));
+    // A game checks its mode against the ones the output lists and refuses
+    // any other, so a wish the list lacks asks for the listed mode nearest it.
+    const QSize size = upscaleX11ListedSize(position, upscaleWantedSize(window), window->output()->pixelSize());
+    if (size.isEmpty()) {
+        return {};
+    }
+    const UpscaleApplication *application = upscaleApplicationForWindow(window);
     // Every field named, the last three with how a request starts out: not
     // presented by the effect, not answered by the client, and no verdict
     // until begin() sets one. Naming them keeps -Wmissing-field-initializers

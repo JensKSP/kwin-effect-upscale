@@ -8,6 +8,7 @@
 // with the handbook's own examples among the cases.
 
 #include "picture.h"
+#include "resolution.h"
 
 #include <QTest>
 
@@ -24,6 +25,7 @@ class PictureTest : public QObject
 private Q_SLOTS:
     void placesThePicture_data();
     void placesThePicture();
+    void choosesTheNearestListedSize();
 };
 
 void PictureTest::placesThePicture_data()
@@ -75,6 +77,23 @@ void PictureTest::placesThePicture()
     if (sizing == UpscaleSizing::Supported) {
         QCOMPARE(QRect(picture.x, picture.y, picture.width, picture.height), placed);
     }
+}
+
+// An X11 game is given one of the modes its output lists, Xwayland's own for
+// a 3840 × 2160 output among them. Balanced wishes for 2259 × 1271, which none
+// is: the nearest the scaler enlarges is asked instead, 2048 × 1152.
+void PictureTest::choosesTheNearestListedSize()
+{
+    const UpscaleSize output{3840, 2160};
+    const std::vector<UpscaleSize> listed{{3840, 2160}, {3200, 1800}, {2880, 1620}, {2560, 1600}, {2560, 1440}, {2048, 1536}, {2048, 1152}, {1920, 1440}, {1920, 1200}, {1920, 1080}, {1600, 900}, {1280, 720}};
+    QCOMPARE(nearestListedSize(listed, {1920, 1080}, output), (UpscaleSize{1920, 1080}));
+    QCOMPARE(nearestListedSize(listed, {2259, 1271}, output), (UpscaleSize{2048, 1152}));
+    QCOMPARE(nearestListedSize(listed, {2400, 1350}, output), (UpscaleSize{2560, 1440}));
+    QCOMPARE(nearestListedSize(listed, {1960, 1103}, output), (UpscaleSize{1920, 1080}));
+    // Of two equally near, the larger, which leaves the scaler less to make up.
+    QCOMPARE(nearestListedSize({{1920, 1080}, {2560, 1440}}, {2240, 1260}, output), (UpscaleSize{2560, 1440}));
+    // Neither the output's own size, another shape, nor one below half is offered.
+    QCOMPARE(nearestListedSize({{3840, 2160}, {2048, 1536}, {1600, 900}}, {2259, 1271}, output), (UpscaleSize{0, 0}));
 }
 
 QTEST_GUILESS_MAIN(PictureTest)

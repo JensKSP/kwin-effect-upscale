@@ -230,7 +230,10 @@ QVariantMap UpscaleIdentityService::x11ConnectionPolicy(uint pid, const QStringL
         return answer;
     }
 #if KWIN_BUILD_X11
-    const QByteArray timing = upscaleX11ModeTiming(QPoint(0, 0), desired);
+    // The mode the program is told has to be one Xwayland lists, as a game
+    // checks it against them: the wish, or the listed mode nearest to it.
+    const QSize listed = upscaleX11ListedSize(QPoint(0, 0), desired, m_handler->screens().first()->pixelSize());
+    const QByteArray timing = upscaleX11ModeTiming(QPoint(0, 0), listed);
     if (timing.isEmpty()) {
         answer[QStringLiteral("reason")] = QStringLiteral("requested size absent from Xwayland modes");
         // The first X11 connection may arrive while KWin is still setting up
@@ -240,16 +243,17 @@ QVariantMap UpscaleIdentityService::x11ConnectionPolicy(uint pid, const QStringL
         return answer;
     }
     answer[QStringLiteral("timing")] = timing;
-#else
-    answer[QStringLiteral("reason")] = QStringLiteral("X11 support unavailable");
-    return answer;
-#endif
-    answer[QStringLiteral("width")] = desired.width();
-    answer[QStringLiteral("height")] = desired.height();
+    answer[QStringLiteral("width")] = listed.width();
+    answer[QStringLiteral("height")] = listed.height();
     answer[QStringLiteral("reason")] = QStringLiteral("connection display advertisement");
-    // This process now renders at the size wanted, so its window is presented
-    // across the output instead of being asked to resize itself.
-    upscaleRecordServed(pid, desired, selected ? selected->id : QString());
+    // This process now renders at the size it was told, so its window is
+    // presented across the output instead of being asked to resize itself.
+    upscaleRecordServed(pid, listed, selected ? selected->id : QString());
+#else
+    Q_UNUSED(pid)
+    Q_UNUSED(desired)
+    answer[QStringLiteral("reason")] = QStringLiteral("X11 support unavailable");
+#endif
     return answer;
 }
 }

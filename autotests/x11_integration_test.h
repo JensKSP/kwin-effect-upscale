@@ -57,7 +57,7 @@ private Q_SLOTS:
     void keepsEmulatedPointerCoverage_data();
     void keepsEmulatedPointerCoverage();
     void expiresDepartedClientRefusal();
-    void refusesUnavailableMode();
+    void asksTheNearestListedMode();
     void respectsPrimaryOutputRestriction();
     void retriesADroppedResizeOnce();
     void independentOutputRules();
