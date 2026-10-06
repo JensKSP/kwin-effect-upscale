@@ -8,6 +8,7 @@
 
 #if KWIN_BUILD_X11
 #include "compatibility.h"
+#include "runtime.h"
 #include "windowidentity.h"
 #include "x11geometry.h"
 
@@ -49,8 +50,13 @@ QString UpscaleX11Resolution::unmetCondition(const Request &request)
         return i18nc("A reason, after “request failed:” or “failure”", "the application supplied a %1 × %2 buffer where %3 × %4 was requested",
                      supplied.width(), supplied.height(), request.size.width(), request.size.height());
     }
+    // A game resized after it started confirms through the mode it sets that
+    // it took the size, as its entry can ask. One the proxy told the smaller
+    // screen started at it and sets no mode: Extreme Tux Racer waited for one
+    // forever (KWin 6.6.6, 2026-10-07).
     const UpscaleApplication *application = upscaleApplicationForWindow(window);
-    if (application && application->x11RequiresEmulatedMode && !upscaleX11ModeMatches(window, request.position, request.size)) {
+    if (application && application->x11RequiresEmulatedMode && !upscaleServed(window->pid())
+        && !upscaleX11ModeMatches(window, request.position, request.size)) {
         return i18nc("A reason, after “request failed:” or “failure”", "the application has not confirmed the requested resolution through its X11 mode");
     }
     // KWin's frame is what the buffer is presented across, by Xwayland or by
