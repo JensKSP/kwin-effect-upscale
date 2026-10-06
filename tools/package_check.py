@@ -74,6 +74,8 @@ def manager() -> tuple[tuple[str, ...], tuple[str, ...]]:
     raise RuntimeError(message)
 
 
+# Where the tester's screen locker reads whether to lock by itself.
+LOCK = ("kwriteconfig6", "--file", "kscreenlockerrc", "--group", "Daemon", "--key")
 # The race every check starts SuperTuxKart with.
 RACE = ["supertuxkart", "-R", "--track=lighthouse", "--numkarts=1"]
 # SuperTuxKart's own settings as a player at a 4K screen has them.
@@ -177,7 +179,13 @@ def relogin(previous: str) -> str:
     session itself, which outlives SDDM when the system keeps a user's
     processes after logout, and the next login met it (Debian 13, 2026-10-03).
     So the sessions on a seat are ended too.
+
+    The new session does not lock its screen while idle: a check that waits
+    for a game reads the effect's refusal of a locked screen instead, as the
+    Debian 13 and Kubuntu 26.04 sessions did half an hour in (2026-10-07).
     """
+    output(as_user(*LOCK, "Autolock", "false"))
+    output(as_user(*LOCK, "LockOnResume", "false"))
     subprocess.run(["systemctl", "stop", "display-manager"], check=False)
     for session in seat_sessions():
         subprocess.run(["loginctl", "terminate-session", session], check=False)
@@ -199,10 +207,27 @@ def relogin(previous: str) -> str:
             except RuntimeError:
                 pass
             else:
+                splashed(deadline)
                 return current
         time.sleep(3)
     message = "no new Plasma session within five minutes"
     raise RuntimeError(message)
+
+
+def splashed(deadline: float) -> None:
+    """Wait until Plasma's splash screen has gone, as a person does before starting a game.
+
+    KWin answers long before Plasma has started, and a game started then
+    lies under the splash, which KWin keeps above everything until the
+    session is up (Debian 13, 2026-10-07).
+    """
+    while time.monotonic() < deadline:
+        splash = subprocess.run(
+            ["pgrep", "-u", USER, "-x", "ksplashqml"], capture_output=True, check=False
+        )
+        if splash.returncode:
+            return
+        time.sleep(2)
 
 
 def watch(
@@ -229,9 +254,9 @@ def watch(
     return ""
 
 
-def enlarged_game() -> str:
-    """Say how the effect enlarges SuperTuxKart, if it does."""
-    reading = metrics()
+def enlarged_game(reading: dict[str, str] | None = None) -> str:
+    """Say how the effect enlarges SuperTuxKart, if it does, from a reading or a new one."""
+    reading = metrics() if reading is None else reading
     supplied, destination = reading.get("supplied", ""), reading.get("destination", "")
     if (
         "supertuxkart" in reading.get("window", "")
