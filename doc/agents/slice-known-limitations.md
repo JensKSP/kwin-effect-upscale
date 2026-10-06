@@ -110,7 +110,7 @@ marked **F** belong here.
 | K1 | Wayland clients with different buffer-density policies | The original bench found Qt and SDL 3 without high pixel density ignoring the scale hint. The [scale-one Auto work](slice-resolution-control.md#wayland-auto-at-scale-one-2026-09-29) owns the configure fallback, real-display results and comparison across desktop scales. | A smaller configure reaches these clients at scale one; low-density SDL at higher desktop scales can still supply a buffer below the supported range. Status reports the supplied size and refusal. | F; scale-one coverage extended by the linked work | Follow the linked density comparison and remaining acceptance; not a universal geometry-only solution |
 | K2 | Integer scale and startup-only sizing | vkmark ignores configure sizes; glmark2 keeps the viewport initialized from its first fullscreen configure. The [scale-one Auto work](slice-resolution-control.md#wayland-auto-at-scale-one-2026-09-29) owns their separate fixes and the native comparison. | vkmark can use the advertised mode; fresh glmark2 can use a smaller first configure. A late glmark2 resize crops the scene despite a smaller buffer. Integer-only density still differs on fractional desktops. | F | Preserve startup timing and actual-picture checks; live changes to fixed viewports remain open |
 | K3 | Wine's Wayland driver | Item 35: the window stays at the told 2560 × 1440; it draws into a subsurface, which the effect refuses even at full size, and rounds buffer heights up to a multiple of 128 | A smaller window, not enlarged. The status names child surfaces or the coverage | F | Present a window whose picture is in one subsurface, with the pointer mapped; shares K20's confinement gap. In the [Proton slice](slice-proton-smaller-screen.md#remaining-work) |
-| K4 | A program that connected before it could be told | The Wayland mode is told when a client binds the output, the X11 screen when a connection goes through the proxy; a program already running, or an X11 program that does not connect through the proxy, hears neither | Full size, or an X11 program resized after it started showing part of its picture enlarged (glmark2 2023.01, SuperTux 0.6.3 keep their first viewport). For a Wayland program the status names the size "from the next start"; not checked for every route | S, stated | A test per route that the status says so |
+| K4 | A program that connected before it could be told | The Wayland mode is told when a client binds the output, the X11 screen when a connection goes through the proxy; a program already running, or an X11 program that does not connect through the proxy, hears neither | Full size, or an X11 program resized after it started showing part of its picture enlarged (glmark2 2023.01, SuperTux 0.6.3 keep their first viewport). For a Wayland program the status names the size "from the next start"; not checked for every route | S, stated | Tested per route 2026-10-06, see Progress; stays stated |
 | K5 | A toolkit that picks another output | Extreme Tux Racer 0.8.4 with SFML 2.6.2 moves to the primary output when it recreates its fullscreen window | The shipped entry refuses control on a secondary output; the status says so | S, stated | Stays stated unless SFML changes |
 | K6 | A requested X11 mode the program does not list | SFML validates fullscreen modes against its list; the fixture refuses 2259 × 1271 on the 4K output | The request is refused and named; the game stays at full size | S, stated | Offer the nearest listed mode instead, as the Wayland scale does with reachable steps |
 | K7 | Internal render targets that keep their size | SuperTux 0.6.3: the outer buffer and viewport went from 4K to 1080p, an intermediate framebuffer stayed 1368 × 769 | Nothing visible; the saving in GPU time is smaller than the buffer suggests | F | A measurement question for the cost matrix (item 74), not a defect; stated |
@@ -196,6 +196,21 @@ gives K18 its X11 half: `movesThePointerOverAHiddenTitleBar` now also asks that
 no decoration keeps the pointer over a title bar the picture hides. Both cases
 pass, and both fail with the X11 filter's two checks taken out. Step 2 is done;
 next is step 3, K4.
+
+K4, tested per route 2026-10-06; it stays a stated limit, since a program that
+has bound the output or opened its connection is not told again. A Wayland
+program hears its mode when it binds the output, and the report says what its
+next start brings on each route: told nothing because the wish was Native at
+its start, told a mode before the wish moved (already covered by
+`asksApplicationsForASmallerImage`), and told a mode before the wish became
+Native. `aWishAfterTheStartWaitsForTheNext` covers the two that had only unit
+tests, with a client that takes no surface scale, so that nothing else can be
+asked of it while it runs; both passed as the code stood. An X11 program is
+told its screen by the proxy at connection, and the X11 status promises no
+next start: it reports the resize asked of the window and what the window
+did, while the handbook states that a program resized after it started can
+keep the viewport it began with, which the effect cannot see. Step 3 is done;
+next is step 4, K6.
 
 K1 and K2 are being addressed in the
 [scale-one Auto work](slice-resolution-control.md#wayland-auto-at-scale-one-2026-09-29).
