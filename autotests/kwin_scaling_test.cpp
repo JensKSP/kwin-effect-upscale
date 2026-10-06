@@ -4,8 +4,7 @@
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
-#include "kwin_wayland_test.h"
-#include "qwayland-viewporter.h"
+#include "kwin_scaling_test.h"
 
 #include "core/output.h"
 #include "core/renderloop.h"
@@ -19,53 +18,8 @@
 
 #include <KConfigGroup>
 #include <KWayland/Client/connection_thread.h>
-#include <KWayland/Client/event_queue.h>
 #include <KWayland/Client/output.h>
-#include <KWayland/Client/registry.h>
 #include <KWayland/Client/surface.h>
-
-using namespace KWin;
-
-class Viewport : public QtWayland::wp_viewport
-{
-public:
-    explicit Viewport(::wp_viewport *viewport)
-        : QtWayland::wp_viewport(viewport)
-    {
-    }
-    ~Viewport() override
-    {
-        destroy();
-    }
-};
-
-class UpscaleProductionTest : public QObject
-{
-    Q_OBJECT
-private Q_SLOTS:
-    void initTestCase();
-    void init();
-    void cleanup();
-    void reducesAndScales_data();
-    void reducesAndScales();
-    void advertisedModeProducesSmallerBuffer();
-    void unpluggedOutputIsPassedOver();
-    void unsupportedBufferFallsBack_data();
-    void unsupportedBufferFallsBack();
-    void fitsAnotherAspectRatio();
-    void ignoredRequestIsRestored();
-    void windowedClientIsUnchanged();
-    void nativeBufferBypassesScaling();
-
-private:
-    void configure(bool enabled, const QString &method = QStringLiteral("Auto"));
-    QString status() const;
-    QImage renderOutput() const;
-    static QImage pattern(const QSize &size);
-    std::unique_ptr<KWayland::Client::EventQueue> m_queue;
-    std::unique_ptr<KWayland::Client::Registry> m_registry;
-    QtWayland::wp_viewporter m_viewporter;
-};
 
 void UpscaleProductionTest::initTestCase()
 {
@@ -97,7 +51,11 @@ void UpscaleProductionTest::init()
     }
     configure(true);
     Test::setOutputConfig({QRect(0, 0, 384, 216)});
-    QVERIFY(Test::setupWaylandConnection(Test::AdditionalWaylandInterface::FractionalScaleManagerV1));
+    // A seat and server-side decorations for the cases of
+    // kwin_presentation_test.cpp; no other case uses them.
+    QVERIFY(Test::setupWaylandConnection(Test::AdditionalWaylandInterface::FractionalScaleManagerV1
+                                         | Test::AdditionalWaylandInterface::Seat
+                                         | Test::AdditionalWaylandInterface::XdgDecorationV1));
     m_queue = std::make_unique<KWayland::Client::EventQueue>();
     m_queue->setup(Test::waylandConnection());
     m_registry = std::make_unique<KWayland::Client::Registry>();
@@ -399,4 +357,3 @@ void UpscaleProductionTest::nativeBufferBypassesScaling()
 }
 
 WAYLANDTEST_MAIN(UpscaleProductionTest)
-#include "kwin_scaling_test.moc"
