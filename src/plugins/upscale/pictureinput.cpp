@@ -259,4 +259,72 @@ bool UpscalePictureInput::pointerAxis(PointerAxisEvent *event)
     });
 }
 
+bool UpscalePictureInput::touchDownAt(qint32 id, const QPointF &position, std::chrono::microseconds time)
+{
+    // The window drawn over the output there, unless KWin finds something its
+    // picture does not cover, or the window KWin finds, if the effect scales it.
+    EffectWindow *drawn = m_drawnAt ? m_drawnAt(position) : nullptr;
+    Window *found = input() ? input()->findToplevel(position) : nullptr;
+    if (drawn && found && found != drawn->window() && !upscaleDrawnCovers(drawn, found->effectWindow())) {
+        drawn = nullptr;
+    }
+    Window *target = drawn ? drawn->window() : found;
+    const QRectF picture = drawn ? pictureOf(drawn) : letterboxedPicture(m_scaled ? m_scaled(found) : nullptr, found);
+    if (!target || !target->surface() || picture.isEmpty()) {
+        return false;
+    }
+    // A touch taken here passes over KWin's own activation, so it is done here.
+    if (effects && effects->activeWindow() != target->effectWindow()) {
+        effects->activateWindow(target->effectWindow());
+    }
+    if (!picture.contains(position)) {
+        // A bar shows nothing of the game, and a touch there reaches nothing of it.
+        m_touch.swallow(id);
+        return true;
+    }
+    const QRectF client = target->clientGeometry();
+    m_touch.down(target->surface(), id, position, time, picture.topLeft(),
+                 QPointF(client.width() / picture.width(), client.height() / picture.height()));
+    return true;
+}
+
+#if UPSCALE_TOUCH_EVENTS
+bool UpscalePictureInput::touchDown(TouchDownEvent *event)
+{
+    return touchDownAt(event->id, event->pos, event->time);
+}
+
+bool UpscalePictureInput::touchMotion(TouchMotionEvent *event)
+{
+    return m_touch.motion(event->id, event->pos, event->time);
+}
+
+bool UpscalePictureInput::touchUp(TouchUpEvent *event)
+{
+    return m_touch.up(event->id, event->time);
+}
+#else
+bool UpscalePictureInput::touchDown(qint32 id, const QPointF &position, std::chrono::microseconds time)
+{
+    return touchDownAt(id, position, time);
+}
+
+bool UpscalePictureInput::touchMotion(qint32 id, const QPointF &position, std::chrono::microseconds time)
+{
+    return m_touch.motion(id, position, time);
+}
+
+bool UpscalePictureInput::touchUp(qint32 id, std::chrono::microseconds time)
+{
+    return m_touch.up(id, time);
+}
+#endif
+
+bool UpscalePictureInput::touchCancel()
+{
+    // KWin cancels every touch on the seat itself.
+    m_touch.cancel();
+    return false;
+}
+
 } // namespace KWin

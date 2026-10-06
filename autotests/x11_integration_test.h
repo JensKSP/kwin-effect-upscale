@@ -47,6 +47,7 @@ private Q_SLOTS:
     void keepsTheKeyboardWhereThePointerIs();
     void movesThePointerOverAHiddenTitleBar();
     void leavesATitleBarAboveAPresentedGame();
+    void mapsTouchOntoAPresentedGame();
     void letsAPresentedGameLockThePointer();
     void coversTheScreenItWasGiven();
     void winePrefixEligibility_data();

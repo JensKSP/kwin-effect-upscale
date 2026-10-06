@@ -92,6 +92,7 @@ if(KWin_VERSION VERSION_LESS 6.7)
         ../src/plugins/upscale/x11geometry.cpp
         ../src/plugins/upscale/x11modes.cpp
         ../src/plugins/upscale/pictureinput.cpp
+        ../src/plugins/upscale/touchinput.cpp
         ../src/plugins/upscale/x11input.cpp
         ../src/plugins/upscale/x11resolution.cpp
         ../src/plugins/upscale/x11resolution_events.cpp

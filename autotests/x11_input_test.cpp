@@ -262,6 +262,18 @@ void UpscaleX11IntegrationTest::letsAPresentedGameLockThePointer()
 // over it as anywhere else in the picture: the first motion onto it arrives
 // with the filter's own re-entry, the ones along it only as motion. The
 // session draws no decoration of its own, so this case switches one on.
+// "down <id> <x> <y>", "move <id> <x> <y>" or "up <id>" on the test driver's
+// touch screen, read and removed by the driver as the pointer's requests are.
+static void touchScreen(const QByteArray &request)
+{
+    const QString path = QString::fromLocal8Bit(qgetenv("XDG_RUNTIME_DIR")) + QStringLiteral("/upscale-test-touch");
+    QSaveFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    QVERIFY(file.write(request) > 0);
+    QVERIFY(file.commit());
+    QTRY_VERIFY(!QFile::exists(path));
+}
+
 // Aurorae's Plastik theme on every window for one case, put back as found
 // afterwards, a key that was absent staying absent.
 class Decorated
@@ -375,4 +387,28 @@ void UpscaleX11IntegrationTest::leavesATitleBarAboveAPresentedGame()
     QTRY_VERIFY2(status().contains(QStringLiteral("pointerDecoration: upscale-x11-dialog")), qPrintable(status()));
     // The game heard nothing of either motion.
     QCOMPARE(target.lastMotion(), QPoint(150, 150));
+}
+
+// Touch on a presented X11 game lands where the picture shows it, halved here.
+// The game takes no touch of its own, so the X server makes the first touch a
+// pointer press, which the game records.
+void UpscaleX11IntegrationTest::mapsTouchOntoAPresentedGame()
+{
+    configure(true);
+    X11Client target(false);
+    QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 1920, 1080), false));
+    QVERIFY(target.waitForMapping());
+    target.fullscreen(true);
+    QTRY_VERIFY(target.isFullscreen());
+    QTRY_VERIFY2(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()));
+    touchScreen("down 0 300 200");
+    // Xwayland converts the touch to whole X pixels on its own terms, a pixel
+    // short of the pointer's; unmapped, the press would be at 300, 200.
+    QTRY_VERIFY2((target.lastPress() - QPoint(150, 100)).manhattanLength() <= 2,
+                 qPrintable(QStringLiteral("%1, %2").arg(target.lastPress().x()).arg(target.lastPress().y())));
+    touchScreen("up 0");
+    // The pointer is the session's again once it moves, as a person's next
+    // mouse motion makes it; the cases after this one use it.
+    movePointer(QPoint(10, 10));
+    QTRY_COMPARE(target.lastMotion(), QPoint(5, 5));
 }
