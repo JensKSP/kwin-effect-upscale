@@ -134,7 +134,7 @@ marked **F** belong here.
 | K15 | A confined pointer passes one to one | Item 29: KWin checks a confinement in the surface's own coordinates, before any filter; the interim mapping of 29a lets Wine 10.0 reach all of its window at scale 3 | The game reaches all of its window, but a cursor the system draws is drawn where KWin keeps it, not over the picture | S, interim | The KWin proposal of 29b, filed by Jens; then map through KWin's transform |
 | K16 | Touch and tablet input | The presentation section of the handbook: not mapped | Touch and pen positions are not mapped to the picture | F | Map them as the pointer is, with tests through KWin's input |
 | K17 | Confinement regions and the locked pointer's position hint | The presentation section: not mapped | A confinement to part of a window, and a position hint on unlock, apply in the window's unscaled coordinates | F | Map both through the presentation, with K15 |
-| K18 | The cursor over a hidden decoration | Item 18: the pointer's motion is the game's there, but which cursor KWin shows was not looked at | Possibly a resize cursor at a hidden window border | S | Look in the conformance machine with a decorated window beneath a presented game |
+| K18 | The cursor over a hidden decoration | Removed 2026-10-06: KWin gave the hidden decoration the pointer and showed its cursor; both filters now take it away where they claim the pointer, see Progress | The game's cursor | S | Done |
 | K19 | A visible dialog's title bar above a presented X11 game | Item 18b: the filter now asks KWin's hover window; no test, because no test session can present a game with a decorated window above it | The dialog should keep its title bar | S | Find a way to stack a decorated window above a presented one in a test session |
 | K20 | Wine's Wayland driver's pointer | With K3: a smaller surface needs the same mapping, and meets K15's confinement | – | F | With K3 |
 | K21 | Input to a picture with bars beyond the absolute pointer | Item 76: relative motion was not driven by a relative-pointer client; a locked pointer, a game's popups and subsurfaces over the bars, and separate overlays are untested | Unknown: such input may still land where the unscaled window is | F | A relative-pointer client and a locked pointer in the Wayland session with Fit and Integer; a game's popup over the bars |
@@ -162,6 +162,26 @@ unmapped; the row on smaller windows says what item 18 and its windowed
 follow-up made of it, presentation over the whole output with what it covers
 (K14) and the confined pointer's interim mapping (K15); and the coverage row
 names what is still unverified. Next is step 2, K18 and K19.
+
+K18, removed 2026-10-06. Looked at in the conformance machine with
+`aHiddenDecorationKeepsTheGamesCursor`, a production case in KWin 6.3.6's own
+test framework (`autotests/kwin_presentation_test.cpp`, the production test's
+class now in `kwin_scaling_test.h`): a window with Breeze's server-side
+decoration under a game of the told size drawn over the 384 × 216 output, the
+pointer over the hidden title bar and over the hidden top-left corner. KWin's
+hover was the window beneath and the seat's pointer was on the game, as the
+filter sets it, but KWin had given the hidden decoration the pointer in its
+`update()`, which runs before any filter, and `CursorImage` shows a
+decoration's cursor whenever one has the pointer: there KWin showed Breeze's
+shape cursor where the game showed its own. `UpscalePictureInput` and
+`UpscaleX11Input` now clear KWin's decoration focus where they claim the
+pointer, through the public `InputDeviceHandler::setDecoration()`, present in
+6.3.6 and master; KWin then shows the cursor of the surface the seat is on.
+The case failed on the old plugin and passes; all 18 production cases pass, and
+the Wayland and X11 integration suites in the container. Reading the client's
+own cursor back was tried first and given up: in this harness a test client's
+`wl_pointer` heard no enter, so the case asserts the condition `CursorImage`
+decides by.
 
 K1 and K2 are being addressed in the
 [scale-one Auto work](slice-resolution-control.md#wayland-auto-at-scale-one-2026-09-29).

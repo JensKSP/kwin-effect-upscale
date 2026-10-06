@@ -2483,8 +2483,10 @@ its screen is smaller and beside the code (`eligibility_over.cpp`,
   undecorated 85 × 85 window on the 128 × 128 screen: over the window, beside
   it, a click beside it, and back onto it.
 - Not covered: Wine's Wayland driver, which draws into a subsurface the effect
-  refuses (item 35); and which cursor KWin shows over a hidden decoration,
-  which was not looked at.
+  refuses (item 35). Which cursor KWin shows over a hidden decoration was
+  looked at on 2026-10-06 and fixed: the decoration's, until the filters took
+  its pointer away (K18 in the
+  [known limitations](slice-known-limitations.md#progress)).
 
 ### Auto under test, 2026-09-21
 
