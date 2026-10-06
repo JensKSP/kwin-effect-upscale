@@ -132,7 +132,7 @@ marked **F** belong here.
 | | Limitation | Evidence | What the player sees, what the status says | Gate | Next |
 | --- | --- | --- | --- | --- | --- |
 | K15 | A confined pointer passes one to one | Item 29: KWin checks a confinement in the surface's own coordinates, before any filter; the interim mapping of 29a lets Wine 10.0 reach all of its window at scale 3 | The game reaches all of its window, but a cursor the system draws is drawn where KWin keeps it, not over the picture | S, interim | The KWin proposal of 29b, filed by Jens; then map through KWin's transform |
-| K16 | Touch and tablet input | The presentation section of the handbook: not mapped | Touch and pen positions are not mapped to the picture | F | Map them as the pointer is, with tests through KWin's input |
+| K16 | Touch and tablet input | Touch mapped 2026-10-06, see Progress; a pen is not | Touch lands where the picture shows it, one in a bar reaches nothing; a pen's position applies in the window's unscaled coordinates | F | The pen, through KWin's tablet filter and the tablet protocol |
 | K17 | Confinement regions and the locked pointer's position hint | The presentation section: not mapped | A confinement to part of a window, and a position hint on unlock, apply in the window's unscaled coordinates | F | Map both through the presentation, with K15 |
 | K18 | The cursor over a hidden decoration | Removed 2026-10-06: KWin gave the hidden decoration the pointer and showed its cursor; both filters now take it away where they claim the pointer, see Progress | The game's cursor | S | Done |
 | K19 | A visible dialog's title bar above a presented X11 game | Removed 2026-10-06: tested, the title bar keeps the pointer; see Progress | The dialog keeps its title bar | S | Done |
@@ -251,6 +251,30 @@ handbook. Subsurfaces are refused with the window (K12), so its input is
 KWin's own; an overlay drawn into the game's buffer is part of its picture,
 and one drawn as a window of its own is input of its own. Next in step 5 are
 K16 and K17.
+
+K16, touch mapped 2026-10-06. KWin delivered a touch on a presented window in
+the window's unscaled coordinates. Both filters now take a touch that goes down
+on a picture and deliver it themselves, through `UpscaleTouchDelivery`
+(`touchinput.{h,cpp}`): the seat moves a touch point by an offset alone, so the
+offset is set at every down and motion to the one that lands the touch where
+the picture shows it, and a touch in a bar is swallowed. Taking the touch passes
+over KWin's own activation, so the filter activates the window itself. KWin
+hands filters touch as arguments up to 6.3 and as event structures after it; a
+configure probe, `UPSCALE_KWIN_TOUCH_EVENTS`, picks the overrides, and both
+build against 6.3.6 and master. `TouchPoint::setSurfacePosition()` is not
+exported to plugins built outside KWin, so its two public members are set
+instead. The test driver gained a touch screen and the Wayland test client
+`wl_touch`. `mapsTouchOntoThePicture` (a picture with bars: down, motion, a
+touch in a bar reaching nothing) fails with KWin handling touch itself;
+`drawsAWindowOfTheToldSizeOverItsOutput` touches beside a drawn window;
+`mapsTouchOntoAPresentedGame` touches a presented X11 game, which the X server
+makes a pointer press for a game that takes no touch: it lands a pixel short of
+the halved point in Xwayland's own conversion, and at 300, 200 unmapped. After
+a touch the X11 session's later pointer cases failed with or without the
+mapping, until a pointer motion made the pointer the last input again, so that
+case ends with one. A pen is not mapped: its tool events, focus and proximity
+go through KWin's tablet filter and the tablet protocol, which differ again
+between KWin's versions; it stays stated. K17 waits with K15.
 
 K1 and K2 are being addressed in the
 [scale-one Auto work](slice-resolution-control.md#wayland-auto-at-scale-one-2026-09-29).
