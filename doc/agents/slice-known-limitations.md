@@ -135,7 +135,7 @@ marked **F** belong here.
 | K16 | Touch and tablet input | The presentation section of the handbook: not mapped | Touch and pen positions are not mapped to the picture | F | Map them as the pointer is, with tests through KWin's input |
 | K17 | Confinement regions and the locked pointer's position hint | The presentation section: not mapped | A confinement to part of a window, and a position hint on unlock, apply in the window's unscaled coordinates | F | Map both through the presentation, with K15 |
 | K18 | The cursor over a hidden decoration | Removed 2026-10-06: KWin gave the hidden decoration the pointer and showed its cursor; both filters now take it away where they claim the pointer, see Progress | The game's cursor | S | Done |
-| K19 | A visible dialog's title bar above a presented X11 game | Item 18b: the filter now asks KWin's hover window; no test, because no test session can present a game with a decorated window above it | The dialog should keep its title bar | S | Find a way to stack a decorated window above a presented one in a test session |
+| K19 | A visible dialog's title bar above a presented X11 game | Removed 2026-10-06: tested, the title bar keeps the pointer; see Progress | The dialog keeps its title bar | S | Done |
 | K20 | Wine's Wayland driver's pointer | With K3: a smaller surface needs the same mapping, and meets K15's confinement | – | F | With K3 |
 | K21 | Input to a picture with bars beyond the absolute pointer | Item 76: relative motion was not driven by a relative-pointer client; a locked pointer, a game's popups and subsurfaces over the bars, and separate overlays are untested | Unknown: such input may still land where the unscaled window is | F | A relative-pointer client and a locked pointer in the Wayland session with Fit and Integer; a game's popup over the bars |
 
@@ -182,6 +182,20 @@ the Wayland and X11 integration suites in the container. Reading the client's
 own cursor back was tried first and given up: in this harness a test client's
 `wl_pointer` heard no enter, so the case asserts the condition `CursorImage`
 decides by.
+
+K19, removed 2026-10-06. A decorated window above a presented X11 game was
+never impossible in a test session, only not tried: in the X11 integration
+suite, `leavesATitleBarAboveAPresentedGame` opens a window with Aurorae's
+Plastik decoration over a fullscreen game the effect presents, checks that the
+game is still presented beside it (a motion there reaches the game halved), and
+moves the pointer along the window's title bar. The test driver now reports
+whose decoration KWin gave the pointer (`pointerDecoration`): the window's
+own, and the game hears neither motion. No change to the plugin was needed;
+item 18b's question of KWin's hover window holds. The same driver property
+gives K18 its X11 half: `movesThePointerOverAHiddenTitleBar` now also asks that
+no decoration keeps the pointer over a title bar the picture hides. Both cases
+pass, and both fail with the X11 filter's two checks taken out. Step 2 is done;
+next is step 3, K4.
 
 K1 and K2 are being addressed in the
 [scale-one Auto work](slice-resolution-control.md#wayland-auto-at-scale-one-2026-09-29).
