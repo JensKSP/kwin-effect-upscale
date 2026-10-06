@@ -31,8 +31,7 @@ namespace KWin
 // Whether @p window already draws smaller than its output.
 static bool drawsSmaller(EffectWindow *window)
 {
-    SurfaceItem *surface = window->windowItem() ? window->windowItem()->surfaceItem() : nullptr;
-    const QSize buffer = surface ? surface->bufferSize() : QSize();
+    const QSize buffer = upscaleSuppliedSize(upscalePictureSurface(window));
     const QSize output = window->screen() ? window->screen()->pixelSize() : QSize();
     return !buffer.isEmpty() && buffer.width() < output.width() && buffer.height() < output.height();
 }

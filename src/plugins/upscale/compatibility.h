@@ -13,6 +13,7 @@
 #include "opengl/glshader.h"
 #include "opengl/gltexture.h"
 #include "scene/itemrenderer.h"
+#include "scene/surfaceitem.h"
 
 #include <QByteArrayView>
 
@@ -234,6 +235,18 @@ inline bool captureSurface(ItemRenderer *renderer, const RenderTarget &target, c
     renderer->renderItem(target, viewport, surface, Effect::PAINT_WINDOW_TRANSFORMED, unlimitedRegion(), data);
     return true;
 #endif
+}
+
+// The size of the picture a surface supplies: as much of its buffer as its
+// viewport shows, which is the whole buffer unless the client crops it. KWin
+// gives the source box as its own rectangle type from 6.6, a Qt one before.
+inline QSize upscaleSuppliedSize(const SurfaceItem *surface)
+{
+    if (!surface) {
+        return {};
+    }
+    const auto source = surface->bufferSourceBox();
+    return QSize(qRound(source.width()), qRound(source.height()));
 }
 
 inline const ColorDescription &targetColors(const RenderTarget &target)

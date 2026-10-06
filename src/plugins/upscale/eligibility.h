@@ -188,6 +188,13 @@ bool upscaleRequestCoversOutput(const Window *window);
 UpscaleRefusal windowRefusal(EffectWindow *window);
 
 /**
+ * The surface whose picture @p window shows: its own, or the one subsurface
+ * covering it whole, above the window's own buffer, which Wine's Wayland
+ * driver draws a game into. Null without a surface.
+ */
+SurfaceItem *upscalePictureSurface(EffectWindow *window);
+
+/**
  * Where @p window's supplied buffer goes on its output, in device pixels, as
  * its settings lay it: the one answer eligibility, drawing and input share.
  */

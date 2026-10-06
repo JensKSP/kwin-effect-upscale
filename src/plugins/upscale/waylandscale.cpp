@@ -171,8 +171,7 @@ void UpscaleWaylandScale::request(EffectWindow *effectWindow, double ratio, bool
 void UpscaleWaylandScale::checkAnswer(EffectWindow *effectWindow, Request &request)
 {
     Window *window = effectWindow->window();
-    SurfaceItem *surface = effectWindow->windowItem() ? effectWindow->windowItem()->surfaceItem() : nullptr;
-    const QSize buffer = surface ? surface->bufferSize() : QSize();
+    const QSize buffer = upscaleSuppliedSize(upscalePictureSurface(effectWindow));
     const QSize output = window->output() ? window->output()->pixelSize() : QSize();
     if (buffer.isEmpty() || output.isEmpty()) {
         return;

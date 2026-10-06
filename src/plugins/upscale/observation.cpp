@@ -119,8 +119,8 @@ UpscaleSnapshot UpscaleEffect::snapshot(EffectWindow *window, const RenderTarget
     } else if (window->isX11Client()) {
         state.windowSystem = UpscaleWindowSystem::X11;
     }
-    if (SurfaceItem *surface = window->windowItem() ? window->windowItem()->surfaceItem() : nullptr) {
-        state.supplied = surface->bufferSize();
+    if (SurfaceItem *surface = upscalePictureSurface(window)) {
+        state.supplied = upscaleSuppliedSize(surface);
         state.format = describeSuppliedFormat(surface);
         state.bufferKind = suppliedBufferKind(surface);
         state.scaling = m_renderedInputs.contains(window) && m_renderedInputs.value(window) == state.supplied;

@@ -23,6 +23,8 @@
 
 #include <drm_fourcc.h>
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <optional>
 
@@ -293,15 +295,17 @@ static UpscaleRefusal placementRefusal(EffectWindow *window)
 // and can only do that for a surface KWin would otherwise enlarge by itself.
 static UpscaleRefusal surfaceRefusal(EffectWindow *window, SurfaceItem *surface)
 {
-    if (!surface->childItems().isEmpty()) {
+    // The window's own surface places the picture, whichever surface draws it.
+    SurfaceItem *own = window->windowItem()->surfaceItem();
+    if (surface == own && !own->childItems().isEmpty()) {
         return UpscaleRefusal::ChildSurfaces;
     }
-    if (!surface->transform().isIdentity()) {
+    if (!surface->transform().isIdentity() || !own->transform().isIdentity()) {
         return UpscaleRefusal::TransformedSurface;
     }
     // A window drawn over its output is drawn without the decoration KWin may
     // have given it, which is what moves its surface.
-    if (surface->position() != QPointF() && !upscaleDrawnOverOutput(window)) {
+    if (own->position() != QPointF() && !upscaleDrawnOverOutput(window)) {
         return UpscaleRefusal::OffsetSurface;
     }
     if (surface->opacity() != 1.0) {
@@ -323,14 +327,26 @@ static UpscaleRefusal surfaceRefusal(EffectWindow *window, SurfaceItem *surface)
 
 // The buffer the client supplied: its size relative to the destination, and
 // whether the scaler can read it as it stands.
+SurfaceItem *upscalePictureSurface(EffectWindow *window)
+{
+    SurfaceItem *surface = window && window->windowItem() ? window->windowItem()->surfaceItem() : nullptr;
+    const QList<Item *> children = surface ? surface->childItems() : QList<Item *>();
+    auto *child = children.size() == 1 ? qobject_cast<SurfaceItem *>(children.first()) : nullptr;
+    if (!child || child->z() < 0 || !child->childItems().isEmpty() || child->position() != QPointF()
+        || child->destinationSize() != surface->destinationSize()) {
+        return surface;
+    }
+    return child;
+}
+
 UpscalePicture upscalePictureOf(EffectWindow *window)
 {
     // Asked for status too, where no refusal has vouched for the window yet.
-    SurfaceItem *surface = window && window->windowItem() ? window->windowItem()->surfaceItem() : nullptr;
+    SurfaceItem *surface = upscalePictureSurface(window);
     if (!surface || !window->screen()) {
         return {};
     }
-    const QSize input = surface->bufferSize();
+    const QSize input = upscaleSuppliedSize(surface);
     const QSize destination = window->screen()->pixelSize();
     const UpscaleSettings settings = upscaleResolveSettings(upscaleApplicationForWindow(window->window()));
     return upscalePicture({input.width(), input.height()}, {destination.width(), destination.height()}, settings.geometry(),
@@ -339,7 +355,6 @@ UpscalePicture upscalePictureOf(EffectWindow *window)
 
 static UpscaleRefusal contentRefusal(EffectWindow *window, SurfaceItem *surface)
 {
-    const QSize input = surface->bufferSize();
     switch (upscalePictureOf(window).sizing) {
     case UpscaleSizing::Supported:
         break;
@@ -362,7 +377,17 @@ static UpscaleRefusal contentRefusal(EffectWindow *window, SurfaceItem *surface)
     if (surface->bufferTransform() != OutputTransform::Normal) {
         return UpscaleRefusal::TransformedBuffer;
     }
-    if (surface->bufferSourceBox() != UpscaleRectF(QPointF(), input)) {
+    // A Wayland client's crop in whole pixels is captured as it stands, as
+    // Wine's Wayland driver shows the told size of a buffer whose height it
+    // rounded up. Xwayland crops a window's buffer for a mode it emulates,
+    // which it presents itself, so an X11 window's buffer is taken whole.
+    const auto source = surface->bufferSourceBox();
+    const QSize buffer = surface->bufferSize();
+    const bool whole = source.x() == 0 && source.y() == 0 && source.width() == buffer.width() && source.height() == buffer.height();
+    const bool pixels = std::ranges::all_of(std::array{source.x(), source.y(), source.width(), source.height()}, [](double edge) {
+        return edge == std::round(edge);
+    });
+    if (!whole && (!pixels || !window->isWaylandClient())) {
         return UpscaleRefusal::CroppedBuffer;
     }
 #if UPSCALE_RENDER_DEVICE_API
@@ -402,7 +427,7 @@ UpscaleRefusal windowRefusal(EffectWindow *window)
     if (placement != UpscaleRefusal::None) {
         return placement;
     }
-    SurfaceItem *surface = window->windowItem()->surfaceItem();
+    SurfaceItem *surface = upscalePictureSurface(window);
     const UpscaleRefusal shape = surfaceRefusal(window, surface);
     return shape != UpscaleRefusal::None ? shape : contentRefusal(window, surface);
 }

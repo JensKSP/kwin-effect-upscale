@@ -68,8 +68,8 @@ public:
 #endif
     {
         auto surface = qobject_cast<SurfaceItem *>(item);
-        if (!surface || target.size() != surface->bufferSize()
-            || viewport.scale() != double(surface->bufferSize().width()) / surface->destinationSize().width()
+        if (!surface || target.size() != upscaleSuppliedSize(surface)
+            || viewport.scale() != double(upscaleSuppliedSize(surface).width()) / surface->destinationSize().width()
             || mask != Effect::PAINT_WINDOW_TRANSFORMED || region != unlimitedRegion()) {
             qFatal("Capture did not preserve the original surface's pixel mapping");
         }
