@@ -276,6 +276,13 @@ void UpscaleX11IntegrationTest::answersUnlistedProgramsUnderAllApplications()
     QCOMPARE(unlisted.value(QStringLiteral("profile")).toString(), QStringLiteral("global"));
     QCOMPARE(QSize(unlisted.value(QStringLiteral("width")).toInt(), unlisted.value(QStringLiteral("height")).toInt()),
              QSize(1920, 1080));
+    // Balanced wishes for 2259 × 1271, which Xwayland lists no mode for: the
+    // program is told the listed mode nearest to it, as the resize asks it.
+    configure(true, Stored::Balanced);
+    const QVariantMap balanced = ask(QStringLiteral("/usr/games/unlisted-game"));
+    QCOMPARE(QSize(balanced.value(QStringLiteral("width")).toInt(), balanced.value(QStringLiteral("height")).toInt()),
+             QSize(2048, 1152));
+    configure(true);
     QCOMPARE(ask(QStringLiteral("/usr/games/other-game")).value(QStringLiteral("reason")).toString(),
              QStringLiteral("unidentified client"));
     const QDBusReply<bool> prefix = policy.call(QStringLiteral("x11PrefixMayMatch"), QStringLiteral("/unnamed/prefix"),

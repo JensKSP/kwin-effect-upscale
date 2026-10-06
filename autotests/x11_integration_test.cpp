@@ -349,16 +349,16 @@ void UpscaleX11IntegrationTest::expiresDepartedClientRefusal()
     QVERIFY2(!status().contains(QStringLiteral("repeatedly replaced")), qPrintable(status()));
 }
 
-void UpscaleX11IntegrationTest::refusesUnavailableMode()
+void UpscaleX11IntegrationTest::asksTheNearestListedMode()
 {
     X11Client target;
     const QRect native(0, 0, 3840, 2160);
     QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), native));
     QTRY_VERIFY_WITH_TIMEOUT(target.isFullscreen(), 10000);
     QTRY_COMPARE(target.geometry(), native);
-    configure(true, Stored::Balanced); // Balanced is 2259 × 1271, absent from this output's modes.
-    QTRY_VERIFY2(status().contains(QStringLiteral("requested X11 mode is unavailable")), qPrintable(status()));
-    QCOMPARE(target.geometry(), native);
+    configure(true, Stored::Balanced); // Balanced is 2259 × 1271, which this output does not list.
+    QTRY_COMPARE(target.geometry().size(), QSize(2048, 1152));
+    QVERIFY2(status().contains(QStringLiteral("the listed mode nearest to 2259 × 1271")), qPrintable(status()));
     configure(true);
     QTRY_COMPARE(target.geometry().size(), QSize(1920, 1080));
 }
