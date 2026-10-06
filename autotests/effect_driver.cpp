@@ -444,8 +444,11 @@ public:
             // At the picture's own corner, which bars move away from the
             // output's, so that the pixel read below is one of the picture.
             const UpscalePicture placed = upscalePictureOf(window);
-            const QPointF corner = window->screen()->geometryF().topLeft() + QPointF(placed.x, placed.y) / window->screen()->scale();
-            const RenderViewport offscreenViewport = captureViewport(UpscaleRectF(corner, QSizeF(128, 128)), 1, offscreen);
+            // At the output's scale, too, or every pass on a scaled desktop
+            // would be one the effect rightly hands back.
+            const double scale = window->screen()->scale();
+            const QPointF corner = window->screen()->geometryF().topLeft() + QPointF(placed.x, placed.y) / scale;
+            const RenderViewport offscreenViewport = captureViewport(UpscaleRectF(corner, QSizeF(128, 128) / scale), scale, offscreen);
             GLFramebuffer::pushFramebuffer(m_framebuffer.get());
             glClearColor(0, 0, 0, 0);
             glClear(GL_COLOR_BUFFER_BIT);

@@ -336,3 +336,30 @@ void UpscaleIntegrationTest::anAdvertisementThatDidNotReachFallsBackToTheSurface
     configureResolution(true, false, {});
     m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
 }
+
+// Wine's Wayland driver asks to be fullscreen and then keeps its window at the
+// screen it was told, in Windows pixels, one to a logical unit unless Wine's
+// own DPI setting says otherwise, whatever the output's scale (Wine 10.0, seen
+// at desktop scale 1.05 under KWin 6.3.6, 2026-10-07). Its window is the told
+// pixels in logical units, larger than the output where the desktop is scaled
+// twice, as this case runs it in the session with outputs, and its picture is
+// the told size. That is drawn over the output like a window of the told size.
+void UpscaleIntegrationTest::drawsAWindowOfTheToldPixelsOverItsOutput()
+{
+    const QDBusReply<bool> loaded = m_effects.call(QStringLiteral("loadEffect"), QStringLiteral("upscale_test_driver"));
+    QVERIFY(loaded.isValid() && loaded.value());
+    const auto unload = qScopeGuard([this]() {
+        writeCatalogue(QString());
+        configureResolution(true, false, {});
+        m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
+    });
+    writeCatalogue(integrationEntry(QStringLiteral("MethodWaylandFullScreen=AdvertisedMode\nMinimumPixels=0\nOrder=1\n")));
+    configureResolution(true, false, Stored::Quality);
+    WaylandClient game;
+    QVERIFY(game.initialize(true));
+    QCOMPARE(game.advertisedMode(), QSize(85, 85));
+    QVERIFY(game.show(QSize(85, 85)));
+    game.resize(QSize(85, 85));
+    QTRY_VERIFY2(status().contains(QStringLiteral("Supplied input: 85 × 85")) && status().contains(QStringLiteral("FSR 1, sharpening")),
+                 qPrintable(status()));
+}
