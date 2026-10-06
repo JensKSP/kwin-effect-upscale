@@ -212,8 +212,9 @@ void UpscaleIntegrationTest::asksApplicationsForASmallerImage()
 // is never told again. A wish that changed after its start therefore waits for
 // its next start, and the report says so, whichever way the program missed it:
 // told nothing because the wish was Native then, or told a mode before the
-// wish became Native. The program takes no surface scale, so nothing else can
-// be asked of it while it runs.
+// wish became Native. The program takes no surface scale: the window is asked
+// for one all the same, and the report turns to the next start once the
+// window has drawn past the effect's patience without answering.
 void UpscaleIntegrationTest::aWishAfterTheStartWaitsForTheNext()
 {
     const QDBusReply<bool> loaded = m_effects.call(QStringLiteral("loadEffect"), QStringLiteral("upscale_test_driver"));
@@ -239,6 +240,7 @@ void UpscaleIntegrationTest::aWishAfterTheStartWaitsForTheNext()
         QSocketNotifier notifier(untold.descriptor(), QSocketNotifier::Read);
         QVERIFY(shown(untold, notifier, QSize(128, 128)));
         configureResolution(true, false, Stored::Quality);
+        QVERIFY(untold.presentFrames(35));
         QTRY_VERIFY2(status().contains(QStringLiteral("85 × 85 from the next start of Upscale integration test")), qPrintable(status()));
     }
 
