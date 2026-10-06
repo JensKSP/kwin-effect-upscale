@@ -19,6 +19,7 @@
 #include "opengl/egldisplay.h"
 #include "opengl/glframebuffer.h"
 #include "opengl/glvertexbuffer.h"
+#include "pointer_input.h"
 #include "scene/imageitem.h"
 #include "scene/surfaceitem.h"
 #include "scene/windowitem.h"
@@ -129,6 +130,9 @@ class UpscaleTestDriver : public Effect
     Q_PROPERTY(QString pointerLock READ pointerLock)
     Q_PROPERTY(QString pointerConfinement READ pointerConfinement)
     Q_PROPERTY(QString inputBounds READ inputBounds)
+    // Whose decoration KWin gave the pointer, by the class of the window it
+    // hovers, or "none": KWin shows that decoration's cursor while it has one.
+    Q_PROPERTY(QString pointerDecoration READ pointerDecoration)
     // How much the effect keeps per window and per program; see UpscaleEffect::records().
     Q_PROPERTY(QString records READ records)
     Q_PROPERTY(int effectMessages READ effectMessages)
@@ -311,6 +315,13 @@ public:
         }
         const QRectF bounds = UpscaleRectF(surface->input().boundingRect());
         return QStringLiteral("%1,%2,%3,%4").arg(bounds.x()).arg(bounds.y()).arg(bounds.width()).arg(bounds.height());
+    }
+
+    QString pointerDecoration() const
+    {
+        // KWin gives the pointer only to the decoration of the window it hovers.
+        Window *hover = input() ? input()->pointer()->hover() : nullptr;
+        return hover && input()->pointer()->decoration() ? hover->resourceClass() : QStringLiteral("none");
     }
 
     QString pointerLock() const
