@@ -23,6 +23,7 @@ WaylandClient::WaylandClient(uint32_t outputVersion, bool fractionalScale)
 WaylandClient::~WaylandClient()
 {
     releasePointer();
+    releasePopup();
     for (wl_callback *frame : m_frames) {
         wl_callback_destroy(frame);
     }
@@ -121,6 +122,9 @@ void WaylandClient::global(void *data, wl_registry *registry, uint32_t name, con
     } else if (std::strcmp(interface, "zwp_pointer_constraints_v1") == 0) {
         client->m_constraints = static_cast<zwp_pointer_constraints_v1 *>(
             wl_registry_bind(registry, name, &zwp_pointer_constraints_v1_interface, 1));
+    } else if (std::strcmp(interface, "zwp_relative_pointer_manager_v1") == 0) {
+        client->m_relativeManager = static_cast<zwp_relative_pointer_manager_v1 *>(
+            wl_registry_bind(registry, name, &zwp_relative_pointer_manager_v1_interface, 1));
     }
 }
 

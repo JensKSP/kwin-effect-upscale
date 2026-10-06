@@ -303,6 +303,8 @@ public:
         request.remove();
         if (fields.size() == 2) {
             m_pointer.move(QPointF(fields.at(0).toDouble(), fields.at(1).toDouble()));
+        } else if (fields.size() == 3 && fields.at(0) == "by") {
+            m_pointer.moveBy(QPointF(fields.at(1).toDouble(), fields.at(2).toDouble()));
         }
     }
 

@@ -20,6 +20,7 @@ foreach(
         staging/fractional-scale/fractional-scale-v1
         unstable/xdg-output/xdg-output-unstable-v1
         unstable/pointer-constraints/pointer-constraints-unstable-v1
+        unstable/relative-pointer/relative-pointer-unstable-v1
 )
     get_filename_component(protocol ${path} NAME)
     set(protocol_xml "${WAYLAND_PROTOCOLS}/${path}.xml")
@@ -47,6 +48,7 @@ add_executable(
     crash_game.h
     wayland_client.cpp
     wayland_client_pointer.cpp
+    wayland_client_popup.cpp
     ${protocol_sources}
 )
 target_include_directories(upscale_integration_test PRIVATE ${CMAKE_CURRENT_BINARY_DIR})

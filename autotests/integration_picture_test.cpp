@@ -32,6 +32,18 @@ static void movePointer(const QPoint &position)
     QTRY_VERIFY(!QFile::exists(path));
 }
 
+// A motion by @p delta with no position of its own, as a mouse reports one,
+// which the test driver makes the same way.
+static void movePointerBy(const QPoint &delta)
+{
+    const QString path = QString::fromLocal8Bit(qgetenv("XDG_RUNTIME_DIR")) + QStringLiteral("/upscale-test-pointer");
+    QSaveFile request(path);
+    QVERIFY(request.open(QIODevice::WriteOnly));
+    QVERIFY(request.write("by " + QByteArray::number(delta.x()) + ' ' + QByteArray::number(delta.y())) > 0);
+    QVERIFY(request.commit());
+    QTRY_VERIFY(!QFile::exists(path));
+}
+
 // A left click there, which the test driver makes as it moves the pointer.
 static void clickPointer(const QPoint &position)
 {
@@ -89,6 +101,102 @@ void UpscaleIntegrationTest::mapsThePointerOntoThePicture()
                  qPrintable(QStringLiteral("%1, %2").arg(game.lastMotion().x()).arg(game.lastMotion().y())));
     movePointer(QPoint(124, 64));
     QTRY_VERIFY(near(game.lastMotion(), QPointF((114 - 13) * across, 64)));
+}
+
+// Relative motion, which a game's mouse look reads, counts in the surface's own
+// coordinates as well, on a picture with bars beside it or above and below it,
+// and while the game holds the pointer locked only relative motion arrives,
+// scaled the same. Fit enlarges 64 × 80 to 102 × 128, 13 pixels in from the
+// left; Integer enlarges 64 × 48 twice, to 128 × 96, 16 pixels down.
+void UpscaleIntegrationTest::carriesRelativeMotionOntoThePicture_data()
+{
+    QTest::addColumn<QString>("geometry");
+    QTest::addColumn<QSize>("buffer");
+    QTest::addColumn<QString>("shown");
+    QTest::addColumn<QPointF>("origin");
+    QTest::addColumn<QPointF>("across");
+    QTest::newRow("fit") << QStringLiteral("Fit") << QSize(64, 80) << QStringLiteral("fitted into 102 × 128 with bars") << QPointF(13, 0)
+                         << QPointF(128.0 / 102.0, 1);
+    QTest::newRow("integer") << QStringLiteral("Integer") << QSize(64, 48) << QStringLiteral("enlarged 2 times") << QPointF(0, 16)
+                             << QPointF(1, 128.0 / 96.0);
+}
+
+void UpscaleIntegrationTest::carriesRelativeMotionOntoThePicture()
+{
+    QFETCH(QString, geometry);
+    QFETCH(QSize, buffer);
+    QFETCH(QString, shown);
+    QFETCH(QPointF, origin);
+    QFETCH(QPointF, across);
+    const QDBusReply<bool> loaded = m_effects.call(QStringLiteral("loadEffect"), QStringLiteral("upscale_test_driver"));
+    QVERIFY(loaded.isValid() && loaded.value());
+    const auto unload = qScopeGuard([this]() {
+        writeCatalogue(QString());
+        m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
+    });
+    writeCatalogue(integrationEntry(QStringLiteral("MinimumPixels=0\nGeometry=%1\n").arg(geometry)));
+    configure(false, false);
+    WaylandClient game;
+    QVERIFY(game.initialize());
+    QSocketNotifier notifier(game.descriptor(), QSocketNotifier::Read);
+    connect(&notifier, &QSocketNotifier::activated, this, [&game]() {
+        game.dispatch();
+    });
+    QVERIFY(game.show(buffer));
+    QTRY_VERIFY2(status().contains(shown), qPrintable(status()));
+    QVERIFY(game.watchRelativeMotion());
+    const auto surface = [&](const QPointF &point) {
+        return QPointF((point.x() - origin.x()) * across.x(), (point.y() - origin.y()) * across.y());
+    };
+    const auto said = [&game]() {
+        return QStringLiteral("%1, %2").arg(game.relativeMotion().x()).arg(game.relativeMotion().y());
+    };
+    movePointer(QPoint(40, 64));
+    QTRY_VERIFY(near(game.lastMotion(), surface(QPointF(40, 64))));
+    game.resetRelativeMotion();
+    movePointerBy(QPoint(20, 12));
+    QTRY_VERIFY2(near(game.relativeMotion(), QPointF(20 * across.x(), 12 * across.y())), qPrintable(said()));
+    QTRY_VERIFY(near(game.lastMotion(), surface(QPointF(60, 76))));
+
+    QVERIFY(game.lockPointer());
+    QTRY_VERIFY2(game.pointerLocked(), qPrintable(status()));
+    const QPointF held = game.lastMotion();
+    game.resetRelativeMotion();
+    movePointerBy(QPoint(-30, 6));
+    QTRY_VERIFY2(near(game.relativeMotion(), QPointF(-30 * across.x(), 6 * across.y())), qPrintable(said()));
+    QCOMPARE(game.lastMotion(), held);
+}
+
+// A popup of the game's lies where the game's surface coordinates put it,
+// which KWin draws unenlarged, and over the bar left of the picture here. The
+// pointer there is the popup's, at the popup's own coordinates, and the game
+// hears nothing of it.
+void UpscaleIntegrationTest::leavesAPopupOverTheBarsItsOwnPointer()
+{
+    const QDBusReply<bool> loaded = m_effects.call(QStringLiteral("loadEffect"), QStringLiteral("upscale_test_driver"));
+    QVERIFY(loaded.isValid() && loaded.value());
+    const auto unload = qScopeGuard([this]() {
+        writeCatalogue(QString());
+        m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
+    });
+    writeCatalogue(integrationEntry(QStringLiteral("MinimumPixels=0\n")));
+    configure(false, false);
+    WaylandClient game;
+    QVERIFY(game.initialize());
+    QSocketNotifier notifier(game.descriptor(), QSocketNotifier::Read);
+    connect(&notifier, &QSocketNotifier::activated, this, [&game]() {
+        game.dispatch();
+    });
+    QVERIFY(game.show(QSize(64, 80)));
+    QTRY_VERIFY2(status().contains(QStringLiteral("fitted into 102 × 128 with bars")), qPrintable(status()));
+    movePointer(QPoint(40, 64));
+    QTRY_VERIFY(near(game.lastMotion(), QPointF((40 - 13) * 128.0 / 102.0, 64)));
+    const QPointF before = game.lastMotion();
+    QVERIFY(game.openPopup(QRect(2, 40, 8, 8)));
+    movePointer(QPoint(5, 43));
+    QTRY_VERIFY2(near(game.popupMotion(), QPointF(3, 3)),
+                 qPrintable(QStringLiteral("%1, %2\n%3").arg(game.popupMotion().x()).arg(game.popupMotion().y()).arg(status())));
+    QCOMPARE(game.lastMotion(), before);
 }
 
 // A plain window its program sized to the smaller screen it was told, which is
