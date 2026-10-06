@@ -2081,7 +2081,10 @@ Beside the window, where KWin's hit test finds what the picture covers - a
 window, a decoration, the hidden one's own included - or nothing at all, the
 input filter focuses the window's surface on the seat itself and delivers the
 pointer's motion, buttons and wheel to it, ahead of KWin's decoration and click
-handling, and a press there activates it. While the program confines the
+handling, and a press there activates it. A decoration the picture hides
+loses the pointer KWin gave it, so the cursor there is the game's, not that
+decoration's arrow or resize cursor; the same holds beside a presented X11
+window. While the program confines the
 pointer, KWin keeps it inside the window in the surface's own coordinates, and
 it passes one to one, as for a presented X11 window.
 
