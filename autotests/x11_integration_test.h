@@ -72,6 +72,7 @@ private Q_SLOTS:
     void reenteringFullscreenAtOnce();
     void fitsAnEmulatedModeBetweenBars();
     void centresAPresentedWindowByAWholeFactor();
+    void scalesAWindowOfAFractionalLogicalSize();
     void answersUnlistedProgramsUnderAllApplications();
     void presentsAProcessShownItsGamesScreen();
 

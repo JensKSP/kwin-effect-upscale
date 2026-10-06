@@ -77,3 +77,22 @@ void UpscaleX11IntegrationTest::centresAPresentedWindowByAWholeFactor()
     movePointer(logical(QPoint(640 + 2400, 360 + 1200)));
     QTRY_COMPARE(target.lastMotion(), QPoint(2400, 1200));
 }
+
+// Quality's 2560 × 1440 is no whole number of logical units on a desktop
+// scaled three times, 853 1/3 across. KWin rounds the opaque region it makes
+// from an X11 window's shape to whole units, while the window's rectangle
+// reaches past them; the picture is opaque all the same, and it is scaled
+// (KWin 6.6.6 at scale 2.7 refused such a window, 2026-10-07).
+void UpscaleX11IntegrationTest::scalesAWindowOfAFractionalLogicalSize()
+{
+    X11Client below(false);
+    QVERIFY(below.show(QByteArrayLiteral("upscale-x11-below"), QRect(0, 0, 3840, 2160), false));
+    configure(true, Stored::Quality);
+    X11Client target(false);
+    QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 1920, 1080), false));
+    QVERIFY(target.waitForMapping());
+    target.fullscreen(true);
+    QTRY_VERIFY(target.isFullscreen());
+    QTRY_COMPARE(target.geometry().size(), QSize(2560, 1440));
+    QTRY_VERIFY2(status().contains(QStringLiteral("FSR 1")), qPrintable(status()));
+}

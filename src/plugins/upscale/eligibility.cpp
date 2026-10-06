@@ -353,6 +353,14 @@ UpscalePicture upscalePictureOf(EffectWindow *window)
                           settings.filter());
 }
 
+// The whole logical units a rectangle covers.
+static QRect wholeUnits(const QRectF &rect)
+{
+    const QPoint corner(int(std::ceil(rect.left())), int(std::ceil(rect.top())));
+    const QPoint end(int(std::floor(rect.right())), int(std::floor(rect.bottom())));
+    return QRect(corner, QSize(std::max(0, end.x() - corner.x()), std::max(0, end.y() - corner.y())));
+}
+
 static UpscaleRefusal contentRefusal(EffectWindow *window, SurfaceItem *surface)
 {
     switch (upscalePictureOf(window).sizing) {
@@ -390,10 +398,15 @@ static UpscaleRefusal contentRefusal(EffectWindow *window, SurfaceItem *surface)
     if (!whole && (!pixels || !window->isWaylandClient())) {
         return UpscaleRefusal::CroppedBuffer;
     }
+    // KWin makes an X11 window's opaque region from its shape rounded to
+    // whole logical units, and a window that is a fraction of one wide, 2560
+    // pixels at desktop scale 2.7, reaches past what it covers (KWin 6.6.6,
+    // 2026-10-07). What is asked is that every whole unit of it is opaque.
+    const QRect units = wholeUnits(surface->rect());
 #if UPSCALE_RENDER_DEVICE_API
-    const bool opaque = surface->opaque().contains(surface->rect());
+    const bool opaque = surface->opaque().contains(UpscaleRectF(QRectF(units)));
 #else
-    const bool opaque = surface->opaque().contains(surface->rect().toAlignedRect());
+    const bool opaque = surface->opaque().contains(units);
 #endif
     // Wine's Wayland driver draws an OpenGL game into a buffer with an alpha
     // channel and declares no opaque region, over a window buffer it leaves
