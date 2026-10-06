@@ -11,6 +11,7 @@
 #include "integration_test.h"
 
 #include <QDebug>
+#include <QScopeGuard>
 
 void UpscaleIntegrationTest::asksApplicationsForASmallerImage()
 {
@@ -205,6 +206,54 @@ void UpscaleIntegrationTest::asksApplicationsForASmallerImage()
     configureResolution(true, false, {});
     m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
     QCOMPARE(status(), QString());
+}
+
+// A program hears its screen mode when it binds the output, and a running one
+// is never told again. A wish that changed after its start therefore waits for
+// its next start, and the report says so, whichever way the program missed it:
+// told nothing because the wish was Native then, or told a mode before the
+// wish became Native. The program takes no surface scale, so nothing else can
+// be asked of it while it runs.
+void UpscaleIntegrationTest::aWishAfterTheStartWaitsForTheNext()
+{
+    const QDBusReply<bool> loaded = m_effects.call(QStringLiteral("loadEffect"), QStringLiteral("upscale_test_driver"));
+    QVERIFY(loaded.isValid() && loaded.value());
+    const auto unload = qScopeGuard([this]() {
+        writeCatalogue(QString());
+        configureResolution(true, false, {});
+        m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
+    });
+    writeCatalogue(integrationEntry(QStringLiteral("MethodWaylandFullScreen=AdvertisedMode\nMinimumPixels=0\nOrder=1\n")));
+    const auto shown = [this](WaylandClient &client, QSocketNotifier &notifier, const QSize &size) {
+        connect(&notifier, &QSocketNotifier::activated, this, [&client]() {
+            client.dispatch();
+        });
+        return client.show(size);
+    };
+
+    configureResolution(true, false, Stored::Native);
+    {
+        WaylandClient untold(2, false);
+        QVERIFY(untold.initialize());
+        QCOMPARE(untold.advertisedMode(), QSize(128, 128));
+        QSocketNotifier notifier(untold.descriptor(), QSocketNotifier::Read);
+        QVERIFY(shown(untold, notifier, QSize(128, 128)));
+        configureResolution(true, false, Stored::Quality);
+        QTRY_VERIFY2(status().contains(QStringLiteral("85 × 85 from the next start of Upscale integration test")), qPrintable(status()));
+    }
+
+    {
+        WaylandClient told(2, false);
+        QVERIFY(told.initialize());
+        QCOMPARE(told.advertisedMode(), QSize(85, 85));
+        QSocketNotifier notifier(told.descriptor(), QSocketNotifier::Read);
+        QVERIFY(shown(told, notifier, QSize(85, 85)));
+        QTRY_VERIFY2(status().contains(QStringLiteral("85 × 85 requested from Upscale integration test as its screen mode")),
+                     qPrintable(status()));
+        configureResolution(true, false, Stored::Native);
+        QTRY_VERIFY2(status().contains(QStringLiteral("Native from the next start; Upscale integration test was told 85 × 85 as its screen mode")),
+                     qPrintable(status()));
+    }
 }
 
 // An advertised mode reaches a client that takes its buffer from the modes it

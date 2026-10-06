@@ -32,6 +32,7 @@ private Q_SLOTS:
     void answersWhichWindowsAnEntryMatches();
     void autoAsksTheWindowForAFractionalScale();
     void anAdvertisementThatDidNotReachFallsBackToTheSurfaceScale();
+    void aWishAfterTheStartWaitsForTheNext();
     void anOutputThatGoesAwayWhileAdvertised();
     void aProgramThatExitsBeforeRestoration();
     void anOutputVersionWithoutScaleIsLeftAlone();
