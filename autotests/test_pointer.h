@@ -79,6 +79,14 @@ public:
         Q_EMIT pointerFrame(this);
     }
 
+    // A motion by @p delta, as a mouse reports one, with no position of its own.
+    void moveBy(const QPointF &delta)
+    {
+        const auto now = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch());
+        Q_EMIT pointerMotion(delta, delta, now, this);
+        Q_EMIT pointerFrame(this);
+    }
+
     // A left click there. KWin takes evdev's button codes on every platform,
     // and BTN_LEFT is 0x110 among them.
     void click(const QPointF &position)

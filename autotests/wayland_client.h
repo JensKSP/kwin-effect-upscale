@@ -8,12 +8,14 @@
 
 #include "fractional-scale-v1-client.h"
 #include "pointer-constraints-unstable-v1-client.h"
+#include "relative-pointer-unstable-v1-client.h"
 #include "viewporter-client.h"
 #include "xdg-output-unstable-v1-client.h"
 #include "xdg-shell-client.h"
 
 #include <QList>
 #include <QPointF>
+#include <QRect>
 #include <QSize>
 
 #include <wayland-client.h>
@@ -85,6 +87,24 @@ public:
     /** Confines the pointer to the surface; pointerConfined() says once KWin engaged it. */
     bool confinePointer();
     bool pointerConfined() const;
+    /** Locks the pointer on the surface, as a game's mouse look does; pointerLocked() says once KWin engaged it. */
+    bool lockPointer();
+    bool pointerLocked() const;
+    /**
+     * Listens to the relative pointer, which a game's mouse look reads.
+     * relativeMotion() is every motion it heard since resetRelativeMotion(),
+     * summed, in the surface's own coordinates.
+     */
+    bool watchRelativeMotion();
+    QPointF relativeMotion() const;
+    void resetRelativeMotion();
+    /**
+     * Opens a popup of @p place's size with its top left corner at @p place's,
+     * in the game's surface coordinates, as a menu opens one. popupMotion() is
+     * where the pointer last entered or moved on it, (-1, -1) before.
+     */
+    bool openPopup(const QRect &place);
+    QPointF popupMotion() const;
 
 private:
     // One bound output. The listener is handed this record, so it keeps its
@@ -110,6 +130,7 @@ private:
     static void framePresented(void *data, wl_callback *callback, uint32_t time);
     void bindSeat(wl_registry *registry, uint32_t name);
     void releasePointer();
+    void releasePopup();
 
     wl_display *m_display = nullptr;
     wl_registry *m_registry = nullptr;
@@ -141,6 +162,19 @@ private:
     zwp_pointer_constraints_v1 *m_constraints = nullptr;
     zwp_confined_pointer_v1 *m_confinement = nullptr;
     bool m_confined = false;
+    zwp_locked_pointer_v1 *m_lock = nullptr;
+    bool m_locked = false;
+    zwp_relative_pointer_manager_v1 *m_relativeManager = nullptr;
+    zwp_relative_pointer_v1 *m_relativePointer = nullptr;
+    QPointF m_relativeMotion;
+    // The surface the pointer is on, the game's or the popup's.
+    wl_surface *m_pointerOn = nullptr;
+    wl_surface *m_popupSurface = nullptr;
+    xdg_surface *m_popupShellSurface = nullptr;
+    xdg_popup *m_popup = nullptr;
+    wl_buffer *m_popupBuffer = nullptr;
+    bool m_popupConfigured = false;
+    QPointF m_popupMotion{-1, -1};
     QPointF m_lastMotion{-1, -1};
     int m_presses = 0;
 };

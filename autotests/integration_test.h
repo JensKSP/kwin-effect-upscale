@@ -42,6 +42,9 @@ private Q_SLOTS:
     void crashingGamesLeaveNothingBehind();
     void logsTransitionsNotFrames();
     void mapsThePointerOntoThePicture();
+    void carriesRelativeMotionOntoThePicture_data();
+    void carriesRelativeMotionOntoThePicture();
+    void leavesAPopupOverTheBarsItsOwnPointer();
     void drawsAWindowOfTheToldSizeOverItsOutput();
     void autoResizesAClientThatIgnoresScale();
     void autoConfiguresAnIntegerClientBeforeItsFirstBuffer_data();
