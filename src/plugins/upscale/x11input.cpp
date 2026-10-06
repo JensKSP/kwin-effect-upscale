@@ -117,6 +117,17 @@ static void confirmEnteredPosition(SeatInterface *seat, const UpscalePresentedPo
     }
 }
 
+// KWin chose the decoration under the pointer before any filter ran, and shows
+// that decoration's cursor while it has one: an arrow over a title bar the
+// picture hides, a resize cursor at its border. Where the pointer is the
+// presented window's, no decoration is.
+static void leaveHiddenDecoration()
+{
+    if (input()->pointer()->decoration()) {
+        input()->pointer()->setDecoration(nullptr);
+    }
+}
+
 QPointF UpscaleX11Input::apply(const QPointF &position)
 {
     SeatInterface *seat = waylandServer() ? waylandServer()->seat() : nullptr;
@@ -176,6 +187,7 @@ QPointF UpscaleX11Input::apply(const QPointF &position)
     m_claimed = claimed;
     if (m_claimed) {
         engageLock(presented, position);
+        leaveHiddenDecoration();
     }
     return scale;
 }

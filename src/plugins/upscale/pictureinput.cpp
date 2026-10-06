@@ -106,6 +106,17 @@ static void confirmEnteredPosition(SeatInterface *seat, SurfaceInterface *surfac
     }
 }
 
+// KWin chose the decoration under the pointer before any filter ran, and shows
+// that decoration's cursor while it has one: an arrow over a title bar the
+// picture hides, a resize cursor at its border. Where the pointer is the
+// presented window's, no decoration is.
+static void leaveHiddenDecoration()
+{
+    if (input()->pointer()->decoration()) {
+        input()->pointer()->setDecoration(nullptr);
+    }
+}
+
 void UpscalePictureInput::giveBack(SeatInterface *seat, Window *focus, const QPointF &position)
 {
     if (m_surface && seat->focusedPointerSurface() == m_surface) {
@@ -172,6 +183,7 @@ QPointF UpscalePictureInput::apply(const QPointF &position)
     m_claimed = target == focus ? nullptr : target;
     if (m_claimed) {
         engageLock(m_claimed, position);
+        leaveHiddenDecoration();
     }
     return scale;
 }
