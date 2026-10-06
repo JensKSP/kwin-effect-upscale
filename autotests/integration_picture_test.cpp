@@ -44,6 +44,18 @@ static void movePointerBy(const QPoint &delta)
     QTRY_VERIFY(!QFile::exists(path));
 }
 
+// "down <id> <x> <y>", "move <id> <x> <y>" or "up <id>" on the test driver's
+// touch screen.
+static void touchScreen(const QByteArray &request)
+{
+    const QString path = QString::fromLocal8Bit(qgetenv("XDG_RUNTIME_DIR")) + QStringLiteral("/upscale-test-touch");
+    QSaveFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    QVERIFY(file.write(request) > 0);
+    QVERIFY(file.commit());
+    QTRY_VERIFY(!QFile::exists(path));
+}
+
 // A left click there, which the test driver makes as it moves the pointer.
 static void clickPointer(const QPoint &position)
 {
@@ -199,6 +211,43 @@ void UpscaleIntegrationTest::leavesAPopupOverTheBarsItsOwnPointer()
     QCOMPARE(game.lastMotion(), before);
 }
 
+// Touch lands where the picture shows it, as the pointer does: on the picture
+// with bars beside it, a touch at 40, 64 reaches the game at (40 - 13) × 128 /
+// 102 across, its motion follows the picture, and a touch in a bar reaches
+// nothing of the game.
+void UpscaleIntegrationTest::mapsTouchOntoThePicture()
+{
+    const QDBusReply<bool> loaded = m_effects.call(QStringLiteral("loadEffect"), QStringLiteral("upscale_test_driver"));
+    QVERIFY(loaded.isValid() && loaded.value());
+    const auto unload = qScopeGuard([this]() {
+        writeCatalogue(QString());
+        m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
+    });
+    writeCatalogue(integrationEntry(QStringLiteral("MinimumPixels=0\n")));
+    configure(false, false);
+    WaylandClient game;
+    QVERIFY(game.initialize());
+    QSocketNotifier notifier(game.descriptor(), QSocketNotifier::Read);
+    connect(&notifier, &QSocketNotifier::activated, this, [&game]() {
+        game.dispatch();
+    });
+    QVERIFY(game.show(QSize(64, 80)));
+    QTRY_VERIFY2(status().contains(QStringLiteral("fitted into 102 × 128 with bars")), qPrintable(status()));
+    QTRY_VERIFY(game.hasTouch());
+    const double across = 128.0 / 102.0;
+    touchScreen("down 0 40 64");
+    QTRY_VERIFY2(near(game.lastTouch(), QPointF((40 - 13) * across, 64)),
+                 qPrintable(QStringLiteral("%1, %2").arg(game.lastTouch().x()).arg(game.lastTouch().y())));
+    touchScreen("move 0 60 70");
+    QTRY_VERIFY2(near(game.lastTouch(), QPointF((60 - 13) * across, 70)),
+                 qPrintable(QStringLiteral("%1, %2").arg(game.lastTouch().x()).arg(game.lastTouch().y())));
+    touchScreen("up 0");
+    touchScreen("down 1 5 64");
+    touchScreen("up 1");
+    QVERIFY(game.roundtrip());
+    QCOMPARE(game.touchesDown(), 1);
+}
+
 // A plain window its program sized to the smaller screen it was told, which is
 // what GLFW 3.4 opens for a fullscreen video mode on Wayland, is drawn over its
 // whole output. The 85 × 85 window lies somewhere on the 128 × 128
@@ -242,6 +291,12 @@ void UpscaleIntegrationTest::drawsAWindowOfTheToldSizeOverItsOutput()
     movePointer(QPoint(60, 60));
     QTRY_VERIFY2(near(game.lastMotion(), QPointF(60 * across, 60 * across)),
                  qPrintable(QStringLiteral("%1, %2").arg(game.lastMotion().x()).arg(game.lastMotion().y())));
+    // A touch beside the window as well, where KWin finds no window to touch.
+    QTRY_VERIFY(game.hasTouch());
+    touchScreen("down 0 124 124");
+    QTRY_VERIFY2(near(game.lastTouch(), QPointF(124 * across, 124 * across)),
+                 qPrintable(QStringLiteral("%1, %2").arg(game.lastTouch().x()).arg(game.lastTouch().y())));
+    touchScreen("up 0");
 }
 
 // A client that ignores fractional scale, as Qt does below one, but sizes its

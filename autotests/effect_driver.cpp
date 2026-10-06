@@ -161,10 +161,16 @@ public:
         }
         if (input()) {
             input()->addInputDevice(&m_pointer);
+            input()->addInputDevice(&m_touch);
         }
         auto poll = new QTimer(this);
         connect(poll, &QTimer::timeout, this, &UpscaleTestDriver::movePointer);
         connect(poll, &QTimer::timeout, this, &UpscaleTestDriver::click);
+        connect(poll, &QTimer::timeout, this, [this]() {
+            if (const std::optional<QByteArray> request = takeRequest(QStringLiteral("upscale-test-touch"))) {
+                m_touch.perform(*request);
+            }
+        });
         poll->start(50);
     }
 
@@ -172,6 +178,7 @@ public:
     {
         qInstallMessageHandler(s_passOn);
         if (input()) {
+            input()->removeInputDevice(&m_touch);
             input()->removeInputDevice(&m_pointer);
         }
         m_context->makeCurrent();
@@ -468,6 +475,7 @@ private:
     CaptureRenderer m_renderer;
     bool m_active = false;
     TestPointer m_pointer;
+    TestTouch m_touch;
     bool m_unsupportedColors = false;
     std::unique_ptr<EglDisplay> m_display;
     QStringList m_captured;

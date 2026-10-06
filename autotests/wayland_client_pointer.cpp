@@ -22,6 +22,25 @@ void WaylandClient::bindSeat(wl_registry *registry, uint32_t name)
         wl_seat_listener events{};
         events.capabilities = [](void *data, wl_seat *seat, uint32_t capabilities) {
             auto client = static_cast<WaylandClient *>(data);
+            if ((capabilities & WL_SEAT_CAPABILITY_TOUCH) && !client->m_touch) {
+                client->m_touch = wl_seat_get_touch(seat);
+                static const wl_touch_listener touchListener = [] {
+                    wl_touch_listener events{};
+                    events.down = [](void *data, wl_touch *, uint32_t, uint32_t, wl_surface *, int32_t, wl_fixed_t x, wl_fixed_t y) {
+                        auto client = static_cast<WaylandClient *>(data);
+                        client->m_lastTouch = QPointF(wl_fixed_to_double(x), wl_fixed_to_double(y));
+                        ++client->m_touchesDown;
+                    };
+                    events.up = [](void *, wl_touch *, uint32_t, uint32_t, int32_t) { };
+                    events.motion = [](void *data, wl_touch *, uint32_t, int32_t, wl_fixed_t x, wl_fixed_t y) {
+                        static_cast<WaylandClient *>(data)->m_lastTouch = QPointF(wl_fixed_to_double(x), wl_fixed_to_double(y));
+                    };
+                    events.frame = [](void *, wl_touch *) { };
+                    events.cancel = [](void *, wl_touch *) { };
+                    return events;
+                }();
+                wl_touch_add_listener(client->m_touch, &touchListener, client);
+            }
             if (!(capabilities & WL_SEAT_CAPABILITY_POINTER) || client->m_pointer) {
                 return;
             }
@@ -56,6 +75,9 @@ void WaylandClient::bindSeat(wl_registry *registry, uint32_t name)
 
 void WaylandClient::releasePointer()
 {
+    if (m_touch) {
+        wl_touch_destroy(m_touch);
+    }
     if (m_relativePointer) {
         zwp_relative_pointer_v1_destroy(m_relativePointer);
     }
@@ -166,4 +188,19 @@ QPointF WaylandClient::relativeMotion() const
 void WaylandClient::resetRelativeMotion()
 {
     m_relativeMotion = QPointF();
+}
+
+bool WaylandClient::hasTouch() const
+{
+    return m_touch;
+}
+
+QPointF WaylandClient::lastTouch() const
+{
+    return m_lastTouch;
+}
+
+int WaylandClient::touchesDown() const
+{
+    return m_touchesDown;
 }

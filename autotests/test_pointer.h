@@ -8,6 +8,8 @@
 
 #include "core/inputdevice.h"
 
+#include <QByteArray>
+#include <QList>
 #include <QPointF>
 #include <QString>
 
@@ -97,6 +99,42 @@ public:
             Q_EMIT pointerButtonChanged(0x110, state, now, this);
             Q_EMIT pointerFrame(this);
         }
+    }
+};
+
+// A touch screen, for the same reason: without one the seat offers clients no
+// touch. A test drives it with "down <id> <x> <y>", "move <id> <x> <y>" and
+// "up <id>" in a file the driver polls.
+class TestTouch : public TestPointer
+{
+public:
+    QString name() const override
+    {
+        return QStringLiteral("upscale test touch");
+    }
+    bool isPointer() const override
+    {
+        return false;
+    }
+    bool isTouch() const override
+    {
+        return true;
+    }
+
+    void perform(const QByteArray &request)
+    {
+        const QList<QByteArray> fields = request.simplified().split(' ');
+        const auto now = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch());
+        if (fields.size() == 4 && fields.at(0) == "down") {
+            Q_EMIT touchDown(fields.at(1).toInt(), QPointF(fields.at(2).toDouble(), fields.at(3).toDouble()), now, this);
+        } else if (fields.size() == 4 && fields.at(0) == "move") {
+            Q_EMIT touchMotion(fields.at(1).toInt(), QPointF(fields.at(2).toDouble(), fields.at(3).toDouble()), now, this);
+        } else if (fields.size() == 2 && fields.at(0) == "up") {
+            Q_EMIT touchUp(fields.at(1).toInt(), now, this);
+        } else {
+            return;
+        }
+        Q_EMIT touchFrame(this);
     }
 };
 

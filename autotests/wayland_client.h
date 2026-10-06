@@ -105,6 +105,12 @@ public:
      */
     bool openPopup(const QRect &place);
     QPointF popupMotion() const;
+    /** Whether the seat offers touch, which a touch device in the session makes it do. */
+    bool hasTouch() const;
+    /** Where a touch last went down or moved on the surface, in its own coordinates, (-1, -1) before. */
+    QPointF lastTouch() const;
+    /** How many touches went down on the surface. */
+    int touchesDown() const;
 
 private:
     // One bound output. The listener is handed this record, so it keeps its
@@ -175,6 +181,9 @@ private:
     wl_buffer *m_popupBuffer = nullptr;
     bool m_popupConfigured = false;
     QPointF m_popupMotion{-1, -1};
+    wl_touch *m_touch = nullptr;
+    QPointF m_lastTouch{-1, -1};
+    int m_touchesDown = 0;
     QPointF m_lastMotion{-1, -1};
     int m_presses = 0;
 };

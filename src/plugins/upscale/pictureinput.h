@@ -7,6 +7,7 @@
 #pragma once
 
 #include "input.h"
+#include "touchinput.h"
 
 #include <QMatrix4x4>
 #include <QPointer>
@@ -61,6 +62,17 @@ public:
     bool pointerMotion(PointerMotionEvent *event) override;
     bool pointerButton(PointerButtonEvent *event) override;
     bool pointerAxis(PointerAxisEvent *event) override;
+    // Touch on the picture reaches the window where the picture shows it.
+#if UPSCALE_TOUCH_EVENTS
+    bool touchDown(TouchDownEvent *event) override;
+    bool touchMotion(TouchMotionEvent *event) override;
+    bool touchUp(TouchUpEvent *event) override;
+#else
+    bool touchDown(qint32 id, const QPointF &position, std::chrono::microseconds time) override;
+    bool touchMotion(qint32 id, const QPointF &position, std::chrono::microseconds time) override;
+    bool touchUp(qint32 id, std::chrono::microseconds time) override;
+#endif
+    bool touchCancel() override;
 
 private:
     // Sets the seat's focus and transformation for the picture under
@@ -82,6 +94,10 @@ private:
     // The window this filter focused where KWin found another, whose events
     // are therefore this filter's to deliver.
     QPointer<Window> m_claimed;
+    // Takes a touch going down at @p position where a picture is, and answers
+    // whether it did.
+    bool touchDownAt(qint32 id, const QPointF &position, std::chrono::microseconds time);
+    UpscaleTouchDelivery m_touch;
 };
 
 } // namespace KWin

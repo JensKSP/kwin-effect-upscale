@@ -10,6 +10,7 @@
 
 #if KWIN_BUILD_X11
 #include "input.h"
+#include "touchinput.h"
 
 #include <QMatrix4x4>
 #include <QPointer>
@@ -66,6 +67,17 @@ public:
     bool pointerMotion(PointerMotionEvent *event) override;
     bool pointerButton(PointerButtonEvent *event) override;
     bool pointerAxis(PointerAxisEvent *event) override;
+    // Touch on the picture reaches the window where the picture shows it.
+#if UPSCALE_TOUCH_EVENTS
+    bool touchDown(TouchDownEvent *event) override;
+    bool touchMotion(TouchMotionEvent *event) override;
+    bool touchUp(TouchUpEvent *event) override;
+#else
+    bool touchDown(qint32 id, const QPointF &position, std::chrono::microseconds time) override;
+    bool touchMotion(qint32 id, const QPointF &position, std::chrono::microseconds time) override;
+    bool touchUp(qint32 id, std::chrono::microseconds time) override;
+#endif
+    bool touchCancel() override;
 
     /** Reconsider the pointer where it is, rather than at its next event. */
     void refresh();
@@ -93,6 +105,10 @@ private:
     // The presented window whose pointer this is, while it is not the window
     // KWin found under it.
     QPointer<Window> m_claimed;
+    // Takes a touch going down at @p position on a presented window, and
+    // answers whether it did.
+    bool touchDownAt(qint32 id, const QPointF &position, std::chrono::microseconds time);
+    UpscaleTouchDelivery m_touch;
 };
 
 } // namespace KWin
