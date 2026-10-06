@@ -49,8 +49,8 @@ UpscaleDiagnostics::State UpscaleDiagnostics::readState(EffectWindow *window, co
     for (const UpscaleSettingInfo &entry : upscaleSettingTable()) {
         observed.settings[std::size_t(entry.setting)] = settings.value(entry.setting);
     }
-    SurfaceItem *surface = window->windowItem() ? window->windowItem()->surfaceItem() : nullptr;
-    observed.buffer = surface ? surface->bufferSize() : QSize();
+    SurfaceItem *surface = upscalePictureSurface(window);
+    observed.buffer = upscaleSuppliedSize(surface);
     observed.surface = internal->surface() ? internal->surface()->size() : QSizeF();
     observed.destination = surface ? surface->destinationSize() : QSizeF();
     if (SurfaceInterface *inputSurface = internal->surface()) {

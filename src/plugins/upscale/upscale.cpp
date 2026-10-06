@@ -498,8 +498,9 @@ UpscalePaintResult UpscaleEffect::drawWindow(const RenderTarget &target, const R
                 .filter = m_frame.settings.filter(),
                 .frame = frame,
             };
-            if (!m_failed && m_scaler->render(target, viewport, window->windowItem()->surfaceItem(), drawing, clip)) {
-                m_renderedInputs.insert(window, window->windowItem()->surfaceItem()->bufferSize());
+            SurfaceItem *surface = upscalePictureSurface(window);
+            if (!m_failed && m_scaler->render(target, viewport, surface, drawing, clip)) {
+                m_renderedInputs.insert(window, upscaleSuppliedSize(surface));
 #if UPSCALE_RENDER_DEVICE_API
                 return true;
 #else

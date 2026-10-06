@@ -54,6 +54,7 @@ private Q_SLOTS:
     void windowedClientIsUnchanged();
     void nativeBufferBypassesScaling();
     void aHiddenDecorationKeepsTheGamesCursor();
+    void presentsThePictureOfItsOnlySubsurface();
 
 private:
     void configure(bool enabled, const QString &method = QStringLiteral("Auto"));
