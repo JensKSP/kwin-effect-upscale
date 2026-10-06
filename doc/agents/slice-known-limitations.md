@@ -204,8 +204,11 @@ next start brings on each route: told nothing because the wish was Native at
 its start, told a mode before the wish moved (already covered by
 `asksApplicationsForASmallerImage`), and told a mode before the wish became
 Native. `aWishAfterTheStartWaitsForTheNext` covers the two that had only unit
-tests, with a client that takes no surface scale, so that nothing else can be
-asked of it while it runs; both passed as the code stood. An X11 program is
+tests, with a client that takes no surface scale; both passed as the code
+stood. Such a window is still asked for a surface scale while it runs, and the
+report names that request until the window has drawn past the effect's
+patience, 30 frames, unanswered; the case draws 35 before it reads the report,
+which a full run under load showed it has to. An X11 program is
 told its screen by the proxy at connection, and the X11 status promises no
 next start: it reports the resize asked of the window and what the window
 did, while the handbook states that a program resized after it started can
