@@ -73,8 +73,18 @@ void UpscaleProductionTest::aHiddenDecorationKeepsTheGamesCursor()
 // to a height that is a multiple of 128, showing the told size of it through a
 // viewport. The picture is the subsurface's, as much of it as the viewport
 // shows: 256 × 144 here, of a 256 × 160 buffer, in a window of the told size.
+void UpscaleProductionTest::presentsThePictureOfItsOnlySubsurface_data()
+{
+    QTest::addColumn<bool>("alpha");
+    QTest::newRow("opaque") << false;
+    // As Wine 10.0's driver draws an OpenGL game: a buffer with an alpha
+    // channel and no opaque region, over a window buffer left transparent.
+    QTest::newRow("alpha") << true;
+}
+
 void UpscaleProductionTest::presentsThePictureOfItsOnlySubsurface()
 {
+    QFETCH(bool, alpha);
     QTRY_VERIFY(Test::waylandSync() && Test::waylandOutputs().first()->pixelSize() == QSize(256, 144));
     std::unique_ptr<KWayland::Client::Surface> surface = Test::createSurface();
     std::unique_ptr<KWayland::Client::Surface> content = Test::createSurface();
@@ -83,18 +93,21 @@ void UpscaleProductionTest::presentsThePictureOfItsOnlySubsurface()
     Viewport viewport(m_viewporter.get_viewport(*content));
     viewport.set_source(wl_fixed_from_int(0), wl_fixed_from_int(0), wl_fixed_from_int(256), wl_fixed_from_int(144));
     viewport.set_destination(256, 144);
-    Test::render(content.get(), pattern(QSize(256, 160)));
+    const QImage::Format format = alpha ? QImage::Format_ARGB32_Premultiplied : QImage::Format_RGB32;
+    Test::render(content.get(), pattern(QSize(256, 160)).convertToFormat(format));
     std::unique_ptr<Test::XdgToplevel> shell = Test::createXdgToplevelSurface(surface.get());
-    QImage black(QSize(256, 144), QImage::Format_RGB32);
-    black.fill(Qt::black);
-    Window *window = Test::renderAndWaitForShown(surface.get(), black);
+    QImage below(QSize(256, 144), format);
+    below.fill(alpha ? Qt::transparent : Qt::black);
+    Window *window = Test::renderAndWaitForShown(surface.get(), below);
     QVERIFY(window);
     QTRY_VERIFY2(status().contains(QStringLiteral("scaling=1")), qPrintable(status()));
     QVERIFY2(status().contains(QStringLiteral("supplied=256x144")), qPrintable(status()));
-    // The picture is the subsurface's, not the window's black buffer: the
-    // pattern is blue where it lies right of its diagonal, as in the middle.
+    // The picture is the subsurface's, not the window's own buffer: the
+    // pattern is blue where it lies right of its diagonal, as in the upper
+    // right quarter, away from the middle where KWin draws the cursor of a
+    // pointer nothing has moved yet.
     const QImage output = renderOutput();
     QVERIFY(!output.isNull());
-    QVERIFY2(qBlue(output.pixel(output.width() / 2, output.height() / 2)) > 100,
-             qPrintable(QString::number(output.pixel(output.width() / 2, output.height() / 2), 16)));
+    const QPoint blue(output.width() * 3 / 4, output.height() / 4);
+    QVERIFY2(qBlue(output.pixel(blue)) > 100, qPrintable(QString::number(output.pixel(blue), 16)));
 }

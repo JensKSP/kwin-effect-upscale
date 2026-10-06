@@ -54,6 +54,7 @@ private Q_SLOTS:
     void windowedClientIsUnchanged();
     void nativeBufferBypassesScaling();
     void aHiddenDecorationKeepsTheGamesCursor();
+    void presentsThePictureOfItsOnlySubsurface_data();
     void presentsThePictureOfItsOnlySubsurface();
 
 private:
