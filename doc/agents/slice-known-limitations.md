@@ -107,8 +107,8 @@ marked **F** belong here.
 
 | | Limitation | Evidence | What the player sees, what the status says | Gate | Next |
 | --- | --- | --- | --- | --- | --- |
-| K1 | Wayland clients with different buffer-density policies | The original bench found Qt and SDL 3 without high pixel density ignoring the scale hint. The [scale-one Auto work](slice-resolution-control.md#wayland-auto-at-scale-one-2026-09-29) owns the configure fallback, real-display results and comparison across desktop scales. | A smaller configure reaches these clients at scale one; low-density SDL at higher desktop scales can still supply a buffer below the supported range. Status reports the supplied size and refusal. | F; scale-one coverage extended by the linked work | Follow the linked density comparison and remaining acceptance; not a universal geometry-only solution |
-| K2 | Integer scale and startup-only sizing | vkmark ignores configure sizes; glmark2 keeps the viewport initialized from its first fullscreen configure. The [scale-one Auto work](slice-resolution-control.md#wayland-auto-at-scale-one-2026-09-29) owns their separate fixes and the native comparison. | vkmark can use the advertised mode; fresh glmark2 can use a smaller first configure. A late glmark2 resize crops the scene despite a smaller buffer. Integer-only density still differs on fractional desktops. | F | Preserve startup timing and actual-picture checks; live changes to fixed viewports remain open |
+| K1 | Wayland clients with different buffer-density policies | The [scale-one Auto work](slice-resolution-control.md#wayland-auto-at-scale-one-2026-09-29) measured them across desktop scales 1, 1.5 and 3: fractional-density clients follow the desktop scale, glmark2 the output's integer scale, low-density SDL and SuperTux one | A smaller configure reaches these clients at scale one; asked for two thirds at desktop scale 3, low-density SDL supplied 853 × 480, below half the output, which the status names as refused | F, stated | Stays stated, see Progress; a physical run at a scaled desktop is Jens's |
+| K2 | Integer scale and startup-only sizing | vkmark ignores configure sizes; glmark2 keeps the viewport its first fullscreen configure gave it. The [scale-one Auto work](slice-resolution-control.md#wayland-auto-at-scale-one-2026-09-29) fixed the fresh glmark2 start with the first configure | vkmark uses the advertised mode; a fresh glmark2 uses a smaller first configure; a glmark2 resized later crops its scene, which the effect cannot see | F, stated | Stays stated, see Progress: a renderer's fixed viewport is the client's |
 | K3 | Wine's Wayland driver | Presented 2026-10-06 from its subsurface, see Progress; not yet run with Wine itself | The game enlarged from its subsurface's picture | F | Run Wine 10's Wayland driver in a machine that has Wine, which no maintained image has |
 | K4 | A program that connected before it could be told | The Wayland mode is told when a client binds the output, the X11 screen when a connection goes through the proxy; a program already running, or an X11 program that does not connect through the proxy, hears neither | Full size, or an X11 program resized after it started showing part of its picture enlarged (glmark2 2023.01, SuperTux 0.6.3 keep their first viewport). For a Wayland program the status names the size "from the next start"; not checked for every route | S, stated | Tested per route 2026-10-06, see Progress; stays stated |
 | K5 | A toolkit that picks another output | Extreme Tux Racer 0.8.4 with SFML 2.6.2 moves to the primary output when it recreates its fullscreen window | The shipped entry refuses control on a secondary output; the status says so | S, stated | Stays stated unless SFML changes |
@@ -299,9 +299,16 @@ half; a confinement meets K15. Wine itself was not run: no maintained image has
 Wine, and the probe of item 35 stayed scratch. Running Wine 10's Wayland driver
 is its full acceptance. Next in the order are K1 and K2, then step 7.
 
-K1 and K2 are being addressed in the
-[scale-one Auto work](slice-resolution-control.md#wayland-auto-at-scale-one-2026-09-29).
-That section owns the implementation, real-display results and remaining
-acceptance. It records both the cropped late-resize glmark2 case and the corrected
-first-configure run; do not mark K2 removed from buffer dimensions alone. K15–K20 remain
-open, and Jens excluded second-display checks from this session.
+K1 and K2, stated 2026-10-06, which ends step 6. The density comparison K1
+asked for is the table of the [scale-one Auto
+work](slice-resolution-control.md#wayland-auto-at-scale-one-2026-09-29), across
+desktop scales 1, 1.5 and 3. What remains of both is the clients' own policy: a
+client that ignores density draws at most the logical screen, which no
+configure enlarges; vkmark sizes its buffer from the mode at its start; and
+glmark2 keeps the viewport of its first fullscreen configure, so a resize after
+its start crops its scene, and a buffer of the right size alone never shows K2
+removed. The effect names each refusal and the supplied size, and the
+first-configure fix keeps a fresh glmark2 start whole; the handbook states both
+under Auto's geometry request. The physical runs were at desktop scale one; one
+at a scaled desktop is Jens's, and he excluded second-display checks from this
+session. Next is step 7.
