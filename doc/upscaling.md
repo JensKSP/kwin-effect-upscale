@@ -1806,7 +1806,7 @@ observations; none alone establishes reduced internal rendering cost.
 | Fullscreen-desktop Wayland client ignores advertised mode | SuperTuxKart 1.4 Vulkan takes its swapchain size from SDL's window and drawable size. The advertised mode alone left it at 4K on the tested scale-1 desktop. | Auto tries the fractional scale, then a smaller fullscreen configure. The configure fallback supplied 2560 × 1440 on the physical 3840 × 2160 output at scale one, with FSR active. Explicit advertisement methods do not use this geometry fallback. |
 | Integer scale cannot express the target | Integer-only scale methods cannot express two thirds on a scale-1 desktop. | This remains a limit of those methods, rather than of every affected application: vkmark 2025.01 now supplies 2560 × 1440 at scale one through Auto's advertised mode and full-output presentation. It still ignores live configure sizes. |
 | Toolkit selects the wrong output | Extreme Tux Racer 0.8.4 with SFML 2.6.2 moved from the secondary display to the primary when recreating its fullscreen window. SFML explicitly selects the primary RandR output. | The shipped profile refuses resolution control on secondary outputs before resizing, and the status says so. Other clients can scale there; secondary displays are not generally excluded. |
-| Requested X11 mode is absent | SFML validates fullscreen modes against its available-mode list; the regression fixture rejects a 2259 × 1271 request on the tested 4K output. | Arbitrary percentages are not guaranteed for X11. The controller refuses missing modes instead of changing the shared output or silently claiming the requested size; the game stays at full size and the status names the refused request. |
+| The wish is no listed X11 mode | SFML validates fullscreen modes against its available-mode list, and Xwayland lists no 2259 × 1271, Balanced on a 4K output. | Arbitrary percentages are not reached on X11. The resize and the proxy ask for the listed mode nearest to the wish among those of the output's shape the scaler enlarges, 2048 × 1152 for Balanced on 4K, and the status names the wish beside it; only where no listed mode qualifies is the request refused, the game staying at full size with the refusal named. The shared output is never changed. |
 | A program connected before it could be told | The Wayland mode is told when a client binds the output, the X11 screen when a connection goes through the proxy. A program already running when the effect or its entry changed, or an X11 program that does not connect through the proxy, hears neither. | It keeps its full size, or, resized after it started, shows part of its picture enlarged. For a Wayland program the status names the size it gets from its next start. |
 | A game keeps the told size in its own settings | SuperTuxKart 1.4 writes the mode it ran at back into its configuration on exit, and its next start asks for that size. | Under **Native** the effect asks for nothing smaller and still enlarges the kept smaller buffer with FSR; under the other presets the game gets the size it saved, the display draws it in the warning colour, and the status names the requested size beside it. The effect never writes to a game's settings. |
 | A smaller window has to be presented over its output | A smaller window alone does not preserve its destination or input mapping. GLFW 3.4 and Wine's Wayland driver size a plain window from the mode they were told, and SuperTuxKart shrinks a window larger than its told screen to that screen. | A normal Wayland window lying on its output whose surface has the told size, fullscreen or not, and a fullscreen window resized by Auto are drawn over the whole output, enlarged and without decoration, with the pointer mapped across it; X11 windows the effect resizes are presented the same way. While such a window is active, panels, windows kept above and ordinary notifications on its output are left out of the picture, as for an active fullscreen window. A window smaller than its told screen is left alone. A confined pointer passes one to one in the window's own coordinates: the game reaches all of its window, but a cursor the system draws stays where KWin keeps it. |
@@ -1904,8 +1904,9 @@ it exists on Linux only. No shipped entry carries such a pattern.
 If Xwayland's mode list is not ready for the first connection, the proxy retries
 within a 500 ms decision interval. A connection from a Wine prefix has ten
 seconds instead, which also covers the wait for the prefix's program, looked
-for every 250 ms. An unavailable policy or target mode falls
-back to unchanged forwarding. The retry does not block the window-manager
+for every 250 ms. A wish Xwayland lists no mode for is told as the listed mode
+nearest to it, as the X11 resize asks for it; an unavailable policy, or a mode
+list with nothing usable, falls back to unchanged forwarding. The retry does not block the window-manager
 channel and never holds application startup indefinitely. Connection policy and
 fallback reasons are logged separately from observed buffer and input state.
 
@@ -2699,7 +2700,8 @@ derive their size and position from the target window's output; they do not
 change the shared desktop mode. The `X11PrimaryOutputOnly` profile constraint
 guards clients whose own mode selection ignores the window's output. A profile
 without that constraint can use either output if the client selects its mode
-correctly. Rotated outputs and unavailable modes are not negotiated. Mixed
+correctly. Rotated outputs are not negotiated, and a wish no listed mode
+matches is answered with the nearest listed one. Mixed
 desktop scales, output hotplug and physical pointer confinement still require
 device acceptance.
 

@@ -112,7 +112,7 @@ marked **F** belong here.
 | K3 | Wine's Wayland driver | Item 35: the window stays at the told 2560 × 1440; it draws into a subsurface, which the effect refuses even at full size, and rounds buffer heights up to a multiple of 128 | A smaller window, not enlarged. The status names child surfaces or the coverage | F | Present a window whose picture is in one subsurface, with the pointer mapped; shares K20's confinement gap. In the [Proton slice](slice-proton-smaller-screen.md#remaining-work) |
 | K4 | A program that connected before it could be told | The Wayland mode is told when a client binds the output, the X11 screen when a connection goes through the proxy; a program already running, or an X11 program that does not connect through the proxy, hears neither | Full size, or an X11 program resized after it started showing part of its picture enlarged (glmark2 2023.01, SuperTux 0.6.3 keep their first viewport). For a Wayland program the status names the size "from the next start"; not checked for every route | S, stated | Tested per route 2026-10-06, see Progress; stays stated |
 | K5 | A toolkit that picks another output | Extreme Tux Racer 0.8.4 with SFML 2.6.2 moves to the primary output when it recreates its fullscreen window | The shipped entry refuses control on a secondary output; the status says so | S, stated | Stays stated unless SFML changes |
-| K6 | A requested X11 mode the program does not list | SFML validates fullscreen modes against its list; the fixture refuses 2259 × 1271 on the 4K output | The request is refused and named; the game stays at full size | S, stated | Offer the nearest listed mode instead, as the Wayland scale does with reachable steps |
+| K6 | A requested X11 mode the program does not list | Removed 2026-10-06: the nearest listed mode is asked instead; see Progress | The game gets the listed mode nearest to the wish, enlarged | S | Done |
 | K7 | Internal render targets that keep their size | SuperTux 0.6.3: the outer buffer and viewport went from 4K to 1080p, an intermediate framebuffer stayed 1368 × 769 | Nothing visible; the saving in GPU time is smaller than the buffer suggests | F | A measurement question for the cost matrix (item 74), not a defect; stated |
 | K8 | A game that keeps the smaller size in its own settings | SuperTuxKart 1.4 writes the told mode into its configuration (item 17) | Under Native the effect enlarges the kept smaller buffer; under other presets the display marks the kept size in the warning colour | S, stated | Stated in the handbook's known limits since 2026-10-04; nothing to change in the effect |
 | K9 | Programs in Flatpak and Snap | Item 51: Flatpak's SuperTuxKart 1.5 on Wayland was claimed and asked in the Fedora 43 machine; the X11 route through the proxy and Snap are not observed; item 47's naming is not yet seen in a session; Steam as Flatpak or Snap is item 34 | Unknown where not observed | F | 51's and 47's remainder in [application profiles](slice-application-profiles.md#progress-and-remaining-work), 34 in the [Proton slice](slice-proton-smaller-screen.md#remaining-work), run in the package machines |
@@ -211,6 +211,25 @@ next start: it reports the resize asked of the window and what the window
 did, while the handbook states that a program resized after it started can
 keep the viewport it began with, which the effect cannot see. Step 3 is done;
 next is step 4, K6.
+
+K6, removed 2026-10-06. The X11 resize asked for the wish's exact size and
+refused it where the output listed no such mode, so under Balanced on a 4K
+output, 2259 × 1271, an X11 game stayed at full size; the proxy forwarded such
+a connection unchanged and told it nothing. Both now ask for the listed mode
+nearest to the wish (`nearestListedSize()` in `resolution.h`, the listing in
+`x11modes.cpp`): of the modes the output lists, those of its shape that the
+scaler enlarges, the nearest by width, the larger of two equally near, as the
+Wayland scale answers a wish with the nearest reachable step. Xwayland's list
+for a 4K output holds 2048 × 1152, which is nearer to 2259 × 1271 than
+2560 × 1440 is, and so a Balanced X11 game now draws at 2048 × 1152 and is
+enlarged. The status names the wish beside it ("the listed mode nearest to
+2259 × 1271"), translated in the three catalogues. Only where no listed mode
+qualifies is the request still refused. `asksTheNearestListedMode` replaces
+`refusesUnavailableMode`, `answersUnlistedProgramsUnderAllApplications` asks the
+proxy under Balanced, and `choosesTheNearestListedSize` tests the choice; the
+proxy's case failed on the old policy, which told nothing. Step 4 is done;
+what follows in the order needs KWin's answer (K15), new input mapping (K16,
+K17, K21) or the hardware and machines of step 7.
 
 K1 and K2 are being addressed in the
 [scale-one Auto work](slice-resolution-control.md#wayland-auto-at-scale-one-2026-09-29).
