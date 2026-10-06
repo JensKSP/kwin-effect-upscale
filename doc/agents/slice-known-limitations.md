@@ -109,7 +109,7 @@ marked **F** belong here.
 | --- | --- | --- | --- | --- | --- |
 | K1 | Wayland clients with different buffer-density policies | The original bench found Qt and SDL 3 without high pixel density ignoring the scale hint. The [scale-one Auto work](slice-resolution-control.md#wayland-auto-at-scale-one-2026-09-29) owns the configure fallback, real-display results and comparison across desktop scales. | A smaller configure reaches these clients at scale one; low-density SDL at higher desktop scales can still supply a buffer below the supported range. Status reports the supplied size and refusal. | F; scale-one coverage extended by the linked work | Follow the linked density comparison and remaining acceptance; not a universal geometry-only solution |
 | K2 | Integer scale and startup-only sizing | vkmark ignores configure sizes; glmark2 keeps the viewport initialized from its first fullscreen configure. The [scale-one Auto work](slice-resolution-control.md#wayland-auto-at-scale-one-2026-09-29) owns their separate fixes and the native comparison. | vkmark can use the advertised mode; fresh glmark2 can use a smaller first configure. A late glmark2 resize crops the scene despite a smaller buffer. Integer-only density still differs on fractional desktops. | F | Preserve startup timing and actual-picture checks; live changes to fixed viewports remain open |
-| K3 | Wine's Wayland driver | Item 35: the window stays at the told 2560 × 1440; it draws into a subsurface, which the effect refuses even at full size, and rounds buffer heights up to a multiple of 128 | A smaller window, not enlarged. The status names child surfaces or the coverage | F | Present a window whose picture is in one subsurface, with the pointer mapped; shares K20's confinement gap. In the [Proton slice](slice-proton-smaller-screen.md#remaining-work) |
+| K3 | Wine's Wayland driver | Presented 2026-10-06 from its subsurface, see Progress; not yet run with Wine itself | The game enlarged from its subsurface's picture | F | Run Wine 10's Wayland driver in a machine that has Wine, which no maintained image has |
 | K4 | A program that connected before it could be told | The Wayland mode is told when a client binds the output, the X11 screen when a connection goes through the proxy; a program already running, or an X11 program that does not connect through the proxy, hears neither | Full size, or an X11 program resized after it started showing part of its picture enlarged (glmark2 2023.01, SuperTux 0.6.3 keep their first viewport). For a Wayland program the status names the size "from the next start"; not checked for every route | S, stated | Tested per route 2026-10-06, see Progress; stays stated |
 | K5 | A toolkit that picks another output | Extreme Tux Racer 0.8.4 with SFML 2.6.2 moves to the primary output when it recreates its fullscreen window | The shipped entry refuses control on a secondary output; the status says so | S, stated | Stays stated unless SFML changes |
 | K6 | A requested X11 mode the program does not list | Removed 2026-10-06: the nearest listed mode is asked instead; see Progress | The game gets the listed mode nearest to the wish, enlarged | S | Done |
@@ -136,7 +136,7 @@ marked **F** belong here.
 | K17 | Confinement regions and the locked pointer's position hint | The presentation section: not mapped | A confinement to part of a window, and a position hint on unlock, apply in the window's unscaled coordinates | F | Map both through the presentation, with K15 |
 | K18 | The cursor over a hidden decoration | Removed 2026-10-06: KWin gave the hidden decoration the pointer and showed its cursor; both filters now take it away where they claim the pointer, see Progress | The game's cursor | S | Done |
 | K19 | A visible dialog's title bar above a presented X11 game | Removed 2026-10-06: tested, the title bar keeps the pointer; see Progress | The dialog keeps its title bar | S | Done |
-| K20 | Wine's Wayland driver's pointer | With K3: a smaller surface needs the same mapping, and meets K15's confinement | – | F | With K3 |
+| K20 | Wine's Wayland driver's pointer | With K3 2026-10-06: the window is drawn over its output, and its pointer is mapped as any such window's | Mapped; a confinement meets K15 | F | With K15 |
 | K21 | Input to a picture with bars beyond the absolute pointer | Tested 2026-10-06, see Progress: relative motion and a locked pointer are mapped under Fit and Integer, a popup over a bar takes its own pointer; subsurfaces are refused (K12), overlays drawn into the game's buffer are its picture | Relative motion and a lock as the game expects; a popup at its unscaled place | F | Stays stated for popups' placement |
 
 ## Proposed order
@@ -275,6 +275,29 @@ mapping, until a pointer motion made the pointer the last input again, so that
 case ends with one. A pen is not mapped: its tool events, focus and proximity
 go through KWin's tablet filter and the tablet protocol, which differ again
 between KWin's versions; it stays stated. K17 waits with K15.
+
+K3 with K20, step 6, 2026-10-06. Wine's Wayland driver draws a game into one
+subsurface covering its window, above the window's own buffer, and rounds the
+subsurface's buffer height up to a multiple of 128, showing the told size of it
+through a viewport; the effect refused both, the child surface and the crop. It
+now takes the picture from that subsurface where it is the window's only child,
+covers it whole at its origin and lies above it (`upscalePictureSurface()`), and
+takes the picture's size from the viewport's source rather than the buffer
+(`upscaleSuppliedSize()`), so that a Wayland client's crop in whole pixels is
+captured as it stands; a crop in fractions of a pixel is still refused, and so
+is any crop of an X11 window's buffer, which Xwayland makes for a mode it
+emulates and presents itself. Allowing that too was the first attempt: the X11
+suite's capture check stopped KWin at Xwayland's emulated mode. The capture
+already rendered an item in its parent's coordinates and needed no other change.
+`presentsThePictureOfItsOnlySubsurface`, a production case built like Wine's
+driver (a 256 × 144 window of the told size with a black buffer, its picture a
+256 × 160 subsurface buffer showing 256 × 144), was refused for its child
+surfaces before and is now scaled from 256 × 144, the output's middle showing
+the subsurface's pattern; all 19 production cases pass. The window is drawn
+over its output, so its pointer is mapped as any such window's, which is K20's
+half; a confinement meets K15. Wine itself was not run: no maintained image has
+Wine, and the probe of item 35 stayed scratch. Running Wine 10's Wayland driver
+is its full acceptance. Next in the order are K1 and K2, then step 7.
 
 K1 and K2 are being addressed in the
 [scale-one Auto work](slice-resolution-control.md#wayland-auto-at-scale-one-2026-09-29).
