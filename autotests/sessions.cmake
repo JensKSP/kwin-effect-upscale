@@ -207,7 +207,7 @@ if(KWin_VERSION VERSION_LESS 6.7)
             coversPointerWithoutEmulatedMode aConfinedPointerReachesTheWholeWindow
             refreshesStartupInputShape coversTheScreenItWasGiven winePrefixEligibility
             answersUnlistedProgramsUnderAllApplications presentsAProcessShownItsGamesScreen
-            scalesAWindowOfAFractionalLogicalSize
+            scalesAWindowOfAFractionalLogicalSize presentsAServedGameThatSetsNoMode
     )
     set_tests_properties(upscale-x11-scaled PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
     set(sessions

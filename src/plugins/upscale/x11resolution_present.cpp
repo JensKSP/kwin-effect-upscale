@@ -13,6 +13,7 @@
 
 #if KWIN_BUILD_X11
 #include "eligibility.h"
+#include "runtime.h"
 #include "windowidentity.h"
 #include "x11geometry.h"
 #include "x11input.h"
@@ -205,8 +206,10 @@ void UpscaleX11Resolution::present(X11Window *window)
         // A measured client may need its mode as acknowledgement of the
         // resize. Presenting its smaller drawable ourselves can hide a stale
         // viewport inside the game; let validation retry the missing answer.
+        // One the proxy told the smaller screen started at it and has nothing
+        // stale to hide; see validation.
         const UpscaleApplication *application = upscaleApplicationForWindow(window);
-        if (application && application->x11RequiresEmulatedMode) {
+        if (application && application->x11RequiresEmulatedMode && !upscaleServed(window->pid())) {
             return;
         }
         if (fillsFrame(window, surface) || upscaleX11ModeMatches(window, request->position, request->size)) {

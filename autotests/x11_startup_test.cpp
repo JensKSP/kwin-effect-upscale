@@ -139,6 +139,42 @@ void UpscaleX11IntegrationTest::coversTheScreenItWasGiven()
                  qPrintable(status()));
 }
 
+// An entry can ask its game to confirm a resize through the X11 mode it then
+// sets, as Extreme Tux Racer's does: a game resized after it started can keep
+// its old viewport behind a smaller window. One whose connection the proxy
+// answered starts at the smaller screen and sets no mode, and Extreme Tux
+// Racer waited forever for it (KWin 6.6.6, 2026-10-07). It is presented.
+void UpscaleX11IntegrationTest::presentsAServedGameThatSetsNoMode()
+{
+    KConfigGroup entry(KSharedConfig::openConfig(QStringLiteral("kwinupscalerc")), QStringLiteral("Application-test"));
+    entry.writeEntry("X11RequiresEmulatedMode", true);
+    entry.sync();
+    configure(true);
+    QDBusInterface policy(QStringLiteral("org.kde.KWin"), QStringLiteral("/org/kde/KWin/Effect/Upscale1"),
+                          QStringLiteral("org.kde.KWin.Effect.Upscale1"), QDBusConnection::sessionBus());
+    QVariantMap answer;
+    QVERIFY(QTest::qWaitFor([&]() {
+        const QDBusReply<QVariantMap> reply = policy.call(QStringLiteral("x11ConnectionPolicy"), uint(QCoreApplication::applicationPid()),
+                                                          QStringList{QStringLiteral("upscale-x11-test")});
+        answer = reply.isValid() ? reply.value() : QVariantMap{};
+        return !answer.value(QStringLiteral("retry")).toBool();
+    }, 10000));
+    const QString reason = answer.value(QStringLiteral("reason")).toString();
+    if (reason.contains(QStringLiteral("one enabled output"))) {
+        QSKIP("a connection is answered only for a single screen");
+    }
+    const QSize given(answer.value(QStringLiteral("width")).toInt(), answer.value(QStringLiteral("height")).toInt());
+    QVERIFY2(!given.isEmpty(), qPrintable(reason));
+    X11Client target(false);
+    target.reportProcess();
+    QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(QPoint(0, 0), given), false));
+    QVERIFY(target.waitForMapping());
+    target.fullscreen(true);
+    QTRY_VERIFY(target.isFullscreen());
+    QTRY_VERIFY2(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()));
+    QVERIFY2(!status().contains(QStringLiteral("has not confirmed")), qPrintable(status()));
+}
+
 void UpscaleX11IntegrationTest::winePrefixEligibility_data()
 {
     QTest::addColumn<QString>("pattern");

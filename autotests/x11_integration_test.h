@@ -50,6 +50,7 @@ private Q_SLOTS:
     void mapsTouchOntoAPresentedGame();
     void letsAPresentedGameLockThePointer();
     void coversTheScreenItWasGiven();
+    void presentsAServedGameThatSetsNoMode();
     void winePrefixEligibility_data();
     void winePrefixEligibility();
     void leavesWineToTheProxy_data();
