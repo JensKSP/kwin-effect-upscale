@@ -118,7 +118,7 @@ marked **F** belong here.
 | K9 | Programs in Flatpak and Snap | Removed 2026-10-07 for the shipped games: SuperTuxKart and Extreme Tux Racer from Flathub and the Snap Store enlarged on Wayland and through X11 in the Debian 13 (KWin 6.3.6) and Kubuntu 26.04 (KWin 6.6.6) package machines, see Progress | Enlarged as natively packaged games are; the Snap Store's Extreme Tux Racer stops at its own launcher's dialog before the game | F | Steam as Flatpak or Snap is item 34, in the [Proton slice](slice-proton-smaller-screen.md#remaining-work) |
 | K10 | Wine and Proton across the graphics paths | Only Direct3D 11 on Wine's own renderer and OpenGL were run; official Proton and Direct3D 9, 12 and Vulkan, exclusive and borderless, are item 36 | Unknown where not run | F | Item 36, in the [Proton slice](slice-proton-smaller-screen.md#remaining-work) |
 | K11 | FreeBSD and the BSDs | FreeBSD's nightly installs, loads and removes the effect in an emptied machine; no session check, and the proxy is not run there (items 2f, 23) | Unknown | F | The session check once the virtio-gpu driver allows one |
-| K22 | The desktop's own programs told the smaller screen under All applications | Removed 2026-10-07 by Jens's decision: the global profile is now All games and acts only for a program it recognizes as a game, at bind, at the proxy and for windows; an entry still applies to any program. See Progress | Plasma's programs are told nothing and its splash screen is not announced; a game All games does not recognize is left alone, with the status saying so, which the handbook's known limits state | S | The Debian 13 package machine's desktop picture, see Progress |
+| K22 | The desktop's own programs told the smaller screen under All applications | Removed 2026-10-07 by Jens's decision: the global profile is now All games and acts only for a program it recognizes as a game, at bind, at the proxy and for windows; an entry still applies to any program. In the Debian 13 package machine the panel spans the screen again; see Progress | Plasma's programs are told nothing and its splash screen is not announced; a game All games does not recognize is left alone, with the status saying so, which the handbook's known limits state | S | Done |
 
 ## The picture is refused or not right
 
@@ -456,6 +456,17 @@ now keeps whether the program was a game when it was answered
 process had named yet, as All applications had, against Jens's rule of
 2026-10-03 that a pattern which could match in any prefix holds none; it holds
 none now, and `answersUnlistedGamesUnderAllGames` checks that.
+
+K22 in the Debian 13 package machine, 2026-10-07, with a package of `b256cec`
+and `package-vm.py debian-13-amd64 wine`, which logs in again with All games
+checked: the panel spans the whole width of the 3840 × 2160 screen in the
+desktop picture taken before the probe. The session's journal shows the
+smaller mode told at bind to Wine's three `wine64` processes and to nothing
+else, and every X11 connection of Plasma's own helpers - `kcminit`, `kded6`,
+`ksmserver`, `xembedsniproxy`, `xsettingsd` and the rest - refused as "not in
+the list, and not recognized as a game". The probe was enlarged from
+2560 × 1440 to 3840 × 2160 with FSR 1, and KWin's picture splits red from
+blue at its middle, as before.
 
 What step 7 leaves: K10 and K13 on Jens's hardware, K11 once FreeBSD's
 virtio-gpu allows a session, and item 34's Steam, which needs a Steam account.
