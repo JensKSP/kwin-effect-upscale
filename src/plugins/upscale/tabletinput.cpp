@@ -132,8 +132,12 @@ bool upscaleDeliverPen(const UpscalePen &pen, SurfaceInterface *surface, const Q
     }
     // The axes KWin sends with each event, where the pen has them: KWin 6.6
     // sends no pressure with a proximity, and KWin 6.3 sends no slider.
-    const bool proximity = pen.action == UpscalePenAction::EnterProximity || pen.action == UpscalePenAction::LeaveProximity;
-    if (tool->hasCapability(TabletToolV2Interface::Pressure) && (!UPSCALE_TABLET_EVENTS || !proximity)) {
+#if UPSCALE_TABLET_EVENTS
+    const bool pressure = pen.action != UpscalePenAction::EnterProximity && pen.action != UpscalePenAction::LeaveProximity;
+#else
+    const bool pressure = true;
+#endif
+    if (pressure && tool->hasCapability(TabletToolV2Interface::Pressure)) {
         tool->sendPressure(pen.pressure);
     }
     if (tool->hasCapability(TabletToolV2Interface::Tilt)) {
