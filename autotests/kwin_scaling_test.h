@@ -58,6 +58,7 @@ private Q_SLOTS:
     void presentsThePictureOfItsOnlySubsurface_data();
     void presentsThePictureOfItsOnlySubsurface();
     void mapsAPenOntoThePicture();
+    void keepsAPenWholeAcrossABar();
 
 private:
     void configure(bool enabled, const QString &method = QStringLiteral("Auto"));

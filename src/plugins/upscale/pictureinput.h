@@ -10,6 +10,7 @@
 #include "tabletinput.h"
 #include "touchinput.h"
 
+#include <QHash>
 #include <QMatrix4x4>
 #include <QPointer>
 #include <QRectF>
@@ -114,6 +115,14 @@ private:
     bool touchDownAt(qint32 id, const QPointF &position, std::chrono::microseconds time);
     // Takes a pen's event where a picture is, and answers whether it did.
     bool pen(const UpscalePen &pen);
+    // What the client under each pen was told of it last, which a bar's
+    // events must neither contradict nor leave unfinished.
+    struct PenState
+    {
+        bool near = false;
+        bool down = false;
+    };
+    QHash<InputDeviceTabletTool *, PenState> m_pens;
     UpscaleTouchDelivery m_touch;
 };
 

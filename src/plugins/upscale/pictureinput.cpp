@@ -340,20 +340,44 @@ bool UpscalePictureInput::pen(const UpscalePen &pen)
 {
     const auto [target, picture] = pictureAt(pen.position);
     if (!target) {
+        // KWin's forwarding takes the pen to what it finds, and tells the
+        // client it had here that the pen left.
+        m_pens.remove(pen.tool);
         return false;
     }
-    // A bar shows nothing of the game, and a pen there reaches nothing of it,
-    // but one leaving is let go of wherever it is.
-    if (!picture.contains(pen.position) && pen.action != UpscalePenAction::LeaveProximity) {
+    PenState &told = m_pens[pen.tool];
+    // A bar shows nothing of the game, and a pen there reaches nothing of it:
+    // no press and no motion, and a pen coming near there is told of once it
+    // reaches the picture. What it began on the picture, a contact or its
+    // nearness, ends wherever it ends, as the tablet protocol asks.
+    const bool ends = (pen.action == UpscalePenAction::Release && told.down) || (pen.action == UpscalePenAction::LeaveProximity && told.near);
+    if (!picture.contains(pen.position) && !ends) {
+        return true;
+    }
+    if (pen.action == UpscalePenAction::LeaveProximity && !told.near) {
         return true;
     }
     if (pen.action == UpscalePenAction::Press && effects && effects->activeWindow() != target->effectWindow()) {
         effects->activateWindow(target->effectWindow());
     }
+    // At the picture's edge for a pen ending in a bar.
+    const QPointF on(std::clamp(pen.position.x(), picture.left(), picture.right() - 1), std::clamp(pen.position.y(), picture.top(), picture.bottom() - 1));
     const QRectF client = target->clientGeometry();
-    const QPointF local((pen.position.x() - picture.x()) * client.width() / picture.width(),
-                        (pen.position.y() - picture.y()) * client.height() / picture.height());
-    return upscaleDeliverPen(pen, target->surface(), local);
+    const QPointF local((on.x() - picture.x()) * client.width() / picture.width(), (on.y() - picture.y()) * client.height() / picture.height());
+    if (!told.near && pen.action != UpscalePenAction::EnterProximity) {
+        UpscalePen near = pen;
+        near.action = UpscalePenAction::EnterProximity;
+        if (!upscaleDeliverPen(near, target->surface(), local)) {
+            return false;
+        }
+        told.near = true;
+    }
+    if (!upscaleDeliverPen(pen, target->surface(), local)) {
+        return false;
+    }
+    told.near = pen.action != UpscalePenAction::LeaveProximity;
+    told.down = (told.down || pen.action == UpscalePenAction::Press) && pen.action != UpscalePenAction::Release && told.near;
+    return true;
 }
 
 #if UPSCALE_TABLET_EVENTS
