@@ -91,7 +91,7 @@ QString upscaleKnownExecutable(const Window *window);
  * Whether @p window is a game's, as upscaleRecognizedGame() recognizes one
  * from its program, or upscaleGameDesktopFile() from the desktop entry the
  * window names, or as the X11 session proxy recognized it when its process
- * connected. Kept per window as its program is, so cheap enough for a frame.
+ * connected; see upscaleServedGame(). Kept per window as its program is, so cheap enough for a frame.
  */
 bool upscaleGameWindow(const Window *window);
 
