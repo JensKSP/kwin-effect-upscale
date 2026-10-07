@@ -46,6 +46,14 @@ class SandboxedTest(unittest.TestCase):
             self.assertEqual(ps.answer_for("extremetuxracer", "now"), lines[1])
             self.assertEqual(ps.answer_for("supertuxkart", "now"), "")
 
+    def test_counts_only_a_picture_enlarged_from_a_smaller_one(self) -> None:
+        """Count the racer as well as the kart, and neither where nothing is scaled."""
+        reading = {"selected": "1", "scaling": "1", "supplied": "2560x1440"}
+        reading |= {"destination": "3840x2160", "presentation": "x11-fullscreen"}
+        self.assertIn("2560x1440 enlarged to 3840x2160", ps.enlarged(reading))
+        self.assertEqual(ps.enlarged(reading | {"scaling": "0"}), "")
+        self.assertEqual(ps.enlarged(reading | {"supplied": "3840x2160"}), "")
+
     def test_names_a_snaps_own_program_first(self) -> None:
         """Prefer the program named as the snap, then its first application."""
         with tempfile.TemporaryDirectory() as scratch:
@@ -63,7 +71,7 @@ class SandboxedTest(unittest.TestCase):
 
     def test_every_sandbox_runs_both_routes(self) -> None:
         """Run SuperTuxKart on Wayland and through X11 and the racer through X11, in each."""
-        for cases in (ps.flatpak_cases(), ps.snap_cases()):
+        for cases in (ps.native_cases(), ps.flatpak_cases(), ps.snap_cases()):
             routes = [(case.profile, case.x11) for case in cases]
             self.assertEqual(
                 routes,

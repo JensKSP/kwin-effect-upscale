@@ -10,9 +10,9 @@ another socket: what that does to the names the effect and the proxy give a
 program, and whether the shipped entries still claim it. SuperTuxKart and
 Extreme Tux Racer are taken from Flathub and the Snap Store, each sandbox
 where the system has it or its package manager offers it, and run on Wayland
-and through X11. Run as root in a machine made by tools/package-vm.py, like
-the package check, whose session helpers this uses; the package is removed at
-the end either way.
+and through X11, after the system's own packages of them for comparison. Run
+as root in a machine made by tools/package-vm.py, like the package check,
+whose session helpers this uses; the package is removed at the end either way.
 """
 
 from __future__ import annotations
@@ -35,6 +35,9 @@ RACER = "net.sourceforge.ExtremeTuxRacer"
 SNAPS = ("supertuxkart", "extreme-tux-racer")
 # The games' processes, in or out of a sandbox.
 GAMES = ("supertuxkart", "etr")
+# Part of the racer's window class, "Extreme Tux Racer 0.8.4", which carries
+# its version; KWin's window runner takes one word of it.
+RACER_CLASS = "Racer"
 HOME = Path("/home") / pc.USER
 
 
@@ -67,6 +70,49 @@ class Seen:
     # The effect's status at the last look, which says why it does not act.
     status: list[str] = field(default_factory=list)
     detail: str = ""
+
+
+def native_cases() -> list[Case]:
+    """Name the same three as the system packages them, to compare the sandboxes with."""
+    race = tuple(pc.RACE[1:])
+    settings = HOME / ".config/supertuxkart/config-0.10"
+    return [
+        Case(
+            "Native SuperTuxKart on Wayland",
+            ("supertuxkart", *race),
+            "supertuxkart",
+            "supertuxkart",
+            x11=False,
+            environment={"SDL_VIDEODRIVER": "wayland"},
+            settings=settings,
+        ),
+        Case(
+            "Native SuperTuxKart through X11",
+            ("supertuxkart", *race),
+            "supertuxkart",
+            "supertuxkart",
+            x11=True,
+            environment={"SDL_VIDEODRIVER": "x11"},
+            settings=settings,
+        ),
+        Case(
+            "Native Extreme Tux Racer through X11",
+            ("etr",),
+            RACER_CLASS,
+            "extremetuxracer",
+            x11=True,
+        ),
+    ]
+
+
+def provide_native(install: tuple[str, ...]) -> str:
+    """Find both games where the system packages them, as the machine's template installs them."""
+    del install
+    found = [shutil.which(game, path="/usr/games:/usr/bin") for game in ("supertuxkart", "etr")]
+    if not all(found):
+        message = "the system packages neither game here"
+        raise RuntimeError(message)
+    return ", ".join(str(game) for game in found)
 
 
 def flatpak_cases() -> list[Case]:
@@ -103,7 +149,7 @@ def flatpak_cases() -> list[Case]:
         Case(
             "Flatpak Extreme Tux Racer through X11",
             ("flatpak", "run", RACER),
-            "etr",
+            RACER_CLASS,
             "extremetuxracer",
             x11=True,
         ),
@@ -137,7 +183,7 @@ def snap_cases() -> list[Case]:
         Case(
             "Snap Extreme Tux Racer through X11",
             (snap_program(SNAPS[1]),),
-            "etr",
+            RACER_CLASS,
             "extremetuxracer",
             x11=True,
         ),
@@ -220,6 +266,18 @@ def desktop_scales() -> list[str]:
     return [line.strip() for line in lines if line.strip().startswith("Scale:")]
 
 
+def enlarged(reading: dict[str, str]) -> str:
+    """Say how the effect enlarges the window it follows, if it does: either game, fullscreen."""
+    supplied, destination = reading.get("supplied", ""), reading.get("destination", "")
+    if (
+        reading.get("selected") == reading.get("scaling") == "1"
+        and supplied
+        and supplied != destination
+    ):
+        return f"{supplied} enlarged to {destination}, {reading.get('presentation')}"
+    return ""
+
+
 def answer_for(profile: str, since: str) -> str:
     """Find the proxy's answer for a connection it told the smaller screen, with its names."""
     return next(
@@ -242,10 +300,6 @@ def run_case(case: Case, session: pc.Session, seen: Seen) -> None:
     stop_games()
     pc.settle(session.kwin)
     since = time.strftime("%Y-%m-%d %H:%M:%S")
-    # SuperTuxKart is enlarged on either route; the racer starts windowed,
-    # and is only told the smaller screen.
-    kart = case.profile == "supertuxkart"
-
     route = "x11" if case.x11 else "wayland"
 
     def done() -> str:
@@ -253,12 +307,12 @@ def run_case(case: Case, session: pc.Session, seen: Seen) -> None:
         seen.status = status_lines()
         if case.x11 and not seen.answer:
             seen.answer = answer_for(case.profile, since)
-        if not seen.enlarged and kart and seen.metrics.get("windowsystem") == route:
-            seen.enlarged = pc.enlarged_game(seen.metrics)
+        if not seen.enlarged and seen.metrics.get("windowsystem") == route:
+            seen.enlarged = enlarged(seen.metrics)
         windows = window_ids(case.window)
         if windows and not seen.programs:
             seen.programs = [program_of(window) for window in windows]
-        complete = (seen.answer or not case.x11) and (seen.enlarged or not kart)
+        complete = (seen.answer or not case.x11) and seen.enlarged
         return "done" if complete and seen.programs else ""
 
     environment = session.environment | case.environment
@@ -283,6 +337,7 @@ def sandboxed(package: str, result: dict[str, object]) -> None:
     cases: list[Case] = []
     sandboxes: dict[str, str] = {}
     for name, provide, made in (
+        ("native", provide_native, native_cases),
         ("flatpak", provide_flatpak, flatpak_cases),
         ("snap", provide_snap, snap_cases),
     ):
