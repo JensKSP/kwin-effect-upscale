@@ -128,10 +128,10 @@ void UpscaleScaler::draw(GLShader *shader, GLTexture *texture, const RenderViewp
     }
 }
 
-bool UpscaleScaler::render(const RenderTarget &target, const RenderViewport &viewport, SurfaceItem *surface,
-                           const UpscaleDrawing &drawing, const UpscaleRegion &region)
+bool UpscaleScaler::render(const RenderTarget &target, const RenderViewport &viewport, SurfaceItem *picture,
+                           SurfaceItem *surface, const UpscaleDrawing &drawing, const UpscaleRegion &region)
 {
-    const QSize inputSize = upscaleSuppliedSize(surface);
+    const QSize inputSize = upscaleSuppliedSize(picture);
     // The capture holds the destination encoding as the client committed it.
     // Only a linear destination needs more than ten bits a channel to do that
     // without loss, and only that one can carry values outside zero to one.

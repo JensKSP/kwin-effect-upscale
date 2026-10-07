@@ -411,9 +411,10 @@ static UpscaleRefusal contentRefusal(EffectWindow *window, SurfaceItem *surface)
     // Wine's Wayland driver draws an OpenGL game into a buffer with an alpha
     // channel and declares no opaque region, over a window buffer it leaves
     // transparent (Wine 10.0, 2026-10-07). Windows takes no alpha from a
-    // game's picture, and the effect draws a picture as it is over black,
-    // which is how Windows shows it; so the picture of a window's only
-    // subsurface is taken whatever its alpha.
+    // game's picture. The picture of a window's only subsurface is captured
+    // over the window's own buffer, as KWin composites the two, and over
+    // black where both let it through, which is how Windows shows a game; so
+    // it is taken whatever its alpha.
     const bool subsurface = window->windowItem() && surface != window->windowItem()->surfaceItem();
     if (!opaque && !subsurface) {
         return UpscaleRefusal::TranslucentContent;
