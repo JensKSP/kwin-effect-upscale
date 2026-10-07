@@ -455,7 +455,13 @@ now keeps whether the program was a game when it was answered
 (`upscale-served`). And All games still held every Wine prefix for a program no
 process had named yet, as All applications had, against Jens's rule of
 2026-10-03 that a pattern which could match in any prefix holds none; it holds
-none now, and `answersUnlistedGamesUnderAllGames` checks that.
+none now, and `answersUnlistedGamesUnderAllGames` checks that. Its review of
+`8e6cae3` found that an entry rewritten in place keeps its directory's time,
+so the index kept a stale answer: each entry's own time is now kept as well,
+and `readsAnEntryRewrittenInPlace` failed on the old index and passes. As that
+looks at every entry's time, a program is now recognized only while All games
+acts, at bind too, where it had been asked first. Two stale handbook passages
+it named were brought up to date as well.
 
 K22 in the Debian 13 package machine, 2026-10-07, with a package of `b256cec`
 and `package-vm.py debian-13-amd64 wine`, which logs in again with All games
