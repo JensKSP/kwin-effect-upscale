@@ -253,3 +253,47 @@ void UpscaleProductionTest::mapsAPenOntoThePicture()
     QTRY_VERIFY(heard() && pen->down);
     QTRY_COMPARE((heard(), pen->position), QPointF(64, 36));
 }
+
+// A pen that comes near in a bar is told of once it reaches the picture, and
+// one pressed on the picture and lifted in a bar is lifted, as the tablet
+// protocol asks: proximity before motion, and an end to every contact.
+void UpscaleProductionTest::keepsAPenWholeAcrossABar()
+{
+    QVERIFY(m_tablets.isInitialized());
+    TestTabletSeat seat(m_tablets.get_tablet_seat(*Test::waylandSeat()));
+    configure(true, QStringLiteral("Off"));
+    // As fitsAnotherAspectRatio: 256 x 150 fitted between bars on either side.
+    std::unique_ptr<KWayland::Client::Surface> surface = Test::createSurface();
+    Viewport viewport(m_viewporter.get_viewport(*surface));
+    viewport.set_destination(384, 216);
+    auto shell = Test::createXdgToplevelSurface(surface.get(), [](Test::XdgToplevel *toplevel) {
+        toplevel->set_fullscreen(nullptr);
+    });
+    QVERIFY(Test::renderAndWaitForShown(surface.get(), pattern(QSize(256, 150))));
+    QTRY_VERIFY2(status().contains(QStringLiteral("scaling=1")), qPrintable(status()));
+    const auto heard = [this]() {
+        Test::waylandSync();
+        m_queue->dispatch();
+        return true;
+    };
+    auto *application = static_cast<WaylandTestApplication *>(kwinApp());
+    auto *tablet = application->virtualTablet();
+    auto *tool = application->virtualTabletTool();
+    const QPointF bar(2, 108);
+    const QPointF middle(192, 108);
+    quint32 time = 0;
+    Test::tabletToolProximityEvent(bar, 0, 0, 0, 0, 0, false, true, ++time);
+    QTRY_VERIFY(heard() && !seat.pens.empty());
+    TestPen *pen = seat.pens.front().get();
+    QVERIFY(heard() && !pen->surface);
+    Q_EMIT tablet->tabletToolAxisEvent(middle, 0, 0, 0, 0, 0, false, true, tool, std::chrono::milliseconds(++time), tablet);
+    QTRY_VERIFY(heard() && pen->surface == static_cast<wl_surface *>(*surface));
+    QVERIFY2(std::abs(pen->position.x() - 192) < 2 && std::abs(pen->position.y() - 108) < 2,
+             qPrintable(QStringLiteral("%1, %2").arg(pen->position.x()).arg(pen->position.y())));
+    Q_EMIT tablet->tabletToolTipEvent(middle, 1, 0, 0, 0, 0, true, true, tool, std::chrono::milliseconds(++time), tablet);
+    QTRY_VERIFY(heard() && pen->down);
+    Q_EMIT tablet->tabletToolTipEvent(bar, 0, 0, 0, 0, 0, false, true, tool, std::chrono::milliseconds(++time), tablet);
+    QTRY_VERIFY(heard() && !pen->down);
+    Test::tabletToolProximityEvent(bar, 0, 0, 0, 0, 0, false, false, ++time);
+    QTRY_VERIFY(heard() && !pen->surface);
+}
