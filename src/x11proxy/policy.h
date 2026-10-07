@@ -59,6 +59,7 @@ private:
     QByteArray response(QByteArray bytes);
     void setupReply(QByteArray &bytes);
     void resourceReply(QByteArray &bytes);
+    void internAtom(const QByteArray &bytes, qsizetype shift, quint16 sequence);
     void processProperty(QByteArray &bytes, qsizetype shift) const;
     bool streamable(std::size_t side, const QByteArray &bytes) const;
     Wire m_wire;

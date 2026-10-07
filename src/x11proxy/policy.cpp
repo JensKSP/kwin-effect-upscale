@@ -88,13 +88,7 @@ void Policy::request(QByteArray &bytes)
             m_requests.insert(sequence, {"geometry", m_wire.integer(bytes, 4 + shift), {}});
         }
     } else if (major == 16) {
-        // InternAtom, read for the one name processProperty() needs.
-        if (m_registry && bytes.size() >= 8 + shift) {
-            const quint16 length = m_wire.word(bytes, 4 + shift);
-            if (bytes.size() == 8 + shift + padded(length) && bytes.mid(8 + shift, length) == "_NET_WM_PID") {
-                m_requests.insert(sequence, {"process atom", 0, {}});
-            }
-        }
+        internAtom(bytes, shift, sequence);
     } else if (major == 18) {
         processProperty(bytes, shift);
     } else if (m_extensions.contains(major)) {
