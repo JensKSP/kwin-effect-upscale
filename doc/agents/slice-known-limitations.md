@@ -133,7 +133,7 @@ marked **F** belong here.
 | | Limitation | Evidence | What the player sees, what the status says | Gate | Next |
 | --- | --- | --- | --- | --- | --- |
 | K15 | A confined pointer passes one to one | Item 29: KWin checks a confinement in the surface's own coordinates, before any filter; the interim mapping of 29a lets Wine 10.0 reach all of its window at scale 3 | The game reaches all of its window, but a cursor the system draws is drawn where KWin keeps it, not over the picture | S, interim | The KWin proposal of 29b, filed by Jens; then map through KWin's transform |
-| K16 | Touch and tablet input | Touch mapped 2026-10-06, see Progress; a pen is not | Touch lands where the picture shows it, one in a bar reaches nothing; a pen's position applies in the window's unscaled coordinates | F | The pen, through KWin's tablet filter and the tablet protocol |
+| K16 | Touch and tablet input | Touch mapped 2026-10-06, a Wayland window's pen 2026-10-07, see Progress; an X11 window's pen is not | Touch and a pen land where the picture shows them, one in a bar reaches nothing; an X11 game's pen applies in the window's unscaled coordinates | F | An X11 window's pen, once the X11 session has a tablet to test it with |
 | K17 | Confinement regions and the locked pointer's position hint | The presentation section: not mapped | A confinement to part of a window, and a position hint on unlock, apply in the window's unscaled coordinates | F | Map both through the presentation, with K15 |
 | K18 | The cursor over a hidden decoration | Removed 2026-10-06: KWin gave the hidden decoration the pointer and showed its cursor; both filters now take it away where they claim the pointer, see Progress | The game's cursor | S | Done |
 | K19 | A visible dialog's title bar above a presented X11 game | Removed 2026-10-06: tested, the title bar keeps the pointer; see Progress | The dialog keeps its title bar | S | Done |
@@ -413,6 +413,21 @@ surface, which draws the subsurface over it as KWin composites them, at the
 subsurface picture's size (`7df025e`); a production row with a picture clear
 on its left half over a green window buffer found black there before and green
 now.
+
+K16's pen, 2026-10-07. KWin hands a pen to the window under it at the
+window's own place, as it does the pointer. The picture filter now takes a
+pen's proximity, motion and tip where a picture is, finds the window as for a
+touch, maps the point and tells the client through KWin's tablet protocol what
+KWin's forwarding would have told it, axes included; in a bar the pen reaches
+nothing (`2847c6f`). KWin 6.6 gives the filters a pen's events as structs and
+6.3 as a QTabletEvent, which a build probe tells apart; both build.
+`mapsAPenOntoThePicture` brings KWin's virtual pen near the middle of a game
+drawn over the 384 × 216 output and presses it at a quarter: the game hears
+128, 72 and 64, 36, where KWin alone sent 72, 44. The protocol trace showed
+KWin sending the mapped motion before the test client read it: the client's
+tablet objects are on the test's own queue, which the case reads with a
+roundtrip. An X11 window's pen stays unmapped: the X11 session has no tablet,
+and code nobody tested was left out.
 
 What step 7 leaves: K10 and K13 on Jens's hardware, K11 once FreeBSD's
 virtio-gpu allows a session, and item 34's Steam, which needs a Steam account.
