@@ -23,7 +23,7 @@ namespace KWin
  * A preset is a ratio, and "Quality" means little until it is a size on the
  * screen a person plays on. The preview says, for every connected screen,
  * what an application would render at there, or that it would not be
- * upscaled at all. "All applications" and every game show one, each computed
+ * upscaled at all. "All games" and every game show one, each computed
  * from the values that entry would actually use.
  *
  * It lists every screen rather than offering a choice of one: a choice here

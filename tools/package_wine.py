@@ -10,10 +10,11 @@ in a buffer whose height it rounds up to a multiple of 128 and shows the
 window's size of through a viewport. tools/wine-opengl-probe.c, built here
 with MinGW, draws the left half of its borderless window over the whole screen
 red and the right half blue, under the system's Wine with the prefix's
-graphics driver set to wayland. The effect is told to take every application,
-as Wine's programs have no entry of their own, and what is checked is that it
-enlarges the probe from a smaller picture to the whole output, and that KWin's
-picture of the screen splits red from blue at its middle. Run as root in a
+graphics driver set to wayland. The effect's All games is switched on, as
+Wine's programs have no entry of their own and everything Wine runs is a game
+to it, and what is checked is that it enlarges the probe from a smaller
+picture to the whole output, and that KWin's picture of the screen splits red
+from blue at its middle. Run as root in a
 machine made by tools/package-vm.py, like the package check, whose session
 helpers this uses; Debian's and Ubuntu's package names only. The package is
 removed at the end either way.
@@ -118,8 +119,8 @@ def probe_run(probe: Path, session: pc.Session, result: dict[str, object], direc
     output = probe.with_name("probe.txt")
     picture = directory / "wine-probe.png"
     environment = wayland_only(session.environment)
-    # The desktop before the game, as every program in the session was told
-    # under All applications, to be read by eye.
+    # The desktop before the game, under All games, which tells the desktop's
+    # own programs nothing: its panel spans the screen. To be read by eye.
     result["desktop picture"] = ps.picture(directory / "wine-desktop.png", environment)
     seen: dict[str, object] = {}
 

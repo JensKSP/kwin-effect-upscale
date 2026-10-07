@@ -198,14 +198,14 @@ QString UpscaleX11Resolution::failure(const Window *window) const
 // below it is not something any implemented path does.
 //
 // A window no entry claims is the global profile's, which asks it as well once
-// All applications is checked; @p application is null then.
+// All games is checked and the window is a game's; @p application is null then.
 static bool upscaleX11ResizeWanted(const UpscaleApplication *application, const Window *window, bool enteringFullscreen)
 {
     const UpscalePresentation presentation = enteringFullscreen ? UpscalePresentation::X11FullScreen : x11PresentationOf(window);
     if (upscaleIsWindowed(presentation)) {
         return false;
     }
-    const UpscaleSettings settings = upscaleResolveSettings(application);
+    const UpscaleSettings settings = upscaleSettingsForWindow(window);
     if (!settings.acts() || settings.resolution() == ResolutionPreset::Native) {
         return false;
     }
@@ -219,7 +219,7 @@ QSize upscaleWantedSize(const Window *window)
     if (!window || !window->output()) {
         return {};
     }
-    const UpscaleSettings settings = upscaleResolveSettings(upscaleApplicationForWindow(window));
+    const UpscaleSettings settings = upscaleSettingsForWindow(window);
     const QSize pixels = window->output()->pixelSize();
     if (!settings.acts() || !exceedsMinimumPixels({pixels.width(), pixels.height()}, settings.value(UpscaleSetting::MinimumPixels))) {
         return {};

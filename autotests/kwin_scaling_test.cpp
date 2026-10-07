@@ -6,6 +6,8 @@
 
 #include "kwin_scaling_test.h"
 
+#include "game_entry.h"
+
 #include "core/output.h"
 #include "core/renderloop.h"
 #include "effect/effecthandler.h"
@@ -21,13 +23,21 @@
 #include <KWayland/Client/output.h>
 #include <KWayland/Client/surface.h>
 
+// The global profile is All games, and this test's clients are a game's: a
+// desktop entry in the Game category starts this program.
 void UpscaleProductionTest::initTestCase()
 {
+    QVERIFY(upscaleDeclareGame(QCoreApplication::applicationFilePath()));
     QVERIFY(waylandServer()->init(QStringLiteral("wayland_upscale_production")));
     Test::setOutputConfig({QRect(0, 0, 384, 216)});
     kwinApp()->start();
     QVERIFY(effects->isOpenGLCompositing());
     QVERIFY(effects->isEffectLoaded(QStringLiteral("upscale")));
+}
+
+void UpscaleProductionTest::cleanupTestCase()
+{
+    QVERIFY(upscaleDeclareGame(QCoreApplication::applicationFilePath(), false));
 }
 
 void UpscaleProductionTest::configure(bool enabled, const QString &method)

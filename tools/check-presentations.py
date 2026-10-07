@@ -107,7 +107,7 @@ def write_configuration(root: Path, size: tuple[int, int], scale: int) -> None:
     # Resolution is stored as a number, Performance being 4, while the method
     # keys beside it are names; written as a name, it is not read at all and
     # the default, Quality, applies instead. UnlistedApplications is what the
-    # settings page calls All applications.
+    # settings page calls All games.
     (config / "kwinrc").write_text(
         "[Plugins]\nupscaleEnabled=true\n"
         "[Effect-upscale]\nEnabled=true\nResolution=4\n"
@@ -147,6 +147,28 @@ def write_configuration(root: Path, size: tuple[int, int], scale: int) -> None:
         )
 
 
+def declare_game(root: Path, program: str) -> str:
+    """Make the case's program a game to All games, as installing it would.
+
+    All games acts only for a program it recognizes as a game, and a game run
+    from where it was built or unpacked has no desktop entry that says so. One
+    in the Game category, in the session's own data, starts this program.
+    Answers why it could not, or nothing.
+    """
+    executable = Path(program).resolve()
+    # Quoted as the effect reads an Exec line, which knows double quotes and
+    # no escapes inside them.
+    if '"' in str(executable):
+        return f"{executable} has a double quote, which an Exec line cannot name"
+    applications = root / "data" / "applications"
+    applications.mkdir(parents=True)
+    (applications / "upscale-case.desktop").write_text(
+        "[Desktop Entry]\nType=Application\nName=Upscale case\nCategories=Game;\n"
+        f'Exec="{executable}"\n'
+    )
+    return ""
+
+
 def run_case(case: Case, root: Path, build: Path, screen: Screen) -> dict[str, object]:
     """Start a compositor, run one game in it, and read what the effect said."""
     # The game's name carries the protocol, which is not a directory of its own.
@@ -165,6 +187,13 @@ def run_case(case: Case, root: Path, build: Path, screen: Screen) -> dict[str, o
             "presentation": case.presentation,
             "outcome": "absent",
             "detail": f"{case.program} is not installed",
+        }
+    if problem := declare_game(cell, program):
+        return {
+            "game": case.game,
+            "presentation": case.presentation,
+            "outcome": "absent",
+            "detail": problem,
         }
     inner = Path(__file__).resolve().parent / "presentation_probe.py"
     result = cell / "result.json"

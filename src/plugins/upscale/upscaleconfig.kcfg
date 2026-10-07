@@ -16,9 +16,13 @@ SPDX-License-Identifier: GPL-2.0-or-later
     <group name="Effect-upscale">
         <!-- Session routing changes take effect at the next login. -->
         <entry name="X11Proxy" type="Bool"><default>true</default></entry>
-        <!-- Whether the global profile acts on a window no profile claimed.
-             Off, because nothing is known about a program nobody measured:
-             out of the box only the games in the catalogue are touched.
+        <!-- Whether the global profile, All games, acts on a game's window no
+             profile claimed. Off, because nothing is known about a program
+             nobody measured: out of the box only the games in the catalogue
+             are touched. On, it acts only for a program recognized as a game
+             (gamerecognition.h), never for the desktop's own programs; the
+             key keeps the name it had when it reached every program, so that
+             a stored choice still reads.
              Switching it off never stops this group supplying the values
              other profiles inherit; participation and inheritance are
              separate questions.
@@ -44,8 +48,8 @@ SPDX-License-Identifier: GPL-2.0-or-later
         <entry name="Filter" type="Int"><default>0</default><min>0</min><max>1</max></entry>
         <!-- What the global profile says to a program no profile claimed, one
              answer per way the program can present itself. Auto throughout,
-             so that All applications asks every program it answers for in the
-             way that suits how the program presents itself. A game inherits
+             so that All games asks every game it answers for in the way that
+             suits how the game presents itself. A game inherits
              these where it states no method of its own and the package has no
              measurement for it.
 
@@ -67,10 +71,10 @@ SPDX-License-Identifier: GPL-2.0-or-later
         <entry name="OsdDeveloper" type="Bool"><default code="true">KWin::upscaleDebugBuild</default></entry>
         <!-- Which windows the displays describe. Off, only a window this
              effect acts on: an application whose profile is switched on, or
-             any application while All applications is checked. On, also every
+             any game while All games is checked. On, also every
              other window that presents full screen, fullscreen or borderless
              over its screen, which is how to find out why a game went
-             unrecognized. Global only, like All applications, because it
+             unrecognized. Global only, like All games, because it
              decides about windows no profile acts on. Off in every build
              type: a browser playing a video full screen is not something a
              Debug build has to explain either. -->

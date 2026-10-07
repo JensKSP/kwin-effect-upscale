@@ -79,7 +79,7 @@ void UpscaleWaylandScale::requestInitialSize(Window *window)
         return;
     }
     const UpscaleApplication *claimed = upscaleApplicationForWindow(window);
-    const UpscaleSettings settings = upscaleResolveSettings(claimed);
+    const UpscaleSettings settings = upscaleSettingsForWindow(window);
     const QSize pixels = window->output()->pixelSize();
     const double ratio = resolutionRatio(settings.resolution(), settings.value(UpscaleSetting::Percentage));
     if (!settings.acts() || upscaleMethodFor(claimed, UpscalePresentation::WaylandFullScreen) != UpscaleMethod::Auto

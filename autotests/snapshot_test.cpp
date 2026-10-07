@@ -184,12 +184,18 @@ void UpscaleSnapshotTest::doesNotInventUnknownValues()
     QVERIFY(upscaleDeveloperInformation(disabled).contains(QStringLiteral("Configuration: disabled")));
     QVERIFY(upscaleStatusText(disabled).contains(QStringLiteral("Inactive: upscaling was switched off")));
 
-    // A window no profile claims, with unlisted applications switched off, is
-    // left alone - and says so, naming both ways the answer could change.
+    // A window no profile claims, with All games switched off, is left alone
+    // - and says so, naming both ways the answer could change.
     UpscaleSnapshot unlisted;
     unlisted.refusal = UpscaleRefusal::Unlisted;
-    QVERIFY2(upscaleStatusText(unlisted).contains(QStringLiteral("not in the list, and “All applications” is switched off")),
+    QVERIFY2(upscaleStatusText(unlisted).contains(QStringLiteral("not in the list, and “All games” is switched off")),
              qPrintable(upscaleStatusText(unlisted)));
+    // With All games on, one that is no game is left alone too, and the only
+    // way left is an entry of its own.
+    UpscaleSnapshot notGame;
+    notGame.refusal = UpscaleRefusal::NotGame;
+    QVERIFY2(upscaleStatusText(notGame).contains(QStringLiteral("not in the list and not recognized as a game")),
+             qPrintable(upscaleStatusText(notGame)));
 }
 
 void UpscaleSnapshotTest::pixelSizesAreNotGrouped()

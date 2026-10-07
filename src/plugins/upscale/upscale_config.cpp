@@ -89,7 +89,7 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     m_strength->setObjectName(QStringLiteral("strength"));
     QTabWidget *all = buildAllPanel();
 
-    // The page: the list with "All applications" first, then what this build
+    // The page: the list with "All games" first, then what this build
     // is. Grouped the way KWin's own effect pages group theirs, a box per
     // topic titled in title case.
     auto page = new QVBoxLayout(widget());
@@ -100,7 +100,7 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
     };
     addApplicationControls(section(i18n("Applications")));
     m_editor->setAllPanel(all);
-    // One label column for "All applications" and a game's tabs alike, so
+    // One label column for "All games" and a game's tabs alike, so
     // that moving between tabs or entries moves no field.
     alignLabels(m_editor->findChildren<QFormLayout *>());
     addProxyControls(section(i18n("X11 Session")));
@@ -120,7 +120,7 @@ UpscaleEffectConfig::UpscaleEffectConfig(QObject *parent, const KPluginMetaData 
 QTabWidget *UpscaleEffectConfig::buildAllPanel()
 {
     // The global settings are a profile with no identity, and the page shows
-    // them as one: "All applications", the first entry of the list, with the
+    // them as one: "All games", the first entry of the list, with the
     // same sections as a game's. Every application follows these values
     // unless its own entry states one, so nothing of it is repeated anywhere
     // else on the page. Whether it acts at all is its check box in the list,
@@ -263,14 +263,15 @@ void UpscaleEffectConfig::connectControls()
 // Defaults, which restores the values above and leaves the list alone.
 // The global profile's six answers. A game in the list follows them wherever
 // it states no method of its own and the package measured none, as it follows
-// every other global setting. A program not in the list is asked by them only
-// while "All applications" is checked, and they stay editable while it is not,
-// so that they can be set before it is.
+// every other global setting. A game not in the list is asked by them only
+// while "All games" is checked, and they stay editable while it is not,
+// so that they can be set before it is. A program that is no game is asked by
+// them only through an entry of its own.
 void UpscaleEffectConfig::addUnlistedControls(QFormLayout *layout)
 {
     // The global profile's own six answers, for a window no profile claimed.
     // Auto throughout by default, as a game's are; what keeps an unmeasured
-    // program untouched is "All applications" being unchecked, which it is
+    // program untouched is "All games" being unchecked, which it is
     // until a person checks it.
     m_methods = new UpscaleMethodControls(this);
     m_methods->build(layout, widget());
@@ -335,7 +336,7 @@ void UpscaleEffectConfig::updatePreview()
     }
 }
 
-// What a game's controls follow, which is what "All applications" shows
+// What a game's controls follow, which is what "All games" shows
 // rather than what was last applied: a person who changes the preset there
 // and then looks at a game expects the game to follow the new one.
 UpscaleSettings UpscaleEffectConfig::shownSettings() const

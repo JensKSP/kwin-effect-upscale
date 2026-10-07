@@ -67,7 +67,7 @@ void UpscaleApplicationEditor::buildDetails(QVBoxLayout *details)
     auto *tabs = new QTabWidget(this);
     tabs->setObjectName(QStringLiteral("applicationDetails"));
     // Beside the reset of each value, one action for all of them, under the
-    // tabs it applies to: shown with a game, never with "All applications".
+    // tabs it applies to: shown with a game, never with "All games".
     auto *game = new QWidget(this);
     auto *gameLayout = new QVBoxLayout(game);
     gameLayout->setContentsMargins(0, 0, 0, 0);
@@ -91,7 +91,7 @@ void UpscaleApplicationEditor::buildDetails(QVBoxLayout *details)
     m_methods->build(requests, this, true);
     // And what the user wants, every entry of which may follow the global
     // value instead.
-    // Laid out as "All applications" lays out the same tab, and previewed
+    // Laid out as "All games" lays out the same tab, and previewed
     // the same way, from the values this entry would use.
     QFormLayout *resolution = addTab(tabs, i18n("Resolution"));
     m_settings->build(resolution, this, {UpscaleSetting::Resolution, UpscaleSetting::Percentage});
@@ -100,7 +100,7 @@ void UpscaleApplicationEditor::buildDetails(QVBoxLayout *details)
     m_settings->build(addTab(tabs, i18n("Scaling")), this,
                       {UpscaleSetting::Geometry, UpscaleSetting::Filter, UpscaleSetting::Sharpening, UpscaleSetting::Strength});
     // A display at a time, each switch followed by what it decides and set a
-    // little apart from the next, as "All applications" groups them.
+    // little apart from the next, as "All games" groups them.
     QFormLayout *display = addTab(tabs, i18n("On-Screen Display"));
     const auto gap = [this, display]() {
         display->addItem(new QSpacerItem(0, fontMetrics().height() / 2, QSizePolicy::Minimum, QSizePolicy::Fixed));
@@ -119,14 +119,14 @@ void UpscaleApplicationEditor::showSelected()
     const QScopedValueRollback updating(m_updating, true);
     const UpscaleApplication *application = selected();
     const bool valid = application != nullptr;
-    // "All applications" shows its own panel; any other row a game's tabs.
+    // "All games" shows its own panel; any other row a game's tabs.
     m_details->setCurrentIndex(!valid && m_details->count() > 1 ? 1 : 0);
     m_name->setEnabled(valid);
     m_identity->setEnabled(valid);
     // An entry this build ships comes back with the next package, so removing
     // it would not remove anything. Switching it off is what persists.
     m_delete->setEnabled(valid && !application->shipped);
-    // Nothing moves above "All applications", which is not a match to order.
+    // Nothing moves above "All games", which is not a match to order.
     const int row = m_list->currentRow();
     m_up->setEnabled(valid && row > rowOf(0));
     m_down->setEnabled(valid && row + 1 < m_list->count());
@@ -147,7 +147,7 @@ void UpscaleApplicationEditor::setGlobalSettings(const UpscaleSettings &global, 
 {
     m_global = global;
     m_globalMethods = methods;
-    // Only a game's tabs name the global values. While "All applications" is
+    // Only a game's tabs name the global values. While "All games" is
     // shown they are hidden, and selecting a game shows it afresh.
     if (selected()) {
         showSelected();

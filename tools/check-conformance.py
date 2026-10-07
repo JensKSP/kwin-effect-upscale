@@ -169,10 +169,12 @@ def write_session(root: Path, arm: Arm, run: Run, runtime: Path) -> dict[str, st
     )
     (config / "kdeglobals").write_text("[General]\n")
     # The arm that scales names the suite's programs and nothing else does.
-    # Unlisted applications is what reaches a window; a profile is what reaches
-    # a connection, which is where a client asks what the display measures.
-    # The arm that only runs has no profile at all, so nothing it starts is
-    # named, which is exactly the question it asks.
+    # The profile is what reaches them, their connections, which is where a
+    # client asks what the display measures, and their windows alike. All
+    # games stays on beside it for the window rules it brings, and reaches
+    # none of the suite's programs, none of which is a game. The arm that only
+    # runs has no profile at all, so nothing it starts is named, which is
+    # exactly the question it asks.
     if arm.upscaled:
         (config / "kwinupscalerc").write_text(
             "[Application-conformance]\n"

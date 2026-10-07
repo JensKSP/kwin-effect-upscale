@@ -10,6 +10,7 @@ set(upscale_SOURCES
     eligibility_over.cpp
     refusaltext.cpp
     framestatistics.cpp
+    gamerecognition.cpp
     main.cpp
     matching.cpp
     logicalsize.cpp

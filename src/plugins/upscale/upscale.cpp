@@ -294,7 +294,7 @@ bool UpscaleEffect::isActive() const
         return false;
     }
     EffectWindow *window = explained();
-    return window && m_display.activeFor(window, upscaleResolveSettings(upscaleApplicationForWindow(window->window())));
+    return window && m_display.activeFor(window, upscaleSettingsForWindow(window->window()));
 }
 
 bool UpscaleEffect::x11RequestsSettled() const

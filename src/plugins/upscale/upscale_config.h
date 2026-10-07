@@ -57,7 +57,7 @@ private:
     void addThresholdControl(QFormLayout *layout);
     void addApplicationControls(QFormLayout *layout);
     void addUnlistedControls(QFormLayout *layout);
-    /** "All applications": the global settings, in the tabs a game's entry has. */
+    /** "All games": the global settings, in the tabs a game's entry has. */
     QTabWidget *buildAllPanel();
     static void alignLabels(const QList<QFormLayout *> &forms);
     void resetApplications();
