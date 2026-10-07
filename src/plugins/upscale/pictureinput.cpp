@@ -354,7 +354,9 @@ bool UpscalePictureInput::pen(const UpscalePen &pen)
     if (!picture.contains(pen.position) && !ends) {
         return true;
     }
-    if (pen.action == UpscalePenAction::LeaveProximity && !told.near) {
+    // Nor does a contact the client never heard begin end for it: a press in
+    // a bar lifted over the picture.
+    if ((pen.action == UpscalePenAction::LeaveProximity && !told.near) || (pen.action == UpscalePenAction::Release && !told.down)) {
         return true;
     }
     if (pen.action == UpscalePenAction::Press && effects && effects->activeWindow() != target->effectWindow()) {
