@@ -118,7 +118,7 @@ marked **F** belong here.
 | K9 | Programs in Flatpak and Snap | Removed 2026-10-07 for the shipped games: SuperTuxKart and Extreme Tux Racer from Flathub and the Snap Store enlarged on Wayland and through X11 in the Debian 13 (KWin 6.3.6) and Kubuntu 26.04 (KWin 6.6.6) package machines, see Progress | Enlarged as natively packaged games are; the Snap Store's Extreme Tux Racer stops at its own launcher's dialog before the game | F | Steam as Flatpak or Snap is item 34, in the [Proton slice](slice-proton-smaller-screen.md#remaining-work) |
 | K10 | Wine and Proton across the graphics paths | Only Direct3D 11 on Wine's own renderer and OpenGL were run; official Proton and Direct3D 9, 12 and Vulkan, exclusive and borderless, are item 36 | Unknown where not run | F | Item 36, in the [Proton slice](slice-proton-smaller-screen.md#remaining-work) |
 | K11 | FreeBSD and the BSDs | FreeBSD's nightly installs, loads and removes the effect in an emptied machine; no session check, and the proxy is not run there (items 2f, 23) | Unknown | F | The session check once the virtio-gpu driver allows one |
-| K22 | The desktop's own programs told the smaller screen under All applications | Found 2026-10-07 in the Debian 13 package machine, see Progress: plasmashell, Plasma's services and the portals were told the smaller mode at bind, and the panel was laid out over two thirds of the width | A short panel in a session started with All applications checked; the handbook's known limits say so | S | Decide with Jens which programs the answer at bind under All applications reaches |
+| K22 | The desktop's own programs told the smaller screen under All applications | Removed 2026-10-07 by Jens's decision: the global profile is now All games and acts only for a program it recognizes as a game, at bind, at the proxy and for windows; an entry still applies to any program. See Progress | Plasma's programs are told nothing and its splash screen is not announced; a game All games does not recognize is left alone, with the status saying so, which the handbook's known limits state | S | The Debian 13 package machine's desktop picture, see Progress |
 
 ## The picture is refused or not right
 
@@ -429,6 +429,24 @@ tablet objects are on the test's own queue, which the case reads with a
 roundtrip. An X11 window's pen stays unmapped: the X11 session has no tablet,
 and code nobody tested was left out.
 
+K22, decided by Jens on 2026-10-07: under the global profile only programs
+recognized as games are told the smaller screen at bind or connection, and
+an entry applies to whatever program it names. As the global profile then acts
+for games only, it is called All games, and it acts for nothing else at any
+point, windows and the display included: a fullscreen browser video is left
+alone. A game is what Wine or Proton runs, a program in a Steam library, or
+one an installed desktop entry in the Game category starts or its window
+names (`gamerecognition.h`); the handbook's
+[what All games reaches](../upscaling.md#what-all-games-reaches) states the
+rules and their limits, which replace K22 in its known limits. The stored key
+stays `UnlistedApplications`. Tested: the recognizer's own cases
+(`upscale-gamerecognition`); `asksApplicationsForASmallerImage`, where the test
+client with no Game entry is told the native mode under All games and an entry
+still reaches it; `answersUnlistedGamesUnderAllGames`, where the proxy answers
+a Steam library's program and the test's own once a Game entry starts it, and
+refuses it before with "not in the list, and not recognized as a game". The
+session tests, the production test and the conformance arms declare their own
+client a game through such an entry (`autotests/game_entry.h`).
+
 What step 7 leaves: K10 and K13 on Jens's hardware, K11 once FreeBSD's
 virtio-gpu allows a session, and item 34's Steam, which needs a Steam account.
-K22 waits for Jens's decision.

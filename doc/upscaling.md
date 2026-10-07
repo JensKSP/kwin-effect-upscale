@@ -95,7 +95,8 @@ The effect acts on a window when all of this holds:
 
 - the window is fullscreen, or it is a normal undecorated window covering its
   output to within one device pixel and either a profile describes its
-  application or **All applications** is checked, and
+  application or it is a game's and **All games** is checked (see
+  [what All games reaches](#what-all-games-reaches)), and
 - its buffer is smaller than the output area it covers, and
 - the effect is enabled, the application's rule permits scaling, and the output
   exceeds its configured pixel threshold.
@@ -300,8 +301,8 @@ Many games offer borderless windowed operation instead of exclusive fullscreen,
 and both native Wayland and X11 borderless clients are required. The implemented
 path accepts a normal undecorated window only when its client and frame geometry
 are equal and cover one output, origin included, to within one device pixel,
-and only when a profile describes its application or **All applications** is
-checked. A process the session X11 proxy gave a smaller screen is measured
+and only when a profile describes its application or it is a game's and **All
+games** is checked. A process the session X11 proxy gave a smaller screen is measured
 against that screen at the output's origin, because it fills the screen it was
 told of rather than the output. Panels, wallpapers, ordinary smaller windows
 and spanning windows are excluded. A supplied buffer must still cover the
@@ -1115,7 +1116,7 @@ wording was reviewed with Jens string by string on 2026-09-21.
 
 | Section | Controls |
 | --- | --- |
-| Applications | The list, in matching order, with **All applications** pinned first: the global settings, shown as a profile with no identity, in the same tabs as a game's. Its check box in the list is the one every row has, with the same meaning: whether the entry acts for the windows it claims, which for the global profile are those no other entry matches. It is off by default and never stops the listed games, and its tooltip says so. Its **Resolution Request** tab holds the four global methods: what an application not in the list is asked while **All applications** is checked, and what a game in the list follows for a presentation it states nothing for and the package measured nothing for. There is no separate switch for asking at all: a profile that should be asked nothing says Off in each of its four methods, while the global profile's unset methods mean Auto; **Resolution** holds the render resolution, the resolution scale as a slider with a number field, one line per connected screen with the size a game would render at there, and the resolution limit; **Scaling** the picture size, the scaling filter and sharpening; and **On-Screen Display** the rest, with no two displays sharing a corner. A game's tabs hold its identity, its four measured methods and every preference, each showing in italic the value it follows from **All applications**, applied or not, until the game states its own, with a reset button, **Use the value of “All applications”**, that makes it follow again. They behave as the global ones do: the limit is the same list of resolutions, the same preview shows the size the game would render at from the values it would use, and stating a scale chooses Custom. Nothing on either panel is greyed out by a switch being off: every global value is a default a game takes when it switches on what the global profile leaves off, and the methods for applications not in the list can be set before their check box is. **Add**, **Add from Window…**, **Remove** and two arrows edit the list; **Export…** and **Import…** move it as a file in `kwinupscalerc`'s format, an import being an edit that Apply stores; **Restore Defaults** returns the games to the list the package ships. System Settings' own **Defaults** restores **All applications** and leaves the games alone. |
+| Applications | The list, in matching order, with **All games** pinned first: the global settings, shown as a profile with no identity, in the same tabs as a game's. Its check box in the list is the one every row has, with the same meaning: whether the entry acts for the windows it claims, which for the global profile are those of the games no other entry matches, as [what All games reaches](#what-all-games-reaches) defines a game. It is off by default and never stops the listed games, and its tooltip says so and what counts as a game. Its **Resolution Request** tab holds the four global methods: what a game not in the list is asked while **All games** is checked, and what a game in the list follows for a presentation it states nothing for and the package measured nothing for. There is no separate switch for asking at all: a profile that should be asked nothing says Off in each of its four methods, while the global profile's unset methods mean Auto; **Resolution** holds the render resolution, the resolution scale as a slider with a number field, one line per connected screen with the size a game would render at there, and the resolution limit; **Scaling** the picture size, the scaling filter and sharpening; and **On-Screen Display** the rest, with no two displays sharing a corner. A game's tabs hold its identity, its four measured methods and every preference, each showing in italic the value it follows from **All games**, applied or not, until the game states its own, with a reset button, **Use the value of “All games”**, that makes it follow again. They behave as the global ones do: the limit is the same list of resolutions, the same preview shows the size the game would render at from the values it would use, and stating a scale chooses Custom. Nothing on either panel is greyed out by a switch being off: every global value is a default a game takes when it switches on what the global profile leaves off, and the methods for games not in the list can be set before their check box is. **Add**, **Add from Window…**, **Remove** and two arrows edit the list; **Export…** and **Import…** move it as a file in `kwinupscalerc`'s format, an import being an edit that Apply stores; **Restore Defaults** returns the games to the list the package ships. System Settings' own **Defaults** restores **All games** and leaves the games alone. |
 
 The page does not report what the running effect is doing: Jens decided on
 2026-09-21 that status and a refresh button do not belong in settings. That
@@ -1193,7 +1194,8 @@ Saved changes are sparse relative to shipped fields; untouched fields follow
 package updates. Native asks the game for nothing smaller but does not opt out
 of scaling: a buffer that arrives smaller all the same is still enlarged.
 Disabling an entry removes it from matching, so its game falls through to the
-global profile, which is off by default and then leaves the game alone.
+global profile, **All games**, which is off by default and then leaves the game
+alone.
 
 The list's order is the matching order, and **Move Up** and **Move Down**
 change it: a narrow entry has to come before a broad one it overlaps. Moving an
@@ -1259,6 +1261,75 @@ configuration defaults. The model, code reuse findings,
 catalogue policy and required checks are in the
 [application profiles slice](agents/slice-application-profiles.md).
 
+### What All games reaches
+
+The global profile is shown as **All games**, the first row of the list. Its
+values are the defaults every entry follows wherever the entry states none,
+whether or not it is checked. Checked, it makes the effect act for the games the
+list does not name as well, and for nothing else, as Jens decided on
+2026-10-07: "all" means every game, not every program. A desktop's own program,
+a browser playing a video or any other program that is no game is never told a
+smaller screen, asked for a smaller buffer or scaled because All games is
+checked. An entry is the way to reach such a program, and an entry applies to
+whatever program it names, game or not. Before this, the same switch, then
+called All applications, reached every program: in the Debian 13 package
+machine (KWin 6.3.6, 2026-10-07) plasmashell, Plasma's services and the portals
+were told 2560 × 1440 of a 3840 × 2160 screen when they bound the output at
+login, and the session's panel was laid out over two thirds of the screen's
+width. The stored key keeps its old name, `UnlistedApplications`, so that a
+choice made before still reads.
+
+A program is a game to All games when:
+
+- Wine or Proton runs it. KWin names such a window's process by Wine's loader,
+  `wine`, `wine64`, `wine-preloader` or `wine64-preloader`, and the session
+  proxy names the program Wine runs `wine://<prefix>/<program>`, so
+  everything Wine runs counts, a Windows program that is no game included.
+- It lies in a Steam library: its path contains `/steamapps/common/`.
+- An installed desktop entry in the `Game` category starts it. The entry's
+  `Exec` program is looked up on the search path, then in `/usr/games` and
+  `/usr/local/games`, and resolved to the file it links to, as KWin resolves a
+  process's executable; `env` and the variables it is handed are passed over.
+  A Flatpak entry names its application in `X-Flatpak` and a snap's names its
+  snap in `X-SnapInstanceName`, and those are matched against the application
+  of a `flatpak://` name and the snap of a `/snap/<name>/` path; their `Exec`
+  starts the sandbox's launcher and is not read.
+- Its window names such a desktop entry, as KWin reports a window's desktop file
+  from a Wayland window's application ID or an X11 window's own property. This
+  recognizes a game started through a script or an interpreter, whose process
+  is the interpreter's.
+- The session X11 proxy answered its connection as a game's.
+
+The entries are read from the `applications` directories of `XDG_DATA_HOME`
+and then `XDG_DATA_DIRS`, so that a person's own entry replaces the system's of
+the same name, a hidden one included. They are read when a program first asks,
+and again once one of those directories changed, so a game installed during the
+session is recognized from its next start. A program is judged when it
+connects and when its window is first seen, never per frame.
+
+The limits of this:
+
+- A game that no desktop entry starts and that lies outside a Steam library -
+  one unpacked into a home directory, or started from where it was built - is
+  not recognized, and needs an entry.
+- An `Exec` line that starts its game through a shell or an interpreter, such as
+  `sh -c`, `python3` or `java`, makes the interpreter no game, since it runs
+  other programs as well. Such a game is recognized by its window where the
+  window names the entry, and otherwise needs an entry.
+- A Wayland game recognized only by its window is not told a smaller mode when
+  it binds the output, which is before it has a window; it is asked for a
+  smaller buffer through its window instead, which a game that keeps the
+  screen size it started with ignores.
+- A launcher whose own entry is in the `Game` category, as Steam's and Lutris's
+  are, is a game by that entry. Its windowed window is left alone as every
+  windowed window is, but a fullscreen one, such as Steam's Big Picture, is
+  scaled.
+
+The settings page says what counts in the tooltip of **All games**, and a
+window All games passes over says why in the status: the application is not in
+the list and not recognized as a game. The rules are in
+`src/plugins/upscale/gamerecognition.h`.
+
 ### Portable lists and settings
 
 Required, laid down by Jens on 2026-09-21: the application list and the
@@ -1293,7 +1364,7 @@ The on-screen display (OSD) optionally announces when a game is
 recognized by an application profile. Provide a **Show information at startup** switch
 and a configurable display timeout in seconds, **Show startup information for**. Both
 are global settings with sparse per-application overrides: a game's
-**On-Screen Display** tab states its own value or follows **All applications**.
+**On-Screen Display** tab states its own value or follows **All games**.
 
 Enable detection announcements by default in all build types. Also provide
 **Include details**, initially enabled, to include a short summary in the
@@ -1729,8 +1800,8 @@ measure refresh rate or application complexity.
 
 Selection and policy are independent for each output, including secondary
 outputs. One eligible fullscreen surface, or one full-output borderless surface
-of a profiled application or, while **All applications** is checked, of any
-application, can be scaled on each output simultaneously. Multiple eligible
+of a profiled application or, while **All games** is checked, of any game,
+can be scaled on each output simultaneously. Multiple eligible
 surfaces on the same output remain refused. A threshold bypass on one display
 cannot veto another display's candidate. Threshold bypass leaves normal
 KWin rendering in place if a client retains an independently chosen smaller
@@ -1802,7 +1873,7 @@ observations; none alone establishes reduced internal rendering cost.
 
 | Gap | Open-source example and evidence | Current consequence |
 | --- | --- | --- |
-| X11 renderer ignores resizing or does not request mode emulation | glmark2 2023.01, X11: its event loop does not handle resize events, and it keeps the viewport it started with. SuperTux 0.6.3 on X11 keeps its layout the same way. Resized after they start, both go on drawing their full-size frame into the smaller window; the [resolution-control work package](agents/slice-resolution-control.md#run-in-the-conformance-machine-2026-09-29) records the measurements. | `X11Resize` alone cannot make such a client cooperate, and the effect cannot see a program's viewport: resized after it started, such a program shows part of its picture enlarged. So under **All applications** the proxy tells every unlisted X11 program the smaller screen when it connects, as it tells a measured entry's program (Jens, 2026-09-29), and such a program starts with the smaller viewport and is presented whole. A program that does not connect through the proxy keeps the old limit. |
+| X11 renderer ignores resizing or does not request mode emulation | glmark2 2023.01, X11: its event loop does not handle resize events, and it keeps the viewport it started with. SuperTux 0.6.3 on X11 keeps its layout the same way. Resized after they start, both go on drawing their full-size frame into the smaller window; the [resolution-control work package](agents/slice-resolution-control.md#run-in-the-conformance-machine-2026-09-29) records the measurements. | `X11Resize` alone cannot make such a client cooperate, and the effect cannot see a program's viewport: resized after it started, such a program shows part of its picture enlarged. So under **All games** the proxy tells every unlisted X11 game the smaller screen when it connects, as it tells a measured entry's program (Jens, 2026-09-29), and such a game starts with the smaller viewport and is presented whole. A program that does not connect through the proxy, or that All games does not recognize as a game when it connects, keeps the old limit. |
 | Fullscreen-desktop Wayland client ignores advertised mode | SuperTuxKart 1.4 Vulkan takes its swapchain size from SDL's window and drawable size. The advertised mode alone left it at 4K on the tested scale-1 desktop. | Auto tries the fractional scale, then a smaller fullscreen configure. The configure fallback supplied 2560 × 1440 on the physical 3840 × 2160 output at scale one, with FSR active. Explicit advertisement methods do not use this geometry fallback. |
 | Integer scale cannot express the target | Integer-only scale methods cannot express two thirds on a scale-1 desktop. | This remains a limit of those methods, rather than of every affected application: vkmark 2025.01 now supplies 2560 × 1440 at scale one through Auto's advertised mode and full-output presentation. It still ignores live configure sizes. |
 | Toolkit selects the wrong output | Extreme Tux Racer 0.8.4 with SFML 2.6.2 moved from the secondary display to the primary when recreating its fullscreen window. SFML explicitly selects the primary RandR output. | The shipped profile refuses resolution control on secondary outputs before resizing, and the status says so. Other clients can scale there; secondary displays are not generally excluded. |
@@ -1812,7 +1883,7 @@ observations; none alone establishes reduced internal rendering cost.
 | A smaller window has to be presented over its output | A smaller window alone does not preserve its destination or input mapping. GLFW 3.4 and Wine's Wayland driver size a plain window from the mode they were told, and SuperTuxKart shrinks a window larger than its told screen to that screen. | A normal Wayland window lying on its output whose surface has the told size, fullscreen or not, and a fullscreen window resized by Auto are drawn over the whole output, enlarged and without decoration, with the pointer mapped across it; X11 windows the effect resizes are presented the same way. While such a window is active, panels, windows kept above and ordinary notifications on its output are left out of the picture, as for an active fullscreen window. A window smaller than its told screen is left alone. A confined pointer passes one to one in the window's own coordinates: the game reaches all of its window, but a cursor the system draws stays where KWin keeps it. |
 | A presentation the effect refuses | Rotated or otherwise transformed outputs and windows, child surfaces other than one subsurface that covers the window whole and alone shows its picture (as Wine's Wayland driver draws a game, which is presented from that subsurface, captured over the window's own buffer as KWin composites them, whatever its buffer's alpha: Wine declares no opaque region for it, and Windows takes no alpha from a game's picture), buffers cropped in fractions of a pixel, an X11 window's cropped buffer (Xwayland's own emulation), transformed buffers, a buffer below half its destination or beyond FSR's twofold range, no whole factor that fits, colour descriptions the shaders cannot decode, and unknown buffer formats; [fitting a request](#fitting-a-request-to-what-the-machine-can-actually-do) lists them. | KWin's own scaling, as without the effect. The status names each refusal. |
 | Input beyond the pointer is not mapped | An X11 window's pen, confinement regions and the locked pointer's position hint, as the [X11 presentation](#per-window-x11-resize-and-fullscreen-emulation) says. Relative motion, a locked pointer, touch and a Wayland window's pen are mapped, on a picture with bars beside it or above and below it alike. | An X11 window's pen, a confinement to part of the window and the hint apply in the window's unscaled coordinates, and may land where the unscaled window is rather than where its picture is. A game's popup lies where its surface coordinates put it, unenlarged, and takes the pointer at its own coordinates, over a bar as well. |
-| The desktop's own programs are told the smaller screen under All applications | With **All applications** checked, Auto tells every native Wayland program the smaller mode when it binds the output, and Plasma's own programs bind it too. In the Debian 13 package machine (KWin 6.3.6, 2026-10-07) plasmashell, Plasma's services and the portals were told 2560 × 1440 of a 3840 × 2160 screen at the next login, and the panel of that session was laid out over two thirds of the screen's width; the display also announced Plasma's splash screen as a window it would not scale. | A session started with **All applications** checked lays Plasma's panel out for the smaller screen. Which programs the answer at bind reaches is open. |
+| A game All games does not recognize | All games acts only for a program it [recognizes as a game](#what-all-games-reaches): one Wine runs, one in a Steam library, or one an installed desktop entry in the Game category starts or its window names. A game unpacked into a home directory, started from where it was built, or started through an interpreter without a window naming its entry is none of these. | The effect leaves it alone under All games, and the status says it is not recognized as a game. An entry naming it reaches it, as an entry reaches any program. |
 | Internal render targets remain fixed | SuperTux 0.6.3, SDL/X11 borderless: the traced outer buffer and viewport changed from 4K to 1080p, while an intermediate framebuffer stayed 1368 × 769. | This proves control of the supplied buffer, not proportional GPU savings or control of every internal target. |
 | Coverage is incomplete | Wine and Proton beyond Direct3D 11 and OpenGL (Wreckfest under Proton Experimental was played on hardware), Steam as Flatpak or Snap (the shipped games ran from Flathub and the Snap Store in the package machines on 2026-10-07), the BSDs in a session, mixed output scales, hotplug and output movement on hardware, and physical HDR and VRR have not completed the production acceptance matrix. | These are unverified combinations, not demonstrated failures of every application using them. |
 
@@ -1846,7 +1917,7 @@ on: Wayland and X11, each fullscreen and borderless. Each slot is
 slot that states no method inherits the package's measurement, and without one
 the global profile's method, shown in italics with a reset button like every
 other inherited value. The global profile's slots default to Automatic and
-answer for unlisted applications only while it is switched on.
+answer for unlisted games only while All games is switched on.
 
 A window the person sized themselves is never scaled, on either protocol.
 Obtaining a smaller buffer from one would mean holding its size while the
@@ -1859,7 +1930,7 @@ resolution control succeeded.
 | Method | Intended behaviour |
 | --- | --- |
 | Auto | **Implemented**, with no learned result stored. On X11 it requests a smaller buffer and restores the window when it stops qualifying. On Wayland it advertises a smaller mode at bind. At desktop scale one, a fullscreen client without fractional scaling also receives the smaller size in its first configure, before it initializes a fixed viewport. A window still supplying full-size buffers is then asked for a fractional surface scale. If that request is ignored for 30 rendered frames, Auto restores the original scale and asks a fullscreen window for smaller geometry. The effect presents that smaller window over its output and maps pointer coordinates back to it. Ignored requests are withdrawn rather than retried continuously. Geometry and scale are restored when the request ends. The scale-one fallback reaches Qt and desktop-fullscreen SDL clients whose buffers follow configure sizes; a client that ignores those sizes still needs the startup mode or an application-specific solution. Status distinguishes the request from the committed buffer. Confinement and pen limitations remain as described under presentation. In-session negotiation only: the [four requirements](#four-requirements-that-bound-every-route) leave no launch-time method to fall back to. |
-| Advertised screen mode | **Implemented.** Tell a native Wayland client the effect acts on that its screen has a smaller current mode when it binds the output: a program an enabled entry names by its path alone, or any program once All applications is switched on. It is not confined to measured client/runtime combinations, because a fullscreen slot on Auto advertises the mode as well. This does not control Xwayland games. It needs no launch helper or restart and changes nothing outside that connection. |
+| Advertised screen mode | **Implemented.** Tell a native Wayland client the effect acts on that its screen has a smaller current mode when it binds the output: a program an enabled entry names by its path alone, or any program recognized as a game by its path once All games is switched on. It is not confined to measured client/runtime combinations, because a fullscreen slot on Auto advertises the mode as well. This does not control Xwayland games. It needs no launch helper or restart and changes nothing outside that connection. |
 | Wayland negotiation | Generic surface-scale negotiation remains experimental; the implemented advertised scale and mode-and-scale methods are separate profile choices. |
 | X11 buffer request | **Implemented.** Request a smaller drawable. The window keeps the place and size the system gave it; only the size the client renders at changes. A client that establishes Xwayland's fullscreen emulation is enlarged by Xwayland; one that does not is presented across its frame by the effect itself. Only a profile stating `X11RequiresEmulatedMode` requires the client's own emulated mode. |
 | Session X11 proxy | **Experimental, and on by default** (`X11Proxy=true`). Interpose on the session's X11 connections to give selected clients smaller display information before their first window, retaining stock Xwayland and ordinary game launching. The package installs a Plasma environment hook and a user-context launcher for normal session routing, so from the first login after installation every X11 connection of the session passes through the proxy; a client no profile selects is forwarded with unchanged display information. Compatibility acceptance remains incomplete. |
@@ -1889,10 +1960,10 @@ when the current one started without the proxy.
 The proxy asks the effect for a connection policy before forwarding the client's
 setup bytes. Early selection requires an explicit `X11ConnectionExecutable`
 catalogue pattern; a window-class match alone cannot identify a client before
-its first window. While **All applications** is on, the global profile answers
-for a program no entry names, as an entry answers for its own; a program an
-entry names without a connection pattern is left to that entry, which decides
-once its window exists. The current policy supports one output at the desktop origin
+its first window. While **All games** is on, the global profile answers for a
+game no entry names, as an entry answers for its own, and tells a program that
+is no game nothing; a program an entry names without a connection pattern is
+left to that entry, which decides once its window exists. The current policy supports one output at the desktop origin
 and requires compatible X11 presentation settings. Unidentified clients retain
 stock display information; recognising a later game window is insufficient. A
 Wine or Proton client is identified by the program Wine runs and its prefix, as
@@ -2033,7 +2104,8 @@ the size the output already has is not a request and is not sent.
 
 **Which application.** Only one whose program's path matches an enabled entry
 in the layered shipped/user catalogue that states no window identity, unless
-the user explicitly switches on unlisted applications. That alone is enough,
+the user explicitly switches on All games, and then a program recognized as a
+game by its path as well. That alone is enough,
 because the global profile's slots default to Automatic, which advertises the
 mode at bind. At the moment of the bind no window exists, so there is no
 window class to match: the identity available is the executable path KWin
@@ -2406,7 +2478,7 @@ existing KWin session on applications the user starts normally.
 ### Selecting the game
 
 Resolution changes require a matching enabled profile, shipped or user-created,
-or the global profile once All applications is switched on.
+or, for a game, the global profile once All games is switched on.
 The editor can obtain a window’s identity through KWin’s interactive selection
 and save a profile with its desired resolution. Session-only selection is not
 implemented. Match native Wayland windows by their application
@@ -2776,8 +2848,8 @@ evidence; exclude reconstructed trace state from rendering observations.
 #### Borderless windows and Gamescope's approach
 
 Borderless eligibility is implemented for both X11 and native Wayland. The
-window must match an enabled profile, or any window qualifies in this respect
-once All applications is switched on; it must be a normal undecorated window,
+window must match an enabled profile, or any game's window qualifies in this
+respect once All games is switched on; it must be a normal undecorated window,
 and its content and frame must cover one output from that output's origin, each
 edge within one device pixel. A program the session proxy told of a smaller
 screen is measured against that smaller screen instead. Equal
@@ -3126,10 +3198,11 @@ excluded rather than dropping it, only in the arm named:
 
 The Render and GLX pairs carry this effect, loaded and running, with its X11
 proxy in front of the same Xwayland. In the first it acts on nothing. In the
-second All applications is on and a profile names the suite's programs in
-`X11ConnectionExecutable`, so connection-time display advertisement and
-managed-window scaling are both exercised. The isolated XTS arms leave All
-applications off and use only the explicit connection profile.
+second All games is on and a profile names the suite's programs in
+`Executable` and `X11ConnectionExecutable`, so connection-time display
+advertisement and managed-window scaling are both exercised; the profile is
+what reaches them, none of them being a game. The isolated XTS arms leave All
+games off and use only the explicit connection profile.
 
 Decided by Jens on 2026-09-27: **passing the Wayland and X11 comparisons is what
 qualifies the version for 0.3.** Until each has produced a verdict, the number stays where
