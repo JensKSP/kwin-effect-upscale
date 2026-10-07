@@ -135,7 +135,7 @@ QWidget *UpscaleMethodControls::inheritingRow(std::size_t slot, QWidget *parent)
     m_resets[slot]->setObjectName(name + QLatin1String("Reset"));
     m_resets[slot]->setIcon(QIcon::fromTheme(QStringLiteral("edit-undo")));
     m_resets[slot]->setAutoRaise(true);
-    m_resets[slot]->setToolTip(i18n("Use the measured method, or that of “All applications”"));
+    m_resets[slot]->setToolTip(i18n("Use the measured method, or that of “All games”"));
     m_resets[slot]->setAccessibleName(m_resets[slot]->toolTip());
     m_resets[slot]->setEnabled(false);
     connect(m_resets[slot], &QToolButton::clicked, this, [this, slot]() {

@@ -10,6 +10,8 @@
 
 #include "integration_test.h"
 
+#include "game_entry.h"
+
 #include <QDebug>
 #include <QScopeGuard>
 
@@ -77,7 +79,7 @@ void UpscaleIntegrationTest::asksApplicationsForASmallerImage()
         QVERIFY(unlisted.initialize());
         QCOMPARE(unlisted.advertisedMode(), QSize(128, 128));
     }
-    // With them switched on, the global profile's Auto tells a program the
+    // With All games switched on, the global profile's Auto tells a game the
     // smaller mode when it connects, as an entry's Auto does: Auto means the
     // same wherever it comes from.
     {
@@ -90,9 +92,18 @@ void UpscaleIntegrationTest::asksApplicationsForASmallerImage()
         QVERIFY(unlisted.initialize());
         QCOMPARE(unlisted.advertisedMode(), QSize(85, 85));
     }
+    // A program no installed desktop entry calls a game is told nothing by
+    // All games: a desktop's own program would draw at the smaller size.
+    QVERIFY(upscaleDeclareGame(QCoreApplication::applicationFilePath(), false));
+    {
+        WaylandClient desktopProgram;
+        QVERIFY(desktopProgram.initialize());
+        QCOMPARE(desktopProgram.advertisedMode(), QSize(128, 128));
+    }
 
     // A catalogue entry reaches the same client through its program's path,
-    // which is the only identity that exists before it has a window.
+    // which is the only identity that exists before it has a window, and it
+    // does so whether the program is a game or not: an entry names it.
     writeCatalogue(integrationEntry(QStringLiteral("MethodWaylandFullScreen=AdvertisedMode\nResolution=Performance\nOrder=1\n")));
     {
         // A profile that states a resolution of its own gets it, whatever the
@@ -103,6 +114,7 @@ void UpscaleIntegrationTest::asksApplicationsForASmallerImage()
         QVERIFY(known.initialize());
         QCOMPARE(known.advertisedMode(), QSize(64, 64));
     }
+    QVERIFY(upscaleDeclareGame(QCoreApplication::applicationFilePath()));
 
     // A profile that states none follows the global resolution, which is how
     // a person's own global setting reaches the games this package ships.
@@ -307,7 +319,7 @@ void UpscaleIntegrationTest::anAdvertisementThatDidNotReachFallsBackToTheSurface
         QVERIFY(modeList.presentFrames(40));
         QCOMPARE(modeList.preferredScale(), 120);
     }
-    // A program no entry describes, under All applications, is asked the same
+    // A game no entry describes, under All games, is asked the same
     // way by the global profile, and the report says so as it does for a
     // listed one, rather than asking the player to choose the size in the game.
     // The global threshold as an earlier case left it is the whole screen;

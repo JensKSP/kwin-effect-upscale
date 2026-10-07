@@ -76,6 +76,15 @@ if(KWin_VERSION VERSION_LESS 6.7)
     )
 endif()
 
+add_executable(
+    upscale_gamerecognition_test
+    gamerecognition_test.cpp
+    ../src/plugins/upscale/gamerecognition.cpp
+)
+target_include_directories(upscale_gamerecognition_test PRIVATE ../src/plugins/upscale)
+target_link_libraries(upscale_gamerecognition_test PRIVATE Qt6::Test KF6::ConfigCore)
+add_test(NAME upscale-gamerecognition COMMAND upscale_gamerecognition_test)
+
 # settings.cpp reads the global layer through the generated configuration, so
 # this test needs the kcfg generated for it as the others do.
 kconfig_add_kcfg_files(application_test_sources ../src/plugins/upscale/upscaleconfig.kcfgc)
@@ -122,6 +131,7 @@ set(snapshot_test_sources
     ../src/plugins/upscale/eligibility.cpp
     ../src/plugins/upscale/eligibility_over.cpp
     ../src/plugins/upscale/windowidentity.cpp
+    ../src/plugins/upscale/gamerecognition.cpp
     ../src/plugins/upscale/x11proxypolicy.cpp
     ../src/plugins/upscale/x11modes.cpp
     ../src/plugins/upscale/refusaltext.cpp
@@ -150,6 +160,7 @@ set(headsup_test_sources
     ../src/plugins/upscale/eligibility.cpp
     ../src/plugins/upscale/eligibility_over.cpp
     ../src/plugins/upscale/windowidentity.cpp
+    ../src/plugins/upscale/gamerecognition.cpp
     ../src/plugins/upscale/x11proxypolicy.cpp
     ../src/plugins/upscale/x11modes.cpp
     ../src/plugins/upscale/refusaltext.cpp
@@ -179,6 +190,7 @@ set(placement_test_sources
     ../src/plugins/upscale/eligibility.cpp
     ../src/plugins/upscale/eligibility_over.cpp
     ../src/plugins/upscale/windowidentity.cpp
+    ../src/plugins/upscale/gamerecognition.cpp
     ../src/plugins/upscale/x11proxypolicy.cpp
     ../src/plugins/upscale/x11modes.cpp
     ../src/plugins/upscale/refusaltext.cpp
@@ -218,6 +230,7 @@ set(display_test_sources
     ../src/plugins/upscale/eligibility.cpp
     ../src/plugins/upscale/eligibility_over.cpp
     ../src/plugins/upscale/windowidentity.cpp
+    ../src/plugins/upscale/gamerecognition.cpp
     ../src/plugins/upscale/x11proxypolicy.cpp
     ../src/plugins/upscale/x11modes.cpp
     ../src/plugins/upscale/refusaltext.cpp

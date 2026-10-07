@@ -65,7 +65,7 @@ public:
     static bool customized();
 
     /**
-     * The details shown for "All applications", the list's first row.
+     * The details shown for "All games", the list's first row.
      *
      * The global settings are a profile with no identity, and the page shows
      * them as one: pinned first, never moved or removed, and with the same
@@ -79,12 +79,12 @@ public:
      *
      * What a game's controls follow and its preview is computed from.
      * They are the page's, not the stored ones, so that a change made under
-     * "All applications" shows in every game before it is applied.
+     * "All games" shows in every game before it is applied.
      */
     void setGlobalSettings(const UpscaleSettings &global, const UpscaleMethods &methods);
 
     /**
-     * Whether "All applications" is checked.
+     * Whether "All games" is checked.
      *
      * Its check box is the one every row has, with the meaning it has there:
      * whether this entry acts for the windows it claims. The global profile
@@ -111,7 +111,7 @@ public:
 Q_SIGNALS:
     /** A field changed, so the settings page has something to apply. */
     void changed();
-    /** The user checked or unchecked "All applications". */
+    /** The user checked or unchecked "All games". */
     void allEnabledChanged(bool enabled);
 
 private:
@@ -132,7 +132,7 @@ private:
     void deleteSelected();
     void moveSelected(int step);
     UpscaleApplication *selected();
-    // The row an entry is shown in: the first row is "All applications".
+    // The row an entry is shown in: the first row is "All games".
     static int rowOf(std::size_t index);
 
     std::vector<UpscaleApplication> m_applications;
@@ -142,7 +142,7 @@ private:
     std::vector<QString> m_removed;
 
     QListWidget *m_list;
-    // The game's tabs, and the panel for "All applications", one at a time.
+    // The game's tabs, and the panel for "All games", one at a time.
     QStackedWidget *m_details = nullptr;
     QLineEdit *m_name;
     UpscaleIdentityControls *m_identity;

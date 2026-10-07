@@ -72,6 +72,7 @@ if(KWin_VERSION VERSION_LESS 6.7)
         ../src/plugins/upscale/eligibility.cpp
         ../src/plugins/upscale/eligibility_over.cpp
         ../src/plugins/upscale/windowidentity.cpp
+        ../src/plugins/upscale/gamerecognition.cpp
         ../src/plugins/upscale/x11proxypolicy.cpp
         ../src/plugins/upscale/refusaltext.cpp
         ../src/plugins/upscale/logicalsize.cpp
@@ -207,7 +208,7 @@ if(KWin_VERSION VERSION_LESS 6.7)
             $<TARGET_FILE:upscale_x11_integration_test> --x11 --scale=3 --outputs=1
             coversPointerWithoutEmulatedMode aConfinedPointerReachesTheWholeWindow
             refreshesStartupInputShape coversTheScreenItWasGiven winePrefixEligibility
-            answersUnlistedProgramsUnderAllApplications presentsAProcessShownItsGamesScreen
+            answersUnlistedGamesUnderAllGames presentsAProcessShownItsGamesScreen
             scalesAWindowOfAFractionalLogicalSize presentsAServedGameThatSetsNoMode
     )
     set_tests_properties(upscale-x11-scaled PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)

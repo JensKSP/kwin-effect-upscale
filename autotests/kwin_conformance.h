@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "game_entry.h"
+
 #include "effect/effect.h"
 #include "effect/effecthandler.h"
 #include "main.h"
@@ -42,6 +44,11 @@ inline void configureUpscaleConformance()
     KConfigGroup group(config, QStringLiteral("Effect-upscale"));
     group.deleteGroup();
     group.writeEntry("UnlistedApplications", arm == QLatin1String("active"));
+    // All games acts only for a game, so the active arm declares the upstream
+    // test's own program, whose clients these are, one.
+    if (!upscaleDeclareGame(QCoreApplication::applicationFilePath(), arm == QLatin1String("active"))) {
+        qFatal("Conformance could not declare its program a game");
+    }
     group.writeEntry("Resolution", 4);
     group.writeEntry("MinimumPixels", 0);
     group.writeEntry("Sharpening", false);

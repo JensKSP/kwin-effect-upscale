@@ -62,7 +62,8 @@ static double autoRatio(EffectWindow *window, const UpscaleApplication *claimed,
     // person chose another, which is the case that matters: a game nobody has
     // measured. With no profile the global answer applies too; nothing is
     // tried on an unmeasured program by default all the same, because the
-    // global profile acts only once All applications is switched on.
+    // global profile acts only once All games is switched on, and then only
+    // for a game.
     //
     // A slot that names an advertisement is asked too, when the advertisement
     // did not reach the window. An advertised mode reaches only a client that
@@ -105,7 +106,7 @@ bool UpscaleEffect::autoWaiting() const
             return false;
         }
         const UpscaleApplication *claimed = upscaleApplicationForWindow(window->window());
-        return autoRatio(window, claimed, upscaleResolveSettings(claimed), drawsSmaller(window)) < 1.0;
+        return autoRatio(window, claimed, upscaleSettingsForWindow(window->window()), drawsSmaller(window)) < 1.0;
     });
 }
 
@@ -126,7 +127,7 @@ void UpscaleEffect::askForSmallerBuffer(UpscaleOutput *output, EffectWindow *can
     // go on being asked, or its scale would be given back and it would grow.
     const bool reached = drawsSmaller(window) && !m_waylandScale->known(window->window());
     const bool resize = upscaleMethodFor(asked, upscalePresentationOf(window)) == UpscaleMethod::Auto;
-    m_waylandScale->request(window, autoRatio(window, asked, upscaleResolveSettings(asked), reached), resize);
+    m_waylandScale->request(window, autoRatio(window, asked, upscaleSettingsForWindow(window->window()), reached), resize);
 }
 
 } // namespace KWin

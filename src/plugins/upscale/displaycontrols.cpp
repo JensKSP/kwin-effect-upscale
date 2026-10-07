@@ -68,7 +68,7 @@ void UpscaleEffectConfig::addDisplayControls(QFormLayout *layout)
     layout->addRow(i18n("Developer information position:"), m_osdDeveloperPosition);
     gap();
     // Not one of the displays but which windows all three describe, so it
-    // comes after them. It is global only, like All applications, and a
+    // comes after them. It is global only, like All games, and a
     // game's own tab has no counterpart: a game the effect acts on is
     // described whatever this says.
     m_osdEveryFullScreen->setToolTip(i18n("Normally the displays appear only over applications this effect acts on. "

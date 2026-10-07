@@ -499,7 +499,7 @@ void UpscaleApplicationEditorTest::reordersTheMatchingOrder()
     auto *up = editor->findChild<QPushButton *>(QStringLiteral("applicationMoveUp"));
     auto *down = editor->findChild<QPushButton *>(QStringLiteral("applicationMoveDown"));
     QVERIFY(list && up && down && list->count() > 3);
-    // The first row is "All applications", which nothing moves above.
+    // The first row is "All games", which nothing moves above.
     const QString first = list->item(1)->text();
     const QString second = list->item(2)->text();
     list->setCurrentRow(1);

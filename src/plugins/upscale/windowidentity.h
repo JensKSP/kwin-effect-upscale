@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "settings.h"
+
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -84,6 +86,21 @@ const UpscaleApplication *upscaleApplicationForWindow(const Window *window);
  * about, which is cheap enough for a frame; see upscaleApplicationForWindow().
  */
 QString upscaleKnownExecutable(const Window *window);
+
+/**
+ * Whether @p window is a game's, as upscaleRecognizedGame() recognizes one
+ * from its program, or upscaleGameDesktopFile() from the desktop entry the
+ * window names, or as the X11 session proxy recognized it when its process
+ * connected. Kept per window as its program is, so cheap enough for a frame.
+ */
+bool upscaleGameWindow(const Window *window);
+
+/**
+ * The settings for @p window: those of the entry claiming it, which acts for
+ * whatever it names, or else the global profile's, All games, which acts only
+ * for a game's window; see upscaleGameWindow().
+ */
+UpscaleSettings upscaleSettingsForWindow(const Window *window);
 
 /**
  * Tells the settings page which program a window belongs to.

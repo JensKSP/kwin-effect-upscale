@@ -31,7 +31,7 @@ void UpscaleEffect::prepareFrame(UpscaleOutput *output)
     m_frame.window = findCandidate(&m_frame.refusal, output);
     const Window *internal = m_frame.window ? m_frame.window->window() : nullptr;
     const UpscaleApplication *claimed = upscaleApplicationForWindow(internal);
-    m_frame.settings = upscaleResolveSettings(claimed);
+    m_frame.settings = upscaleSettingsForWindow(internal);
     // Request even when no buffer is eligible yet. Auto must reach a window
     // drawing at full size without relying on the display or a status query.
     askForSmallerBuffer(output, m_frame.window, claimed);
@@ -51,10 +51,10 @@ EffectWindow *UpscaleEffect::explained()
 {
     // A refused window is exactly the case that needs explaining, but only
     // when this effect was meant to act on it: its application's profile is
-    // switched on, or All applications is. Anything else that presents full
-    // screen - a browser playing a video, a slide show - is none of this
-    // effect's business, and a display drawn over it would hold its screen in
-    // composition as well. Following those too is a choice of its own, for
+    // switched on, or it is a game's and All games is. Anything else that
+    // presents full screen - a browser playing a video, a slide show, a
+    // desktop's splash screen - is none of this effect's business, and a
+    // display drawn over it would hold its screen in composition as well. Following those too is a choice of its own, for
     // finding out why a game went unrecognized. Ordinary desktop windows are
     // left alone either way, and asking about the window's shape comes first
     // because it is the cheap question and this one is asked every frame.
@@ -65,7 +65,7 @@ EffectWindow *UpscaleEffect::explained()
     if (UpscaleConfig::osdEveryFullScreen()) {
         return active;
     }
-    const bool acts = upscaleResolveSettings(upscaleApplicationForWindow(active->window())).acts();
+    const bool acts = upscaleSettingsForWindow(active->window()).acts();
     return acts && upscalePresentation(active) ? active : nullptr;
 }
 
@@ -88,7 +88,7 @@ void UpscaleEffect::paintDisplay(const RenderTarget &target, const RenderViewpor
     if (window->screen() != screen) {
         return;
     }
-    const UpscaleSettings settings = upscaleResolveSettings(upscaleApplicationForWindow(window->window()));
+    const UpscaleSettings settings = upscaleSettingsForWindow(window->window());
     UpscaleRefusal refusal = UpscaleRefusal::None;
     const bool selected = candidate(&refusal, screen) == window;
     m_diagnostics.observe(window, settings, selected, selected ? m_passRefusals.value(window, UpscaleRefusal::None) : refusal);

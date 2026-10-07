@@ -363,7 +363,7 @@ static UpscaleMethods readGlobalMethods()
         const auto presentation = UpscalePresentation(slot);
         // Auto where nothing states one, as in a profile. What keeps an
         // unmeasured program untouched is not this answer but the global
-        // profile's own switch, All applications, which is off by default:
+        // profile's own switch, All games, which is off by default:
         // until someone switches it on, nothing asks such a program anything.
         methods[slot] = upscaleMethodFromKey(group.readEntry(upscalePresentationKey(presentation), QString()),
                                              UpscaleMethod::Auto);

@@ -28,7 +28,10 @@ static QString describeEffectRefusal(UpscaleRefusal refusal)
         // The one line that tells being left alone apart from being broken. It
         // names both halves of the rule, so that the person reading it knows
         // there are two ways to change the answer.
-        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the application is not in the list, and “All applications” is switched off.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the application is not in the list, and “All games” is switched off.");
+    case UpscaleRefusal::NotGame:
+        // All games is on, so the only way left is an entry of its own.
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the application is not in the list and not recognized as a game, and “All games” acts only for games.");
     case UpscaleRefusal::BelowMinimumPixels:
         return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the screen is at or below the resolution limit.");
     case UpscaleRefusal::ResourceFailure:
@@ -101,6 +104,7 @@ QString describeRefusal(UpscaleRefusal refusal)
         return QString();
     case UpscaleRefusal::Disabled:
     case UpscaleRefusal::Unlisted:
+    case UpscaleRefusal::NotGame:
     case UpscaleRefusal::BelowMinimumPixels:
     case UpscaleRefusal::ResourceFailure:
     case UpscaleRefusal::ScreenLocked:

@@ -51,6 +51,7 @@ def main() -> None:
         shutil.copytree(args.source, args.out)
     integration = args.out / "autotests/integration"
     copy_changed(project / "autotests/kwin_conformance.h", integration / "kwin_conformance.h")
+    copy_changed(project / "autotests/game_entry.h", integration / "game_entry.h")
     for name in PRODUCTION_SOURCES:
         copy_changed(project / "autotests" / name, integration / name)
     adapt_fixtures(integration)

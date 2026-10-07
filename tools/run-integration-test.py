@@ -124,6 +124,9 @@ def main() -> int:
             XDG_RUNTIME_DIR=str(runtime),
             XDG_CONFIG_HOME=str(config),
             XDG_CACHE_HOME=str(runtime / "cache"),
+            # Where a test declares its own program a game, for All games,
+            # through a desktop entry; see autotests/game_entry.h.
+            XDG_DATA_HOME=str(runtime / "data"),
             KWIN_COMPOSE="Q",
             LIBGL_ALWAYS_SOFTWARE="1",
             LC_ALL="C.UTF-8",

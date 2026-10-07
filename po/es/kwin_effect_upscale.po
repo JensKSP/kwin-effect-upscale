@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: kwin-effect-upscale\n"
 "Report-Msgid-Bugs-To: https://github.com/JensKSP/kwin-effect-upscale/issues\n"
-"POT-Creation-Date: 2026-10-06 20:00+0000\n"
+"POT-Creation-Date: 2026-10-07 06:52+0000\n"
 "PO-Revision-Date: 2026-09-30 00:00+0200\n"
 "Last-Translator: \n"
 "Language-Team: Spanish\n"
@@ -113,16 +113,22 @@ msgid "Move Down"
 msgstr "Bajar"
 
 #, kde-format
-msgid "All applications"
-msgstr "Todas las aplicaciones"
+msgid "All games"
+msgstr "Todos los juegos"
 
 #, kde-format
 msgid ""
-"Every application follows these settings unless its own entry sets them. "
-"When checked, applications that are not in the list are upscaled as well."
+"Every entry follows these settings where it sets none of its own. When "
+"checked, games that are not in the list are upscaled as well: programs run "
+"by Wine or Proton, programs in a Steam library, and programs whose menu "
+"entry is in the Games category. Any other program is upscaled only through "
+"an entry of its own."
 msgstr ""
-"Cada aplicación sigue estos ajustes salvo que su propia entrada los defina. "
-"Si se marca, también se reescalan las aplicaciones que no están en la lista."
+"Cada entrada sigue estos ajustes donde no define los suyos. Si se marca, "
+"también se reescalan los juegos que no están en la lista: los programas que "
+"ejecuta Wine o Proton, los programas de una biblioteca de Steam y los "
+"programas cuya entrada de menú está en la categoría Juegos. Cualquier otro "
+"programa solo se reescala mediante una entrada propia."
 
 #, kde-format
 msgid "New application"
@@ -393,8 +399,8 @@ msgid "Smaller X11 buffer"
 msgstr "Búfer X11 más pequeño"
 
 #, kde-format
-msgid "Use the measured method, or that of “All applications”"
-msgstr "Usar el método medido o, si no, el de «Todas las aplicaciones»"
+msgid "Use the measured method, or that of “All games”"
+msgstr "Usar el método medido o, si no, el de «Todos los juegos»"
 
 #, kde-format
 msgid "Debug"
@@ -470,11 +476,19 @@ msgstr "el reescalado se desactivó."
 #, kde-format
 msgctxt ""
 "A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
-msgid ""
-"the application is not in the list, and “All applications” is switched off."
+msgid "the application is not in the list, and “All games” is switched off."
 msgstr ""
-"la aplicación no está en la lista y «Todas las aplicaciones» está "
-"desactivado."
+"la aplicación no está en la lista y «Todos los juegos» está desactivado."
+
+#, kde-format
+msgctxt ""
+"A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
+msgid ""
+"the application is not in the list and not recognized as a game, and “All "
+"games” acts only for games."
+msgstr ""
+"la aplicación no está en la lista ni se reconoce como juego, y «Todos los "
+"juegos» solo actúa sobre juegos."
 
 #, kde-format
 msgctxt ""
@@ -824,8 +838,8 @@ msgid "Off"
 msgstr "Desactivado"
 
 #, kde-format
-msgid "Use the value of “All applications”"
-msgstr "Usar el valor de «Todas las aplicaciones»"
+msgid "Use the value of “All games”"
+msgstr "Usar el valor de «Todos los juegos»"
 
 #, kde-format
 msgid "Render resolution:"
@@ -1151,8 +1165,8 @@ msgid ""
 "%1 requested from %2 as its X11 window size, the listed mode nearest to %3 × "
 "%4"
 msgstr ""
-"%1 solicitado a %2 como tamaño de ventana X11, el modo listado más cercano "
-"a %3 × %4"
+"%1 solicitado a %2 como tamaño de ventana X11, el modo listado más cercano a "
+"%3 × %4"
 
 #, kde-format
 msgid "%1 requested from %2 as its X11 window size"

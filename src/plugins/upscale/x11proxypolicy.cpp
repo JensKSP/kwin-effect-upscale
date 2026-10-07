@@ -5,6 +5,7 @@
 #include "application.h"
 #include "compatibility.h"
 #include "effect/effecthandler.h"
+#include "gamerecognition.h"
 #include "matching.h"
 #include "runtime.h"
 #include "settings.h"
@@ -143,8 +144,9 @@ bool UpscaleIdentityService::x11PrefixMayMatch(const QString &prefix, const QStr
     if (!UpscaleConfig::x11Proxy() || !m_handler || prefix.isEmpty()) {
         return false;
     }
-    // Under All applications any prefix may run a program the global profile
-    // answers for, so its components wait for that program as for an entry's.
+    // Under All games any prefix may run a program the global profile
+    // answers for, everything Wine runs being a game to it, so its components
+    // wait for that program as for an entry's.
     QVariantMap global;
     if (connectionSize(nullptr, m_handler, global).isValid()) {
         return true;
@@ -210,18 +212,23 @@ QVariantMap UpscaleIdentityService::x11ConnectionPolicy(uint pid, const QStringL
         ? QStringList{executablePathFromPid(static_cast<pid_t>(pid))}
         : candidates;
     const UpscaleApplication *selected = connectionApplication(identities, answer);
-    // Under All applications an unlisted program is told the smaller screen
-    // when it connects, as a measured entry's program is, and not only asked
-    // to resize its window later: a program that keeps the viewport it
-    // started with, as glmark2 2023.01 and SuperTux 0.6.3 do, would otherwise
-    // show part of its picture enlarged, as Jens decided on 2026-09-29. A
-    // disabled entry keeps its refusal.
+    // Under All games an unlisted game is told the smaller screen when it
+    // connects, as a measured entry's program is, and not only asked to
+    // resize its window later: a program that keeps the viewport it started
+    // with, as glmark2 2023.01 and SuperTux 0.6.3 do, would otherwise show
+    // part of its picture enlarged, as Jens decided on 2026-09-29. An unlisted
+    // program that is no game is told nothing, as Jens decided on 2026-10-07:
+    // it would draw at the smaller size. A disabled entry keeps its refusal.
     const bool global = !selected && answer.value(QStringLiteral("reason")) != QLatin1String("profile disabled") && unlisted(identities);
     if (!selected && !global) {
         return answer;
     }
     if (global && !upscaleResolveSettings(nullptr).acts()) {
-        answer[QStringLiteral("reason")] = QStringLiteral("not in the list, and All applications is off");
+        answer[QStringLiteral("reason")] = QStringLiteral("not in the list, and All games is off");
+        return answer;
+    }
+    if (global && std::ranges::none_of(identities, upscaleRecognizedGame)) {
+        answer[QStringLiteral("reason")] = QStringLiteral("not in the list, and not recognized as a game");
         return answer;
     }
     answer[QStringLiteral("profile")] = selected ? selected->id : QStringLiteral("global");

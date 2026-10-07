@@ -101,7 +101,7 @@ UpscaleSnapshot UpscaleEffect::snapshot(EffectWindow *window, const RenderTarget
     // What applies to this window, profile over global, rather than the global
     // layer alone. A report naming the global value would describe a window
     // other than the one being looked at, which is the whole point of a report.
-    const UpscaleSettings settings = upscaleResolveSettings(upscaleApplicationForWindow(window->window()));
+    const UpscaleSettings settings = upscaleSettingsForWindow(window->window());
     state.enabled = settings.acts();
     state.preset = settings.resolution();
     state.percentage = settings.value(UpscaleSetting::Percentage);
@@ -144,10 +144,10 @@ void UpscaleEffect::describeApplication(UpscaleSnapshot &state, const Window *wi
     state.presentedAs = presentation;
     // Read identity fields separately; EffectWindow::windowClass combines them.
     const UpscaleApplication *known = upscaleApplicationForWindow(window);
-    // A window no entry claims follows the global profile, which acts on it
-    // once All applications is checked, and what that asked of it is reported
+    // A window no entry claims follows the global profile, which acts on a
+    // game's once All games is checked, and what that asked of it is reported
     // as for a listed program. Otherwise nothing was asked of it.
-    if (!known && !upscaleResolveSettings(nullptr).acts()) {
+    if (!known && !upscaleSettingsForWindow(window).acts()) {
         return;
     }
     if (known) {

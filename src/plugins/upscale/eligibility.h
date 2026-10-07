@@ -71,6 +71,7 @@ enum class UpscaleRefusal {
 
     Disabled,
     Unlisted,
+    NotGame,
     BelowMinimumPixels,
     ResourceFailure,
     ScreenLocked,

@@ -65,6 +65,24 @@ class PresentationCheckTest(unittest.TestCase):
         _, cases = self.run_main("--presentation", "fullscreen", "--no-acted")
         self.assertFalse(getattr(cases[0], "acted", True))
 
+    def test_the_case_declares_its_game_a_game(self) -> None:
+        """All games acts only for a game, so the case's program is declared one."""
+        with tempfile.TemporaryDirectory() as root:
+            program = Path(root) / "bin" / "game"
+            program.parent.mkdir()
+            program.write_text("")
+            self.assertEqual(HARNESS["declare_game"](Path(root), str(program)), "")
+            entry = (Path(root) / "data" / "applications" / "upscale-case.desktop").read_text()
+        self.assertIn("\nCategories=Game;\n", entry)
+        self.assertIn(f'\nExec="{program.resolve()}"\n', entry)
+
+    def test_a_path_the_entry_cannot_name_is_refused(self) -> None:
+        """An Exec line that names another program would declare the wrong game."""
+        with tempfile.TemporaryDirectory() as root:
+            problem = HARNESS["declare_game"](Path(root), str(Path(root) / 'a"game'))
+            self.assertIn("double quote", problem)
+            self.assertFalse((Path(root) / "data").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

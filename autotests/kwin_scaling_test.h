@@ -42,6 +42,7 @@ class UpscaleProductionTest : public QObject
     Q_OBJECT
 private Q_SLOTS:
     void initTestCase();
+    void cleanupTestCase();
     void init();
     void cleanup();
     void reducesAndScales_data();

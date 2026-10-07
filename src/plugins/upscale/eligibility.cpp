@@ -211,10 +211,11 @@ bool upscalePresentation(EffectWindow *window)
     // Something has to have asked for this path, because an undecorated
     // window covering an output is also what a desktop's own surfaces can
     // look like. A profile describing the application asks for it; so does a
-    // person who switched on unlisted applications, which by decision reaches
-    // borderless windows as well as fullscreen ones. With the global profile
-    // off, which is the default, an unlisted borderless window stays out.
-    return upscaleApplicationForWindow(internal) || upscaleGlobalSettings().acts();
+    // person who switched on All games, for a game's window, which by decision
+    // reaches borderless windows as well as fullscreen ones. With the global
+    // profile off, which is the default, an unlisted borderless window stays
+    // out.
+    return upscaleApplicationForWindow(internal) || upscaleSettingsForWindow(internal).acts();
 }
 
 // What the settings say about this window: whether anything acts on it at
@@ -226,13 +227,16 @@ static UpscaleRefusal settingsRefusal(EffectWindow *window)
 {
     const Window *internal = window->window();
     const UpscaleApplication *application = upscaleApplicationForWindow(internal);
-    const UpscaleSettings settings = upscaleResolveSettings(application);
+    const UpscaleSettings settings = upscaleSettingsForWindow(internal);
     if (!settings.acts()) {
         // A profile that is switched off takes no part in matching, so a
         // window that reaches here unclaimed is simply one no profile
-        // describes. Only a previous release's own off switch refuses a
-        // claimed one.
-        return application ? UpscaleRefusal::Disabled : UpscaleRefusal::Unlisted;
+        // describes, and All games is off or the window is not a game's.
+        // Only a previous release's own off switch refuses a claimed one.
+        if (application) {
+            return UpscaleRefusal::Disabled;
+        }
+        return upscaleGlobalSettings().acts() ? UpscaleRefusal::NotGame : UpscaleRefusal::Unlisted;
     }
     // Native is not a refusal. It asks the game for nothing smaller; a buffer
     // that arrives smaller all the same - a game that kept a resolution of its
@@ -348,7 +352,7 @@ UpscalePicture upscalePictureOf(EffectWindow *window)
     }
     const QSize input = upscaleSuppliedSize(surface);
     const QSize destination = window->screen()->pixelSize();
-    const UpscaleSettings settings = upscaleResolveSettings(upscaleApplicationForWindow(window->window()));
+    const UpscaleSettings settings = upscaleSettingsForWindow(window->window());
     return upscalePicture({input.width(), input.height()}, {destination.width(), destination.height()}, settings.geometry(),
                           settings.filter());
 }
