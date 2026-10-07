@@ -35,6 +35,7 @@ set(upscale_SOURCES
     x11geometry.cpp
     x11modes.cpp
     pictureinput.cpp
+    tabletinput.cpp
     touchinput.cpp
     x11input.cpp
     x11resolution.cpp

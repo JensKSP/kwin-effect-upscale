@@ -259,7 +259,7 @@ bool UpscalePictureInput::pointerAxis(PointerAxisEvent *event)
     });
 }
 
-bool UpscalePictureInput::touchDownAt(qint32 id, const QPointF &position, std::chrono::microseconds time)
+std::pair<Window *, QRectF> UpscalePictureInput::pictureAt(const QPointF &position) const
 {
     // The window drawn over the output there, unless KWin finds something its
     // picture does not cover, or the window KWin finds, if the effect scales it.
@@ -271,6 +271,15 @@ bool UpscalePictureInput::touchDownAt(qint32 id, const QPointF &position, std::c
     Window *target = drawn ? drawn->window() : found;
     const QRectF picture = drawn ? pictureOf(drawn) : letterboxedPicture(m_scaled ? m_scaled(found) : nullptr, found);
     if (!target || !target->surface() || picture.isEmpty()) {
+        return {nullptr, QRectF()};
+    }
+    return {target, picture};
+}
+
+bool UpscalePictureInput::touchDownAt(qint32 id, const QPointF &position, std::chrono::microseconds time)
+{
+    const auto [target, picture] = pictureAt(position);
+    if (!target) {
         return false;
     }
     // A touch taken here passes over KWin's own activation, so it is done here.
@@ -326,5 +335,57 @@ bool UpscalePictureInput::touchCancel()
     m_touch.cancel();
     return false;
 }
+
+bool UpscalePictureInput::pen(const UpscalePen &pen)
+{
+    const auto [target, picture] = pictureAt(pen.position);
+    if (!target) {
+        return false;
+    }
+    // A bar shows nothing of the game, and a pen there reaches nothing of it,
+    // but one leaving is let go of wherever it is.
+    if (!picture.contains(pen.position) && pen.action != UpscalePenAction::LeaveProximity) {
+        return true;
+    }
+    if (pen.action == UpscalePenAction::Press && effects && effects->activeWindow() != target->effectWindow()) {
+        effects->activateWindow(target->effectWindow());
+    }
+    const QRectF client = target->clientGeometry();
+    const QPointF local((pen.position.x() - picture.x()) * client.width() / picture.width(),
+                        (pen.position.y() - picture.y()) * client.height() / picture.height());
+    return upscaleDeliverPen(pen, target->surface(), local);
+}
+
+#if UPSCALE_TABLET_EVENTS
+bool UpscalePictureInput::tabletToolProximityEvent(TabletToolProximityEvent *event)
+{
+    return pen(upscalePen(*event));
+}
+
+bool UpscalePictureInput::tabletToolAxisEvent(TabletToolAxisEvent *event)
+{
+    return pen(upscalePen(*event));
+}
+
+bool UpscalePictureInput::tabletToolTipEvent(TabletToolTipEvent *event)
+{
+    return pen(upscalePen(*event));
+}
+#else
+bool UpscalePictureInput::tabletToolProximityEvent(TabletEvent *event)
+{
+    return pen(upscalePen(*event));
+}
+
+bool UpscalePictureInput::tabletToolAxisEvent(TabletEvent *event)
+{
+    return pen(upscalePen(*event));
+}
+
+bool UpscalePictureInput::tabletToolTipEvent(TabletEvent *event)
+{
+    return pen(upscalePen(*event));
+}
+#endif
 
 } // namespace KWin
