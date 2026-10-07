@@ -40,7 +40,11 @@ public:
     ~UpscaleScaler();
 
     bool initialize();
-    bool render(const RenderTarget &target, const RenderViewport &viewport, SurfaceItem *surface,
+    // The picture at @p picture's own size, captured from @p surface, the
+    // window's own, with what lies on it: the two are one unless the picture
+    // is a subsurface covering the window, which is then captured over the
+    // window's buffer as KWin composites them.
+    bool render(const RenderTarget &target, const RenderViewport &viewport, SurfaceItem *picture, SurfaceItem *surface,
                 const UpscaleDrawing &drawing, const UpscaleRegion &region);
     // Input uses the destination colour description. Kept separate from
     // capture so colour and sampling can be tested

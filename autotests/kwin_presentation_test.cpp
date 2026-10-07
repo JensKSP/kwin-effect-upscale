@@ -20,6 +20,8 @@
 #include <KWayland/Client/subsurface.h>
 #include <KWayland/Client/surface.h>
 
+#include <QColor>
+
 // A decorated window under a game drawn over its output, whose decoration the
 // picture hides. KWin finds that decoration under the pointer before any
 // filter runs, and while a decoration has the pointer KWin shows that
@@ -76,15 +78,20 @@ void UpscaleProductionTest::aHiddenDecorationKeepsTheGamesCursor()
 void UpscaleProductionTest::presentsThePictureOfItsOnlySubsurface_data()
 {
     QTest::addColumn<bool>("alpha");
-    QTest::newRow("opaque") << false;
+    QTest::addColumn<QColor>("below");
+    QTest::newRow("opaque") << false << QColor(Qt::black);
     // As Wine 10.0's driver draws an OpenGL game: a buffer with an alpha
     // channel and no opaque region, over a window buffer left transparent.
-    QTest::newRow("alpha") << true;
+    QTest::newRow("alpha") << true << QColor(Qt::transparent);
+    // A picture clear on its left half lets the window's own buffer through
+    // there, as KWin composites the two.
+    QTest::newRow("translucent") << true << QColor(Qt::green);
 }
 
 void UpscaleProductionTest::presentsThePictureOfItsOnlySubsurface()
 {
     QFETCH(bool, alpha);
+    QFETCH(QColor, below);
     QTRY_VERIFY(Test::waylandSync() && Test::waylandOutputs().first()->pixelSize() == QSize(256, 144));
     std::unique_ptr<KWayland::Client::Surface> surface = Test::createSurface();
     std::unique_ptr<KWayland::Client::Surface> content = Test::createSurface();
@@ -93,12 +100,20 @@ void UpscaleProductionTest::presentsThePictureOfItsOnlySubsurface()
     Viewport viewport(m_viewporter.get_viewport(*content));
     viewport.set_source(wl_fixed_from_int(0), wl_fixed_from_int(0), wl_fixed_from_int(256), wl_fixed_from_int(144));
     viewport.set_destination(256, 144);
-    const QImage::Format format = alpha ? QImage::Format_ARGB32_Premultiplied : QImage::Format_RGB32;
-    Test::render(content.get(), pattern(QSize(256, 160)).convertToFormat(format));
+    QImage picture = pattern(QSize(256, 160)).convertToFormat(alpha ? QImage::Format_ARGB32_Premultiplied : QImage::Format_RGB32);
+    const bool through = alpha && below.alpha() == 255;
+    if (through) {
+        for (int y = 0; y < picture.height(); ++y) {
+            for (int x = 0; x < picture.width() / 2; ++x) {
+                picture.setPixel(x, y, 0);
+            }
+        }
+    }
+    Test::render(content.get(), picture);
     std::unique_ptr<Test::XdgToplevel> shell = Test::createXdgToplevelSurface(surface.get());
-    QImage below(QSize(256, 144), format);
-    below.fill(alpha ? Qt::transparent : Qt::black);
-    Window *window = Test::renderAndWaitForShown(surface.get(), below);
+    QImage own(QSize(256, 144), below.alpha() == 255 ? QImage::Format_RGB32 : QImage::Format_ARGB32_Premultiplied);
+    own.fill(below);
+    Window *window = Test::renderAndWaitForShown(surface.get(), own);
     QVERIFY(window);
     QTRY_VERIFY2(status().contains(QStringLiteral("scaling=1")), qPrintable(status()));
     QVERIFY2(status().contains(QStringLiteral("supplied=256x144")), qPrintable(status()));
@@ -110,4 +125,9 @@ void UpscaleProductionTest::presentsThePictureOfItsOnlySubsurface()
     QVERIFY(!output.isNull());
     const QPoint blue(output.width() * 3 / 4, output.height() / 4);
     QVERIFY2(qBlue(output.pixel(blue)) > 100, qPrintable(QString::number(output.pixel(blue), 16)));
+    if (through) {
+        const QPoint green(output.width() / 8, output.height() / 2);
+        QVERIFY2(qGreen(output.pixel(green)) > 200 && qBlue(output.pixel(green)) < 50,
+                 qPrintable(QString::number(output.pixel(green), 16)));
+    }
 }
