@@ -1086,7 +1086,10 @@ with K3 of the [known limitations](slice-known-limitations.md#progress): a
 window whose only subsurface covers it and shows its picture is presented from
 that subsurface, with the viewport's source as the picture's size, and its
 pointer is mapped as for any window drawn over its output; tested with a client
-built like Wine's driver, not yet with Wine itself.
+built like Wine's driver, and on 2026-10-07 with Wine 10.0 itself in the Debian
+13 package machine, which needed a fullscreen window of the told pixels and a
+picture whatever its alpha to be taken as well
+([known limitations](slice-known-limitations.md#progress)).
 
 The Auto bench of 2026-09-29 (item 19, in the
 [resolution-control slice](slice-resolution-control.md#the-bench-run-2026-09-29))
@@ -1235,9 +1238,11 @@ Moved here from the open list on 2026-10-03, by its item numbers. The
 - Steam as Flatpak and Snap, run (item 34, K9), once
   [the analysis of 2026-09-27](#steam-as-flatpak-and-snap-2026-09-27), which
   still reasons with the companion, is restated for the proxy route.
-- Wine's Wayland driver run with Wine itself (item 35, K3 and K20): the
-  presentation from its subsurface's image and its viewport's source, with
-  the pointer mapped, is implemented and tested with a client built like it
-  (2026-10-06); a run of Wine 10's Wayland driver needs a machine with Wine,
-  and a confinement meets K15's gap; see
+- Wine's Wayland driver beyond OpenGL (item 35, K3 and K20): Wine 10.0 itself
+  ran an OpenGL program on it in the Debian 13 package machine on 2026-10-07,
+  enlarged from its subsurface's 2560 × 1440 once the effect took a fullscreen
+  window of the told pixels and a picture whatever its alpha (the
+  [known limitations](slice-known-limitations.md#progress) record both);
+  Direct3D and Vulkan on that driver go with item 36, and a confinement meets
+  K15's gap; see
   [Wine's Wayland driver](#wines-wayland-driver-reproduced-2026-09-29).

@@ -153,6 +153,34 @@ Both hook stages and the Python regression suite passed in the maintained
 Trixie container (`build/wayland-auto-check/review-lint2.log`). No new
 cloud-image boot was needed for this diagnostic-only correction.
 
+Two more checks, 2026-10-07, for limitations the nine steps do not reach
+([known limitations](slice-known-limitations.md#progress), K3 and K9).
+`sandboxed PACKAGE` (`tools/package_sandboxed.py`) runs SuperTuxKart and
+Extreme Tux Racer as the system packages them, from Flathub and from the Snap
+Store, each on Wayland and through X11, and records whether the shipped entry
+claims the game, the size it supplies, the name the effect gives its program,
+the proxy's answer with the names it offered, and the effect's status. `wine
+PACKAGE` (`tools/package_wine.py`) builds `tools/wine-opengl-probe.c` with
+MinGW, runs it under the system's Wine on Wine's Wayland driver with All
+applications checked, and checks that it is enlarged and that KWin's picture
+of the screen splits its red half from its blue one at the middle; it pictures
+the desktop before the game as well. Found on the way, each by running it:
+
+- A session locked its screen after five idle minutes, half an hour into a
+  run, and the effect rightly refused everything; the relogin now turns the
+  tester's automatic locking off.
+- KWin answers long before Plasma's splash screen has gone, and a game started
+  then lies under it; the relogin waits for the splash.
+- `flatpak kill` run as root does not see the tester's instances, and ending
+  the command that started a game ends neither the sandbox nor the game; a
+  game left running made the next case read the first one's window. Games are
+  ended by name between cases, and a reading counts only from the case's own
+  route.
+- Wine leaves its server and desktop running with the pipes they were started
+  with, so reading a Wine command's output never ended, and Wine's own shutdown
+  left its services running; Wine runs without pipes, and the prefix's server
+  is ended.
+
 ## Remaining work
 
 - FreeBSD cannot run Plasma's Wayland session in a machine: KWin needs a
@@ -169,5 +197,8 @@ cloud-image boot was needed for this diagnostic-only correction.
 - Whether GitHub's arm64 runners offer KVM, which would let the arm64
   machines run there rather than under full emulation (item 2f of the open
   list); unchecked.
-- Container identity (Flatpak, Snap) and the BSDs for the X11 proxy
-  ([resolution control](slice-resolution-control.md#what-the-proxy-costs-and-what-goes-through-it-2026-09-29)).
+- Container identity for the X11 proxy on the BSDs
+  ([resolution control](slice-resolution-control.md#what-the-proxy-costs-and-what-goes-through-it-2026-09-29));
+  Flatpak and Snap on Linux ran on 2026-10-07 with the `sandboxed` check, and
+  what is left of them is K9 in the
+  [known limitations](slice-known-limitations.md).
