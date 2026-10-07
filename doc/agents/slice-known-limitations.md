@@ -115,7 +115,7 @@ marked **F** belong here.
 | K6 | A requested X11 mode the program does not list | Removed 2026-10-06: the nearest listed mode is asked instead; see Progress | The game gets the listed mode nearest to the wish, enlarged | S | Done |
 | K7 | Internal render targets that keep their size | SuperTux 0.6.3: the outer buffer and viewport went from 4K to 1080p, an intermediate framebuffer stayed 1368 × 769 | Nothing visible; the saving in GPU time is smaller than the buffer suggests | F | A measurement question for the cost matrix (item 74), not a defect; stated |
 | K8 | A game that keeps the smaller size in its own settings | SuperTuxKart 1.4 writes the told mode into its configuration (item 17) | Under Native the effect enlarges the kept smaller buffer; under other presets the display marks the kept size in the warning colour | S, stated | Stated in the handbook's known limits since 2026-10-04; nothing to change in the effect |
-| K9 | Programs in Flatpak and Snap | Observed 2026-10-07 in the Debian 13 (KWin 6.3.6) and Kubuntu 26.04 (KWin 6.6.6) package machines, see Progress: the games from Flathub and the Snap Store enlarged on Wayland and through X11, except a Flatpak's X11 window on KWin 6.3, whose PID names a process inside the sandbox | On KWin 6.3 a Flatpak game through X11 stays at full size (SuperTuxKart) or is refused (Extreme Tux Racer); the status says why | F | The proxy tells the effect each connection's range of X resource IDs, so that an X11 window is traced to its process by its ID; Steam as Flatpak or Snap is item 34, in the [Proton slice](slice-proton-smaller-screen.md#remaining-work) |
+| K9 | Programs in Flatpak and Snap | Removed 2026-10-07 for the shipped games: SuperTuxKart and Extreme Tux Racer from Flathub and the Snap Store enlarged on Wayland and through X11 in the Debian 13 (KWin 6.3.6) and Kubuntu 26.04 (KWin 6.6.6) package machines, see Progress | Enlarged as natively packaged games are; the Snap Store's Extreme Tux Racer stops at its own launcher's dialog before the game | F | Steam as Flatpak or Snap is item 34, in the [Proton slice](slice-proton-smaller-screen.md#remaining-work) |
 | K10 | Wine and Proton across the graphics paths | Only Direct3D 11 on Wine's own renderer and OpenGL were run; official Proton and Direct3D 9, 12 and Vulkan, exclusive and borderless, are item 36 | Unknown where not run | F | Item 36, in the [Proton slice](slice-proton-smaller-screen.md#remaining-work) |
 | K11 | FreeBSD and the BSDs | FreeBSD's nightly installs, loads and removes the effect in an emptied machine; no session check, and the proxy is not run there (items 2f, 23) | Unknown | F | The session check once the virtio-gpu driver allows one |
 | K22 | The desktop's own programs told the smaller screen under All applications | Found 2026-10-07 in the Debian 13 package machine, see Progress: plasmashell, Plasma's services and the portals were told the smaller mode at bind, and the panel was laid out over two thirds of the width | A short panel in a session started with All applications checked; the handbook's known limits say so | S | Decide with Jens which programs the answer at bind under All applications reaches |
@@ -394,6 +394,26 @@ and the resource-ID base and mask in it name the window IDs of that process.
 The Snap Store's Extreme Tux Racer, an unproven publisher's build on core20,
 stopped on both systems at a dialog of its own launcher before the game.
 
-What step 7 leaves: K9's tracing of an X11 window by its ID, next in the
-order; K10 and K13 on Jens's hardware; K11 once FreeBSD's virtio-gpu allows a
-session. K22 waits for Jens's decision.
+K9 on KWin 6.3, the same day. Tracing a window by its resource ID turned out
+to be unnecessary: the proxy already keeps each connection's resource range
+and its authenticated process, and corrects the XRes answers KWin 6.6 asks
+for. KWin 6.3 reads `_NET_WM_PID` instead, which the client sets, so the proxy
+now writes the connection's process into the `ChangeProperty` that sets it,
+having learned the atom from the client's own `InternAtom` (`69f2223`; the
+policy test fails without it). With a package of that tree, the Debian 13 run
+had every case enlarged but the Snap Store's racer: Flathub's SuperTuxKart and
+Extreme Tux Racer through X11 named `/app/bin/supertuxkart` and
+`/app/bin/etr`, claimed by their entries and enlarged from 2560 × 1440. K9 is
+removed for the shipped games; Steam in either form is item 34.
+
+CodeRabbit's review of `f9ab2d2` found that a subsurface's picture taken
+whatever its alpha was captured over black, where KWin shows the window's own
+buffer through a clear picture. The scaler now captures the window's own
+surface, which draws the subsurface over it as KWin composites them, at the
+subsurface picture's size (`7df025e`); a production row with a picture clear
+on its left half over a green window buffer found black there before and green
+now.
+
+What step 7 leaves: K10 and K13 on Jens's hardware, K11 once FreeBSD's
+virtio-gpu allows a session, and item 34's Steam, which needs a Steam account.
+K22 waits for Jens's decision.

@@ -1472,7 +1472,7 @@ Planned checks, not observed results:
       Xwayland's and declares no sandbox; it is claimed through the entry
       that answered its connection, so nothing is refused for it, but
       **Add from Window** on it writes the path without the application.
-- [ ] The rest of the Flatpak and Snap identities (item 51 of the open list,
+- [x] The rest of the Flatpak and Snap identities (item 51 of the open list,
       K9 in the [known limitations](slice-known-limitations.md)). Observed
       2026-09-29 in the Fedora 43 package machine: Flathub's SuperTuxKart 1.5
       on Wayland, resolved to `/app/bin/supertuxkart` and connected through a
@@ -1487,10 +1487,11 @@ Planned checks, not observed results:
       `flatpak://net.sourceforge.ExtremeTuxRacer/app/bin/etr`, and enlarged;
       the Snap Store's Extreme Tux Racer, an unproven publisher's build on
       core20, stopped at a dialog of its own launcher before the game. In the
-      Debian 13 machine, on KWin 6.3.6, a Flatpak's X11 window is not traced
-      to its process: KWin takes its PID from inside the sandbox, which is
-      left for K9. The [known limitations](slice-known-limitations.md#progress)
-      record what the effect needed for these and the native packages.
+      Debian 13 machine, on KWin 6.3.6, a Flatpak's X11 window was traced to
+      its process only once the proxy wrote the connection's process into its
+      `_NET_WM_PID`; both games are enlarged there too since. The
+      [known limitations](slice-known-limitations.md#progress) record what
+      the effect needed for these and the native packages.
 
 Observed documentation validation, 2026-09-18: `pre-commit run --all-files`
 passed in the Trixie container on an isolated working-tree copy under
