@@ -197,12 +197,37 @@ check_cxx_source_compiles(
     int main() { return 0; }"
     UPSCALE_KWIN_TOUCH_EVENTS
 )
+# KWin 6.6 gives a pen's events to the filters as structs of their own, and
+# 6.3 as a QTabletEvent; an override written for either fails against the other.
+unset(UPSCALE_KWIN_TABLET_EVENTS CACHE)
+check_cxx_source_compiles(
+    "#include \"input.h\"
+    #include \"input_event.h\"
+    struct Probe : KWin::InputEventFilter
+    {
+        Probe()
+            : KWin::InputEventFilter(KWin::InputFilterOrder::Forward)
+        {
+        }
+        bool tabletToolTipEvent(KWin::TabletToolTipEvent *event) override
+        {
+            return KWin::InputEventFilter::tabletToolTipEvent(event);
+        }
+    };
+    int main() { return 0; }"
+    UPSCALE_KWIN_TABLET_EVENTS
+)
 unset(CMAKE_REQUIRED_LIBRARIES)
 unset(CMAKE_REQUIRED_QUIET)
 if(UPSCALE_KWIN_TOUCH_EVENTS)
     add_definitions(-DUPSCALE_TOUCH_EVENTS=1)
 else()
     add_definitions(-DUPSCALE_TOUCH_EVENTS=0)
+endif()
+if(UPSCALE_KWIN_TABLET_EVENTS)
+    add_definitions(-DUPSCALE_TABLET_EVENTS=1)
+else()
+    add_definitions(-DUPSCALE_TABLET_EVENTS=0)
 endif()
 if(UPSCALE_KWIN_PAINT_RETURNS_BOOL)
     add_definitions(-DUPSCALE_RENDER_DEVICE_API=1)

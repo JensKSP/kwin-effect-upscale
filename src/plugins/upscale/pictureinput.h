@@ -7,6 +7,7 @@
 #pragma once
 
 #include "input.h"
+#include "tabletinput.h"
 #include "touchinput.h"
 
 #include <QMatrix4x4>
@@ -14,6 +15,7 @@
 #include <QRectF>
 
 #include <functional>
+#include <utility>
 
 namespace KWin
 {
@@ -73,6 +75,16 @@ public:
     bool touchUp(qint32 id, std::chrono::microseconds time) override;
 #endif
     bool touchCancel() override;
+    // A pen on the picture reaches the window where the picture shows it, too.
+#if UPSCALE_TABLET_EVENTS
+    bool tabletToolProximityEvent(TabletToolProximityEvent *event) override;
+    bool tabletToolAxisEvent(TabletToolAxisEvent *event) override;
+    bool tabletToolTipEvent(TabletToolTipEvent *event) override;
+#else
+    bool tabletToolProximityEvent(TabletEvent *event) override;
+    bool tabletToolAxisEvent(TabletEvent *event) override;
+    bool tabletToolTipEvent(TabletEvent *event) override;
+#endif
 
 private:
     // Sets the seat's focus and transformation for the picture under
@@ -94,9 +106,14 @@ private:
     // The window this filter focused where KWin found another, whose events
     // are therefore this filter's to deliver.
     QPointer<Window> m_claimed;
+    // The window a point is the input of where a picture is there, and that
+    // picture; null where there is none.
+    std::pair<Window *, QRectF> pictureAt(const QPointF &position) const;
     // Takes a touch going down at @p position where a picture is, and answers
     // whether it did.
     bool touchDownAt(qint32 id, const QPointF &position, std::chrono::microseconds time);
+    // Takes a pen's event where a picture is, and answers whether it did.
+    bool pen(const UpscalePen &pen);
     UpscaleTouchDelivery m_touch;
 };
 

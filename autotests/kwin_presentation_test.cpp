@@ -10,6 +10,7 @@
 
 #include "kwin_scaling_test.h"
 
+#include "core/inputdevice.h"
 #include "input.h"
 #include "pointer_input.h"
 #include "wayland/seat.h"
@@ -17,6 +18,7 @@
 #include "window.h"
 
 #include <KWayland/Client/output.h>
+#include <KWayland/Client/seat.h>
 #include <KWayland/Client/subsurface.h>
 #include <KWayland/Client/surface.h>
 
@@ -130,4 +132,124 @@ void UpscaleProductionTest::presentsThePictureOfItsOnlySubsurface()
         QVERIFY2(qGreen(output.pixel(green)) > 200 && qBlue(output.pixel(green)) < 50,
                  qPrintable(QString::number(output.pixel(green), 16)));
     }
+}
+
+namespace
+{
+// A pen as a client of the tablet protocol sees it: the surface it is near,
+// where on it, and whether its tip is down.
+class TestPen : public QtWayland::zwp_tablet_tool_v2
+{
+public:
+    explicit TestPen(::zwp_tablet_tool_v2 *pen)
+        : QtWayland::zwp_tablet_tool_v2(pen)
+    {
+    }
+    ~TestPen() override
+    {
+        destroy();
+    }
+    wl_surface *surface = nullptr;
+    QPointF position;
+    bool down = false;
+
+protected:
+    void zwp_tablet_tool_v2_proximity_in(uint32_t, ::zwp_tablet_v2 *, ::wl_surface *entered) override
+    {
+        surface = entered;
+    }
+    void zwp_tablet_tool_v2_proximity_out() override
+    {
+        surface = nullptr;
+    }
+    void zwp_tablet_tool_v2_motion(wl_fixed_t x, wl_fixed_t y) override
+    {
+        position = QPointF(wl_fixed_to_double(x), wl_fixed_to_double(y));
+    }
+    void zwp_tablet_tool_v2_down(uint32_t) override
+    {
+        down = true;
+    }
+    void zwp_tablet_tool_v2_up() override
+    {
+        down = false;
+    }
+};
+
+class TestTablet : public QtWayland::zwp_tablet_v2
+{
+public:
+    explicit TestTablet(::zwp_tablet_v2 *tablet)
+        : QtWayland::zwp_tablet_v2(tablet)
+    {
+    }
+    ~TestTablet() override
+    {
+        destroy();
+    }
+};
+
+class TestTabletSeat : public QtWayland::zwp_tablet_seat_v2
+{
+public:
+    explicit TestTabletSeat(::zwp_tablet_seat_v2 *seat)
+        : QtWayland::zwp_tablet_seat_v2(seat)
+    {
+    }
+    ~TestTabletSeat() override
+    {
+        pens.clear();
+        tablets.clear();
+        destroy();
+    }
+    std::vector<std::unique_ptr<TestTablet>> tablets;
+    std::vector<std::unique_ptr<TestPen>> pens;
+
+protected:
+    void zwp_tablet_seat_v2_tablet_added(::zwp_tablet_v2 *tablet) override
+    {
+        tablets.push_back(std::make_unique<TestTablet>(tablet));
+    }
+    void zwp_tablet_seat_v2_tool_added(::zwp_tablet_tool_v2 *pen) override
+    {
+        pens.push_back(std::make_unique<TestPen>(pen));
+    }
+};
+}
+
+// A pen over a game drawn over its output reaches the game where the picture
+// shows it, as the pointer and a touch do. KWin hands it to the window under
+// it at the window's own place, which is not where the picture shows it.
+void UpscaleProductionTest::mapsAPenOntoThePicture()
+{
+    QVERIFY(m_tablets.isInitialized());
+    TestTabletSeat seat(m_tablets.get_tablet_seat(*Test::waylandSeat()));
+    QTRY_VERIFY(Test::waylandSync() && Test::waylandOutputs().first()->pixelSize() == QSize(256, 144));
+    std::unique_ptr<KWayland::Client::Surface> surface = Test::createSurface();
+    std::unique_ptr<Test::XdgToplevel> shell = Test::createXdgToplevelSurface(surface.get());
+    Window *game = Test::renderAndWaitForShown(surface.get(), pattern(QSize(256, 144)));
+    QVERIFY(game);
+    game->move(QPointF(120, 64));
+    QTRY_VERIFY2(status().contains(QStringLiteral("scaling=1")), qPrintable(status()));
+    // The output's middle shows the window's: 192, 108 of 384 x 216 is 128, 72
+    // of 256 x 144. KWin would hand the pen 72, 44, from the window's place.
+    // KWin tells clients of a pen with its first event, before any filter.
+    // The tablet's objects are on this test's own event queue: a roundtrip
+    // reads what the compositor sent, and the queue is then dispatched here.
+    const auto heard = [this]() {
+        Test::waylandSync();
+        m_queue->dispatch();
+        return true;
+    };
+    quint32 time = 0;
+    Test::tabletToolProximityEvent(QPointF(192, 108), 0, 0, 0, 0, 0, false, true, ++time);
+    QTRY_VERIFY(heard() && !seat.pens.empty());
+    TestPen *pen = seat.pens.front().get();
+    QTRY_VERIFY(heard() && pen->surface == static_cast<wl_surface *>(*surface));
+    QTRY_COMPARE((heard(), pen->position), QPointF(128, 72));
+    auto *application = static_cast<WaylandTestApplication *>(kwinApp());
+    Q_EMIT application->virtualTablet()->tabletToolTipEvent(QPointF(96, 54), 1, 0, 0, 0, 0, true, true, application->virtualTabletTool(),
+                                                            std::chrono::milliseconds(++time), application->virtualTablet());
+    QTRY_VERIFY(heard() && pen->down);
+    QTRY_COMPARE((heard(), pen->position), QPointF(64, 36));
 }

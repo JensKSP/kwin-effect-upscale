@@ -64,6 +64,8 @@ void UpscaleProductionTest::init()
             [this](const QByteArray &name, quint32 id, quint32 version) {
         if (name == QByteArrayLiteral("wp_viewporter")) {
             m_viewporter.init(*m_registry, id, version);
+        } else if (name == QByteArrayLiteral("zwp_tablet_manager_v2")) {
+            m_tablets.init(*m_registry, id, version);
         }
     });
     QSignalSpy announced(m_registry.get(), &KWayland::Client::Registry::interfacesAnnounced);
@@ -79,6 +81,9 @@ void UpscaleProductionTest::cleanup()
 {
     if (m_viewporter.isInitialized()) {
         m_viewporter.destroy();
+    }
+    if (m_tablets.isInitialized()) {
+        m_tablets.destroy();
     }
     m_registry.reset();
     m_queue.reset();

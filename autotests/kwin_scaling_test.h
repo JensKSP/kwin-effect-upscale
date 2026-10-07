@@ -12,6 +12,7 @@
 #pragma once
 
 #include "kwin_wayland_test.h"
+#include "qwayland-tablet-unstable-v2.h"
 #include "qwayland-viewporter.h"
 
 #include <KWayland/Client/event_queue.h>
@@ -56,6 +57,7 @@ private Q_SLOTS:
     void aHiddenDecorationKeepsTheGamesCursor();
     void presentsThePictureOfItsOnlySubsurface_data();
     void presentsThePictureOfItsOnlySubsurface();
+    void mapsAPenOntoThePicture();
 
 private:
     void configure(bool enabled, const QString &method = QStringLiteral("Auto"));
@@ -65,4 +67,5 @@ private:
     std::unique_ptr<KWayland::Client::EventQueue> m_queue;
     std::unique_ptr<KWayland::Client::Registry> m_registry;
     QtWayland::wp_viewporter m_viewporter;
+    QtWayland::zwp_tablet_manager_v2 m_tablets;
 };
