@@ -149,14 +149,17 @@ static void readDirectory(GameIndex &index, QSet<QString> &seen, const QDir &roo
     }
 }
 
+// Whether a directory still has the time it had when it was read.
+static bool unchanged(const std::pair<QString, QDateTime> &directory)
+{
+    return QFileInfo(directory.first).lastModified() == directory.second;
+}
+
 static const GameIndex &gameIndex()
 {
     static std::optional<GameIndex> s_index;
     const QStringList locations = QStandardPaths::standardLocations(QStandardPaths::ApplicationsLocation);
-    const bool current = s_index && s_index->locations == locations
-        && std::ranges::all_of(s_index->directories, [](const std::pair<QString, QDateTime> &directory) {
-                             return QFileInfo(directory.first).lastModified() == directory.second;
-                         });
+    const bool current = s_index && s_index->locations == locations && std::ranges::all_of(s_index->directories, unchanged);
     if (!current) {
         GameIndex index;
         index.settled = QDateTime::currentDateTimeUtc().addSecs(-2);
