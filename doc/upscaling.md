@@ -202,8 +202,8 @@ puts that folder first on `PATH` in a Wayland session, so that KWin starts it
 instead of Xwayland. It starts the stock Xwayland behind it, asks the effect
 about each X11 connection before relaying it, and reports a smaller screen to
 the connections a profile's `X11ConnectionExecutable` names, and while **All
-applications** is on to every program no entry names, passing the others
-through with their display information unchanged. It is experimental, switched
+games** is on to every game no entry names, passing the others through with
+their display information unchanged. It is experimental, switched
 on by default through the `X11Proxy` setting, and takes effect only from the
 next login, so for the proxy installing the package is not yet the whole of the
 setup the third requirement asks for. The game's own settings remain an
@@ -1083,8 +1083,8 @@ asked for a resolution by its recorded methods: for Wayland at output binding
 or, as a fractional scale, after its window appears; for X11 through the
 session X11 proxy when it connects, or after its window appears. Applications
 that are not in the list are left alone by default. Checking **All
-applications** has them upscaled and asked by the global profile's own four
-methods, one for each fullscreen and borderless presentation on Wayland and
+games** has the games among them upscaled and asked by the global profile's
+own four methods ([what All games reaches](#what-all-games-reaches)), one for each fullscreen and borderless presentation on Wayland and
 X11, each Auto until someone chooses another; a windowed presentation is always
 Off. The page shows no status of what the effect is doing, only whether this
 session is routed through the X11 proxy: what the effect is doing is reported by
@@ -1391,15 +1391,16 @@ be processed by the upscaler.
 
 **The displays describe only what this effect acts on.** They follow the
 window the effect selected, and when it refused one, the active window
-presenting full screen if its application's profile is switched on or **All
-applications** is checked, because a refusal there is what needs explaining.
+presenting full screen if its application's profile is switched on or it is a
+game's and **All games** is checked, because a refusal there is what needs
+explaining.
 Every other window that fills its screen, such as a browser playing a video or
 a slide show, is left alone: nothing is drawn over it, and the effect does not
 hold its screen in composition, so it keeps direct scanout. **Show for every
 fullscreen window** widens this to any window presenting fullscreen or
 borderless over its screen, which is how to find out why a game went
 unrecognized. It is stored as `OsdEveryFullScreen`, global only like **All
-applications**, and off in every build type, since a Debug build has no more
+games**, and off in every build type, since a Debug build has no more
 reason than a release to draw over a browser. Decided by Jens on 2026-09-27,
 after the displays had appeared over a browser in fullscreen.
 
@@ -1969,9 +1970,11 @@ stock display information; recognising a later game window is insufficient. A
 Wine or Proton client is identified by the program Wine runs and its prefix, as
 `wine://<prefix>/<program>` ([naming](#games-that-ignore-resizing-a-smaller-screen-in-their-prefix)),
 and a connection from one of Wine's own components waits for the program the
-prefix was started for only if an eligible profile could match it. The proxy
-reads that identity from Linux's `/proc`, so
-it exists on Linux only. No shipped entry carries such a pattern.
+prefix was started for only if an enabled profile's pattern names that prefix;
+a pattern that could match in any prefix, and All games, hold none. The proxy
+reads that identity from Linux's `/proc`, so it exists on Linux only. The
+shipped Wreckfest entry carries such a pattern,
+`wine://.*/Wreckfest/Wreckfest(?:_x64)?[.]exe`.
 
 If Xwayland's mode list is not ready for the first connection, the proxy retries
 within a 500 ms decision interval. A connection from a Wine prefix has ten
@@ -3049,8 +3052,8 @@ EASU replaces the enlargement step and must receive the original buffer, not
 an image already scaled to the destination. Selection permits one eligible
 window per output, with the full buffer visible and no buffer transform.
 Fullscreen windows and undecorated borderless windows covering exactly one
-output can qualify, a borderless one when a profile describes it or All
-applications is switched on. Separate outputs select independently;
+output can qualify, a borderless one when a profile describes it or it is a
+game's and All games is switched on. Separate outputs select independently;
 multiple eligible candidates on the same output use normal KWin rendering there.
 Eligibility uses physical pixel sizes and capabilities rather than fixed
 resolutions or GPU vendor checks.

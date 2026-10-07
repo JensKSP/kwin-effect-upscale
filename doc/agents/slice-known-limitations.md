@@ -448,5 +448,14 @@ refuses it before with "not in the list, and not recognized as a game". The
 session tests, the production test and the conformance arms declare their own
 client a game through such an entry (`autotests/game_entry.h`).
 
+CodeRabbit's review of `ba1f857` found two faults, both fixed in the next
+commit. A process an entry had answered counted as a game for good, so once
+that entry was switched off All games took over its window: the served record
+now keeps whether the program was a game when it was answered
+(`upscale-served`). And All games still held every Wine prefix for a program no
+process had named yet, as All applications had, against Jens's rule of
+2026-10-03 that a pattern which could match in any prefix holds none; it holds
+none now, and `answersUnlistedGamesUnderAllGames` checks that.
+
 What step 7 leaves: K10 and K13 on Jens's hardware, K11 once FreeBSD's
 virtio-gpu allows a session, and item 34's Steam, which needs a Steam account.
