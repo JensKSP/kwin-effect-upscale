@@ -1303,9 +1303,11 @@ A program is a game to All games when:
 The entries are read from the `applications` directories of `XDG_DATA_HOME`
 and then `XDG_DATA_DIRS`, so that a person's own entry replaces the system's of
 the same name, a hidden one included. They are read when a program first asks,
-and again once one of those directories changed, so a game installed during the
-session is recognized from its next start. A program is judged when it
-connects and when its window is first seen, never per frame.
+and again once one of them or one of those directories changed, an entry
+rewritten in place included, so a game installed during the session is
+recognized from its next start. A program is judged when it connects and when
+its window is first seen, never per frame, and only while All games is checked,
+since that looks at the time of every entry.
 
 The limits of this:
 
@@ -2062,8 +2064,11 @@ rather than assumed: a client was told 2259 × 1271, the awkward size that
 tests cover odd widths, odd heights and destinations that are not whole
 multiples of the source. Inventing a snapping rule would discard resolution the
 user asked for in exchange for a constraint that this Wayland path does not
-impose. The X11 path separately requires an available emulated mode; an absent
-odd-sized mode is refused rather than rounded or advertised as achieved.
+impose. The X11 path separately asks for a mode Xwayland lists: for a wish it
+lists no mode for, it asks for the listed mode nearest to it among those of the
+output's shape the scaler enlarges, and the status names the wish beside it.
+Only where no listed mode qualifies is the request refused, rather than
+advertised as achieved.
 
 What remains genuinely unknowable in advance is the application. No query
 establishes whether a program will act on the mode it is told, so the effect
@@ -2984,8 +2989,12 @@ presentation feedback remain unchecked for it. For Wine and Proton through
 Xwayland, the implemented route is the
 [session X11 proxy](#selecting-the-resolution-control-method), which answers
 the connections of a prefix whose program a profile names in
-`X11ConnectionExecutable` with a smaller screen, without changing how the game
-is started; no Wine or Proton game acceptance has been established through it.
+`X11ConnectionExecutable`, or any program Wine runs while All games is checked,
+with a smaller screen, without changing how the game is started. Wreckfest
+through Proton was accepted this way on wzpc (KWin 6.3.6, 2026-10-03; see
+[the prefix's screen](#games-that-ignore-resizing-a-smaller-screen-in-their-prefix));
+other games, other Proton versions and the other Direct3D and Vulkan paths
+remain untested.
 An effect-only universal resolution override remains unproven.
 
 ### Resolution-control direction after the experiments
