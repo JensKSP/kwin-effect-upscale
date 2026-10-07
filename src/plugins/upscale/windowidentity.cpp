@@ -146,7 +146,7 @@ bool upscaleGameWindow(const Window *window)
     }
     // Asked each time, as the application is: the proxy may answer for a
     // process of a Wine prefix after its first window exists.
-    return resolved.game || upscaleServed(window->pid());
+    return resolved.game || upscaleServedGame(window->pid());
 }
 
 UpscaleSettings upscaleSettingsForWindow(const Window *window)

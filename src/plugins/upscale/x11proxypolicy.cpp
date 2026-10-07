@@ -30,17 +30,18 @@ struct Served
     QSize screen;
     // The entry that answered, empty for the global profile.
     QString profile;
+    bool game = false;
 };
 QHash<uint, Served> served;
 QList<uint> servedOrder;
 } // namespace
 
-void upscaleRecordServed(uint pid, const QSize &screen, const QString &profile)
+void upscaleRecordServed(uint pid, const QSize &screen, const QString &profile, bool game)
 {
     if (!pid || screen.isEmpty() || served.contains(pid)) {
         return;
     }
-    served.insert(pid, {screen, profile});
+    served.insert(pid, {screen, profile, game});
     servedOrder.append(pid);
     if (servedOrder.size() > servedLimit) {
         served.remove(servedOrder.takeFirst());
@@ -51,13 +52,18 @@ void upscaleRecordShown(uint game, uint pid)
 {
     const auto found = served.constFind(game);
     if (found != served.cend()) {
-        upscaleRecordServed(pid, found->screen, found->profile);
+        upscaleRecordServed(pid, found->screen, found->profile, found->game);
     }
 }
 
 bool upscaleServed(pid_t pid)
 {
     return pid > 0 && served.contains(static_cast<uint>(pid));
+}
+
+bool upscaleServedGame(pid_t pid)
+{
+    return pid > 0 && served.value(static_cast<uint>(pid)).game;
 }
 
 QSize upscaleServedScreen(pid_t pid)
@@ -144,13 +150,10 @@ bool UpscaleIdentityService::x11PrefixMayMatch(const QString &prefix, const QStr
     if (!UpscaleConfig::x11Proxy() || !m_handler || prefix.isEmpty()) {
         return false;
     }
-    // Under All games any prefix may run a program the global profile
-    // answers for, everything Wine runs being a game to it, so its components
-    // wait for that program as for an entry's.
-    QVariantMap global;
-    if (connectionSize(nullptr, m_handler, global).isValid()) {
-        return true;
-    }
+    // All games holds no prefix. It could answer for a program in any prefix,
+    // so it is decided once a process names that program, as an entry's
+    // pattern that could match in any prefix is (Jens, 2026-10-03); see
+    // below.
     const QString identity = QStringLiteral("wine://") + prefix + QLatin1Char('/');
     for (const UpscaleApplication &application : upscaleApplications()) {
         if (!application.enabled || application.x11ConnectionExecutable.isEmpty()) {
@@ -255,7 +258,8 @@ QVariantMap UpscaleIdentityService::x11ConnectionPolicy(uint pid, const QStringL
     answer[QStringLiteral("reason")] = QStringLiteral("connection display advertisement");
     // This process now renders at the size it was told, so its window is
     // presented across the output instead of being asked to resize itself.
-    upscaleRecordServed(pid, listed, selected ? selected->id : QString());
+    upscaleRecordServed(pid, listed, selected ? selected->id : QString(),
+                        !selected || std::ranges::any_of(identities, upscaleRecognizedGame));
 #else
     Q_UNUSED(pid)
     Q_UNUSED(desired)

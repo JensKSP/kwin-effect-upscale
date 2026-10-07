@@ -30,12 +30,13 @@ inline bool upscaleWineRuntime(const QString &executable)
 /**
  * Remember that @p pid was told its screen is @p screen, smaller than the
  * output it is shown on, by the entry with the id @p profile, or by the global
- * profile where that is empty.
+ * profile where that is empty, and whether its program was recognized as a
+ * game then, @p game; see upscaleServedGame().
  *
  * Recorded when the transport's connection policy answers with a size, and
  * asked about again once that process has a window.
  */
-void upscaleRecordServed(uint pid, const QSize &screen, const QString &profile = QString());
+void upscaleRecordServed(uint pid, const QSize &screen, const QString &profile = QString(), bool game = false);
 
 /**
  * Remember that @p pid was shown the screen @p game was served, as one of the
@@ -65,6 +66,15 @@ const UpscaleApplication *upscaleServedApplication(pid_t pid);
  * screen and flickers, so it is left alone.
  */
 bool upscaleServed(pid_t pid);
+
+/**
+ * Whether @p pid was answered as a game's: by the global profile, which
+ * answers games alone, or by an entry for a program recognized as a game.
+ *
+ * A process an entry answered for a program that is no game is not one, so
+ * that All games does not take it over once that entry is switched off.
+ */
+bool upscaleServedGame(pid_t pid);
 
 /**
  * The screen @p pid was told it has, or an empty size for a process that was

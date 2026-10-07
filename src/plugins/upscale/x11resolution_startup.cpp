@@ -114,7 +114,7 @@ bool UpscaleX11Resolution::holdMap(xcb_generic_event_t *generic)
     UpscaleSettings settings = upscaleResolveSettings(application);
     // All games acts only for a game, as for the window this becomes; see
     // upscaleSettingsForWindow().
-    if (!application && settings.acts() && !upscaleServed(pid) && !upscaleRecognizedGame(executable)) {
+    if (!application && settings.acts() && !upscaleServedGame(pid) && !upscaleRecognizedGame(executable)) {
         settings.setActs(false);
     }
     const UpscaleMethod method = upscaleMethodFor(application, UpscalePresentation::X11FullScreen);

@@ -266,7 +266,9 @@ void UpscaleX11IntegrationTest::presentsAProcessShownItsGamesScreen()
 // connects, as an entry's program is, so that it starts with the viewport it
 // keeps. Nothing is said with All games off, nor to a program that is not
 // recognized as a game, nor yet to a program an entry names without a
-// connection pattern, which that entry decides once the window exists.
+// connection pattern, which that entry decides once the window exists. And All
+// games holds no Wine prefix for a program no process has named yet, as a
+// pattern that could match in any prefix holds none.
 void UpscaleX11IntegrationTest::answersUnlistedGamesUnderAllGames()
 {
     KConfigGroup other(KSharedConfig::openConfig(QStringLiteral("kwinupscalerc")), QStringLiteral("Application-other"));
@@ -338,7 +340,8 @@ void UpscaleX11IntegrationTest::answersUnlistedGamesUnderAllGames()
     const QDBusReply<bool> prefix = policy.call(QStringLiteral("x11PrefixMayMatch"), QStringLiteral("/unnamed/prefix"),
                                                 QStringList{QStringLiteral("wine:///unnamed/prefix/C:/windows/system32/winecfg.exe"),
                                                             QStringLiteral("/usr/bin/wine")});
-    QVERIFY2(prefix.isValid() && prefix.value(), qPrintable(prefix.error().message()));
+    QVERIFY2(prefix.isValid(), qPrintable(prefix.error().message()));
+    QVERIFY(!prefix.value());
 }
 
 // A program that leaves _NET_WM_PID unset is known only by the connection that
