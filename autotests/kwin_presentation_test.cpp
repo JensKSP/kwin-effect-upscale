@@ -152,6 +152,7 @@ public:
     wl_surface *surface = nullptr;
     QPointF position;
     bool down = false;
+    int lifts = 0;
 
 protected:
     void zwp_tablet_tool_v2_proximity_in(uint32_t, ::zwp_tablet_v2 *, ::wl_surface *entered) override
@@ -173,6 +174,7 @@ protected:
     void zwp_tablet_tool_v2_up() override
     {
         down = false;
+        ++lifts;
     }
 };
 
@@ -296,4 +298,16 @@ void UpscaleProductionTest::keepsAPenWholeAcrossABar()
     QTRY_VERIFY(heard() && !pen->down);
     Test::tabletToolProximityEvent(bar, 0, 0, 0, 0, 0, false, false, ++time);
     QTRY_VERIFY(heard() && !pen->surface);
+    QCOMPARE(pen->lifts, 1);
+    // And a press in a bar reaches nothing, so its lift over the picture
+    // ends nothing the client heard begin.
+    Test::tabletToolProximityEvent(middle, 0, 0, 0, 0, 0, false, true, ++time);
+    QTRY_VERIFY(heard() && pen->surface == static_cast<wl_surface *>(*surface));
+    Q_EMIT tablet->tabletToolTipEvent(bar, 1, 0, 0, 0, 0, true, true, tool, std::chrono::milliseconds(++time), tablet);
+    Q_EMIT tablet->tabletToolTipEvent(middle, 0, 0, 0, 0, 0, false, true, tool, std::chrono::milliseconds(++time), tablet);
+    Q_EMIT tablet->tabletToolAxisEvent(middle, 0, 0, 0, 0, 0, false, true, tool, std::chrono::milliseconds(++time), tablet);
+    QVERIFY(heard());
+    QVERIFY(Test::waylandSync() && heard());
+    QCOMPARE(pen->lifts, 1);
+    QVERIFY(!pen->down);
 }
