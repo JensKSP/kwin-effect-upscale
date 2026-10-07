@@ -59,6 +59,7 @@ private:
     QByteArray response(QByteArray bytes);
     void setupReply(QByteArray &bytes);
     void resourceReply(QByteArray &bytes);
+    void processProperty(QByteArray &bytes, qsizetype shift) const;
     bool streamable(std::size_t side, const QByteArray &bytes) const;
     Wire m_wire;
     Framer m_framer{m_wire};
@@ -66,6 +67,8 @@ private:
     Registry *m_registry;
     quint32 m_pid;
     std::optional<quint32> m_base;
+    // The atom the server gave _NET_WM_PID, once this client has asked for it.
+    std::optional<quint32> m_processAtom;
     quint64 m_registration = 0;
     quint64 m_sequence = 0;
     QHash<quint16, Request> m_requests;

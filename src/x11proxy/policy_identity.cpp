@@ -43,6 +43,24 @@ void Policy::resourceReply(QByteArray &bytes)
     }
 }
 
+// A client in a PID namespace of its own, as Flatpak runs one, sets its
+// window's _NET_WM_PID to a number of that namespace. KWin 6.3 takes that for
+// the window's process and names another one, while KWin 6.6 asks XRes, which
+// resourceReply() answers (Debian 13, 2026-10-07). The connection's process,
+// which the transport authenticated, goes in its place: a ChangeProperty of
+// one CARDINAL in format 32, whatever its mode, and nothing else.
+void Policy::processProperty(QByteArray &bytes, qsizetype shift) const
+{
+    if (!m_registry || !m_pid || !m_processAtom || bytes.size() != 28 + shift) {
+        return;
+    }
+    constexpr quint32 cardinal = 6;
+    if (m_wire.integer(bytes, 8 + shift) == *m_processAtom && m_wire.integer(bytes, 12 + shift) == cardinal
+        && Wire::byte(bytes, 16 + shift) == 32 && m_wire.integer(bytes, 20 + shift) == 1) {
+        m_wire.integer(bytes, 24 + shift, m_pid);
+    }
+}
+
 bool Policy::streamable(std::size_t side, const QByteArray &bytes) const
 {
     if (side == 0) {

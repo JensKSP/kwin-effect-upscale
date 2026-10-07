@@ -87,6 +87,16 @@ void Policy::request(QByteArray &bytes)
         if (bytes.size() == 8 + shift) {
             m_requests.insert(sequence, {"geometry", m_wire.integer(bytes, 4 + shift), {}});
         }
+    } else if (major == 16) {
+        // InternAtom, read for the one name processProperty() needs.
+        if (m_registry && bytes.size() >= 8 + shift) {
+            const quint16 length = m_wire.word(bytes, 4 + shift);
+            if (bytes.size() == 8 + shift + padded(length) && bytes.mid(8 + shift, length) == "_NET_WM_PID") {
+                m_requests.insert(sequence, {"process atom", 0, {}});
+            }
+        }
+    } else if (major == 18) {
+        processProperty(bytes, shift);
     } else if (m_extensions.contains(major)) {
         const QByteArray extension = m_extensions.value(major);
         m_requests.insert(sequence, {extension, minor, {}});
@@ -129,6 +139,10 @@ QByteArray Policy::response(QByteArray bytes)
     }
     if (request.kind == "extension") {
         learnExtension(request.extension, bytes);
+        return bytes;
+    }
+    if (request.kind == "process atom") {
+        m_processAtom = m_wire.integer(bytes, 8);
         return bytes;
     }
     if (request.kind == "X-Resource" && request.operation == 4) {
