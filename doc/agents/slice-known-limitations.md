@@ -109,15 +109,16 @@ marked **F** belong here.
 | --- | --- | --- | --- | --- | --- |
 | K1 | Wayland clients with different buffer-density policies | The [scale-one Auto work](slice-resolution-control.md#wayland-auto-at-scale-one-2026-09-29) measured them across desktop scales 1, 1.5 and 3: fractional-density clients follow the desktop scale, glmark2 the output's integer scale, low-density SDL and SuperTux one | A smaller configure reaches these clients at scale one; asked for two thirds at desktop scale 3, low-density SDL supplied 853 × 480, below half the output, which the status names as refused | F, stated | Stays stated, see Progress; a physical run at a scaled desktop is Jens's |
 | K2 | Integer scale and startup-only sizing | vkmark ignores configure sizes; glmark2 keeps the viewport its first fullscreen configure gave it. The [scale-one Auto work](slice-resolution-control.md#wayland-auto-at-scale-one-2026-09-29) fixed the fresh glmark2 start with the first configure | vkmark uses the advertised mode; a fresh glmark2 uses a smaller first configure; a glmark2 resized later crops its scene, which the effect cannot see | F, stated | Stays stated, see Progress: a renderer's fixed viewport is the client's |
-| K3 | Wine's Wayland driver | Presented 2026-10-06 from its subsurface, see Progress; not yet run with Wine itself | The game enlarged from its subsurface's picture | F | Run Wine 10's Wayland driver in a machine that has Wine, which no maintained image has |
+| K3 | Wine's Wayland driver | Removed for OpenGL 2026-10-07: Wine 10.0 itself, in the Debian 13 package machine, presented after two fixes, see Progress | The game enlarged from its subsurface's picture | F | Direct3D and Vulkan on this driver go with K10 |
 | K4 | A program that connected before it could be told | The Wayland mode is told when a client binds the output, the X11 screen when a connection goes through the proxy; a program already running, or an X11 program that does not connect through the proxy, hears neither | Full size, or an X11 program resized after it started showing part of its picture enlarged (glmark2 2023.01, SuperTux 0.6.3 keep their first viewport). For a Wayland program the status names the size "from the next start"; not checked for every route | S, stated | Tested per route 2026-10-06, see Progress; stays stated |
 | K5 | A toolkit that picks another output | Extreme Tux Racer 0.8.4 with SFML 2.6.2 moves to the primary output when it recreates its fullscreen window | The shipped entry refuses control on a secondary output; the status says so | S, stated | Stays stated unless SFML changes |
 | K6 | A requested X11 mode the program does not list | Removed 2026-10-06: the nearest listed mode is asked instead; see Progress | The game gets the listed mode nearest to the wish, enlarged | S | Done |
 | K7 | Internal render targets that keep their size | SuperTux 0.6.3: the outer buffer and viewport went from 4K to 1080p, an intermediate framebuffer stayed 1368 × 769 | Nothing visible; the saving in GPU time is smaller than the buffer suggests | F | A measurement question for the cost matrix (item 74), not a defect; stated |
 | K8 | A game that keeps the smaller size in its own settings | SuperTuxKart 1.4 writes the told mode into its configuration (item 17) | Under Native the effect enlarges the kept smaller buffer; under other presets the display marks the kept size in the warning colour | S, stated | Stated in the handbook's known limits since 2026-10-04; nothing to change in the effect |
-| K9 | Programs in Flatpak and Snap | Item 51: Flatpak's SuperTuxKart 1.5 on Wayland was claimed and asked in the Fedora 43 machine; the X11 route through the proxy and Snap are not observed; item 47's naming is not yet seen in a session; Steam as Flatpak or Snap is item 34 | Unknown where not observed | F | 51's and 47's remainder in [application profiles](slice-application-profiles.md#progress-and-remaining-work), 34 in the [Proton slice](slice-proton-smaller-screen.md#remaining-work), run in the package machines |
+| K9 | Programs in Flatpak and Snap | Observed 2026-10-07 in the Debian 13 (KWin 6.3.6) and Kubuntu 26.04 (KWin 6.6.6) package machines, see Progress: the games from Flathub and the Snap Store enlarged on Wayland and through X11, except a Flatpak's X11 window on KWin 6.3, whose PID names a process inside the sandbox | On KWin 6.3 a Flatpak game through X11 stays at full size (SuperTuxKart) or is refused (Extreme Tux Racer); the status says why | F | The proxy tells the effect each connection's range of X resource IDs, so that an X11 window is traced to its process by its ID; Steam as Flatpak or Snap is item 34, in the [Proton slice](slice-proton-smaller-screen.md#remaining-work) |
 | K10 | Wine and Proton across the graphics paths | Only Direct3D 11 on Wine's own renderer and OpenGL were run; official Proton and Direct3D 9, 12 and Vulkan, exclusive and borderless, are item 36 | Unknown where not run | F | Item 36, in the [Proton slice](slice-proton-smaller-screen.md#remaining-work) |
 | K11 | FreeBSD and the BSDs | FreeBSD's nightly installs, loads and removes the effect in an emptied machine; no session check, and the proxy is not run there (items 2f, 23) | Unknown | F | The session check once the virtio-gpu driver allows one |
+| K22 | The desktop's own programs told the smaller screen under All applications | Found 2026-10-07 in the Debian 13 package machine, see Progress: plasmashell, Plasma's services and the portals were told the smaller mode at bind, and the panel was laid out over two thirds of the width | A short panel in a session started with All applications checked; the handbook's known limits say so | S | Decide with Jens which programs the answer at bind under All applications reaches |
 
 ## The picture is refused or not right
 
@@ -312,3 +313,87 @@ first-configure fix keeps a fresh glmark2 start whole; the handbook states both
 under Auto's geometry request. The physical runs were at desktop scale one; one
 at a scaled desktop is Jens's, and he excluded second-display checks from this
 session. Next is step 7.
+
+K3 with Wine itself, step 7, 2026-10-07, in the Debian 13 package machine:
+KWin 6.3.6 on Mesa's llvmpipe, a 4K screen KWin runs at scale 1.05 of its own
+accord, Debian's Wine 10.0 with the prefix's graphics driver set to `wayland`,
+and a Windows OpenGL program built there with MinGW
+(`tools/wine-opengl-probe.c`), a borderless window over its whole screen, red
+on the left half and blue on the right, run by `package-vm.py debian-13-amd64
+wine PACKAGE` under All applications. Wine heard 2560 × 1440, and the effect
+refused it twice over; each was fixed and run again:
+
+- Wine sizes a window in the Windows pixels of the screen it was told, one to
+  a logical unit unless its own DPI setting says otherwise, whatever the
+  output's scale, and keeps a fullscreen window at that size: 2560 × 1440
+  logical, not the told mode's 2438 × 1371 at 1.05, and larger than the output
+  on a desktop scaled twice or more. A fullscreen window at its output's corner
+  whose picture is the told size is now drawn over the output (`88b0ef8`);
+  `drawsAWindowOfTheToldPixelsOverItsOutput` sizes the test client so, at scale
+  one and in the session at scale two, where it failed before. The test driver
+  had drawn through a capture at scale one, which the effect hands back on a
+  scaled desktop, so no case there had ever seen a picture drawn; it now
+  captures at the output's scale.
+- Wine draws an OpenGL game into a buffer with an alpha channel and declares
+  no opaque region, over a window buffer it leaves transparent. Windows takes
+  no alpha from a game's picture, and the effect draws a picture as it is over
+  black, so the picture of a window's only subsurface is now taken whatever
+  its alpha (`fdc67fb`); the production case has a row built that way, which
+  failed before.
+
+With both, the probe's 2560 × 1440 was enlarged with FSR 1 to 3840 × 2160, and
+KWin's picture of the screen splits red from blue at its middle. K3 is removed
+for OpenGL; Direct3D through wined3d and Vulkan on Wine's Wayland driver belong
+to K10's matrix. Its pointer (K20) was not driven in the machine; it is mapped
+as any drawn window's, as the session tests show.
+
+The same run found K22. All applications was checked for the probe, which has
+no entry, and at the next login Auto told plasmashell, Plasma's services and
+the portals the smaller mode as they bound the output; the panel of that
+session was laid out over two thirds of the screen's width, and the display
+announced Plasma's splash screen as a window it would not scale. Which programs
+the answer at bind reaches under All applications is Jens's to decide; the
+handbook's known limits state it meanwhile.
+
+K9, step 7, 2026-10-07, in the package machines with `package-vm.py SYSTEM
+sandboxed PACKAGE`: SuperTuxKart and Extreme Tux Racer as the system packages
+them, from Flathub (Flatpak 1.16.6) and from the Snap Store (snapd 2.77.1), on
+Wayland and through X11, under their shipped entries, in the Debian 13 machine
+(KWin 6.3.6, desktop scale 1.05) and the Kubuntu 26.04 one (KWin 6.6.6, scale
+2.7). The runs found three defects of the effect, each fixed, tested in the
+session suites and run again with packages of the fixed tree:
+
+- On Kubuntu every X11 game was refused as "not fully opaque", depth-24
+  windows included. KWin 6.6.6 makes an X11 window's opaque region from its
+  shape rounded to whole logical units, and 2560 pixels at scale 2.7 are 948.1
+  units; the effect now asks every whole unit to be opaque (`8879a94`).
+- Extreme Tux Racer's entry asks the game to confirm a resize through the X11
+  mode it sets. A game the proxy told the smaller screen starts at it and sets
+  none, and the effect waited for it forever; the confirmation is now asked
+  only of a game the proxy did not tell (`644311d`).
+- The check's own faults, recorded in the
+  [package machines](slice-package-machines.md#progress): a locked screen, the
+  splash screen, a game left running between cases.
+
+With `644311d`, on Kubuntu all eight cases of the two games that started were
+enlarged from 2560 × 1440 with FSR 1, natively, as Flatpak and as Snap, on each
+route. The effect named Flathub's SuperTuxKart on Wayland
+`flatpak://net.supertuxkart.SuperTuxKart/app/bin/supertuxkart` (item 47 seen),
+the proxy offered that name and `/app/bin/supertuxkart` for its X11 connection,
+and the Snap is `/snap/supertuxkart/678/usr/bin/supertuxkart`, which the
+entry's `.*/supertuxkart` takes. On Debian the same holds natively and for
+Snap, and for Flatpak on Wayland; a Flatpak game through X11 is not enlarged
+there. KWin 6.3.6 takes an X11 window's PID from the `_NET_WM_PID` its client
+sets, which inside Flatpak's PID namespace names another process, as this
+slice's entry predicted: SuperTuxKart's window is claimed by nothing and drawn
+at 3840 × 2160, and Extreme Tux Racer's, claimed through its instance name, is
+not known as served and waits for a mode. The proxy answered both connections
+with the smaller screen. The next step is to trace an X11 window to its
+connection by its ID: the proxy reads every connection's setup reply already,
+and the resource-ID base and mask in it name the window IDs of that process.
+The Snap Store's Extreme Tux Racer, an unproven publisher's build on core20,
+stopped on both systems at a dialog of its own launcher before the game.
+
+What step 7 leaves: K9's tracing of an X11 window by its ID, next in the
+order; K10 and K13 on Jens's hardware; K11 once FreeBSD's virtio-gpu allows a
+session. K22 waits for Jens's decision.

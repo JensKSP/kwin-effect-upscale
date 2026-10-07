@@ -1457,19 +1457,40 @@ Planned checks, not observed results:
 - [ ] Run acceptance tests, both compiler/container builds and TV checks.
 - [ ] Check an exported entry with two real user accounts (item 48 of the
       open list); the portable form is covered only by the test cases above.
-- [ ] See a Flatpak program named `flatpak://<id>/app/...` in a session with
+- [x] See a Flatpak program named `flatpak://<id>/app/...` in a session with
       a build that has it (item 47 of the open list). Implemented 2026-09-29:
       the proxy reads the application's ID from
       `/proc/<pid>/root/.flatpak-info`, and the effect names a Wayland program
       from the security context's app ID KWin keeps, for a path below `/app`;
-      unit cases in the proxy's identity test and the matching test.
+      unit cases in the proxy's identity test and the matching test. Seen
+      2026-10-07 in the Kubuntu 26.04 package machine with Flathub's
+      SuperTuxKart 1.5: the effect named its Wayland window
+      `flatpak://net.supertuxkart.SuperTuxKart/app/bin/supertuxkart`, and the
+      proxy offered that name and `/app/bin/supertuxkart` for its X11
+      connection. The effect names the X11 window `/app/bin/supertuxkart`,
+      from the path KWin 6.6 resolves, since an X11 window's connection is
+      Xwayland's and declares no sandbox; it is claimed through the entry
+      that answered its connection, so nothing is refused for it, but
+      **Add from Window** on it writes the path without the application.
 - [ ] The rest of the Flatpak and Snap identities (item 51 of the open list,
       K9 in the [known limitations](slice-known-limitations.md)). Observed
       2026-09-29 in the Fedora 43 package machine: Flathub's SuperTuxKart 1.5
       on Wayland, resolved to `/app/bin/supertuxkart` and connected through a
       security context, was claimed by the shipped entry and supplied the
-      2560 × 1440 it was asked for. Left: the same with a build that has item
-      47, the X11 route through the proxy, and Snap.
+      2560 × 1440 it was asked for. Observed 2026-10-07 in the Kubuntu 26.04
+      machine with `package-vm.py kubuntu-26.04-amd64 sandboxed`: Flathub's
+      and the Snap Store's SuperTuxKart, on Wayland and through X11, each
+      claimed by the shipped entry and enlarged from 2560 × 1440; the Snap
+      named `/snap/supertuxkart/678/usr/bin/supertuxkart`, which the entry's
+      `.*/supertuxkart` takes. Extreme Tux Racer's Flatpak was told 2560 ×
+      1440 by the proxy, which named it
+      `flatpak://net.sourceforge.ExtremeTuxRacer/app/bin/etr`, and enlarged;
+      the Snap Store's Extreme Tux Racer, an unproven publisher's build on
+      core20, stopped at a dialog of its own launcher before the game. In the
+      Debian 13 machine, on KWin 6.3.6, a Flatpak's X11 window is not traced
+      to its process: KWin takes its PID from inside the sandbox, which is
+      left for K9. The [known limitations](slice-known-limitations.md#progress)
+      record what the effect needed for these and the native packages.
 
 Observed documentation validation, 2026-09-18: `pre-commit run --all-files`
 passed in the Trixie container on an isolated working-tree copy under
