@@ -516,7 +516,13 @@ UpscalePaintResult UpscaleEffect::drawWindow(const RenderTarget &target, const R
             effects->addRepaintFull();
         }
     }
-    m_renderedInputs.remove(window);
+    // A pass of another output the window reaches into, as one drawn over its
+    // own and larger than it does, says nothing of how its own output showed
+    // it; were it forgotten there, the status would follow whichever output
+    // KWin painted last.
+    if (!m_inPaint || !window || m_paintOutput == window->screen()) {
+        m_renderedInputs.remove(window);
+    }
 #if UPSCALE_RENDER_DEVICE_API
     return effects->drawWindow(target, viewport, window, mask, region, data);
 #else
