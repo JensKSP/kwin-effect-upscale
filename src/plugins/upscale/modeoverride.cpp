@@ -173,7 +173,7 @@ static std::optional<UpscaleBindDecision> decideAtBind(ClientConnection *client)
     // still claim the window, and an advertisement cannot be taken back.
     const QString program = upscaleProgramOf(client);
     const UpscaleBindAnswer answer = upscaleApplicationAtBind(program);
-    if (!answer.decided || (!answer.application && !upscaleRecognizedGame(program))) {
+    if (!answer.decided) {
         return std::nullopt;
     }
     UpscaleBindDecision decision{
@@ -181,7 +181,9 @@ static std::optional<UpscaleBindDecision> decideAtBind(ClientConnection *client)
         .settings = upscaleResolveSettings(answer.application),
         .method = UpscaleMethod::Off,
     };
-    if (!decision.settings.acts()) {
+    // Whether the program is a game is asked only of one All games would act
+    // for, as recognizing it reads the installed entries' times.
+    if (!decision.settings.acts() || (!answer.application && !upscaleRecognizedGame(program))) {
         return std::nullopt;
     }
     // What is said before the window exists comes from the fullscreen slot;

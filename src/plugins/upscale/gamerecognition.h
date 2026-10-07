@@ -24,10 +24,11 @@ namespace KWin
  * told apart from the interpreter's other programs, so it is recognized only
  * by its window; see upscaleGameDesktopFile().
  *
- * The entries are read when this is first asked, and again once a directory
- * they were read from changed, so a game installed while the session runs is
- * recognized from its next start. Asked when a program connects and when its
- * window is first seen, never per frame.
+ * The entries are read when this is first asked, and again once one of them
+ * or a directory they were read from changed, so a game installed while the
+ * session runs is recognized from its next start. That costs a look at each
+ * entry's time, so this is asked only while All games acts: when a program
+ * connects and when its window is first seen, never per frame.
  */
 bool upscaleRecognizedGame(const QString &program);
 

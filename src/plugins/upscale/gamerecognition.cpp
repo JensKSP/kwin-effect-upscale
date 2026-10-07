@@ -32,13 +32,13 @@ namespace
 {
 
 // What the installed desktop entries in the Game category name, and the
-// directories they were read from, as they were when they were read.
+// directories and entries read for it, as they were when they were read.
 struct GameIndex
 {
-    // The directories that changed after this may change again unseen.
+    // What changed after this may change again unseen.
     QDateTime settled;
     QStringList locations;
-    QList<std::pair<QString, QDateTime>> directories;
+    QList<std::pair<QString, QDateTime>> read;
     QSet<QString> desktopFiles;
     QSet<QString> programs;
     QSet<QString> flatpaks;
@@ -113,19 +113,26 @@ static void readEntry(GameIndex &index, const QString &id, const QString &path)
     }
 }
 
+// A file system keeps a change's time at a granularity of its own: a tick of a
+// coarse clock on Linux, a second or two on some others. What changed just
+// before it was read can change again within that tick and keep its time, so
+// its time is not kept, and it is read again when next asked.
+static void remember(GameIndex &index, const QFileInfo &info)
+{
+    const QDateTime modified = info.lastModified();
+    index.read.append({info.filePath(), modified < index.settled ? modified : QDateTime()});
+}
+
 // Entries are named by their path below the directory they are installed
 // in, a directory's name joined to its file's by a dash, and an entry of a
 // directory read earlier hides one of the same name read later, a hidden one
 // included: that is how a person's own entries replace the system's.
 static void readDirectory(GameIndex &index, QSet<QString> &seen, const QDir &root, const QString &directory)
 {
-    // A file system keeps a change's time at a granularity of its own: a tick
-    // of a coarse clock on Linux, a second or two on some others. A directory
-    // changed just before it was read can change again within that tick and
-    // keep its time, so its time is not kept, and it is read again when next
-    // asked.
-    const QDateTime modified = QFileInfo(directory).lastModified();
-    index.directories.append({directory, modified < index.settled ? modified : QDateTime()});
+    // A directory's time tells an entry added, removed or replaced, as
+    // package managers and KConfig replace a file; an entry's own, one
+    // rewritten in place.
+    remember(index, QFileInfo(directory));
     const QFileInfoList entries = QDir(directory).entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
     for (const QFileInfo &info : entries) {
         if (info.isDir()) {
@@ -144,22 +151,23 @@ static void readDirectory(GameIndex &index, QSet<QString> &seen, const QDir &roo
         id.replace(QLatin1Char('/'), QLatin1Char('-'));
         if (!seen.contains(id)) {
             seen.insert(id);
+            remember(index, info);
             readEntry(index, id, info.filePath());
         }
     }
 }
 
-// Whether a directory still has the time it had when it was read.
-static bool unchanged(const std::pair<QString, QDateTime> &directory)
+// Whether a directory or an entry still has the time it had when it was read.
+static bool unchanged(const std::pair<QString, QDateTime> &path)
 {
-    return QFileInfo(directory.first).lastModified() == directory.second;
+    return QFileInfo(path.first).lastModified() == path.second;
 }
 
 static const GameIndex &gameIndex()
 {
     static std::optional<GameIndex> s_index;
     const QStringList locations = QStandardPaths::standardLocations(QStandardPaths::ApplicationsLocation);
-    const bool current = s_index && s_index->locations == locations && std::ranges::all_of(s_index->directories, unchanged);
+    const bool current = s_index && s_index->locations == locations && std::ranges::all_of(s_index->read, unchanged);
     if (!current) {
         GameIndex index;
         index.settled = QDateTime::currentDateTimeUtc().addSecs(-2);
