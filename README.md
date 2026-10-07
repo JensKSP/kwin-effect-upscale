@@ -188,10 +188,13 @@ Two consequences are worth knowing:
 - **A game may report a resolution you did not manually choose.** Its settings
   show the mode it was offered, because from the game's point of view that is
   the display mode.
-- **Applications that are not configured are left alone**, unless the
-  **All applications** entry of the application list is checked. The effect
-  ships a small set of known applications and allows additional profiles to be
-  added.
+- **Applications that are not configured are left alone**, unless they are
+  games and the **All games** entry of the application list is checked. A game
+  is a program Wine or Proton runs, one in a Steam library, or one whose menu
+  entry is in the Games category; any other program, a desktop's own included,
+  is reached only through an entry of its own, which applies whether the
+  program is a game or not. The effect ships a small set of known applications
+  and allows additional profiles to be added.
 
 Upscaling itself remains separate from resolution control: the effect can
 enlarge a smaller fullscreen image whether that size was requested by the

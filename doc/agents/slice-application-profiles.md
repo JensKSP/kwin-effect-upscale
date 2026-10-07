@@ -67,8 +67,11 @@ learning anything about how it works. Concretely, all of the following hold:
   below). `readMethods()` in `application.cpp` leaves an absent slot unstated,
   `upscaleMethodFor()` answers it with `upscaleGlobalMethods()`, and that reads
   an absent global slot as `Auto`. What keeps a program nobody measured
-  untouched is the global profile's own switch, All applications, which is off
-  by default. Settled 2026-09-29 against the code: this bullet said an absent
+  untouched is the global profile's own switch, All games, which is off by
+  default and, switched on, acts only for a program recognized as a game; it
+  was called All applications and reached every program until Jens decided
+  otherwise on 2026-10-07, see the
+  [known limitations' K22](slice-known-limitations.md#progress). Settled 2026-09-29 against the code: this bullet said an absent
   global slot reads as `Off`, the rule the decisions below retired.
 - **The settings page is two switches and a set of preferences.** Methods live
   in a profile's details, and a person who does not open them never meets one.

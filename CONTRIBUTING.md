@@ -213,7 +213,8 @@ cases. `--refresh` on the preparation command updates the adapter and added
 test in an existing private source copy; rebuild after refreshing.
 
 Each upstream executable runs with the effect absent, loaded but unselected,
-and enabled for unlisted applications. Results retain QtTest data rows, skips,
+and enabled for unlisted games, the executable declaring itself one through a
+desktop entry in the Game category. Results retain QtTest data rows, skips,
 baseline failures and changed outcomes. Active-mode differences need inspection:
 requesting smaller buffers deliberately changes some protocol observations.
 The added tests check the committed buffer, physical output size, completed
