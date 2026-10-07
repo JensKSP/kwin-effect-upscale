@@ -159,8 +159,9 @@ login, stock Xwayland runs directly and no proxy process remains.
 Early selection currently requires an explicit executable identity in the
 application catalogue and a single display at the desktop origin. On Linux,
 the proxy names a Wine or Proton program by its prefix and Windows program
-before its first display query; no shipped profile names one yet, and no Wine
-or Proton game has been accepted this way. Elsewhere no connection is
+before its first display query. The shipped Wreckfest entry names its game
+this way, and Wreckfest through Proton was played so at 2560 × 1440 enlarged
+to 3840 × 2160 on KWin 6.3.6 (2026-10-03). Elsewhere no connection is
 identified. Native
 X11 input coverage still requires further acceptance testing; proxy routing
 alone does not establish that a game renders or receives input correctly.
