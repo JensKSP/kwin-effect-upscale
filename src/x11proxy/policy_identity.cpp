@@ -43,6 +43,18 @@ void Policy::resourceReply(QByteArray &bytes)
     }
 }
 
+// InternAtom, read for the one name processProperty() needs.
+void Policy::internAtom(const QByteArray &bytes, qsizetype shift, quint16 sequence)
+{
+    if (!m_registry || bytes.size() < 8 + shift) {
+        return;
+    }
+    const quint16 length = m_wire.word(bytes, 4 + shift);
+    if (bytes.size() == 8 + shift + ((length + 3) & ~3) && bytes.mid(8 + shift, length) == "_NET_WM_PID") {
+        m_requests.insert(sequence, {"process atom", 0, {}});
+    }
+}
+
 // A client in a PID namespace of its own, as Flatpak runs one, sets its
 // window's _NET_WM_PID to a number of that namespace. KWin 6.3 takes that for
 // the window's process and names another one, while KWin 6.6 asks XRes, which
