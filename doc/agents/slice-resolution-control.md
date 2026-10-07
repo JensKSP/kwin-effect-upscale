@@ -1994,8 +1994,8 @@ picture.
 Each completed physical run restored the saved effect settings and desktop
 scale three, with readback checks. These results do not establish internal
 render-target savings or complete physical-pointer acceptance. Pointer
-confinement, tablet input and lock hints remain open; touch is mapped since
-2026-10-06 (K16). K1 and K2 in the
+confinement, an X11 window's pen and lock hints remain open; touch is mapped
+since 2026-10-06 and a Wayland window's pen since 2026-10-07 (K16). K1 and K2 in the
 [known-limitations slice](slice-known-limitations.md) link here for the result.
 
 The subsequent first-configure fix corrects the fresh glmark2 case at scale
