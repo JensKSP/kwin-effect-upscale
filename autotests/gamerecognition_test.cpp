@@ -11,6 +11,7 @@
 
 #include "gamerecognition.h"
 
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -18,6 +19,8 @@
 #include <QTest>
 
 #include <memory>
+
+#include <utime.h>
 
 using namespace KWin;
 
@@ -35,6 +38,7 @@ private Q_SLOTS:
     void recognizesTheEntryAWindowNames();
     void aPersonsEntryHidesTheSystems();
     void readsEntriesInstalledLater();
+    void readsAnEntryRewrittenInPlace();
 
 private:
     QString program(const QString &name);
@@ -177,6 +181,35 @@ void GameRecognitionTest::readsEntriesInstalledLater()
     writeEntry(QStringLiteral("system"), QStringLiteral("later.desktop"), "Categories=Game;\nExec=later-game\n");
     QVERIFY(upscaleRecognizedGame(game));
     QVERIFY(QFile::remove(m_root->filePath(QStringLiteral("system/applications/later.desktop"))));
+    QVERIFY(!upscaleRecognizedGame(game));
+}
+
+// Changed an hour ago: long enough for the time to be kept.
+static bool age(const QString &path)
+{
+    const time_t hourAgo = time_t(QDateTime::currentSecsSinceEpoch() - 3600);
+    const utimbuf times{.actime = hourAgo, .modtime = hourAgo};
+    return ::utime(QFile::encodeName(path).constData(), &times) == 0;
+}
+
+// An entry rewritten in place, as by an editor that keeps the file, leaves its
+// directory's time as it was; only its own time says that it changed.
+void GameRecognitionTest::readsAnEntryRewrittenInPlace()
+{
+    const QString game = program(QStringLiteral("rewritten-game"));
+    writeEntry(QStringLiteral("system"), QStringLiteral("rewritten.desktop"), "Categories=Game;\nExec=rewritten-game\n");
+    const QString applications = m_root->filePath(QStringLiteral("system/applications"));
+    const QString entry = applications + QStringLiteral("/rewritten.desktop");
+    QVERIFY(age(entry));
+    QVERIFY(age(applications));
+    QVERIFY(age(m_root->filePath(QStringLiteral("home/applications"))));
+    const QDateTime directory = QFileInfo(applications).lastModified();
+    QVERIFY(upscaleRecognizedGame(game));
+    QFile file(entry);
+    QVERIFY(file.open(QIODevice::ReadWrite | QIODevice::Truncate));
+    QVERIFY(file.write("[Desktop Entry]\nType=Application\nName=Entry\nCategories=Utility;\nExec=rewritten-game\n") > 0);
+    file.close();
+    QCOMPARE(QFileInfo(applications).lastModified(), directory);
     QVERIFY(!upscaleRecognizedGame(game));
 }
 
