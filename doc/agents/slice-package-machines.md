@@ -185,8 +185,13 @@ the desktop before the game as well. Found on the way, each by running it:
 
 - FreeBSD cannot run Plasma's Wayland session in a machine: KWin needs a
   DRM/KMS driver, FreeBSD's drm-kmod drives Intel, AMD and NVIDIA hardware
-  only, and virtio-gpu KMS exists only as the open pull request
-  freebsd/drm-kmod#499 (aimed at FreeBSD 15.1, in review on 2026-09-29).
+  only, and virtio-gpu KMS exists only as an open pull request. The first,
+  freebsd/drm-kmod#499, closed unmerged on 2026-10-01, superseded by #517,
+  which rebuilds it on a LinuxKPI virtio layer and needs changes to FreeBSD's
+  base system that are in review on Phabricator; both were open on
+  2026-10-08. Trying it before then means a custom kernel and world as well as
+  the driver from an unmerged branch, and the nightly's stock machine could
+  not use it, so the session check waits for it to be merged.
   Decided by Jens on 2026-09-29: FreeBSD keeps the nightly's install, load and
   removal test in an emptied machine, and its session check waits for that
   driver.

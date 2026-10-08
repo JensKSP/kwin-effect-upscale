@@ -287,10 +287,10 @@ supersede earlier pending statuses.
   configuration and required approval on 2026-09-18; activation is recorded below.
 - PRs #1 and #5 merged through owner-enabled GitHub auto-merge. Dependabot opened
   updates for all three configured locations; the owner merged those updates.
-  Default-branch scheduled execution still needs observation.
-  That observation belongs to the
-  [GitHub project workflow](slice-github-project-workflow.md) slice, which
-  records it; this slice owns the configuration.
+  Default-branch scheduled execution was observed on 2026-09-28, when
+  Dependabot's scheduled run opened #22; the
+  [GitHub project workflow](slice-github-project-workflow.md) slice owns that
+  observation, and this slice the configuration.
 - ~~Observe the first authorized rolling-nightly publication and stable-tag
   release, including downloaded-asset and provenance verification.~~ Done:
   `v0.3.0` on 2026-10-01 and the nightly from master on 2026-10-02

@@ -2578,7 +2578,7 @@ and a real session on 6.6.
 
 ## Remaining work on the X11 production integration
 
-- [ ] Watch how long the X11 test takes after the KWin 6.6 fix of 2026-09-21,
+- [x] Watch how long the X11 test takes after the KWin 6.6 fix of 2026-09-21,
       agreed with Jens the same day. The pull request's CI runs it only on
       Trixie (KWin 6.3.6); Ubuntu 26.04 (KWin 6.6.6) runs it only in the
       nightly's resolute package jobs, amd64 and arm64. A normal run takes
@@ -2589,6 +2589,11 @@ and a real session on 6.6.
       waiting on. Jens's hypothesis, 2026-09-21: the slow local runs coincided
       with a language model running on this machine's GPU and CPU, so a slow
       run on CI's otherwise idle runners would be the telling one.
+      Closed 2026-10-08: the nightly's Kubuntu 26.04 jobs (KWin 6.6.6) of
+      2026-10-05 to 2026-10-08 report `upscale-x11-integration` at 74.0,
+      75.8, 74.6, 74.2, 75.2, 73.9, 75.6 and 72.8 s, amd64 and arm64 alike
+      (their `runtime-tests.xml`), where Trixie's KWin 6.3.6 takes 74 s for
+      the suite as it now is; no slow path showed in four nights.
 
 ### Production X11 integration
 

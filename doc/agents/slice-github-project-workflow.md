@@ -237,6 +237,17 @@ remain identified as optional in the permanent documentation.
   scheduled run of `hook-updates.yml` on master, which where hooks moved
   pushes `hook-updates-<day>`, opens its pull request with the run's token and
   dispatches CI on the branch, as recorded under hook updates below.
+  Observed 2026-10-05 (run 37309201548): it moved three hooks (gersemi
+  0.29.1 to 0.29.2, ruff v0.16.8 to v0.16.10, markdownlint-cli2 v0.23.2 to
+  v0.23.3), committed them and pushed `hook-updates-2026-10-05`, and then
+  failed: "GitHub Actions is not permitted to create or approve pull
+  requests". The repository's Actions setting reads
+  `can_approve_pull_request_reviews: false`, and the next Monday's run meets
+  the same setting. The branch is on the remote with no pull request. For
+  Jens: allow Actions to create pull requests in Settings → Actions → General
+  (the same switch also lets a workflow approve one), or have the run open
+  its pull request with another token, or have it stop at the branch and the
+  summary. The branch is his to keep or delete.
 - For Jens (item 89a): `gh auth refresh -s notifications`, granting the CLI
   the scope that reads his notification settings for failed scheduled runs
   and security alerts; the agent then reads and reports them.
