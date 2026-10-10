@@ -211,20 +211,24 @@ def run_case(
     command = (
         f"exec wine {shlex.quote(str(probe))} {api} {mode} 120 > {shlex.quote(str(output))} 2>&1"
     )
-    found = pc.watch(["sh", "-c", command], environment, 150, enlarged)
-    # The probe's own words, without the graphics stack's warnings about a
-    # machine that has no graphics card.
-    said = output.read_text(errors="replace").splitlines() if output.exists() else []
-    case: dict[str, object] = {
-        "probe said": [
-            line for line in said if line.startswith(("screen", "client", "unavailable"))
-        ][-4:]
-    }
-    case.update(seen)
-    taken = str(seen.get("picture", "")).endswith(".png")
-    case["picture splits"] = split_at_middle(picture) if found and taken else ""
-    case["passed"] = bool(found and case["picture splits"])
-    stop_wine(translation)
+    # Its server ends with the case whatever happens in it, or the next case
+    # would be shown the screen this one's server read.
+    try:
+        found = pc.watch(["sh", "-c", command], environment, 150, enlarged)
+        # The probe's own words, without the graphics stack's warnings about a
+        # machine that has no graphics card.
+        said = output.read_text(errors="replace").splitlines() if output.exists() else []
+        case: dict[str, object] = {
+            "probe said": [
+                line for line in said if line.startswith(("screen", "client", "unavailable"))
+            ][-4:]
+        }
+        case.update(seen)
+        taken = str(seen.get("picture", "")).endswith(".png")
+        case["picture splits"] = split_at_middle(picture) if found and taken else ""
+        case["passed"] = bool(found and case["picture splits"])
+    finally:
+        stop_wine(translation)
     return case
 
 
