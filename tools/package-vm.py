@@ -11,6 +11,7 @@
     package-vm.py SYSTEM languages PACKAGE    the session in each shipped language
     package-vm.py SYSTEM sandboxed PACKAGE    the shipped games as Flatpak and Snap
     package-vm.py SYSTEM wine PACKAGE         Windows graphics APIs on Wine's two drivers
+    package-vm.py SYSTEM wine-game PACKAGE    SuperTuxKart for Windows, launched under Wine
 
 A machine per system and architecture, each the system's own cloud image with
 the Plasma desktop its installer offers, logged in by SDDM into Plasma's Wayland
@@ -195,6 +196,7 @@ def main(argv: list[str] | None = None) -> int:
     commands.add_parser("languages").add_argument("package", type=Path)
     commands.add_parser("sandboxed").add_argument("package", type=Path)
     commands.add_parser("wine").add_argument("package", type=Path)
+    commands.add_parser("wine-game").add_argument("package", type=Path)
     arguments = parser.parse_args(argv)
     machine = SYSTEMS[arguments.system]
     if arguments.command == "create":
@@ -214,8 +216,8 @@ def main(argv: list[str] | None = None) -> int:
         return session(
             machine, ("package_session.py", "languages"), {"--package": arguments.package}
         )
-    elif arguments.command in ("sandboxed", "wine"):
-        script = f"package_{arguments.command}.py"
+    elif arguments.command in ("sandboxed", "wine", "wine-game"):
+        script = f"package_{arguments.command.replace('-', '_')}.py"
         return session(machine, (script,), {"--package": arguments.package})
     else:
         guest = vm.ssh(machine, *arguments.words)
