@@ -109,14 +109,14 @@ marked **F** belong here.
 | --- | --- | --- | --- | --- | --- |
 | K1 | Wayland clients with different buffer-density policies | The [scale-one Auto work](slice-resolution-control.md#wayland-auto-at-scale-one-2026-09-29) measured them across desktop scales 1, 1.5 and 3: fractional-density clients follow the desktop scale, glmark2 the output's integer scale, low-density SDL and SuperTux one | A smaller configure reaches these clients at scale one; asked for two thirds at desktop scale 3, low-density SDL supplied 853 × 480, below half the output, which the status names as refused | F, stated | Stays stated, see Progress; a physical run at a scaled desktop is Jens's |
 | K2 | Integer scale and startup-only sizing | vkmark ignores configure sizes; glmark2 keeps the viewport its first fullscreen configure gave it. The [scale-one Auto work](slice-resolution-control.md#wayland-auto-at-scale-one-2026-09-29) fixed the fresh glmark2 start with the first configure | vkmark uses the advertised mode; a fresh glmark2 uses a smaller first configure; a glmark2 resized later crops its scene, which the effect cannot see | F, stated | Stays stated, see Progress: a renderer's fixed viewport is the client's |
-| K3 | Wine's Wayland driver | Removed for OpenGL 2026-10-07: Wine 10.0 itself, in the Debian 13 package machine, presented after two fixes, see Progress | The game enlarged from its subsurface's picture | F | Direct3D and Vulkan on this driver go with K10 |
+| K3 | Wine's Wayland driver | Removed for OpenGL 2026-10-07: Wine 10.0 itself, in the Debian 13 package machine, presented after two fixes; for Direct3D 9, 11 and 12 and Vulkan on 2026-10-10, borderless and exclusive, with Wine's own translation and software rendering; see Progress | The game enlarged from its subsurface's picture | F | DXVK, vkd3d-proton and real hardware go with K10 |
 | K4 | A program that connected before it could be told | The Wayland mode is told when a client binds the output, the X11 screen when a connection goes through the proxy; a program already running, or an X11 program that does not connect through the proxy, hears neither | Full size, or an X11 program resized after it started showing part of its picture enlarged (glmark2 2023.01, SuperTux 0.6.3 keep their first viewport). For a Wayland program the status names the size "from the next start"; not checked for every route | S, stated | Tested per route 2026-10-06, see Progress; stays stated |
 | K5 | A toolkit that picks another output | Extreme Tux Racer 0.8.4 with SFML 2.6.2 moves to the primary output when it recreates its fullscreen window | The shipped entry refuses control on a secondary output; the status says so | S, stated | Stays stated unless SFML changes |
 | K6 | A requested X11 mode the program does not list | Removed 2026-10-06: the nearest listed mode is asked instead; see Progress | The game gets the listed mode nearest to the wish, enlarged | S | Done |
 | K7 | Internal render targets that keep their size | SuperTux 0.6.3: the outer buffer and viewport went from 4K to 1080p, an intermediate framebuffer stayed 1368 × 769 | Nothing visible; the saving in GPU time is smaller than the buffer suggests | F | A measurement question for the cost matrix (item 74), not a defect; stated |
 | K8 | A game that keeps the smaller size in its own settings | SuperTuxKart 1.4 writes the told mode into its configuration (item 17) | Under Native the effect enlarges the kept smaller buffer; under other presets the display marks the kept size in the warning colour | S, stated | Stated in the handbook's known limits since 2026-10-04; nothing to change in the effect |
 | K9 | Programs in Flatpak and Snap | Removed 2026-10-07 for the shipped games: SuperTuxKart and Extreme Tux Racer from Flathub and the Snap Store enlarged on Wayland and through X11 in the Debian 13 (KWin 6.3.6) and Kubuntu 26.04 (KWin 6.6.6) package machines, see Progress | Enlarged as natively packaged games are; the Snap Store's Extreme Tux Racer stops at its own launcher's dialog before the game | F | Steam as Flatpak or Snap is item 34, in the [Proton slice](slice-proton-smaller-screen.md#remaining-work) |
-| K10 | Wine and Proton across the graphics paths | Only Direct3D 11 on Wine's own renderer and OpenGL were run; official Proton and Direct3D 9, 12 and Vulkan, exclusive and borderless, are item 36 | Unknown where not run | F | Item 36, in the [Proton slice](slice-proton-smaller-screen.md#remaining-work) |
+| K10 | Wine and Proton across the graphics paths | Wine 10.0 with its own translation, WineD3D for Direct3D 9 and 11 and vkd3d for 12, and Vulkan, each borderless and exclusive on both of its display drivers, enlarged in the Debian 13 package machine on 2026-10-10 with software rendering, see Progress; official Proton, DXVK, vkd3d-proton and real hardware are item 36 | Unknown where not run | F | Item 36, in the [Proton slice](slice-proton-smaller-screen.md#remaining-work) |
 | K11 | FreeBSD and the BSDs | FreeBSD's nightly installs, loads and removes the effect in an emptied machine; no session check, and the proxy is not run there (items 2f, 23) | Unknown | F | The session check once the virtio-gpu driver allows one |
 | K22 | The desktop's own programs told the smaller screen under All applications | Removed 2026-10-07 by Jens's decision: the global profile is now All games and acts only for a program it recognizes as a game, at bind, at the proxy and for windows; an entry still applies to any program. In the Debian 13 package machine the panel spans the screen again; see Progress | Plasma's programs are told nothing and its splash screen is not announced; a game All games does not recognize is left alone, with the status saying so, which the handbook's known limits state | S | Done |
 
@@ -473,6 +473,22 @@ else, and every X11 connection of Plasma's own helpers - `kcminit`, `kded6`,
 the list, and not recognized as a game". The probe was enlarged from
 2560 × 1440 to 3840 × 2160 with FSR 1, and KWin's picture splits red from
 blue at its middle, as before.
+
+K3 and K10 beyond OpenGL, 2026-10-10, in a fresh Debian 13 package machine
+with a package of `0e0b334` and `package-vm.py debian-13-amd64 wine`. The
+OpenGL probe became `tools/wine-probe/`, one Windows program with a part per
+API: OpenGL, Direct3D 9 and 11 (Wine's WineD3D), Direct3D 12 (Wine's vkd3d)
+and Vulkan (winevulkan on Mesa's lavapipe), each borderless, a popup window
+over the screen, and exclusive, the API's own fullscreen or a display mode
+set first. The check runs each on Wine's Wayland driver and on its X11 driver
+through the session proxy, with a new Wine server per run, under All games.
+All twenty were enlarged from 2560 × 1440 to 3840 × 2160 with FSR 1, on the
+window system their driver speaks (`wayland-fullscreen` and
+`x11-fullscreen`), and KWin's picture splits red from blue at its middle in
+each. On the X11 driver the probe reported the 2560 × 1440 screen the proxy
+told its prefix. The machine has no graphics card, so this shows what the
+effect does with each path, not how a game runs on one: DXVK, vkd3d-proton,
+official Proton and real hardware stay item 36.
 
 What step 7 leaves: K10 and K13 on Jens's hardware, K11 once FreeBSD's
 virtio-gpu allows a session, and item 34's Steam, which needs a Steam account.

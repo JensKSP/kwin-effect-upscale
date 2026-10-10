@@ -1233,8 +1233,12 @@ Moved here from the open list on 2026-10-03, by its item numbers. The
   with Debian's Wine 10.0 and the OpenGL probe in the conformance machine.
 - Every flavour under the [additions](#additions-laid-down-by-jens-2026-09-22),
   with Direct3D 9, 11 and 12, OpenGL and Vulkan, exclusive and borderless, on
-  real hardware (item 36, K10). Only Direct3D 11 on Wine's own renderer and
-  OpenGL have run.
+  real hardware (item 36, K10). On 2026-10-10 a probe through OpenGL,
+  Direct3D 9, 11 and 12 and Vulkan, borderless and exclusive, was enlarged on
+  Wine 10.0's X11 and Wayland drivers in the Debian 13 package machine with
+  software rendering and Wine's own translation (the
+  [known limitations](slice-known-limitations.md#progress) record it); DXVK,
+  vkd3d-proton, official Proton and real hardware remain.
 - Steam as Flatpak and Snap, run (item 34, K9), once
   [the analysis of 2026-09-27](#steam-as-flatpak-and-snap-2026-09-27), which
   still reasons with the companion, is restated for the proxy route.
@@ -1243,6 +1247,7 @@ Moved here from the open list on 2026-10-03, by its item numbers. The
   enlarged from its subsurface's 2560 × 1440 once the effect took a fullscreen
   window of the told pixels and a picture whatever its alpha (the
   [known limitations](slice-known-limitations.md#progress) record both);
-  Direct3D and Vulkan on that driver go with item 36, and a confinement meets
+  Direct3D 9, 11 and 12 and Vulkan on that driver were enlarged on
+  2026-10-10 as well, the rest goes with item 36, and a confinement meets
   K15's gap; see
   [Wine's Wayland driver](#wines-wayland-driver-reproduced-2026-09-29).
