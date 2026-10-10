@@ -22,6 +22,21 @@ says, the gate it belongs to, and the next step. Where another slice or an
 item of the open list already holds the work, the entry links there, and the
 link is the only place its status is kept.
 
+Decided by Jens on 2026-10-10, going through the open questions for the 0.4.0
+release one by one. Blocking the `v0.4.0` tag: item 31's input, a confined
+pointer included, and its slot switched Off, for SuperTuxKart for Windows in
+the package machine; and a session test of item 101, two reconfigurations
+while a game holds a pointer lock, which blocks only if it loses input. After
+0.4.0, in this order: K16's X11 pen, with `libxcb-xinput-dev` as a test
+dependency; from K12, rotated and flipped outputs and buffers, a second pass
+beyond FSR's twofold range, crops on whole pixels, several child surfaces
+and further buffer formats, while a window KWin is animating stays refused;
+then HDR-aware FSR as a work package of its own, accepted on Jens's
+television; vkd3d-proton in the Wine check; K10 and K13 in a session on Jens's
+hardware from a list prepared for it; Steam as Flatpak and Snap on his
+machine; and the KWin proposal of 29b, refreshed against KWin master and filed
+by Jens. He sets the default workflow token back to read.
+
 ## Start state and evidence
 
 The effect enlarges a game's buffer where it can get a smaller one and
