@@ -184,12 +184,18 @@ void UpscaleSnapshotTest::doesNotInventUnknownValues()
     QVERIFY(upscaleDeveloperInformation(disabled).contains(QStringLiteral("Configuration: disabled")));
     QVERIFY(upscaleStatusText(disabled).contains(QStringLiteral("Inactive: upscaling was switched off")));
 
-    // A window no profile claims, with unlisted applications switched off, is
-    // left alone - and says so, naming both ways the answer could change.
+    // A window no profile claims, with All games switched off, is left alone
+    // - and says so, naming both ways the answer could change.
     UpscaleSnapshot unlisted;
     unlisted.refusal = UpscaleRefusal::Unlisted;
-    QVERIFY2(upscaleStatusText(unlisted).contains(QStringLiteral("not in the list, and “All applications” is switched off")),
+    QVERIFY2(upscaleStatusText(unlisted).contains(QStringLiteral("not in the list, and “All games” is switched off")),
              qPrintable(upscaleStatusText(unlisted)));
+    // With All games on, one that is no game is left alone too, and the only
+    // way left is an entry of its own.
+    UpscaleSnapshot notGame;
+    notGame.refusal = UpscaleRefusal::NotGame;
+    QVERIFY2(upscaleStatusText(notGame).contains(QStringLiteral("not in the list and not recognized as a game")),
+             qPrintable(upscaleStatusText(notGame)));
 }
 
 void UpscaleSnapshotTest::pixelSizesAreNotGrouped()
@@ -203,6 +209,32 @@ void UpscaleSnapshotTest::pixelSizesAreNotGrouped()
     QLocale::setDefault(previous);
     QVERIFY2(developer.contains(QStringLiteral("3840 × 2160")), qPrintable(developer));
     QVERIFY2(!developer.contains(QStringLiteral("3.840")), qPrintable(developer));
+}
+
+void UpscaleSnapshotTest::figuresFollowTheLocale()
+{
+    // A German session read "1.6/s" and "output scale 1.05" in the developer
+    // view while the heads-up beside it wrote 636,9, found in the Debian
+    // package machine on 2026-10-03. A figure is never grouped either, so a
+    // fractional coordinate reads like the pixel sizes beside it.
+    const QLocale previous = QLocale();
+    QLocale::setDefault(QLocale(QLocale::German, QLocale::Germany));
+    UpscaleSnapshot snapshot = scaling();
+    snapshot.outputScale = 1.05;
+    snapshot.windowArea = UpscaleRectF(0, 0, 3657.1, 2057.1);
+    snapshot.presentedRate = 59.9;
+    snapshot.presentation = int(PresentationMode::VSync);
+    const QString developer = upscaleDeveloperInformation(snapshot);
+    const QString status = upscaleStatusText(snapshot);
+    QLocale::setDefault(previous);
+    // The position's two figures stay apart in the source language's frame
+    // too, which a session with English texts and German formats reads.
+    for (const QString &expected :
+         {QStringLiteral("59,8/s"), QStringLiteral("output scale 1,05"), QStringLiteral("(0,0; 0,0) 3657,1 × 2057,1")}) {
+        QVERIFY2(developer.contains(expected), qPrintable(developer));
+    }
+    QVERIFY2(!developer.contains(QStringLiteral("3.657")), qPrintable(developer));
+    QVERIFY2(status.contains(QStringLiteral("Presented at 59,9/s")), qPrintable(status));
 }
 
 void UpscaleSnapshotTest::developerInformationCoversTheState()
@@ -295,8 +327,8 @@ void UpscaleSnapshotTest::namesTheClientItIsLookingAt()
     covered.windowArea = UpscaleRectF(0, 0, 2560, 1440);
     covered.outputArea = UpscaleRectF(0, 0, 2648.28, 1489.66);
     const QString areas = upscaleDeveloperInformation(covered);
-    QVERIFY2(areas.contains(QStringLiteral("window 0.0,0.0 2560.0 × 1440.0")), qPrintable(areas));
-    QVERIFY2(areas.contains(QStringLiteral("output 0.0,0.0 2648.3 × 1489.7")), qPrintable(areas));
+    QVERIFY2(areas.contains(QStringLiteral("window (0.0; 0.0) 2560.0 × 1440.0")), qPrintable(areas));
+    QVERIFY2(areas.contains(QStringLiteral("output (0.0; 0.0) 2648.3 × 1489.7")), qPrintable(areas));
 
     // The first thing to check when a request had no effect is which window
     // system the client speaks: a Wayland method cannot reach an Xwayland

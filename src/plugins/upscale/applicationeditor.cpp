@@ -152,14 +152,17 @@ void UpscaleApplicationEditor::rebuildList()
     const int row = m_list->currentRow();
     m_list->clear();
     // Checkable like every other row, with the same meaning: whether it acts
-    // for the windows it claims, which for the global profile are those no
-    // other entry matches. The tooltip says so, because the name alone
-    // suggests a switch for everything.
-    auto *all = new QListWidgetItem(i18n("All applications"), m_list);
+    // for the windows it claims, which for the global profile are those of
+    // the games no other entry matches. The tooltip says what counts as one,
+    // because the name alone cannot, and that an entry is how anything else
+    // is reached.
+    auto *all = new QListWidgetItem(i18n("All games"), m_list);
     all->setFlags(all->flags() | Qt::ItemIsUserCheckable);
     all->setCheckState(m_allEnabled ? Qt::Checked : Qt::Unchecked);
-    all->setToolTip(i18n("Every application follows these settings unless its own entry sets them. "
-                         "When checked, applications that are not in the list are upscaled as well."));
+    all->setToolTip(i18n("Every entry follows these settings where it sets none of its own. "
+                         "When checked, games that are not in the list are upscaled as well: programs run by Wine or Proton, "
+                         "programs in a Steam library, and programs whose menu entry is in the Games category. "
+                         "Any other program is upscaled only through an entry of its own."));
     QFont emphasis = all->font();
     emphasis.setBold(true);
     all->setFont(emphasis);

@@ -9,6 +9,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
+#include <vector>
 
 namespace KWin
 {
@@ -207,6 +209,34 @@ inline int reachableScale(UpscaleSize outputPixels, double outputScale, Resoluti
         if (best == 0 || distance < bestDistance) {
             best = candidate;
             bestDistance = distance;
+        }
+    }
+    return best;
+}
+
+/**
+ * The size to ask of a client that can only be given one of the sizes its
+ * output lists, as an X11 game is given a mode: the wish where it is listed,
+ * otherwise the listed size nearest to it of those the scaler enlarges, the
+ * larger of two equally near. Nothing where none is.
+ *
+ * Only sizes of the output's shape are offered, so the width alone measures
+ * how near one is.
+ */
+inline UpscaleSize nearestListedSize(const std::vector<UpscaleSize> &listed, UpscaleSize wanted, UpscaleSize outputPixels)
+{
+    UpscaleSize best{0, 0};
+    for (const UpscaleSize &size : listed) {
+        if (size == wanted) {
+            return size;
+        }
+        if (upscaleSizing(size, outputPixels) != UpscaleSizing::Supported) {
+            continue;
+        }
+        const int distance = std::abs(size.width - wanted.width);
+        const int bestDistance = std::abs(best.width - wanted.width);
+        if (best.width == 0 || distance < bestDistance || (distance == bestDistance && size.width > best.width)) {
+            best = size;
         }
     }
     return best;

@@ -6,6 +6,7 @@
 
 #include "windowidentity.h"
 
+#include "gamerecognition.h"
 #include "matching.h"
 #include "runtime.h"
 
@@ -21,6 +22,8 @@
 #include <QLoggingCategory>
 #include <QPointer>
 #include <QUuid>
+
+#include <optional>
 
 // Its own category rather than the effect's, which upscale.cpp defines: this
 // file is also built into tests that do not build the effect around it.
@@ -59,6 +62,10 @@ struct Resolved
     QString instance;
     QString executable;
     const UpscaleApplication *application = nullptr;
+    // Whether the program or the desktop entry the window named, as it named
+    // it then, is a game's; recognized once and again when that entry changes.
+    std::optional<QString> desktopFile;
+    bool game = false;
 };
 
 }
@@ -125,6 +132,31 @@ const UpscaleApplication *upscaleApplicationForWindow(const Window *window)
     // Asked each time rather than kept: a launcher's window exists before its
     // prefix is shown its game's screen.
     return resolved.application ? resolved.application : upscaleServedApplication(window->pid());
+}
+
+bool upscaleGameWindow(const Window *window)
+{
+    if (!window) {
+        return false;
+    }
+    Resolved &resolved = resolvedFor(window);
+    if (resolved.desktopFile != window->desktopFileName()) {
+        resolved.desktopFile = window->desktopFileName();
+        resolved.game = upscaleRecognizedGame(resolved.executable) || upscaleGameDesktopFile(*resolved.desktopFile);
+    }
+    // Asked each time, as the application is: the proxy may answer for a
+    // process of a Wine prefix after its first window exists.
+    return resolved.game || upscaleServedGame(window->pid());
+}
+
+UpscaleSettings upscaleSettingsForWindow(const Window *window)
+{
+    const UpscaleApplication *application = upscaleApplicationForWindow(window);
+    UpscaleSettings settings = upscaleResolveSettings(application);
+    if (!application && settings.acts() && !upscaleGameWindow(window)) {
+        settings.setActs(false);
+    }
+    return settings;
 }
 
 UpscaleIdentityService::UpscaleIdentityService(QObject *parent)

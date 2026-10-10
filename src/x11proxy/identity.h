@@ -62,6 +62,12 @@ struct ProgramIdentity
     QString flatpak;
     /** The program is one of Wine's own, not the prefix's. */
     bool component = false;
+    /**
+     * For a component, the program it was started to run, which it names
+     * among its arguments: Proton starts every game as `steam.exe` and the
+     * game's Unix path, and Wine's start.exe takes one too. Empty otherwise.
+     */
+    QString launched;
 
     bool isWine() const
     {
@@ -79,6 +85,17 @@ ProgramIdentity upscaleProgramIdentity(quint32 pid);
 QString upscaleFlatpakApplication(const QByteArray &info);
 /** Whether @p program is Wine naming a Windows program on a lettered drive. */
 bool upscaleWindowsPath(const QString &program);
+/**
+ * @p path without Windows' long-path prefix, `\\?\` or NT's `\??\`, which
+ * may stand before a drive and is no part of the program's name.
+ */
+QString upscaleWithoutLongPathPrefix(const QString &path);
+/**
+ * Whether @p path is one of Wine's Unix loaders. While Wine starts a program,
+ * the loader still comes first in the process's command line, before the
+ * Windows program it is about to run.
+ */
+bool upscaleWineLoader(const QString &path);
 /** One drive of a prefix: its letter, and the Unix directory it stands for. */
 struct WineDrive
 {
@@ -99,7 +116,8 @@ QString upscaleWindowsPathFor(const QString &unixPath, const QList<WineDrive> &d
  * A prefix is one Wine server, one registry and one Windows desktop, so its
  * programs share one screen. Wine's components start before the game and name
  * only themselves, which is why the game has to be found beside them rather
- * than asked of the connecting process.
+ * than asked of the connecting process. A component that was started to run a
+ * program names it before that program exists, and counts as naming it.
  */
 QString upscalePrefixProgram(const QString &prefix);
 /** Whether @p program is one of Wine's own, below its Windows directory. */

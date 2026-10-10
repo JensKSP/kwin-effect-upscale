@@ -233,6 +233,35 @@ remain identified as optional in the permanent documentation.
 - CodeQL and dependency review are implemented and locally validated.
   Dependency review has passed a hosted run; CodeQL's hosted execution remains
   pending, and neither check gates a pull request. See the phase 2 record below.
+- Watch, moved from the open list on 2026-10-03 (item 89a): the first
+  scheduled run of `hook-updates.yml` on master, which where hooks moved
+  pushes `hook-updates-<day>`, opens its pull request with the run's token and
+  dispatches CI on the branch, as recorded under hook updates below.
+  Observed 2026-10-05 (run 37309201548): it moved three hooks (gersemi
+  0.29.1 to 0.29.2, ruff v0.16.8 to v0.16.10, markdownlint-cli2 v0.23.2 to
+  v0.23.3), committed them and pushed `hook-updates-2026-10-05`, and then
+  failed: "GitHub Actions is not permitted to create or approve pull
+  requests". The repository's Actions setting reads
+  `can_approve_pull_request_reviews: false`, and the next Monday's run meets
+  the same setting. The branch is on the remote with no pull request. For
+  Jens: allow Actions to create pull requests in Settings → Actions → General
+  (the same switch also lets a workflow approve one), or have the run open
+  its pull request with another token, or have it stop at the branch and the
+  summary. The branch is his to keep or delete.
+  Jens allowed Actions to create pull requests on 2026-10-10; the setting
+  reads `can_approve_pull_request_reviews: true` since, and the default
+  workflow token became `write` with it, which no workflow here relies on, as
+  each declares its own permissions. `hook-updates-2026-10-05` was deleted
+  the same day at his word. Whether the next Monday's run opens its pull
+  request is still to be seen.
+- For Jens (item 89a): `gh auth refresh -s notifications`, granting the CLI
+  the scope that reads his notification settings for failed scheduled runs
+  and security alerts; the agent then reads and reports them.
+- For Jens (item 91): Settings → Code security, to switch on non-provider
+  secret patterns and validity checks there if GitHub offers them. He decided
+  on 2026-09-29 to have both; the API answered a `PATCH` of
+  `security_and_analysis` with 200 the same day and both stayed disabled,
+  presumably not offered for a public repository of a personal account.
 
 ### State readback, 2026-09-20
 
@@ -247,10 +276,12 @@ rows above. What each check actually returned:
   milestone per release, without due dates (item 87). Milestone 1, "0.3.0",
   exists and holds #23, the only open issue or pull request; its list is the
   blocker filter for the release.
-- **Contribution forms (section 1): on the default branch, acceptance open.**
-  Five templates plus `config.yml` and the PR template are present. Whether the
-  forms render and reject an empty required field has still not been observed
-  on GitHub.
+- **Contribution forms (section 1): on the default branch, accepted.**
+  Five templates plus `config.yml` and the PR template are present. Observed
+  by Jens on GitHub on 2026-10-03: the forms render and reject an empty
+  required field. How a game's settings are reported is to be worked out
+  later, with the submitted applications in the
+  [application profiles](slice-application-profiles.md) slice.
 - **CodeQL (section 2): hosted execution still unobserved.**
   `gh run list --workflow=codeql.yml` returns no runs at all. SARIF upload and
   Security-tab results therefore remain unverified, as the phase 2 record says.

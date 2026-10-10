@@ -215,6 +215,22 @@ checks on Ubuntu. Acceptance requires current-source GCC/Clang builds on
 Trixie and neon, the Ubuntu package build and runtime suite, and two identical
 Ubuntu packages with clean installed-plugin checks.
 
+### KWin 6.7 package compatibility, 2026-09-30
+
+The first nightly after #23's merge, 36697907408 on `312c07c`, failed the Arch,
+Fedora, openSUSE and FreeBSD packages with "marked 'override', but does not
+override". The window drawn over its output overrides `prePaintScreen()`, and
+the effect took callbacks that return void to mean the signature with a
+presentation time, which KWin 6.7 dropped while its callbacks still return
+void. The `v0.3.0` release run 36913783473 of 2026-10-01 failed the same way
+and published nothing. A second probe now asks KWin's header whether
+`prePaintScreen()` takes a presentation time: yes on 6.3.6 and 6.6.6, no on
+6.7.5 and master, each built with warnings as errors, the 6.7.5 one in the Arch
+package image as its recipe builds. After #25 was merged as `3b07407`, `v0.3.0`
+was recreated on that commit as Jens decided, and release run 36919001697
+published every package, which a verify-only nightly on the same tree had
+built and tested first.
+
 ### Current candidate validation
 
 - Based on the committed effect fix `cbd34c7`, separate region/shared-colour
@@ -271,14 +287,17 @@ supersede earlier pending statuses.
   configuration and required approval on 2026-09-18; activation is recorded below.
 - PRs #1 and #5 merged through owner-enabled GitHub auto-merge. Dependabot opened
   updates for all three configured locations; the owner merged those updates.
-  Default-branch scheduled execution still needs observation.
-  That observation belongs to the
-  [GitHub project workflow](slice-github-project-workflow.md) slice, which
-  records it; this slice owns the configuration.
-- Observe the first authorized rolling-nightly publication and stable-tag
-  release, including downloaded-asset and provenance verification. Do not
-  create a stable version solely to test publication or count the existing
-  verification-only run as a public release.
+  Default-branch scheduled execution was observed on 2026-09-28, when
+  Dependabot's scheduled run opened #22; the
+  [GitHub project workflow](slice-github-project-workflow.md) slice owns that
+  observation, and this slice the configuration.
+- ~~Observe the first authorized rolling-nightly publication and stable-tag
+  release, including downloaded-asset and provenance verification.~~ Done:
+  `v0.3.0` on 2026-10-01 and the nightly from master on 2026-10-02
+  (37053891266); on 2026-10-03 every file of both but the bundle verified
+  against this repository with GitHub CLI 2.102.0, and each bundle verified a
+  package offline with `release-assets.yml` as the signer (item 83 of the
+  open list).
 - Keep real-device acceptance with the rendering slice. Candidate provenance
   identifies what was tested; this pipeline does not claim hardware acceptance.
 

@@ -46,8 +46,11 @@ private Q_SLOTS:
     void aConfinedPointerReachesTheWholeWindow();
     void keepsTheKeyboardWhereThePointerIs();
     void movesThePointerOverAHiddenTitleBar();
+    void leavesATitleBarAboveAPresentedGame();
+    void mapsTouchOntoAPresentedGame();
     void letsAPresentedGameLockThePointer();
     void coversTheScreenItWasGiven();
+    void presentsAServedGameThatSetsNoMode();
     void winePrefixEligibility_data();
     void winePrefixEligibility();
     void leavesWineToTheProxy_data();
@@ -56,7 +59,7 @@ private Q_SLOTS:
     void keepsEmulatedPointerCoverage_data();
     void keepsEmulatedPointerCoverage();
     void expiresDepartedClientRefusal();
-    void refusesUnavailableMode();
+    void asksTheNearestListedMode();
     void respectsPrimaryOutputRestriction();
     void retriesADroppedResizeOnce();
     void independentOutputRules();
@@ -70,7 +73,8 @@ private Q_SLOTS:
     void reenteringFullscreenAtOnce();
     void fitsAnEmulatedModeBetweenBars();
     void centresAPresentedWindowByAWholeFactor();
-    void answersUnlistedProgramsUnderAllApplications();
+    void scalesAWindowOfAFractionalLogicalSize();
+    void answersUnlistedGamesUnderAllGames();
     void presentsAProcessShownItsGamesScreen();
 
 private:

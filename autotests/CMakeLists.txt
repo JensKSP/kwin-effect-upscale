@@ -76,6 +76,38 @@ if(KWin_VERSION VERSION_LESS 6.7)
     )
 endif()
 
+add_executable(
+    upscale_gamerecognition_test
+    gamerecognition_test.cpp
+    ../src/plugins/upscale/gamerecognition.cpp
+)
+target_include_directories(upscale_gamerecognition_test PRIVATE ../src/plugins/upscale)
+target_link_libraries(upscale_gamerecognition_test PRIVATE Qt6::Test KF6::ConfigCore)
+add_test(NAME upscale-gamerecognition COMMAND upscale_gamerecognition_test)
+
+set(served_test_sources
+    served_test.cpp
+    ../src/plugins/upscale/application.cpp
+    ../src/plugins/upscale/matching.cpp
+    ../src/plugins/upscale/pattern.cpp
+    ../src/plugins/upscale/settings.cpp
+    ../src/plugins/upscale/legacysettings.cpp
+    ../src/plugins/upscale/placement.cpp
+    ../src/plugins/upscale/windowidentity.cpp
+    ../src/plugins/upscale/gamerecognition.cpp
+    ../src/plugins/upscale/x11proxypolicy.cpp
+    ../src/plugins/upscale/x11modes.cpp
+)
+kconfig_add_kcfg_files(served_test_sources ../src/plugins/upscale/upscaleconfig.kcfgc)
+add_executable(upscale_served_test ${served_test_sources})
+target_include_directories(upscale_served_test PRIVATE ../src/plugins/upscale)
+target_compile_definitions(upscale_served_test PRIVATE -DTRANSLATION_DOMAIN="kwin_effect_upscale")
+target_link_libraries(
+    upscale_served_test
+    PRIVATE kwin Qt6::Test KF6::ConfigGui KF6::I18n Libdrm::Libdrm
+)
+add_test(NAME upscale-served COMMAND upscale_served_test)
+
 # settings.cpp reads the global layer through the generated configuration, so
 # this test needs the kcfg generated for it as the others do.
 kconfig_add_kcfg_files(application_test_sources ../src/plugins/upscale/upscaleconfig.kcfgc)
@@ -122,6 +154,7 @@ set(snapshot_test_sources
     ../src/plugins/upscale/eligibility.cpp
     ../src/plugins/upscale/eligibility_over.cpp
     ../src/plugins/upscale/windowidentity.cpp
+    ../src/plugins/upscale/gamerecognition.cpp
     ../src/plugins/upscale/x11proxypolicy.cpp
     ../src/plugins/upscale/x11modes.cpp
     ../src/plugins/upscale/refusaltext.cpp
@@ -150,6 +183,7 @@ set(headsup_test_sources
     ../src/plugins/upscale/eligibility.cpp
     ../src/plugins/upscale/eligibility_over.cpp
     ../src/plugins/upscale/windowidentity.cpp
+    ../src/plugins/upscale/gamerecognition.cpp
     ../src/plugins/upscale/x11proxypolicy.cpp
     ../src/plugins/upscale/x11modes.cpp
     ../src/plugins/upscale/refusaltext.cpp
@@ -179,6 +213,7 @@ set(placement_test_sources
     ../src/plugins/upscale/eligibility.cpp
     ../src/plugins/upscale/eligibility_over.cpp
     ../src/plugins/upscale/windowidentity.cpp
+    ../src/plugins/upscale/gamerecognition.cpp
     ../src/plugins/upscale/x11proxypolicy.cpp
     ../src/plugins/upscale/x11modes.cpp
     ../src/plugins/upscale/refusaltext.cpp
@@ -218,6 +253,7 @@ set(display_test_sources
     ../src/plugins/upscale/eligibility.cpp
     ../src/plugins/upscale/eligibility_over.cpp
     ../src/plugins/upscale/windowidentity.cpp
+    ../src/plugins/upscale/gamerecognition.cpp
     ../src/plugins/upscale/x11proxypolicy.cpp
     ../src/plugins/upscale/x11modes.cpp
     ../src/plugins/upscale/refusaltext.cpp
@@ -326,6 +362,7 @@ foreach(
     upscale_headsup_test
     upscale_placement_test
     upscale_display_test
+    upscale_served_test
 )
     target_link_libraries(${target} PRIVATE XCB::RANDR)
 endforeach()

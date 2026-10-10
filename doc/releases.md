@@ -61,7 +61,7 @@ Laid down by Jens, 2026-09-17.
   that needs a stable URL for a fixed build.
 - Packages are built for amd64 and arm64 on Debian Trixie, Kubuntu 26.04 LTS,
   Fedora 43 and openSUSE Tumbleweed, and for amd64 alone on Arch and on
-  FreeBSD 15.0; `tools/ci_targets.py` is the list. Support the current
+  FreeBSD 15.1; `tools/ci_targets.py` is the list. Support the current
   releases: an interim Ubuntu release is supported for nine months, so
   packaging for one that is already out of support ships something nobody can
   update.

@@ -6,6 +6,21 @@
 
 #include "integration_test.h"
 
+#include "game_entry.h"
+
+// The cases that switch All games on are about a game, so this test's client
+// is one; integration_advertisement_test.cpp takes that away where it asks
+// what All games does with a program that is not.
+void UpscaleIntegrationTest::initTestCase()
+{
+    QVERIFY(upscaleDeclareGame(QCoreApplication::applicationFilePath()));
+}
+
+void UpscaleIntegrationTest::cleanupTestCase()
+{
+    QVERIFY(upscaleDeclareGame(QCoreApplication::applicationFilePath(), false));
+}
+
 QString UpscaleIntegrationTest::status()
 {
     const QDBusReply<QString> reply = m_effects.call(QStringLiteral("supportInformation"), QStringLiteral("upscale_test_driver"));

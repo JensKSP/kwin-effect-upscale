@@ -198,14 +198,14 @@ QString UpscaleX11Resolution::failure(const Window *window) const
 // below it is not something any implemented path does.
 //
 // A window no entry claims is the global profile's, which asks it as well once
-// All applications is checked; @p application is null then.
+// All games is checked and the window is a game's; @p application is null then.
 static bool upscaleX11ResizeWanted(const UpscaleApplication *application, const Window *window, bool enteringFullscreen)
 {
     const UpscalePresentation presentation = enteringFullscreen ? UpscalePresentation::X11FullScreen : x11PresentationOf(window);
     if (upscaleIsWindowed(presentation)) {
         return false;
     }
-    const UpscaleSettings settings = upscaleResolveSettings(application);
+    const UpscaleSettings settings = upscaleSettingsForWindow(window);
     if (!settings.acts() || settings.resolution() == ResolutionPreset::Native) {
         return false;
     }
@@ -219,7 +219,7 @@ QSize upscaleWantedSize(const Window *window)
     if (!window || !window->output()) {
         return {};
     }
-    const UpscaleSettings settings = upscaleResolveSettings(upscaleApplicationForWindow(window));
+    const UpscaleSettings settings = upscaleSettingsForWindow(window);
     const QSize pixels = window->output()->pixelSize();
     if (!settings.acts() || !exceedsMinimumPixels({pixels.width(), pixels.height()}, settings.value(UpscaleSetting::MinimumPixels))) {
         return {};
@@ -310,15 +310,17 @@ UpscaleX11Resolution::Request UpscaleX11Resolution::requestFor(X11Window *window
     if (key.isEmpty() || m_negotiations.value(key).failure.has_value()) {
         return {};
     }
-    const QSize size = upscaleWantedSize(window);
-    if (size.isEmpty()) {
-        return {};
-    }
-    const UpscaleApplication *application = upscaleApplicationForWindow(window);
     // Output ownership comes from this window, never from the active screen.
     const qreal scale = kwinApp()->xwaylandScale();
     const QPoint position(qRound(window->output()->geometryF().x() * scale),
                           qRound(window->output()->geometryF().y() * scale));
+    // A game checks its mode against the ones the output lists and refuses
+    // any other, so a wish the list lacks asks for the listed mode nearest it.
+    const QSize size = upscaleX11ListedSize(position, upscaleWantedSize(window), window->output()->pixelSize());
+    if (size.isEmpty()) {
+        return {};
+    }
+    const UpscaleApplication *application = upscaleApplicationForWindow(window);
     // Every field named, the last three with how a request starts out: not
     // presented by the effect, not answered by the client, and no verdict
     // until begin() sets one. Naming them keeps -Wmissing-field-initializers

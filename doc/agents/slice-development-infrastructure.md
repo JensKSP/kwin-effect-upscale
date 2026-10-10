@@ -337,6 +337,19 @@ Planned checks, not observed results:
   `buildinfo.cpp` objects, relinked the two modules, and the generated source
   named the new full hash. What remains of this item is the installed pair and
   the report after an upgrade, which need a session.
+
+  Observed in a session on 2026-10-03, in the Debian 13 amd64 package machine
+  (`tools/package-vm.py debian-13-amd64 upgrade OLD NEW`). The `v0.3.0` package
+  was installed and the tester logged in again: the status named
+  `upscale 0.3.0~trixie`, and both installed modules carried that version. A
+  package of `681e918` was installed over it with apt-get: until the next login
+  the status still named the 0.3.0 build KWin had loaded, while the effect and
+  the settings module on disk both carried `0.4.0+git20261003.681e91807a~trixie`;
+  after the login the session ran that build and named it. The nightly
+  `0.4.0+git20261002.3c574c62e2` had passed the same upgrade earlier that day.
+  The check found its own logout leaving a KWin running, in a login session
+  Plasma had started outside the tester's service manager, and now ends the
+  seat's sessions and such a leftover with them.
 - The settings use standard KDE interaction on the supported target, with
   accessible labels, focus and keyboard activation. Opening/closing About and
   following a details/license link leave unsaved configuration unchanged.
@@ -516,6 +529,14 @@ Planned checks, not observed results:
   out again when the font differs. `followsTheSessionFont` in the placement
   test fails without the new layout. What the platform theme reports after a
   change in System Settings is its own: not yet watched in a real session.
+- [ ] In Jens's session, what the platform theme reports after a font change
+  in System Settings, and the displays following it (item 63 of the open
+  list).
+- [ ] The displays on the television in HDR, and with VRR, which wzpc's link
+  to it cannot do (item 70 of the open list), postponed with HDR and VRR to a
+  later version (item 75). Read by Jens on 2026-10-03 at scale 3 in SDR:
+  legible from his seat, in sensible corners, none on the lock screen, and
+  the settings page's footer right.
 - [ ] Complete automated, package and native acceptance; preserve lasting design
   in source/human documentation before removing this slice.
 
@@ -811,9 +832,13 @@ smaller.
 4. Crop whatever still exceeds the budget after the floor. The quarter is then
    an invariant rather than an intention.
 5. Add `OsdAnnouncementPosition` and `OsdDeveloperPosition`, and rename
-   `OsdPosition` to `OsdStatisticsPosition` so the three read alike. A stored
-   `OsdPosition` is not migrated; the only release carrying it is the rolling
-   nightly and the value is a cosmetic preference. Defaults: announcement top
+   `OsdPosition` to `OsdStatisticsPosition` so the three read alike. Since Jens
+   decided it on 2026-09-29, a stored `OsdPosition` is read as the statistics
+   corner while no `OsdStatisticsPosition` is stored, `upscaleLegacyCorners()`
+   in the effect and on the page, as the
+   [application profiles](slice-application-profiles.md) slice records. Nothing
+   rewrites the old key on its own; the settings page removes it when it next
+   saves. Defaults: announcement top
    left, heads-up top right, developer bottom right, bottom left free.
 6. Enforce distinct corners in two places. The settings page moves the
    displaced display as the user changes a box, so the move is visible. The
@@ -925,9 +950,10 @@ above: the Clang build that could not find the new configuration entries, and
 a pre-push stage that reported two hooks modifying files. Both came from other
 sessions writing to the shared checkout during a run.
 
-Real-device acceptance on the television is open, and is also where the
-starting configuration above should be read off. Nothing in this package has
-been seen on screen yet.
+Real-device acceptance on the television ran on 2026-10-03 in SDR at scale 3:
+Jens read the displays from his seat, found them legible and placed in
+sensible corners, none on the lock screen, and the settings page's footer
+right. HDR and VRR are postponed (item 75 of the open list).
 
 ## The metadata the settings show
 
@@ -1236,19 +1262,49 @@ Planned checks, not observed results:
   and the RPM file list; Debian, Arch and FreeBSD package what is installed.
   `tools/check-translations.py`, a hook with its own regression test, fails an
   incomplete, fuzzy, obsolete or placeholder-breaking catalogue.
-- [ ] Give composed strings their context and split what cannot be reordered.
+- [x] Give composed strings their context and split what cannot be reordered.
   Done 2026-09-30 for the refusal reasons and the X11 request's failure
   reasons, each with a context naming the frames it completes, and for those
   frames, whose context says %1 is a reason written as a clause. Found while
   translating: German cannot put such a clause after "because", so "the last
   frame was not scaled because %1" is translated with a colon in all three
-  languages. Left: the developer view's other fragments, such as the window
-  states and the buffer's way to the GPU.
+  languages. Done 2026-10-03 for the developer view's other fragments: the
+  window states, the buffer's way to the compositor, the transfer functions,
+  the presentation modes, what the effect does with the buffer, the pieces
+  appended to the presented rate, and the values that complete its lines,
+  each with a context naming the sentence or list it completes. In French and
+  Spanish the context showed two wrong agreements, the scaler's resources
+  being plural: "prêtes" and "en échec", "listos" and "con error".
 - [x] Translate German, French and Spanish, 2026-09-30: 311 strings each,
-  complete, with the catalogue notes; each still to be read by someone who
-  speaks it.
+  complete, with the catalogue notes.
+- [ ] Have each language read by someone who speaks it, which is full
+  acceptance (moved from item 68 of the open list on 2026-10-03).
 - [x] Translate the plugin metadata, 2026-09-30.
-- [ ] Run and record the per-language session acceptance.
+- [x] Run and record the per-language session acceptance, 2026-10-03, in the
+  Debian 13 amd64 package machine (`tools/package-vm.py debian-13-amd64
+  languages`). For each language the check writes the formats and the
+  translations as Plasma's own settings do, generates the locale, logs in
+  again, and takes KWin's picture of the settings page and of the display over
+  SuperTuxKart enlarged from 2560 × 1440, every block shown, reading the status
+  while the game is enlarged; German is pictured again on a desktop scaled
+  twice. With the nightly `0.4.0+git20261002.3c574c62e2` it found three
+  defects. The developer view and the status wrote their decimals with a point
+  in every language, beside the heads-up's "636,9"; they now follow the
+  locale, never grouped, and a rectangle's position is written "(0,0; 0,0)"
+  (`0004144`). The Spanish settings page cut the list's summary after "cada",
+  wrapped to three lines in a row two lines high; the summary now has a row
+  of its own (`681e918`). Each fix has a test that failed on the old code. The
+  developer view's build line stays English in every language: it is the
+  identity record the journal and a copied report carry, and Jens decided on
+  2026-10-04 that it stays so, an exception the handbook names beside pixel
+  counts. With a package of
+  `681e918` the check passed in all three languages: each status translated,
+  each picture taken, figures written as the locale writes them ("5,8/s",
+  "Ausgabemaßstab 1,00"), the Spanish summary whole, the corrected French and
+  Spanish agreements on screen, and in German at scale 2 the settings page and
+  every block of the display inside the output. The pictures were read by eye;
+  French and Spanish keep "1 % low" and "1 % más bajo" as the catalogues
+  chose.
 
 ### Per-game display settings on wzpc, 2026-09-23
 

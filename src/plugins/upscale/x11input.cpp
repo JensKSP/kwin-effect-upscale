@@ -117,6 +117,17 @@ static void confirmEnteredPosition(SeatInterface *seat, const UpscalePresentedPo
     }
 }
 
+// KWin chose the decoration under the pointer before any filter ran, and shows
+// that decoration's cursor while it has one: an arrow over a title bar the
+// picture hides, a resize cursor at its border. Where the pointer is the
+// presented window's, no decoration is.
+static void leaveHiddenDecoration()
+{
+    if (input()->pointer()->decoration()) {
+        input()->pointer()->setDecoration(nullptr);
+    }
+}
+
 QPointF UpscaleX11Input::apply(const QPointF &position)
 {
     SeatInterface *seat = waylandServer() ? waylandServer()->seat() : nullptr;
@@ -176,6 +187,7 @@ QPointF UpscaleX11Input::apply(const QPointF &position)
     m_claimed = claimed;
     if (m_claimed) {
         engageLock(presented, position);
+        leaveHiddenDecoration();
     }
     return scale;
 }
@@ -260,6 +272,59 @@ bool UpscaleX11Input::pointerAxis(PointerAxisEvent *event)
         seat->setTimestamp(event->timestamp);
         seat->notifyPointerAxis(event->orientation, event->delta, event->deltaV120, event->source, event->inverted);
     });
+}
+
+bool UpscaleX11Input::touchDownAt(qint32 id, const QPointF &position, std::chrono::microseconds time)
+{
+    const UpscalePresentedPointer presented = m_control ? m_control->presentedUnder(position) : UpscalePresentedPointer{};
+    if (presented.isEmpty() || isAbove(input()->findToplevel(position), presented.window)) {
+        return false;
+    }
+    // A touch taken here passes over KWin's own activation, so it is done here.
+    if (effects && effects->activeWindow() != presented.window->effectWindow()) {
+        effects->activateWindow(presented.window->effectWindow());
+    }
+    m_touch.down(presented.surface, id, position, time, presented.origin, presented.scale);
+    return true;
+}
+
+#if UPSCALE_TOUCH_EVENTS
+bool UpscaleX11Input::touchDown(TouchDownEvent *event)
+{
+    return touchDownAt(event->id, event->pos, event->time);
+}
+
+bool UpscaleX11Input::touchMotion(TouchMotionEvent *event)
+{
+    return m_touch.motion(event->id, event->pos, event->time);
+}
+
+bool UpscaleX11Input::touchUp(TouchUpEvent *event)
+{
+    return m_touch.up(event->id, event->time);
+}
+#else
+bool UpscaleX11Input::touchDown(qint32 id, const QPointF &position, std::chrono::microseconds time)
+{
+    return touchDownAt(id, position, time);
+}
+
+bool UpscaleX11Input::touchMotion(qint32 id, const QPointF &position, std::chrono::microseconds time)
+{
+    return m_touch.motion(id, position, time);
+}
+
+bool UpscaleX11Input::touchUp(qint32 id, std::chrono::microseconds time)
+{
+    return m_touch.up(id, time);
+}
+#endif
+
+bool UpscaleX11Input::touchCancel()
+{
+    // KWin cancels every touch on the seat itself.
+    m_touch.cancel();
+    return false;
 }
 
 } // namespace KWin

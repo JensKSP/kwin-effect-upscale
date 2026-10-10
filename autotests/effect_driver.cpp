@@ -19,6 +19,7 @@
 #include "opengl/egldisplay.h"
 #include "opengl/glframebuffer.h"
 #include "opengl/glvertexbuffer.h"
+#include "pointer_input.h"
 #include "scene/imageitem.h"
 #include "scene/surfaceitem.h"
 #include "scene/windowitem.h"
@@ -67,8 +68,8 @@ public:
 #endif
     {
         auto surface = qobject_cast<SurfaceItem *>(item);
-        if (!surface || target.size() != surface->bufferSize()
-            || viewport.scale() != double(surface->bufferSize().width()) / surface->destinationSize().width()
+        if (!surface || target.size() != upscaleSuppliedSize(surface)
+            || viewport.scale() != double(upscaleSuppliedSize(surface).width()) / surface->destinationSize().width()
             || mask != Effect::PAINT_WINDOW_TRANSFORMED || region != unlimitedRegion()) {
             qFatal("Capture did not preserve the original surface's pixel mapping");
         }
@@ -129,6 +130,9 @@ class UpscaleTestDriver : public Effect
     Q_PROPERTY(QString pointerLock READ pointerLock)
     Q_PROPERTY(QString pointerConfinement READ pointerConfinement)
     Q_PROPERTY(QString inputBounds READ inputBounds)
+    // Whose decoration KWin gave the pointer, by the class of the window it
+    // hovers, or "none": KWin shows that decoration's cursor while it has one.
+    Q_PROPERTY(QString pointerDecoration READ pointerDecoration)
     // How much the effect keeps per window and per program; see UpscaleEffect::records().
     Q_PROPERTY(QString records READ records)
     Q_PROPERTY(int effectMessages READ effectMessages)
@@ -157,10 +161,16 @@ public:
         }
         if (input()) {
             input()->addInputDevice(&m_pointer);
+            input()->addInputDevice(&m_touch);
         }
         auto poll = new QTimer(this);
         connect(poll, &QTimer::timeout, this, &UpscaleTestDriver::movePointer);
         connect(poll, &QTimer::timeout, this, &UpscaleTestDriver::click);
+        connect(poll, &QTimer::timeout, this, [this]() {
+            if (const std::optional<QByteArray> request = takeRequest(QStringLiteral("upscale-test-touch"))) {
+                m_touch.perform(*request);
+            }
+        });
         poll->start(50);
     }
 
@@ -168,6 +178,7 @@ public:
     {
         qInstallMessageHandler(s_passOn);
         if (input()) {
+            input()->removeInputDevice(&m_touch);
             input()->removeInputDevice(&m_pointer);
         }
         m_context->makeCurrent();
@@ -299,6 +310,8 @@ public:
         request.remove();
         if (fields.size() == 2) {
             m_pointer.move(QPointF(fields.at(0).toDouble(), fields.at(1).toDouble()));
+        } else if (fields.size() == 3 && fields.at(0) == "by") {
+            m_pointer.moveBy(QPointF(fields.at(1).toDouble(), fields.at(2).toDouble()));
         }
     }
 
@@ -311,6 +324,13 @@ public:
         }
         const QRectF bounds = UpscaleRectF(surface->input().boundingRect());
         return QStringLiteral("%1,%2,%3,%4").arg(bounds.x()).arg(bounds.y()).arg(bounds.width()).arg(bounds.height());
+    }
+
+    QString pointerDecoration() const
+    {
+        // KWin gives the pointer only to the decoration of the window it hovers.
+        Window *hover = input() ? input()->pointer()->hover() : nullptr;
+        return hover && input()->pointer()->decoration() ? hover->resourceClass() : QStringLiteral("none");
     }
 
     QString pointerLock() const
@@ -372,13 +392,13 @@ public:
 #if UPSCALE_PREPAINT_PRESENT_TIME
     void prePaintScreen(ScreenPrePaintData &data, std::chrono::milliseconds presentTime) override
     {
-        m_effect->coverDrawnWindow(data);
+        m_effect->preparePaintArea(data);
         effects->prePaintScreen(data, presentTime);
     }
 #else
     void prePaintScreen(ScreenPrePaintData &data) override
     {
-        m_effect->coverDrawnWindow(data);
+        m_effect->preparePaintArea(data);
         effects->prePaintScreen(data);
     }
 #endif
@@ -424,8 +444,11 @@ public:
             // At the picture's own corner, which bars move away from the
             // output's, so that the pixel read below is one of the picture.
             const UpscalePicture placed = upscalePictureOf(window);
-            const QPointF corner = window->screen()->geometryF().topLeft() + QPointF(placed.x, placed.y) / window->screen()->scale();
-            const RenderViewport offscreenViewport = captureViewport(UpscaleRectF(corner, QSizeF(128, 128)), 1, offscreen);
+            // At the output's scale, too, or every pass on a scaled desktop
+            // would be one the effect rightly hands back.
+            const double scale = window->screen()->scale();
+            const QPointF corner = window->screen()->geometryF().topLeft() + QPointF(placed.x, placed.y) / scale;
+            const RenderViewport offscreenViewport = captureViewport(UpscaleRectF(corner, QSizeF(128, 128) / scale), scale, offscreen);
             GLFramebuffer::pushFramebuffer(m_framebuffer.get());
             glClearColor(0, 0, 0, 0);
             glClear(GL_COLOR_BUFFER_BIT);
@@ -455,6 +478,7 @@ private:
     CaptureRenderer m_renderer;
     bool m_active = false;
     TestPointer m_pointer;
+    TestTouch m_touch;
     bool m_unsupportedColors = false;
     std::unique_ptr<EglDisplay> m_display;
     QStringList m_captured;

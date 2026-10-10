@@ -4,6 +4,7 @@
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
+#include "game_entry.h"
 #include "x11_client.h"
 #include "x11_integration_test.h"
 #include "x11_standin_game.h"
@@ -139,13 +140,52 @@ void UpscaleX11IntegrationTest::coversTheScreenItWasGiven()
                  qPrintable(status()));
 }
 
+// An entry can ask its game to confirm a resize through the X11 mode it then
+// sets, as Extreme Tux Racer's does: a game resized after it started can keep
+// its old viewport behind a smaller window. One whose connection the proxy
+// answered starts at the smaller screen and sets no mode, and Extreme Tux
+// Racer waited forever for it (KWin 6.6.6, 2026-10-07). It is presented.
+void UpscaleX11IntegrationTest::presentsAServedGameThatSetsNoMode()
+{
+    KConfigGroup entry(KSharedConfig::openConfig(QStringLiteral("kwinupscalerc")), QStringLiteral("Application-test"));
+    entry.writeEntry("X11RequiresEmulatedMode", true);
+    entry.sync();
+    configure(true);
+    QDBusInterface policy(QStringLiteral("org.kde.KWin"), QStringLiteral("/org/kde/KWin/Effect/Upscale1"),
+                          QStringLiteral("org.kde.KWin.Effect.Upscale1"), QDBusConnection::sessionBus());
+    QVariantMap answer;
+    QVERIFY(QTest::qWaitFor([&]() {
+        const QDBusReply<QVariantMap> reply = policy.call(QStringLiteral("x11ConnectionPolicy"), uint(QCoreApplication::applicationPid()),
+                                                          QStringList{QStringLiteral("upscale-x11-test")});
+        answer = reply.isValid() ? reply.value() : QVariantMap{};
+        return !answer.value(QStringLiteral("retry")).toBool();
+    }, 10000));
+    const QString reason = answer.value(QStringLiteral("reason")).toString();
+    if (reason.contains(QStringLiteral("one enabled output"))) {
+        QSKIP("a connection is answered only for a single screen");
+    }
+    const QSize given(answer.value(QStringLiteral("width")).toInt(), answer.value(QStringLiteral("height")).toInt());
+    QVERIFY2(!given.isEmpty(), qPrintable(reason));
+    X11Client target(false);
+    target.reportProcess();
+    QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(QPoint(0, 0), given), false));
+    QVERIFY(target.waitForMapping());
+    target.fullscreen(true);
+    QTRY_VERIFY(target.isFullscreen());
+    QTRY_VERIFY2(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()));
+    QVERIFY2(!status().contains(QStringLiteral("has not confirmed")), qPrintable(status()));
+}
+
 void UpscaleX11IntegrationTest::winePrefixEligibility_data()
 {
     QTest::addColumn<QString>("pattern");
     QTest::addColumn<QString>("change");
     QTest::addColumn<bool>("expected");
     QTest::newRow("shipped-native-catalogue") << QString() << QString() << false;
-    QTest::newRow("wine-program") << QStringLiteral(".*/Wreckfest/Wreckfest\\.exe") << QString() << true;
+    // A pattern that could match in any prefix names a program, which is
+    // asked about once a process names it, and holds no prefix meanwhile.
+    QTest::newRow("wine-program") << QStringLiteral(".*/Wreckfest/Wreckfest\\.exe") << QString() << false;
+    QTest::newRow("wine-program-in-prefix") << QStringLiteral("wine:///test/prefix/.*/Wreckfest\\.exe") << QString() << true;
     QTest::newRow("wine-prefix") << QStringLiteral("wine:///test/prefix/.*") << QString() << true;
     QTest::newRow("other-prefix") << QStringLiteral("wine:///other/prefix/.*") << QString() << false;
     QTest::newRow("known-loader") << QStringLiteral("/usr/bin/wine") << QString() << true;
@@ -222,19 +262,21 @@ void UpscaleX11IntegrationTest::presentsAProcessShownItsGamesScreen()
     QTRY_COMPARE(launcher.geometry().size(), QSize(1920, 1080));
 }
 
-// Under All applications a program no entry names is told the smaller screen
-// when it connects, as an entry's program is, so that it starts with the
-// viewport it keeps. Nothing is said with All applications off, nor
-// yet for a program an entry names without a connection pattern, which that
-// entry decides once the window exists.
-void UpscaleX11IntegrationTest::answersUnlistedProgramsUnderAllApplications()
+// Under All games a game no entry names is told the smaller screen when it
+// connects, as an entry's program is, so that it starts with the viewport it
+// keeps. Nothing is said with All games off, nor to a program that is not
+// recognized as a game, nor yet to a program an entry names without a
+// connection pattern, which that entry decides once the window exists. And All
+// games holds no Wine prefix for a program no process has named yet, as a
+// pattern that could match in any prefix holds none.
+void UpscaleX11IntegrationTest::answersUnlistedGamesUnderAllGames()
 {
     KConfigGroup other(KSharedConfig::openConfig(QStringLiteral("kwinupscalerc")), QStringLiteral("Application-other"));
     other.writeEntry("Name", QStringLiteral("Other"));
     other.writeEntry("Executable", QStringLiteral(".*/other-game"));
     other.writeEntry("ExecutableMatch", QStringLiteral("RegularExpression"));
     other.sync();
-    const auto allApplications = [this](bool on) {
+    const auto allGames = [this](bool on) {
         KConfigGroup group(KSharedConfig::openConfig(QStringLiteral("kwinrc")), QStringLiteral("Effect-upscale"));
         group.writeEntry("UnlistedApplications", on);
         group.sync();
@@ -242,10 +284,11 @@ void UpscaleX11IntegrationTest::answersUnlistedProgramsUnderAllApplications()
     };
     // The entry goes with the case, or every later case of the session would
     // run with it enabled.
-    const auto restore = qScopeGuard([&allApplications, &other]() {
+    const auto restore = qScopeGuard([&allGames, &other]() {
         other.deleteGroup();
         other.sync();
-        allApplications(false);
+        allGames(false);
+        upscaleDeclareGame(QCoreApplication::applicationFilePath(), false);
     });
     QDBusInterface policy(QStringLiteral("org.kde.KWin"), QStringLiteral("/org/kde/KWin/Effect/Upscale1"),
                           QStringLiteral("org.kde.KWin.Effect.Upscale1"), QDBusConnection::sessionBus());
@@ -254,15 +297,27 @@ void UpscaleX11IntegrationTest::answersUnlistedProgramsUnderAllApplications()
             policy.call(QStringLiteral("x11ConnectionPolicy"), uint(QCoreApplication::applicationPid()), QStringList{program});
         return reply.isValid() ? reply.value() : QVariantMap{{QStringLiteral("reason"), reply.error().message()}};
     };
-    allApplications(false);
-    QCOMPARE(ask(QStringLiteral("/usr/games/unlisted-game")).value(QStringLiteral("reason")).toString(),
-             QStringLiteral("not in the list, and All applications is off"));
-    allApplications(true);
+    // A game of a Steam library, which is recognized by where it is installed.
+    const QString game = QStringLiteral("/home/player/.local/share/Steam/steamapps/common/Unlisted/unlisted-game");
+    allGames(false);
+    QCOMPARE(ask(game).value(QStringLiteral("reason")).toString(), QStringLiteral("not in the list, and All games is off"));
+    allGames(true);
+    // This test's own program is no game, until a desktop entry in the Game
+    // category starts it, as installing one would.
+    const QString program = QCoreApplication::applicationFilePath();
+    QCOMPARE(ask(program).value(QStringLiteral("reason")).toString(), QStringLiteral("not in the list, and not recognized as a game"));
+    QVERIFY(upscaleDeclareGame(program));
+    QVariantMap declared;
+    QVERIFY(QTest::qWaitFor([&]() {
+        declared = ask(program);
+        return !declared.value(QStringLiteral("retry")).toBool();
+    }, 10000));
+    QCOMPARE(declared.value(QStringLiteral("profile")).toString(), QStringLiteral("global"));
     // Until KWin has read Xwayland's modes the answer is to ask again, which
     // the proxy does within its bounded wait.
     QVariantMap unlisted;
     QVERIFY(QTest::qWaitFor([&]() {
-        unlisted = ask(QStringLiteral("/usr/games/unlisted-game"));
+        unlisted = ask(game);
         return !unlisted.value(QStringLiteral("retry")).toBool();
     }, 10000));
     const QString reason = unlisted.value(QStringLiteral("reason")).toString();
@@ -273,12 +328,20 @@ void UpscaleX11IntegrationTest::answersUnlistedProgramsUnderAllApplications()
     QCOMPARE(unlisted.value(QStringLiteral("profile")).toString(), QStringLiteral("global"));
     QCOMPARE(QSize(unlisted.value(QStringLiteral("width")).toInt(), unlisted.value(QStringLiteral("height")).toInt()),
              QSize(1920, 1080));
+    // Balanced wishes for 2259 × 1271, which Xwayland lists no mode for: the
+    // program is told the listed mode nearest to it, as the resize asks it.
+    configure(true, Stored::Balanced);
+    const QVariantMap balanced = ask(game);
+    QCOMPARE(QSize(balanced.value(QStringLiteral("width")).toInt(), balanced.value(QStringLiteral("height")).toInt()),
+             QSize(2048, 1152));
+    configure(true);
     QCOMPARE(ask(QStringLiteral("/usr/games/other-game")).value(QStringLiteral("reason")).toString(),
              QStringLiteral("unidentified client"));
     const QDBusReply<bool> prefix = policy.call(QStringLiteral("x11PrefixMayMatch"), QStringLiteral("/unnamed/prefix"),
                                                 QStringList{QStringLiteral("wine:///unnamed/prefix/C:/windows/system32/winecfg.exe"),
                                                             QStringLiteral("/usr/bin/wine")});
-    QVERIFY2(prefix.isValid() && prefix.value(), qPrintable(prefix.error().message()));
+    QVERIFY2(prefix.isValid(), qPrintable(prefix.error().message()));
+    QVERIFY(!prefix.value());
 }
 
 // A program that leaves _NET_WM_PID unset is known only by the connection that

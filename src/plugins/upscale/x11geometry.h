@@ -22,6 +22,12 @@ class X11Window;
 QPoint upscaleX11Position(const X11Window *window);
 QSize upscaleX11NormalSize(const X11Window *window);
 bool upscaleX11ModeAvailable(const QPoint &position, const QSize &size);
+/**
+ * The mode to ask for @p wanted on the output at @p position: the wish where
+ * the output lists it, otherwise the listed mode nearest to it that the
+ * scaler enlarges to @p output, or nothing where none is.
+ */
+QSize upscaleX11ListedSize(const QPoint &position, const QSize &wanted, const QSize &output);
 /** RandR mode timing encoded little-endian for connection policy, or empty. */
 QByteArray upscaleX11ModeTiming(const QPoint &position, const QSize &size);
 bool upscaleX11PrimaryOutput(const QPoint &position);

@@ -204,6 +204,55 @@ void identity(bool little)
     }
     check(!registry.processFor(0x200005), "closed client remains registered");
 }
+// A client in a PID namespace of its own sets _NET_WM_PID to a number of that
+// namespace; the connection's process goes in its place, and in nothing else.
+void processProperty(bool little)
+{
+    Wire wire;
+    wire.little = little;
+    Registry registry;
+    Policy client({}, &registry, 4567);
+    QByteArray request(12, '\0');
+    request[0] = little ? 'l' : 'B';
+    wire.word(request, 2, 11);
+    check(fragmented(client, 0, request) == request, "process setup request changed");
+    QByteArray response(40, '\0');
+    response[0] = 1;
+    wire.word(response, 6, 8);
+    wire.integer(response, 12, 0x200000);
+    wire.integer(response, 16, 0x1fffff);
+    check(fragmented(client, 1, response) == response, "process setup reply changed");
+    QByteArray change(28, '\0');
+    change[0] = 18;
+    wire.word(change, 2, 7);
+    wire.integer(change, 4, 0x200001);
+    wire.integer(change, 8, 321);
+    wire.integer(change, 12, 6);
+    change[16] = 32;
+    wire.integer(change, 20, 1);
+    wire.integer(change, 24, 2);
+    check(fragmented(client, 0, change) == change, "property changed before its atom was known");
+    QByteArray intern(20, '\0');
+    intern[0] = 16;
+    wire.word(intern, 2, 5);
+    wire.word(intern, 4, 11);
+    intern.replace(8, 11, "_NET_WM_PID");
+    check(fragmented(client, 0, intern) == intern, "InternAtom request changed");
+    QByteArray atom(32, '\0');
+    atom[0] = 1;
+    wire.word(atom, 2, 2);
+    wire.integer(atom, 8, 321);
+    check(fragmented(client, 1, atom) == atom, "InternAtom reply changed");
+    QByteArray expected = change;
+    wire.integer(expected, 24, 4567);
+    check(fragmented(client, 0, change) == expected, "_NET_WM_PID not given the connection's process");
+    QByteArray other = change;
+    wire.integer(other, 8, 322);
+    check(fragmented(client, 0, other) == other, "another property changed");
+    QByteArray text = change;
+    wire.integer(text, 12, 31);
+    check(fragmented(client, 0, text) == text, "a property of another type changed");
+}
 void exercise(bool little)
 {
     Wire wire;
@@ -279,6 +328,8 @@ int main(int argc, char **argv)
         reusedIdentity();
         identity(true);
         identity(false);
+        processProperty(true);
+        processProperty(false);
         exercise(true);
         exercise(false);
     } catch (const std::exception &error) {

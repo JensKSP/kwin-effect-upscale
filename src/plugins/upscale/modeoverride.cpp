@@ -7,6 +7,7 @@
 #include "modeoverride.h"
 
 #include "compatibility.h"
+#include "gamerecognition.h"
 #include "matching.h"
 #include "settings.h"
 #include "windowidentity.h"
@@ -163,13 +164,15 @@ static std::optional<UpscaleBindDecision> decideAtBind(ClientConnection *client)
         return std::nullopt;
     }
     // The profile the program's path selects, or none. With none, the global
-    // profile answers - which is what switching on unlisted applications is
-    // for, its slots being Auto unless a person chose otherwise - through the
-    // same code. A
-    // path claimed by a profile that also names a window does not decide
-    // yet, and nothing is advertised: that profile may still claim the
-    // window, and an advertisement cannot be taken back.
-    const UpscaleBindAnswer answer = upscaleApplicationAtBind(upscaleProgramOf(client));
+    // profile answers - which is what switching on All games is for, its slots
+    // being Auto unless a person chose otherwise - through the same code, but
+    // only for a program recognized as a game: told a smaller screen, a
+    // desktop's own program, its panel say, would draw at that size, as Jens
+    // decided on 2026-10-07. A path claimed by a profile that also names a
+    // window does not decide yet, and nothing is advertised: that profile may
+    // still claim the window, and an advertisement cannot be taken back.
+    const QString program = upscaleProgramOf(client);
+    const UpscaleBindAnswer answer = upscaleApplicationAtBind(program);
     if (!answer.decided) {
         return std::nullopt;
     }
@@ -178,7 +181,9 @@ static std::optional<UpscaleBindDecision> decideAtBind(ClientConnection *client)
         .settings = upscaleResolveSettings(answer.application),
         .method = UpscaleMethod::Off,
     };
-    if (!decision.settings.acts()) {
+    // Whether the program is a game is asked only of one All games would act
+    // for, as recognizing it reads the installed entries' times.
+    if (!decision.settings.acts() || (!answer.application && !upscaleRecognizedGame(program))) {
         return std::nullopt;
     }
     // What is said before the window exists comes from the fullscreen slot;
@@ -193,8 +198,8 @@ static std::optional<UpscaleBindDecision> decideAtBind(ClientConnection *client)
     // for the whole run. A program that sizes its buffer from the configure
     // instead ignores the mode, and is asked for a fractional scale once its
     // window exists (autorequest.cpp). Laid down by Jens on 2026-09-21. Only a
-    // program the effect acts on hears it: one an entry claims, or any once
-    // All applications is checked, which settings.acts() said above.
+    // program the effect acts on hears it: one an entry claims, or a game once
+    // All games is checked, which settings.acts() said above.
     decision.method = upscaleMethodFor(decision.application, upscaleAdvertisedPresentation());
     if (decision.method == UpscaleMethod::Auto) {
         decision.method = UpscaleMethod::AdvertisedMode;

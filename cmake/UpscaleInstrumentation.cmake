@@ -46,6 +46,20 @@ if(UPSCALE_SANITIZER)
         -fno-omit-frame-pointer
         -fno-sanitize-recover=all
     )
+    # The vptr check, C++'s alone, needs the type information of every class
+    # it checks, and KWin exports none for some it hands out, which then keeps
+    # the effect from loading. Clang leaves the types in the list alone and
+    # checks every other; GCC takes no such list and does without the check.
+    if(UPSCALE_SANITIZER STREQUAL "address,undefined")
+        if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+            set(vptr_option
+                "-fsanitize-ignorelist=${CMAKE_CURRENT_LIST_DIR}/sanitizer-ignorelist.txt"
+            )
+        else()
+            set(vptr_option -fno-sanitize=vptr)
+        endif()
+        add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:${vptr_option}>")
+    endif()
     add_link_options(-fsanitize=${UPSCALE_SANITIZER})
     # KDE normally rejects undefined symbols in modules. Clang's sanitizer
     # runtime is supplied by the executable (or preloaded for stock KWin).

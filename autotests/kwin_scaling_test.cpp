@@ -4,8 +4,9 @@
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
-#include "kwin_wayland_test.h"
-#include "qwayland-viewporter.h"
+#include "kwin_scaling_test.h"
+
+#include "game_entry.h"
 
 #include "core/output.h"
 #include "core/renderloop.h"
@@ -19,61 +20,24 @@
 
 #include <KConfigGroup>
 #include <KWayland/Client/connection_thread.h>
-#include <KWayland/Client/event_queue.h>
 #include <KWayland/Client/output.h>
-#include <KWayland/Client/registry.h>
 #include <KWayland/Client/surface.h>
 
-using namespace KWin;
-
-class Viewport : public QtWayland::wp_viewport
-{
-public:
-    explicit Viewport(::wp_viewport *viewport)
-        : QtWayland::wp_viewport(viewport)
-    {
-    }
-    ~Viewport() override
-    {
-        destroy();
-    }
-};
-
-class UpscaleProductionTest : public QObject
-{
-    Q_OBJECT
-private Q_SLOTS:
-    void initTestCase();
-    void init();
-    void cleanup();
-    void reducesAndScales_data();
-    void reducesAndScales();
-    void advertisedModeProducesSmallerBuffer();
-    void unpluggedOutputIsPassedOver();
-    void unsupportedBufferFallsBack_data();
-    void unsupportedBufferFallsBack();
-    void fitsAnotherAspectRatio();
-    void ignoredRequestIsRestored();
-    void windowedClientIsUnchanged();
-    void nativeBufferBypassesScaling();
-
-private:
-    void configure(bool enabled, const QString &method = QStringLiteral("Auto"));
-    QString status() const;
-    QImage renderOutput() const;
-    static QImage pattern(const QSize &size);
-    std::unique_ptr<KWayland::Client::EventQueue> m_queue;
-    std::unique_ptr<KWayland::Client::Registry> m_registry;
-    QtWayland::wp_viewporter m_viewporter;
-};
-
+// The global profile is All games, and this test's clients are a game's: a
+// desktop entry in the Game category starts this program.
 void UpscaleProductionTest::initTestCase()
 {
+    QVERIFY(upscaleDeclareGame(QCoreApplication::applicationFilePath()));
     QVERIFY(waylandServer()->init(QStringLiteral("wayland_upscale_production")));
     Test::setOutputConfig({QRect(0, 0, 384, 216)});
     kwinApp()->start();
     QVERIFY(effects->isOpenGLCompositing());
     QVERIFY(effects->isEffectLoaded(QStringLiteral("upscale")));
+}
+
+void UpscaleProductionTest::cleanupTestCase()
+{
+    QVERIFY(upscaleDeclareGame(QCoreApplication::applicationFilePath(), false));
 }
 
 void UpscaleProductionTest::configure(bool enabled, const QString &method)
@@ -97,7 +61,11 @@ void UpscaleProductionTest::init()
     }
     configure(true);
     Test::setOutputConfig({QRect(0, 0, 384, 216)});
-    QVERIFY(Test::setupWaylandConnection(Test::AdditionalWaylandInterface::FractionalScaleManagerV1));
+    // A seat and server-side decorations for the cases of
+    // kwin_presentation_test.cpp; no other case uses them.
+    QVERIFY(Test::setupWaylandConnection(Test::AdditionalWaylandInterface::FractionalScaleManagerV1
+                                         | Test::AdditionalWaylandInterface::Seat
+                                         | Test::AdditionalWaylandInterface::XdgDecorationV1));
     m_queue = std::make_unique<KWayland::Client::EventQueue>();
     m_queue->setup(Test::waylandConnection());
     m_registry = std::make_unique<KWayland::Client::Registry>();
@@ -106,6 +74,8 @@ void UpscaleProductionTest::init()
             [this](const QByteArray &name, quint32 id, quint32 version) {
         if (name == QByteArrayLiteral("wp_viewporter")) {
             m_viewporter.init(*m_registry, id, version);
+        } else if (name == QByteArrayLiteral("zwp_tablet_manager_v2")) {
+            m_tablets.init(*m_registry, id, version);
         }
     });
     QSignalSpy announced(m_registry.get(), &KWayland::Client::Registry::interfacesAnnounced);
@@ -121,6 +91,9 @@ void UpscaleProductionTest::cleanup()
 {
     if (m_viewporter.isInitialized()) {
         m_viewporter.destroy();
+    }
+    if (m_tablets.isInitialized()) {
+        m_tablets.destroy();
     }
     m_registry.reset();
     m_queue.reset();
@@ -399,4 +372,3 @@ void UpscaleProductionTest::nativeBufferBypassesScaling()
 }
 
 WAYLANDTEST_MAIN(UpscaleProductionTest)
-#include "kwin_scaling_test.moc"

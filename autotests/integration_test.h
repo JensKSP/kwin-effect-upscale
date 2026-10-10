@@ -25,6 +25,8 @@ class UpscaleIntegrationTest : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
+    void initTestCase();
+    void cleanupTestCase();
     void lifecycle();
     void asksApplicationsForASmallerImage();
     void selectedBorderlessPresentation();
@@ -32,6 +34,7 @@ private Q_SLOTS:
     void answersWhichWindowsAnEntryMatches();
     void autoAsksTheWindowForAFractionalScale();
     void anAdvertisementThatDidNotReachFallsBackToTheSurfaceScale();
+    void aWishAfterTheStartWaitsForTheNext();
     void anOutputThatGoesAwayWhileAdvertised();
     void aProgramThatExitsBeforeRestoration();
     void anOutputVersionWithoutScaleIsLeftAlone();
@@ -41,7 +44,12 @@ private Q_SLOTS:
     void crashingGamesLeaveNothingBehind();
     void logsTransitionsNotFrames();
     void mapsThePointerOntoThePicture();
+    void carriesRelativeMotionOntoThePicture_data();
+    void carriesRelativeMotionOntoThePicture();
+    void leavesAPopupOverTheBarsItsOwnPointer();
+    void mapsTouchOntoThePicture();
     void drawsAWindowOfTheToldSizeOverItsOutput();
+    void drawsAWindowOfTheToldPixelsOverItsOutput();
     void autoResizesAClientThatIgnoresScale();
     void autoConfiguresAnIntegerClientBeforeItsFirstBuffer_data();
     void autoConfiguresAnIntegerClientBeforeItsFirstBuffer();

@@ -125,7 +125,7 @@ void UpscaleEffect::prePaintScreen(ScreenPrePaintData &data)
         m_scaler.reset();
         m_renderer = renderer;
     }
-    coverDrawnWindow(data);
+    preparePaintArea(data);
     effects->prePaintScreen(data);
 }
 #endif
@@ -193,9 +193,11 @@ void UpscaleEffect::watchWindow(EffectWindow *window)
         releaseWhatTheGameLeftBehind();
     });
     connect(window, &EffectWindow::windowDamaged, this, [this, window]() {
-        if (eligible(window)) {
+        if (enlarged(window)) {
             // EASU and RCAS read neighbouring pixels. Full-window damage is
             // conservative and follows client commits, never a repaint timer.
+            // Only the window being enlarged: the frame in which one starts
+            // or stops is painted whole by preparePaintArea().
             window->addRepaintFull();
         }
         if (!effects->isScreenLocked()) {
@@ -210,6 +212,7 @@ void UpscaleEffect::reconfigure(ReconfigureFlags flags)
     UpscaleConfig::self()->config()->reparseConfiguration();
     UpscaleConfig::self()->read();
     // Configuration is disk work, so it happens here and never in a frame.
+    upscaleKeepGlobalSettings();
     upscaleReloadApplications();
     qCInfo(KWIN_UPSCALE) << "Configuration reloaded; re-evaluating active requests";
     // Nothing global is cached here any more. Both controllers resolve what
@@ -291,7 +294,7 @@ bool UpscaleEffect::isActive() const
         return false;
     }
     EffectWindow *window = explained();
-    return window && m_display.activeFor(window, upscaleResolveSettings(upscaleApplicationForWindow(window->window())));
+    return window && m_display.activeFor(window, upscaleSettingsForWindow(window->window()));
 }
 
 bool UpscaleEffect::x11RequestsSettled() const
@@ -495,8 +498,9 @@ UpscalePaintResult UpscaleEffect::drawWindow(const RenderTarget &target, const R
                 .filter = m_frame.settings.filter(),
                 .frame = frame,
             };
-            if (!m_failed && m_scaler->render(target, viewport, window->windowItem()->surfaceItem(), drawing, clip)) {
-                m_renderedInputs.insert(window, window->windowItem()->surfaceItem()->bufferSize());
+            SurfaceItem *pictured = upscalePictureSurface(window);
+            if (!m_failed && m_scaler->render(target, viewport, pictured, window->windowItem()->surfaceItem(), drawing, clip)) {
+                m_renderedInputs.insert(window, upscaleSuppliedSize(pictured));
 #if UPSCALE_RENDER_DEVICE_API
                 return true;
 #else
@@ -512,7 +516,13 @@ UpscalePaintResult UpscaleEffect::drawWindow(const RenderTarget &target, const R
             effects->addRepaintFull();
         }
     }
-    m_renderedInputs.remove(window);
+    // A pass of another output the window reaches into, as one drawn over its
+    // own and larger than it does, says nothing of how its own output showed
+    // it; were it forgotten there, the status would follow whichever output
+    // KWin painted last.
+    if (!m_inPaint || !window || m_paintOutput == window->screen()) {
+        m_renderedInputs.remove(window);
+    }
 #if UPSCALE_RENDER_DEVICE_API
     return effects->drawWindow(target, viewport, window, mask, region, data);
 #else

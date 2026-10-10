@@ -57,8 +57,11 @@ VRR acceptance either; its recorded configuration has VRR disabled.
 
 This gate is the package's first milestone and the project's next acceptance
 after the [development infrastructure slice](slice-development-infrastructure.md)
-in the original sequence. The defect and regression coverage are now addressed;
-physical-display pixel comparison and lifecycle acceptance remain open.
+in the original sequence. The defect and regression coverage are now addressed,
+and on 2026-10-03 the physical display gave a scaled frame, its pixel
+comparison, the active-effect state and the fallback, and the loaded effect's
+overhead was bounded with phase-reversed repeats once its cause was removed
+(see the progress below): the gate is closed.
 It was introduced before any real-GPU scaled frame had been observed. Loading
 the plugin, reporting it supported, passing the container and headless tests and
 installing it on the acceptance host have all been achieved and none of them
@@ -327,11 +330,48 @@ effect now sends the profile-specific Wayland/X11 requests documented there.
 - [x] Implement colour conversions and record automated shader/configuration tests.
 - [x] Measure A0 and A1 on the real output; record the unusable aggregate score.
 - [x] Isolate and fix the orientation refusal and extend automated coverage.
-- [ ] Close the physical-display scaler-effective gate with observed pixel
+- [x] Close the physical-display scaler-effective gate with observed pixel
   comparison, active-effect state and fallback on the accepted candidate.
   Needs the physical output and Jens's session (items 71 and 73 of the open
   list, with the A0/A1 phase-reversed repeats): a nested session on the
   desktop GPU is ruled out since parallel compositor sessions froze wzpc.
+  **Run 2026-10-03 in Jens's session on the television** (KWin 6.3.6,
+  3840 × 2160 at scale 3, `3c574c6`). Scaled frame, active-effect state and
+  fallback observed: SuperTuxKart in all six presentations supplied
+  2560 × 1440, enlarged with `upscale` in `activeEffects`; with the game
+  stopped on one frame, KWin's screenshot of the output matched its plain
+  stretch of the same buffer (likeness 0.05 to 0.19 of 255) with 27 to 31 %
+  more detail; a windowed game was left to direct scanout with the reason
+  named. The overhead is not bounded: in six phase-reversed glmark2 pairs at
+  native size, where the loaded effect reported nothing to do and direct
+  scanout, throughput with it loaded was 0.82 to 0.84 of throughput without
+  it in every scene. The control without any reading of the effect during a
+  run gave 0.84 to 0.85 (item 99 of the open list): the cost is the effect's.
+  Paired by frame time, the loaded effect added a median of 8.9 µs per frame
+  over the 18 scene pairs (mean 8.9 µs; 6.8 to 10.6 µs per pair across its
+  three scenes, 2.8 to 15.1 µs per single scene).
+  **Bounded the same day (item 102).** Those runs had the Debug build Jens's
+  session uses; built as the packages are, RelWithDebInfo, the loaded effect
+  still added a median of 4.9 µs per frame (0.88 to 0.90 of glmark2's
+  throughput). A profile of the session's KWin showed why: the effect's
+  handler of a window's damage, which runs at every client commit, spent 36 %
+  of KWin's time, most of it in `upscaleGlobalSettings()` building
+  configuration groups for each preference. The effect now keeps the global
+  layer as read in `reconfigure()`. Six pairs again, phase-reversed, with
+  nothing reading the effect during a run: 0.982 to 0.994 of the unloaded
+  throughput, a median of 0.4 µs per frame over the 18 scene pairs; in the
+  profile the handler fell to 2.4 % of KWin's time and the configuration
+  library dropped out of it.
+- [ ] Measure what deciding the full repaint once a frame saved. Most of the
+  remaining 2.4 % was the damage handler asking at every commit whether the
+  window is the one being enlarged. Since `170e1d7` the effect decides that
+  once a frame in `preparePaintArea()`, and the handler repaints a window
+  whole only while it is the one enlarged; the integration, output, X11 and
+  render suites pass. Remembering the profile per window, the other lever
+  considered, was already there. The measurement on the television, with
+  `tools/measure-idle-overhead.py --plugin` and six pairs, was spoiled once
+  by a build beside it and found the session locked the second time, at
+  22:52 on 2026-10-03; it needs Jens's session open and the machine idle.
 - [x] Complete original-buffer and lifecycle integration acceptance. On the
   OpenGL virtual backend, 2026-09-28 (item 72 of the open list): the VM
   production test `testUpscaleProduction` (`autotests/kwin_scaling_test.cpp`)

@@ -10,7 +10,10 @@
 
 #include "integration_test.h"
 
+#include "game_entry.h"
+
 #include <QDebug>
+#include <QScopeGuard>
 
 void UpscaleIntegrationTest::asksApplicationsForASmallerImage()
 {
@@ -76,7 +79,7 @@ void UpscaleIntegrationTest::asksApplicationsForASmallerImage()
         QVERIFY(unlisted.initialize());
         QCOMPARE(unlisted.advertisedMode(), QSize(128, 128));
     }
-    // With them switched on, the global profile's Auto tells a program the
+    // With All games switched on, the global profile's Auto tells a game the
     // smaller mode when it connects, as an entry's Auto does: Auto means the
     // same wherever it comes from.
     {
@@ -89,9 +92,18 @@ void UpscaleIntegrationTest::asksApplicationsForASmallerImage()
         QVERIFY(unlisted.initialize());
         QCOMPARE(unlisted.advertisedMode(), QSize(85, 85));
     }
+    // A program no installed desktop entry calls a game is told nothing by
+    // All games: a desktop's own program would draw at the smaller size.
+    QVERIFY(upscaleDeclareGame(QCoreApplication::applicationFilePath(), false));
+    {
+        WaylandClient desktopProgram;
+        QVERIFY(desktopProgram.initialize());
+        QCOMPARE(desktopProgram.advertisedMode(), QSize(128, 128));
+    }
 
     // A catalogue entry reaches the same client through its program's path,
-    // which is the only identity that exists before it has a window.
+    // which is the only identity that exists before it has a window, and it
+    // does so whether the program is a game or not: an entry names it.
     writeCatalogue(integrationEntry(QStringLiteral("MethodWaylandFullScreen=AdvertisedMode\nResolution=Performance\nOrder=1\n")));
     {
         // A profile that states a resolution of its own gets it, whatever the
@@ -102,6 +114,7 @@ void UpscaleIntegrationTest::asksApplicationsForASmallerImage()
         QVERIFY(known.initialize());
         QCOMPARE(known.advertisedMode(), QSize(64, 64));
     }
+    QVERIFY(upscaleDeclareGame(QCoreApplication::applicationFilePath()));
 
     // A profile that states none follows the global resolution, which is how
     // a person's own global setting reaches the games this package ships.
@@ -207,6 +220,56 @@ void UpscaleIntegrationTest::asksApplicationsForASmallerImage()
     QCOMPARE(status(), QString());
 }
 
+// A program hears its screen mode when it binds the output, and a running one
+// is never told again. A wish that changed after its start therefore waits for
+// its next start, and the report says so, whichever way the program missed it:
+// told nothing because the wish was Native then, or told a mode before the
+// wish became Native. The program takes no surface scale: the window is asked
+// for one all the same, and the report turns to the next start once the
+// window has drawn past the effect's patience without answering.
+void UpscaleIntegrationTest::aWishAfterTheStartWaitsForTheNext()
+{
+    const QDBusReply<bool> loaded = m_effects.call(QStringLiteral("loadEffect"), QStringLiteral("upscale_test_driver"));
+    QVERIFY(loaded.isValid() && loaded.value());
+    const auto unload = qScopeGuard([this]() {
+        writeCatalogue(QString());
+        configureResolution(true, false, {});
+        m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
+    });
+    writeCatalogue(integrationEntry(QStringLiteral("MethodWaylandFullScreen=AdvertisedMode\nMinimumPixels=0\nOrder=1\n")));
+    const auto shown = [this](WaylandClient &client, QSocketNotifier &notifier, const QSize &size) {
+        connect(&notifier, &QSocketNotifier::activated, this, [&client]() {
+            client.dispatch();
+        });
+        return client.show(size);
+    };
+
+    configureResolution(true, false, Stored::Native);
+    {
+        WaylandClient untold(2, false);
+        QVERIFY(untold.initialize());
+        QCOMPARE(untold.advertisedMode(), QSize(128, 128));
+        QSocketNotifier notifier(untold.descriptor(), QSocketNotifier::Read);
+        QVERIFY(shown(untold, notifier, QSize(128, 128)));
+        configureResolution(true, false, Stored::Quality);
+        QVERIFY(untold.presentFrames(35));
+        QTRY_VERIFY2(status().contains(QStringLiteral("85 × 85 from the next start of Upscale integration test")), qPrintable(status()));
+    }
+
+    {
+        WaylandClient told(2, false);
+        QVERIFY(told.initialize());
+        QCOMPARE(told.advertisedMode(), QSize(85, 85));
+        QSocketNotifier notifier(told.descriptor(), QSocketNotifier::Read);
+        QVERIFY(shown(told, notifier, QSize(85, 85)));
+        QTRY_VERIFY2(status().contains(QStringLiteral("85 × 85 requested from Upscale integration test as its screen mode")),
+                     qPrintable(status()));
+        configureResolution(true, false, Stored::Native);
+        QTRY_VERIFY2(status().contains(QStringLiteral("Native from the next start; Upscale integration test was told 85 × 85 as its screen mode")),
+                     qPrintable(status()));
+    }
+}
+
 // An advertised mode reaches a client that takes its buffer from the modes it
 // was told, and nothing else. The same program presenting another way sizes
 // its buffer from the configure and ignores it, as SuperTuxKart's Vulkan
@@ -256,7 +319,7 @@ void UpscaleIntegrationTest::anAdvertisementThatDidNotReachFallsBackToTheSurface
         QVERIFY(modeList.presentFrames(40));
         QCOMPARE(modeList.preferredScale(), 120);
     }
-    // A program no entry describes, under All applications, is asked the same
+    // A game no entry describes, under All games, is asked the same
     // way by the global profile, and the report says so as it does for a
     // listed one, rather than asking the player to choose the size in the game.
     // The global threshold as an earlier case left it is the whole screen;
@@ -284,4 +347,31 @@ void UpscaleIntegrationTest::anAdvertisementThatDidNotReachFallsBackToTheSurface
     global.sync();
     configureResolution(true, false, {});
     m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
+}
+
+// Wine's Wayland driver asks to be fullscreen and then keeps its window at the
+// screen it was told, in Windows pixels, one to a logical unit unless Wine's
+// own DPI setting says otherwise, whatever the output's scale (Wine 10.0, seen
+// at desktop scale 1.05 under KWin 6.3.6, 2026-10-07). Its window is the told
+// pixels in logical units, larger than the output where the desktop is scaled
+// twice, as this case runs it in the session with outputs, and its picture is
+// the told size. That is drawn over the output like a window of the told size.
+void UpscaleIntegrationTest::drawsAWindowOfTheToldPixelsOverItsOutput()
+{
+    const QDBusReply<bool> loaded = m_effects.call(QStringLiteral("loadEffect"), QStringLiteral("upscale_test_driver"));
+    QVERIFY(loaded.isValid() && loaded.value());
+    const auto unload = qScopeGuard([this]() {
+        writeCatalogue(QString());
+        configureResolution(true, false, {});
+        m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
+    });
+    writeCatalogue(integrationEntry(QStringLiteral("MethodWaylandFullScreen=AdvertisedMode\nMinimumPixels=0\nOrder=1\n")));
+    configureResolution(true, false, Stored::Quality);
+    WaylandClient game;
+    QVERIFY(game.initialize(true));
+    QCOMPARE(game.advertisedMode(), QSize(85, 85));
+    QVERIFY(game.show(QSize(85, 85)));
+    game.resize(QSize(85, 85));
+    QTRY_VERIFY2(status().contains(QStringLiteral("Supplied input: 85 × 85")) && status().contains(QStringLiteral("FSR 1, sharpening")),
+                 qPrintable(status()));
 }

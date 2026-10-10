@@ -207,4 +207,15 @@ void upscaleSetGlobalMethods(const UpscaleMethods &methods);
 /** The global layer alone, for the settings page and for an unclaimed window. */
 UpscaleSettings upscaleGlobalSettings();
 
+/**
+ * Keep the global layer as configured now, and answer upscaleGlobalSettings(),
+ * upscaleGlobalMethods() and upscaleResolveSettings() from that copy until this
+ * is called again. Reading it builds a configuration group for each of several
+ * preferences, which at a client's every commit cost a fullscreen glmark2 a
+ * tenth of its frames, so the effect calls this
+ * where it reads its configuration and no frame reads it again. The settings
+ * page never calls it: its values change while it is open.
+ */
+void upscaleKeepGlobalSettings();
+
 } // namespace KWin

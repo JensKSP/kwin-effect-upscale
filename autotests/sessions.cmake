@@ -20,6 +20,7 @@ foreach(
         staging/fractional-scale/fractional-scale-v1
         unstable/xdg-output/xdg-output-unstable-v1
         unstable/pointer-constraints/pointer-constraints-unstable-v1
+        unstable/relative-pointer/relative-pointer-unstable-v1
 )
     get_filename_component(protocol ${path} NAME)
     set(protocol_xml "${WAYLAND_PROTOCOLS}/${path}.xml")
@@ -47,6 +48,7 @@ add_executable(
     crash_game.h
     wayland_client.cpp
     wayland_client_pointer.cpp
+    wayland_client_popup.cpp
     ${protocol_sources}
 )
 target_include_directories(upscale_integration_test PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
@@ -70,6 +72,7 @@ if(KWin_VERSION VERSION_LESS 6.7)
         ../src/plugins/upscale/eligibility.cpp
         ../src/plugins/upscale/eligibility_over.cpp
         ../src/plugins/upscale/windowidentity.cpp
+        ../src/plugins/upscale/gamerecognition.cpp
         ../src/plugins/upscale/x11proxypolicy.cpp
         ../src/plugins/upscale/refusaltext.cpp
         ../src/plugins/upscale/logicalsize.cpp
@@ -90,6 +93,8 @@ if(KWin_VERSION VERSION_LESS 6.7)
         ../src/plugins/upscale/x11geometry.cpp
         ../src/plugins/upscale/x11modes.cpp
         ../src/plugins/upscale/pictureinput.cpp
+        ../src/plugins/upscale/tabletinput.cpp
+        ../src/plugins/upscale/touchinput.cpp
         ../src/plugins/upscale/x11input.cpp
         ../src/plugins/upscale/x11resolution.cpp
         ../src/plugins/upscale/x11resolution_events.cpp
@@ -143,6 +148,7 @@ if(KWin_VERSION VERSION_LESS 6.7)
             $<TARGET_FILE:upscale_integration_test> --scale=2 --outputs=2
             anOutputThatGoesAwayWhileAdvertised aProgramThatExitsBeforeRestoration
             anOutputVersionWithoutScaleIsLeftAlone aSurfaceScaleFollowsTheOutputScale
+            drawsAWindowOfTheToldPixelsOverItsOutput
     )
     set_tests_properties(upscale-integration-outputs PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
     # A game's X11 window in a process of its own; see x11_game_standin.cpp.
@@ -202,7 +208,8 @@ if(KWin_VERSION VERSION_LESS 6.7)
             $<TARGET_FILE:upscale_x11_integration_test> --x11 --scale=3 --outputs=1
             coversPointerWithoutEmulatedMode aConfinedPointerReachesTheWholeWindow
             refreshesStartupInputShape coversTheScreenItWasGiven winePrefixEligibility
-            answersUnlistedProgramsUnderAllApplications presentsAProcessShownItsGamesScreen
+            answersUnlistedGamesUnderAllGames presentsAProcessShownItsGamesScreen
+            scalesAWindowOfAFractionalLogicalSize presentsAServedGameThatSetsNoMode
     )
     set_tests_properties(upscale-x11-scaled PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
     set(sessions

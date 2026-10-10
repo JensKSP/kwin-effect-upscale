@@ -14,6 +14,9 @@ from pathlib import Path
 
 from kwin_conformance_fixtures import adapt_fixtures
 
+# This project's production test, compiled into KWin's integration tests.
+PRODUCTION_SOURCES = ("kwin_scaling_test.cpp", "kwin_scaling_test.h", "kwin_presentation_test.cpp")
+
 
 def replace_once(path: Path, old: str, new: str) -> None:
     """Fail closed if the pinned upstream test harness has changed."""
@@ -48,7 +51,9 @@ def main() -> None:
         shutil.copytree(args.source, args.out)
     integration = args.out / "autotests/integration"
     copy_changed(project / "autotests/kwin_conformance.h", integration / "kwin_conformance.h")
-    copy_changed(project / "autotests/kwin_scaling_test.cpp", integration / "kwin_scaling_test.cpp")
+    copy_changed(project / "autotests/game_entry.h", integration / "game_entry.h")
+    for name in PRODUCTION_SOURCES:
+        copy_changed(project / "autotests" / name, integration / name)
     adapt_fixtures(integration)
     application = integration / "kwin_wayland_test.cpp"
     if not args.refresh:
@@ -74,13 +79,18 @@ def main() -> None:
             "    configureUpscaleConformance();\n    createOptions();",
         )
     registration = integration / "CMakeLists.txt"
-    if "testUpscaleProduction" not in registration.read_text():
+    sources = " ".join(PRODUCTION_SOURCES)
+    registered = registration.read_text()
+    if "testUpscaleProduction" not in registered:
         with registration.open("a") as stream:
             stream.write(
-                "\nintegrationTest(NAME testUpscaleProduction SRCS kwin_scaling_test.cpp)\n"
+                f"\nintegrationTest(NAME testUpscaleProduction SRCS {sources})\n"
                 "qt6_generate_wayland_protocol_client_sources(testUpscaleProduction\n"
                 "    FILES ${WaylandProtocols_DATADIR}/stable/viewporter/viewporter.xml)\n"
             )
+    elif f"SRCS {sources})" not in registered:
+        # A tree prepared before the test had more than one source.
+        replace_once(registration, "SRCS kwin_scaling_test.cpp)", f"SRCS {sources})")
     print(f"Prepared upstream test harness in {args.out}")
 
 

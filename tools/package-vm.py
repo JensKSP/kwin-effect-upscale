@@ -7,6 +7,11 @@
     package-vm.py SYSTEM start | stop | status
     package-vm.py SYSTEM guest COMMAND...     a command in the guest
     package-vm.py SYSTEM check PACKAGE        install, check, remove; report
+    package-vm.py SYSTEM upgrade OLD NEW      install OLD, upgrade to NEW; report
+    package-vm.py SYSTEM languages PACKAGE    the session in each shipped language
+    package-vm.py SYSTEM sandboxed PACKAGE    the shipped games as Flatpak and Snap
+    package-vm.py SYSTEM wine PACKAGE         Windows graphics APIs on Wine's two drivers
+    package-vm.py SYSTEM wine-game PACKAGE    SuperTuxKart for Windows, launched under Wine
 
 A machine per system and architecture, each the system's own cloud image with
 the Plasma desktop its installer offers, logged in by SDDM into Plasma's Wayland
@@ -150,6 +155,27 @@ def check(machine: vm.Machine, package: Path) -> int:
     return subprocess.run(command, cwd=vm.ROOT, check=False).returncode
 
 
+def session(machine: vm.Machine, command: tuple[str, ...], packages: dict[str, Path]) -> int:
+    """Copy packages into the machine's directory, and run a session check of the guest's.
+
+    The command is the check's script in tools/ and its subcommand, if it has
+    one; the report is named after the last of them.
+    """
+    arguments: list[str] = []
+    for option, package in packages.items():
+        shutil.copyfile(package, machine.directory / package.name)
+        arguments += [option, f"{machine.shared}/{package.name}"]
+    script, *words = command
+    report = f"{machine.shared}/{Path(command[-1]).stem}.json"
+    guest = vm.ssh(
+        machine,
+        *("sudo", "python3", "-B", f"/src/tools/{script}", *words),
+        *arguments,
+        *("--report", report),
+    )
+    return subprocess.run(guest, cwd=vm.ROOT, check=False).returncode
+
+
 def main(argv: list[str] | None = None) -> int:
     """Carry out one command on one system's machine."""
     parser = argparse.ArgumentParser(
@@ -164,6 +190,13 @@ def main(argv: list[str] | None = None) -> int:
     # Everything after the command's name is the guest's, options included.
     commands.add_parser("guest").add_argument("words", nargs=argparse.REMAINDER)
     commands.add_parser("check").add_argument("package", type=Path)
+    upgrading = commands.add_parser("upgrade")
+    upgrading.add_argument("old", type=Path)
+    upgrading.add_argument("new", type=Path)
+    commands.add_parser("languages").add_argument("package", type=Path)
+    commands.add_parser("sandboxed").add_argument("package", type=Path)
+    commands.add_parser("wine").add_argument("package", type=Path)
+    commands.add_parser("wine-game").add_argument("package", type=Path)
     arguments = parser.parse_args(argv)
     machine = SYSTEMS[arguments.system]
     if arguments.command == "create":
@@ -176,6 +209,16 @@ def main(argv: list[str] | None = None) -> int:
         print(vm.state(machine))
     elif arguments.command == "check":
         return check(machine, arguments.package)
+    elif arguments.command == "upgrade":
+        upgrade = ("package_session.py", "upgrade")
+        return session(machine, upgrade, {"--from": arguments.old, "--to": arguments.new})
+    elif arguments.command == "languages":
+        return session(
+            machine, ("package_session.py", "languages"), {"--package": arguments.package}
+        )
+    elif arguments.command in ("sandboxed", "wine", "wine-game"):
+        script = f"package_{arguments.command.replace('-', '_')}.py"
+        return session(machine, (script,), {"--package": arguments.package})
     else:
         guest = vm.ssh(machine, *arguments.words)
         return subprocess.run(guest, cwd=vm.ROOT, check=False).returncode

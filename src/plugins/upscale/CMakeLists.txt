@@ -10,6 +10,7 @@ set(upscale_SOURCES
     eligibility_over.cpp
     refusaltext.cpp
     framestatistics.cpp
+    gamerecognition.cpp
     main.cpp
     matching.cpp
     logicalsize.cpp
@@ -35,6 +36,8 @@ set(upscale_SOURCES
     x11geometry.cpp
     x11modes.cpp
     pictureinput.cpp
+    tabletinput.cpp
+    touchinput.cpp
     x11input.cpp
     x11resolution.cpp
     x11resolution_events.cpp

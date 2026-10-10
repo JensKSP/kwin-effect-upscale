@@ -262,30 +262,60 @@ void UpscaleX11IntegrationTest::letsAPresentedGameLockThePointer()
 // over it as anywhere else in the picture: the first motion onto it arrives
 // with the filter's own re-entry, the ones along it only as motion. The
 // session draws no decoration of its own, so this case switches one on.
-void UpscaleX11IntegrationTest::movesThePointerOverAHiddenTitleBar()
+// "down <id> <x> <y>", "move <id> <x> <y>" or "up <id>" on the test driver's
+// touch screen, read and removed by the driver as the pointer's requests are.
+static void touchScreen(const QByteArray &request)
 {
-    const KSharedConfig::Ptr config = KSharedConfig::openConfig(QStringLiteral("kwinrc"));
-    KConfigGroup decoration(config, QStringLiteral("org.kde.kdecoration2"));
-    // Put back as found afterwards, a key that was absent staying absent.
-    const QMap<QString, QString> before = decoration.entryMap();
-    decoration.writeEntry("library", "org.kde.kwin.aurorae");
-    decoration.writeEntry("theme", "kwin4_decoration_qml_plastik");
-    config->sync();
-    QDBusInterface kwin(QStringLiteral("org.kde.KWin"), QStringLiteral("/KWin"), QStringLiteral("org.kde.KWin"),
-                        QDBusConnection::sessionBus());
-    const auto restore = qScopeGuard([&] {
+    const QString path = QString::fromLocal8Bit(qgetenv("XDG_RUNTIME_DIR")) + QStringLiteral("/upscale-test-touch");
+    QSaveFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    QVERIFY(file.write(request) > 0);
+    QVERIFY(file.commit());
+    QTRY_VERIFY(!QFile::exists(path));
+}
+
+// Aurorae's Plastik theme on every window for one case, put back as found
+// afterwards, a key that was absent staying absent.
+class Decorated
+{
+public:
+    Decorated()
+        : m_group(KSharedConfig::openConfig(QStringLiteral("kwinrc")), QStringLiteral("org.kde.kdecoration2"))
+        , m_before(m_group.entryMap())
+    {
+        m_group.writeEntry("library", "org.kde.kwin.aurorae");
+        m_group.writeEntry("theme", "kwin4_decoration_qml_plastik");
+        reconfigure();
+    }
+    ~Decorated()
+    {
         for (const QString &key : {QStringLiteral("library"), QStringLiteral("theme")}) {
-            if (before.contains(key)) {
-                decoration.writeEntry(key, before.value(key));
+            if (m_before.contains(key)) {
+                m_group.writeEntry(key, m_before.value(key));
             } else {
-                decoration.deleteEntry(key);
+                m_group.deleteEntry(key);
             }
         }
-        config->sync();
-        kwin.call(QStringLiteral("reconfigure"));
-    });
-    kwin.call(QStringLiteral("reconfigure"));
+        reconfigure();
+    }
+    Decorated(const Decorated &) = delete;
+    Decorated &operator=(const Decorated &) = delete;
 
+private:
+    void reconfigure()
+    {
+        m_group.sync();
+        QDBusInterface kwin(QStringLiteral("org.kde.KWin"), QStringLiteral("/KWin"), QStringLiteral("org.kde.KWin"),
+                            QDBusConnection::sessionBus());
+        kwin.call(QStringLiteral("reconfigure"));
+    }
+    KConfigGroup m_group;
+    QMap<QString, QString> m_before;
+};
+
+void UpscaleX11IntegrationTest::movesThePointerOverAHiddenTitleBar()
+{
+    const Decorated decorated;
     X11Client below(false);
     below.keepDecoration();
     QVERIFY(below.show(QByteArrayLiteral("upscale-x11-below"), QRect(2400, 1200, 800, 400), false));
@@ -312,8 +342,73 @@ void UpscaleX11IntegrationTest::movesThePointerOverAHiddenTitleBar()
     QTRY_COMPARE(target.lastMotion(), QPoint(50, 50));
     movePointer(titleBar);
     QTRY_COMPARE(target.lastMotion(), titleBar / 2);
+    // Nor does the hidden decoration keep the pointer KWin gave it, whose
+    // cursor KWin would show over the game.
+    QVERIFY2(status().contains(QStringLiteral("pointerDecoration: none")), qPrintable(status()));
     // Along the title bar, where KWin's focus stays where it was and only the
     // motion itself can reach the game.
     movePointer(titleBar + QPoint(40, 0));
     QTRY_COMPARE(target.lastMotion(), (titleBar + QPoint(40, 0)) / 2);
+}
+
+// A window opened over a presented game keeps its title bar: KWin's hit test
+// finds it there, and the pointer is that decoration's, never the game's.
+void UpscaleX11IntegrationTest::leavesATitleBarAboveAPresentedGame()
+{
+    const Decorated decorated;
+    configure(true);
+    X11Client target(false);
+    QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 1920, 1080), false));
+    QVERIFY(target.waitForMapping());
+    target.fullscreen(true);
+    QTRY_VERIFY(target.isFullscreen());
+    QTRY_VERIFY2(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()));
+    movePointer(QPoint(100, 100));
+    QTRY_COMPARE(target.lastMotion(), QPoint(50, 50));
+
+    X11Client dialog(false);
+    dialog.keepDecoration();
+    QVERIFY(dialog.show(QByteArrayLiteral("upscale-x11-dialog"), QRect(1200, 800, 800, 400), false));
+    QVERIFY(dialog.waitForMapping());
+    // As in the case above, a session without Aurorae has nothing to draw.
+    if (!QTest::qWaitFor([&dialog]() {
+        return dialog.geometry().top() > 800;
+    }, 2000)) {
+        QSKIP("this session has no window decoration to draw");
+    }
+    // Still presented beside it: the status now speaks of the active window,
+    // the dialog, but the game hears a motion there halved, as before.
+    movePointer(QPoint(300, 300));
+    QTRY_COMPARE(target.lastMotion(), QPoint(150, 150));
+    const QPoint titleBar((dialog.geometry().left() + 200) & ~1, (dialog.geometry().top() - 6) & ~1);
+    movePointer(titleBar);
+    QTRY_VERIFY2(status().contains(QStringLiteral("pointerDecoration: upscale-x11-dialog")), qPrintable(status()));
+    movePointer(titleBar + QPoint(40, 0));
+    QTRY_VERIFY2(status().contains(QStringLiteral("pointerDecoration: upscale-x11-dialog")), qPrintable(status()));
+    // The game heard nothing of either motion.
+    QCOMPARE(target.lastMotion(), QPoint(150, 150));
+}
+
+// Touch on a presented X11 game lands where the picture shows it, halved here.
+// The game takes no touch of its own, so the X server makes the first touch a
+// pointer press, which the game records.
+void UpscaleX11IntegrationTest::mapsTouchOntoAPresentedGame()
+{
+    configure(true);
+    X11Client target(false);
+    QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 1920, 1080), false));
+    QVERIFY(target.waitForMapping());
+    target.fullscreen(true);
+    QTRY_VERIFY(target.isFullscreen());
+    QTRY_VERIFY2(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()));
+    touchScreen("down 0 300 200");
+    // Xwayland converts the touch to whole X pixels on its own terms, a pixel
+    // short of the pointer's; unmapped, the press would be at 300, 200.
+    QTRY_VERIFY2((target.lastPress() - QPoint(150, 100)).manhattanLength() <= 2,
+                 qPrintable(QStringLiteral("%1, %2").arg(target.lastPress().x()).arg(target.lastPress().y())));
+    touchScreen("up 0");
+    // The pointer is the session's again once it moves, as a person's next
+    // mouse motion makes it; the cases after this one use it.
+    movePointer(QPoint(10, 10));
+    QTRY_COMPARE(target.lastMotion(), QPoint(5, 5));
 }

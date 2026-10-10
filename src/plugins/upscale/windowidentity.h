@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "settings.h"
+
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -86,6 +88,21 @@ const UpscaleApplication *upscaleApplicationForWindow(const Window *window);
 QString upscaleKnownExecutable(const Window *window);
 
 /**
+ * Whether @p window is a game's, as upscaleRecognizedGame() recognizes one
+ * from its program, or upscaleGameDesktopFile() from the desktop entry the
+ * window names, or as the X11 session proxy recognized it when its process
+ * connected; see upscaleServedGame(). Kept per window as its program is, so cheap enough for a frame.
+ */
+bool upscaleGameWindow(const Window *window);
+
+/**
+ * The settings for @p window: those of the entry claiming it, which acts for
+ * whatever it names, or else the global profile's, All games, which acts only
+ * for a game's window; see upscaleGameWindow().
+ */
+UpscaleSettings upscaleSettingsForWindow(const Window *window);
+
+/**
  * Tells the settings page which program a window belongs to.
  *
  * Add from Window picks a window through KWin, whose answer names its class
@@ -118,7 +135,13 @@ public Q_SLOTS:
      */
     QVariantMap x11ConnectionPolicy(uint pid, const QStringList &candidates) const;
 
-    /** Whether resolving this Wine prefix could select an enabled display policy. */
+    /**
+     * Whether a connection of Wine prefix @p prefix whose program is not known
+     * yet is worth holding until it is: a pattern names this prefix, or
+     * matches one of @p candidates. A pattern that could match in any prefix
+     * holds none; the transport asks for the program's policy directly once
+     * a launcher or the program itself names it.
+     */
     bool x11PrefixMayMatch(const QString &prefix, const QStringList &candidates) const;
 
     /**

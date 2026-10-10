@@ -4,7 +4,7 @@
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
-// The application list as a whole: "All applications" pinned first, a game
+// The application list as a whole: "All games" pinned first, a game
 // following what it shows, the defaults of System Settings reaching it and
 // nothing else, and the list leaving the page as a file and coming back.
 
@@ -101,7 +101,7 @@ void ApplicationListTest::showsTheGlobalSettingsAsTheFirstEntry()
     QVERIFY(list && details && all && remove && up && down);
     // Pinned first, and checked like every other row: whether the global
     // profile acts for the windows no other entry matches. Off by default.
-    QCOMPARE(list->item(0)->text(), QStringLiteral("All applications"));
+    QCOMPARE(list->item(0)->text(), QStringLiteral("All games"));
     QVERIFY(list->item(0)->flags() & Qt::ItemIsUserCheckable);
     QCOMPARE(list->item(0)->checkState(), Qt::Unchecked);
     list->setCurrentRow(0);
@@ -313,7 +313,7 @@ void ApplicationListTest::clearsEverythingAGameStatesAtOnce()
     QFile stored(upscaleUserApplicationFile());
     const QByteArray written = stored.open(QIODevice::ReadOnly) ? stored.readAll() : QByteArray();
     QVERIFY2(!written.contains("Sharpening") && !written.contains("MethodWaylandFullScreen"), written.constData());
-    // And "All applications" offers nothing to clear.
+    // And "All games" offers nothing to clear.
     list->setCurrentRow(0);
     QVERIFY(!clear->isVisible() || !clear->isEnabled());
 }

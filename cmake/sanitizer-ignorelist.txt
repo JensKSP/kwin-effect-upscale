@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
+# SPDX-License-Identifier: CC0-1.0
+#
+# Types Clang's vptr check leaves alone, given to it by
+# cmake/UpscaleInstrumentation.cmake. The check compares an object with the
+# type information of its static type, which a module finds only where the
+# library defining the class exports it. KWin exports none for TouchPoint,
+# whose members the effect's touch delivery and the test driver set, and a
+# module asking for it does not load. The pattern matches the type by its
+# written and by its mangled name.
+[vptr]
+type:*KWin*TouchPoint*

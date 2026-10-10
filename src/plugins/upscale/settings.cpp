@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <optional>
 
 namespace KWin
 {
@@ -339,7 +340,22 @@ UpscaleFilter UpscaleSettings::filter() const
     return value(UpscaleSetting::Filter) == int(UpscaleFilter::Nearest) ? UpscaleFilter::Nearest : UpscaleFilter::Fsr;
 }
 
-UpscaleMethods upscaleGlobalMethods()
+// The global layer as the effect last read it, once it asks for that; see
+// upscaleKeepGlobalSettings().
+struct UpscaleKeptGlobal
+{
+    UpscaleSettings settings;
+    UpscaleMethods methods;
+    bool switchedOff = false;
+};
+
+static std::optional<UpscaleKeptGlobal> &keptGlobal()
+{
+    static std::optional<UpscaleKeptGlobal> s_kept;
+    return s_kept;
+}
+
+static UpscaleMethods readGlobalMethods()
 {
     UpscaleMethods methods;
     const KConfigGroup group = globalGroup();
@@ -347,7 +363,7 @@ UpscaleMethods upscaleGlobalMethods()
         const auto presentation = UpscalePresentation(slot);
         // Auto where nothing states one, as in a profile. What keeps an
         // unmeasured program untouched is not this answer but the global
-        // profile's own switch, All applications, which is off by default:
+        // profile's own switch, All games, which is off by default:
         // until someone switches it on, nothing asks such a program anything.
         methods[slot] = upscaleMethodFromKey(group.readEntry(upscalePresentationKey(presentation), QString()),
                                              UpscaleMethod::Auto);
@@ -365,6 +381,12 @@ UpscaleMethods upscaleGlobalMethods()
     return methods;
 }
 
+UpscaleMethods upscaleGlobalMethods()
+{
+    const std::optional<UpscaleKeptGlobal> &kept = keptGlobal();
+    return kept ? kept->methods : readGlobalMethods();
+}
+
 void upscaleSetGlobalMethods(const UpscaleMethods &methods)
 {
     // Through the generated setters rather than the group, so that the page's
@@ -377,7 +399,7 @@ void upscaleSetGlobalMethods(const UpscaleMethods &methods)
     UpscaleConfig::setMethodX11Borderless(upscaleMethodKey(methods[std::size_t(UpscalePresentation::X11Borderless)]));
 }
 
-UpscaleSettings upscaleGlobalSettings()
+static UpscaleSettings readGlobalSettings()
 {
     UpscaleSettings settings;
     for (const UpscaleSettingInfo &info : upscaleSettingTable()) {
@@ -389,6 +411,18 @@ UpscaleSettings upscaleGlobalSettings()
     settings.setActs((UpscaleConfig::unlistedApplications() || upscaleLegacyUnlisted(group))
                      && !upscaleLegacySwitchedOff(group));
     return settings;
+}
+
+UpscaleSettings upscaleGlobalSettings()
+{
+    const std::optional<UpscaleKeptGlobal> &kept = keptGlobal();
+    return kept ? kept->settings : readGlobalSettings();
+}
+
+void upscaleKeepGlobalSettings()
+{
+    keptGlobal().reset();
+    keptGlobal() = UpscaleKeptGlobal{readGlobalSettings(), readGlobalMethods(), upscaleLegacySwitchedOff(globalGroup())};
 }
 
 UpscaleSettings upscaleResolveSettings(const UpscaleApplication *claimed)
@@ -405,7 +439,8 @@ UpscaleSettings upscaleResolveSettings(const UpscaleApplication *claimed)
     // Participation is the profile's own and is never inherited: a profile
     // that claimed this window answers for it, whatever the global profile
     // does about the windows nothing claimed.
-    settings.setActs(claimed->enabled && !upscaleLegacySwitchedOff(globalGroup()));
+    const std::optional<UpscaleKeptGlobal> &kept = keptGlobal();
+    settings.setActs(claimed->enabled && !(kept ? kept->switchedOff : upscaleLegacySwitchedOff(globalGroup())));
     return settings;
 }
 
