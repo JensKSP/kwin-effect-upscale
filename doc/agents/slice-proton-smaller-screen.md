@@ -1237,8 +1237,9 @@ Moved here from the open list on 2026-10-03, by its item numbers. The
   Direct3D 9, 11 and 12 and Vulkan, borderless and exclusive, was enlarged on
   Wine 10.0's X11 and Wayland drivers in the Debian 13 package machine with
   software rendering and Wine's own translation (the
-  [known limitations](slice-known-limitations.md#progress) record it); DXVK,
-  vkd3d-proton, official Proton and real hardware remain.
+  [known limitations](slice-known-limitations.md#progress) record it), and
+  Direct3D 9 and 11 through Debian's DXVK 2.6 as well; vkd3d-proton,
+  official Proton and real hardware remain.
 - Steam as Flatpak and Snap, run (item 34, K9), once
   [the analysis of 2026-09-27](#steam-as-flatpak-and-snap-2026-09-27), which
   still reasons with the companion, is restated for the proxy route.
