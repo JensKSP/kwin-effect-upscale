@@ -302,3 +302,12 @@ Still not run:
   36503302445 on `d801766`, whose package sources differ from `5c117bd` in
   nothing, built arm64 identically: the difference is intermittent, and the
   listing names the files when it comes back.
+- **KWin master failed to link in the verify-only nightly of `3c30b28`**
+  (2026-10-08, 37844886172) and of `0e0b334` (2026-10-10, 38035072182), both
+  compilers: KDE neon unstable's `libkwin.so.6.8.80` asks for
+  `ScreenLocker::KSldApp::lock(ScreenLocker::EstablishLock, int)`, which its
+  installed kscreenlocker does not have, so the first test program that links
+  libkwin fails before any of this repository's code is in question. neon's
+  KWin was built against a newer kscreenlocker than it ships; it is neon's to
+  rebuild, and a KWin master break gates nothing here. The next nightly that
+  builds says whether it has.
