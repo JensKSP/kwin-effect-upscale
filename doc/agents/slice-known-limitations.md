@@ -37,6 +37,13 @@ hardware from a list prepared for it; Steam as Flatpak and Snap on his
 machine; and the KWin proposal of 29b, refreshed against KWin master and filed
 by Jens. He sets the default workflow token back to read.
 
+Both blockers were cleared the same evening. Item 101 did not reproduce:
+`keepsInputAcrossReconfigurations` reads an edited list twice with a game
+showing, then has the game lock or take the pointer, and its relative motion
+and clicks reach it, at its own size and presented, on Wayland and through
+X11 alike; it stays watched. Item 31 is met in the package machine, as the
+[Proton slice](slice-proton-smaller-screen.md#remaining-work) records.
+
 ## Start state and evidence
 
 The effect enlarges a game's buffer where it can get a smaller one and

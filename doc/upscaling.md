@@ -2998,7 +2998,8 @@ and exclusive, was enlarged on Wine 10.0's X11 and Wayland drivers in a
 Debian 13 machine without a graphics card (2026-10-10), with Wine's own
 translation and with DXVK for Direct3D 9 and 11; and SuperTuxKart 1.5's own
 Windows release, started with `wine` outside Steam, was told the smaller
-screen through the proxy and enlarged there too. Other games, other Proton
+screen through the proxy and enlarged there too, took clicks with its pointer
+confined, and started at full size with its slot Off. Other games, other Proton
 versions, vkd3d-proton and real graphics hardware remain untested.
 An effect-only universal resolution override remains unproven.
 
