@@ -41,7 +41,11 @@ public:
         }
         D3D12_COMMAND_QUEUE_DESC queue = {};
         queue.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
-        m_device->CreateCommandQueue(&queue, __uuidof(ID3D12CommandQueue), reinterpret_cast<void **>(&m_queue));
+        result = m_device->CreateCommandQueue(&queue, __uuidof(ID3D12CommandQueue), reinterpret_cast<void **>(&m_queue));
+        if (FAILED(result)) {
+            error = "CreateCommandQueue answered " + hresult(result);
+            return false;
+        }
         DXGI_SWAP_CHAIN_DESC1 description = {};
         description.Width = UINT(width);
         description.Height = UINT(height);
@@ -52,8 +56,13 @@ public:
         description.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
         IDXGISwapChain1 *first = nullptr;
         result = factory->CreateSwapChainForHwnd(m_queue, window, &description, nullptr, nullptr, &first);
-        if (FAILED(result) || FAILED(first->QueryInterface(__uuidof(IDXGISwapChain3), reinterpret_cast<void **>(&m_swapChain)))) {
+        if (FAILED(result)) {
             error = "CreateSwapChainForHwnd answered " + hresult(result);
+            return false;
+        }
+        result = first->QueryInterface(__uuidof(IDXGISwapChain3), reinterpret_cast<void **>(&m_swapChain));
+        if (FAILED(result)) {
+            error = "IDXGISwapChain3 answered " + hresult(result);
             return false;
         }
         first->Release();
@@ -68,13 +77,17 @@ public:
         D3D12_DESCRIPTOR_HEAP_DESC heap = {};
         heap.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
         heap.NumDescriptors = bufferCount;
-        m_device->CreateDescriptorHeap(&heap, __uuidof(ID3D12DescriptorHeap), reinterpret_cast<void **>(&m_heap));
         m_step = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-        m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, __uuidof(ID3D12CommandAllocator), reinterpret_cast<void **>(&m_allocator));
-        m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_allocator, nullptr, __uuidof(ID3D12GraphicsCommandList),
-                                    reinterpret_cast<void **>(&m_list));
+        if (FAILED(m_device->CreateDescriptorHeap(&heap, __uuidof(ID3D12DescriptorHeap), reinterpret_cast<void **>(&m_heap)))
+            || FAILED(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, __uuidof(ID3D12CommandAllocator),
+                                                       reinterpret_cast<void **>(&m_allocator)))
+            || FAILED(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_allocator, nullptr, __uuidof(ID3D12GraphicsCommandList),
+                                                  reinterpret_cast<void **>(&m_list)))
+            || FAILED(m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, __uuidof(ID3D12Fence), reinterpret_cast<void **>(&m_fence)))) {
+            error = "no descriptor heap, command list or fence";
+            return false;
+        }
         m_list->Close();
-        m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, __uuidof(ID3D12Fence), reinterpret_cast<void **>(&m_fence));
         m_event = CreateEventW(nullptr, FALSE, FALSE, nullptr);
         m_width = width;
         m_height = height;
