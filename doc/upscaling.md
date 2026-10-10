@@ -2996,7 +2996,9 @@ through Proton was accepted this way on wzpc (KWin 6.3.6, 2026-10-03; see
 a probe drawing through OpenGL, Direct3D 9, 11 and 12 and Vulkan, borderless
 and exclusive, was enlarged on Wine 10.0's X11 and Wayland drivers in a
 Debian 13 machine without a graphics card (2026-10-10), with Wine's own
-translation and with DXVK for Direct3D 9 and 11. Other games, other Proton
+translation and with DXVK for Direct3D 9 and 11; and SuperTuxKart 1.5's own
+Windows release, started with `wine` outside Steam, was told the smaller
+screen through the proxy and enlarged there too. Other games, other Proton
 versions, vkd3d-proton and real graphics hardware remain untested.
 An effect-only universal resolution override remains unproven.
 

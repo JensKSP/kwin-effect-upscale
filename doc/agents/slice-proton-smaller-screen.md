@@ -1226,7 +1226,17 @@ Moved here from the open list on 2026-10-03, by its item numbers. The
   presentation transform its input honours (item 29b, K15), its text
   [above](#proposal-prepared-for-kde-a-presentation-transform-kwins-input-honours-item-29b-2026-09-29).
 - One game under Wine outside Steam, launched normally, through the proxy:
-  the supported scope's second game (item 31).
+  the supported scope's second game (item 31). Run on 2026-10-10 in the
+  Debian 13 package machine with `package-vm.py debian-13-amd64 wine-game`:
+  SuperTuxKart 1.5's own Windows release, checked against the digest GitHub
+  publishes, its x86-64 build started with `wine supertuxkart.exe` from its
+  folder and a player's settings for a 4K screen (fullscreen, OpenGL). The
+  proxy answered its connections under All games with 2560 × 1440, and the
+  effect enlarged the game's 2560 × 1440 to 3840 × 2160 with FSR 1, on Wine's
+  X11 driver and on its Wayland driver alike. What the gate asks beyond that
+  was not run there: input, a confined pointer included, and the slot switched
+  Off giving the full size at the next start, which need a pointer driven in
+  the session or Jens's machine.
 - A warm prefix with real games (item 27): Proton's wineserver lifetime and a
   real launcher started before the game, with the games of items 30 and 31.
   [The switch](#a-warm-prefix-measured-and-fixed-2026-09-29) is measured only
