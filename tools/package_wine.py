@@ -1,23 +1,27 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Jens Koehler <kwin-effect-upscale@koehler-speyer.de>
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Inside a package machine: a Windows game on Wine's Wayland driver.
+"""Inside a package machine: Windows graphics APIs under Wine, on both of its display drivers.
 
     package_wine.py --package FILE --report FILE
 
-Wine's Wayland driver draws an OpenGL window into one subsurface covering it,
-in a buffer whose height it rounds up to a multiple of 128 and shows the
-window's size of through a viewport. tools/wine-opengl-probe.c, built here
-with MinGW, draws the left half of its borderless window over the whole screen
-red and the right half blue, under the system's Wine with the prefix's
-graphics driver set to wayland. The effect's All games is switched on, as
-Wine's programs have no entry of their own and everything Wine runs is a game
-to it, and what is checked is that it enlarges the probe from a smaller
-picture to the whole output, and that KWin's picture of the screen splits red
-from blue at its middle. Run as root in a
-machine made by tools/package-vm.py, like the package check, whose session
-helpers this uses; Debian's and Ubuntu's package names only. The package is
-removed at the end either way.
+tools/wine-probe/, built here with MinGW-w64, is a Windows program that draws
+as a game does, through OpenGL, Direct3D 9, 11 or 12, or Vulkan, borderless (a
+popup window over its whole screen) or exclusive (the API's own fullscreen, or
+for OpenGL and Vulkan a display mode set first): the left half red, the right
+half blue. It runs under the system's Wine once for each API and mode on
+Wine's Wayland driver, and once for each through the X11 session proxy on
+Wine's X11 driver, with a new Wine server for every run, so that each is told
+its screen afresh. The effect's All games is switched on, as Wine's programs
+have no entry of their own and everything Wine runs is a game to it. A run
+passes where the effect enlarges the probe from a smaller picture to the
+whole output on the window system its driver speaks, and KWin's picture of the
+screen splits red from blue at its middle. Wine draws Direct3D through its own
+translation and Vulkan on the machine's lavapipe, as llvmpipe draws the rest,
+so what is checked is what the effect does with each, not how a game would run
+on a graphics card. Run as root in a machine made by tools/package-vm.py, like
+the package check, whose session helpers this uses; Debian's and Ubuntu's
+package names only. The package is removed at the end either way.
 """
 
 from __future__ import annotations
@@ -34,9 +38,22 @@ from pathlib import Path
 import package_check as pc
 import package_session as ps
 
-SOURCE = Path(__file__).with_name("wine-opengl-probe.c")
-# Wine, the compiler for the probe, and the reader of the picture.
-NEEDED = ("wine", "wine64", "gcc-mingw-w64-x86-64", "python3-pil")
+SOURCES = sorted(Path(__file__).with_name("wine-probe").glob("*.cpp"))
+# Wine, the compiler for the probe and Vulkan's headers for it, the Vulkan
+# driver Wine's Vulkan and Direct3D 12 draw on, and the reader of the picture.
+NEEDED = (
+    "wine",
+    "wine64",
+    "g++-mingw-w64-x86-64",
+    "libvulkan-dev",
+    "mesa-vulkan-drivers",
+    "python3-pil",
+)
+APIS = ("opengl", "d3d9", "d3d11", "d3d12", "vulkan")
+MODES = ("borderless", "exclusive")
+# Wine's display drivers, each named as the effect names the window system
+# that driver speaks.
+DRIVERS = ("wayland", "x11")
 PREFIX = Path("/home") / pc.USER / ".wine-upscale"
 # No Mono or Gecko installer asking at the prefix's first start, nor Wine's log.
 WINE = {"WINEPREFIX": str(PREFIX), "WINEDEBUG": "-all", "WINEDLLOVERRIDES": "mscoree,mshtml="}
@@ -51,17 +68,31 @@ def wayland_only(environment: dict[str, str]) -> dict[str, str]:
     return {key: value for key, value in environment.items() if key != "DISPLAY"} | WINE
 
 
+def for_driver(environment: dict[str, str], driver: str) -> dict[str, str]:
+    """Give a Wine program the session's environment as the driver it runs on needs it."""
+    return wayland_only(environment) if driver == "wayland" else environment | WINE
+
+
 def build_probe(directory: Path) -> Path:
-    """Build the probe into a directory the tester owns."""
+    """Build the probe into a directory the tester owns.
+
+    Vulkan's headers are the system's, given to the compiler alone: the rest of
+    /usr/include is Linux's and would stand in for Windows' own.
+    """
     probe = directory / "probe.exe"
-    compiler = ("x86_64-w64-mingw32-gcc", "-O2", "-o", str(probe), str(SOURCE))
-    pc.output([*compiler, "-lopengl32", "-lgdi32"], timeout=300)
+    headers = directory / "include"
+    headers.mkdir()
+    for name in ("vulkan", "vk_video"):
+        (headers / name).symlink_to(Path("/usr/include") / name)
+    compiler = ("x86_64-w64-mingw32-g++", "-std=c++17", "-O2", "-static", "-isystem", str(headers))
+    libraries = ("-lopengl32", "-lgdi32", "-ld3d9", "-ld3d11", "-ldxgi")
+    pc.output([*compiler, "-o", str(probe), *map(str, SOURCES), *libraries], timeout=600)
     shutil.chown(directory, user=pc.USER)
     return probe
 
 
-def wine(*command: str, timeout: float = 900) -> None:
-    """Run a Wine command as the tester, without pipes, and raise if it failed.
+def wine(*command: str, timeout: float = 900, required: bool = True) -> None:
+    """Run a Wine command as the tester, without pipes, and raise if it failed and was required.
 
     Wine leaves its server and its desktop running after the command, holding
     whatever it was started with: a pipe to read its output from is never
@@ -75,24 +106,36 @@ def wine(*command: str, timeout: float = 900) -> None:
         timeout=timeout,
         check=False,
     )
-    if done.returncode:
+    if required and done.returncode:
         message = f"{command[0]} failed with exit {done.returncode}"
         raise RuntimeError(message)
 
 
-def make_prefix() -> None:
-    """Make the tester's prefix, set its graphics driver to Wine's Wayland driver, and stop it.
+def stop_wine() -> None:
+    """End the prefix's server and everything it runs, and wait until it has.
 
     The server is ended rather than asked to shut the prefix down: Wine's own
     shutdown left its services and desktop running, and restarting, in a
-    session whose screen had locked (2026-10-07). The server writes the
+    session whose screen had locked (2026-10-07). Waiting for a server nobody
+    ended never returns while Wine's desktop runs. The server writes the
     registry as it ends.
     """
+    # Neither has anything to do where the server has ended on its own.
+    wine("wineserver", "-k", timeout=60, required=False)
+    wine("wineserver", "-w", timeout=60, required=False)
+
+
+def make_prefix() -> None:
+    """Make the tester's prefix, and stop it."""
     wine("wineboot", "--init")
-    drivers = ("reg", "add", r"HKCU\Software\Wine\Drivers", "/v", "Graphics", "/d", "wayland")
+    stop_wine()
+
+
+def set_driver(driver: str) -> None:
+    """Set the prefix's graphics driver, which Wine reads when its server starts."""
+    drivers = ("reg", "add", r"HKCU\Software\Wine\Drivers", "/v", "Graphics", "/d", driver)
     wine("wine", *drivers, "/f")
-    wine("wineserver", "-k")
-    wine("wineserver", "-w")
+    stop_wine()
 
 
 def split_at_middle(picture: Path) -> str:
@@ -114,40 +157,67 @@ def split_at_middle(picture: Path) -> str:
     return f"split at the middle of {width} ({found})" if list(marks.values()) == expected else ""
 
 
-def probe_run(probe: Path, session: pc.Session, result: dict[str, object], directory: Path) -> None:
-    """Run the probe until the effect enlarges it, and picture the screen beside the report."""
-    output = probe.with_name("probe.txt")
-    picture = directory / "wine-probe.png"
-    environment = wayland_only(session.environment)
-    # The desktop before the game, under All games, which tells the desktop's
-    # own programs nothing: its panel spans the screen. To be read by eye.
-    result["desktop picture"] = ps.picture(directory / "wine-desktop.png", environment)
+def run_case(
+    probe: Path, environment: dict[str, str], name: str, directory: Path
+) -> dict[str, object]:
+    """Run the probe for one driver, API and mode until the effect enlarges it, then picture it."""
+    driver, api, mode = name.split()
+    output = probe.with_name(f"{driver}-{api}-{mode}.txt")
+    picture = directory / f"wine-{driver}-{api}-{mode}.png"
     seen: dict[str, object] = {}
 
     def enlarged() -> str:
         reading = pc.metrics()
         seen["metrics"] = reading
-        seen["status"] = pc.effects("supportInformation", "upscale")
         if (
-            reading.get("selected") == "1"
+            "probe" in reading.get("window", "")
+            and reading.get("selected") == "1"
             and reading.get("scaling") == "1"
-            and reading.get("windowsystem") == "wayland"
+            and reading.get("windowsystem") == driver
             and reading.get("supplied", "") not in ("", reading.get("destination"))
         ):
+            seen["status"] = pc.effects("supportInformation", "upscale")
             seen["picture"] = ps.picture(picture, environment)
             return "enlarged"
         return ""
 
-    command = f"exec wine {probe} 120 > {output} 2>&1"
-    found = pc.watch(["sh", "-c", command], environment, 240, enlarged)
-    result["probe said"] = (
-        output.read_text(errors="replace").splitlines()[-20:] if output.exists() else []
-    )
-    result.update(seen)
+    command = f"exec wine {probe} {api} {mode} 120 > {output} 2>&1"
+    found = pc.watch(["sh", "-c", command], environment, 150, enlarged)
+    # The probe's own words, without the graphics stack's warnings about a
+    # machine that has no graphics card.
+    said = output.read_text(errors="replace").splitlines() if output.exists() else []
+    case: dict[str, object] = {
+        "probe said": [
+            line for line in said if line.startswith(("screen", "client", "unavailable"))
+        ][-4:]
+    }
+    case.update(seen)
     taken = str(seen.get("picture", "")).endswith(".png")
-    split = split_at_middle(picture) if found and taken else ""
-    result["picture splits"] = split
-    result["passed"] = bool(found and split)
+    case["picture splits"] = split_at_middle(picture) if found and taken else ""
+    case["passed"] = bool(found and case["picture splits"])
+    stop_wine()
+    return case
+
+
+def probe_runs(
+    probe: Path, session: pc.Session, result: dict[str, object], directory: Path
+) -> None:
+    """Run every driver, API and mode in turn, and pass where every one was enlarged."""
+    # The desktop before the games, under All games, which tells the desktop's
+    # own programs nothing: its panel spans the screen. To be read by eye.
+    result["desktop picture"] = ps.picture(
+        directory / "wine-desktop.png", wayland_only(session.environment)
+    )
+    cases: dict[str, dict[str, object]] = {}
+    result["cases"] = cases
+    for driver in DRIVERS:
+        set_driver(driver)
+        environment = for_driver(session.environment, driver)
+        for api in APIS:
+            for mode in MODES:
+                name = f"{driver} {api} {mode}"
+                cases[name] = run_case(probe, environment, name, directory)
+    result["passed"] = all(case["passed"] for case in cases.values())
 
 
 def wine_run(package: str, result: dict[str, object], directory: Path) -> None:
@@ -166,7 +236,7 @@ def wine_run(package: str, result: dict[str, object], directory: Path) -> None:
         current = pc.relogin(pc.kwin())
         session = pc.Session(time.strftime("%Y-%m-%d %H:%M:%S"), current)
         session.environment = pc.session_environment()
-        probe_run(probe, session, result, directory)
+        probe_runs(probe, session, result, directory)
     finally:
         pc.output(pc.as_user(*TAKE_ALL, *TAKE_ALL_KEY, "--delete"))
 
