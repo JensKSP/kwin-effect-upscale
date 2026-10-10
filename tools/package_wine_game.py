@@ -222,7 +222,11 @@ def try_input(
     pointer.click()
     time.sleep(5)
     found["answered picture"] = ps.picture(after, environment)
-    if before.exists() and after.exists():
+    missing = [picture.name for picture in (before, after) if not picture.exists()]
+    if missing:
+        # A picture that could not be taken says nothing about the game's input.
+        found["capture missing"] = missing
+    else:
         found["changed"] = round(changed_share(before, after), 3)
     found["answered"] = float(str(found.get("changed", 0))) > CHANGED
     return found
