@@ -179,6 +179,69 @@ void UpscaleIntegrationTest::carriesRelativeMotionOntoThePicture()
     QCOMPARE(game.lastMotion(), held);
 }
 
+// Input was lost once after the effect had read an edited list twice and the
+// game then locked the pointer, at the game's own size (Wreckfest, 2026-10-03,
+// not seen again). Here the list is written and read twice with the game
+// showing, the game then locks the pointer, and its relative motion and a click
+// have to reach it, at its own size and presented alike.
+void UpscaleIntegrationTest::keepsInputAcrossReconfigurations_data()
+{
+    QTest::addColumn<QString>("geometry");
+    QTest::addColumn<QSize>("buffer");
+    QTest::addColumn<QString>("shown");
+    QTest::addColumn<QPointF>("across");
+    QTest::newRow("native") << QStringLiteral("Fit") << QSize(128, 128) << QStringLiteral("not smaller than the destination")
+                            << QPointF(1, 1);
+    QTest::newRow("presented") << QStringLiteral("Integer") << QSize(64, 48) << QStringLiteral("enlarged 2 times")
+                               << QPointF(1, 128.0 / 96.0);
+}
+
+void UpscaleIntegrationTest::keepsInputAcrossReconfigurations()
+{
+    QFETCH(QString, geometry);
+    QFETCH(QSize, buffer);
+    QFETCH(QString, shown);
+    QFETCH(QPointF, across);
+    const QDBusReply<bool> loaded = m_effects.call(QStringLiteral("loadEffect"), QStringLiteral("upscale_test_driver"));
+    QVERIFY(loaded.isValid() && loaded.value());
+    const auto unload = qScopeGuard([this]() {
+        writeCatalogue(QString());
+        m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
+    });
+    const auto entry = [&geometry](int minimum) {
+        return integrationEntry(QStringLiteral("MinimumPixels=%1\nGeometry=%2\n").arg(minimum).arg(geometry));
+    };
+    writeCatalogue(entry(0));
+    configure(false, false);
+    WaylandClient game;
+    QVERIFY(game.initialize());
+    QSocketNotifier notifier(game.descriptor(), QSocketNotifier::Read);
+    connect(&notifier, &QSocketNotifier::activated, this, [&game]() {
+        game.dispatch();
+    });
+    QVERIFY(game.show(buffer));
+    QTRY_VERIFY2(status().contains(shown), qPrintable(status()));
+    QVERIFY(game.watchRelativeMotion());
+    movePointer(QPoint(40, 64));
+    QTRY_VERIFY(game.lastMotion() != QPointF(-1, -1));
+    // An edited list, read as Apply on the settings page makes the effect read
+    // it, twice; both limits lie below this output.
+    writeCatalogue(entry(1));
+    writeCatalogue(entry(0));
+    QTRY_VERIFY2(status().contains(shown), qPrintable(status()));
+    QVERIFY(game.lockPointer());
+    QTRY_VERIFY2(game.pointerLocked(), qPrintable(status()));
+    game.resetRelativeMotion();
+    movePointerBy(QPoint(-30, 6));
+    const auto said = [&game]() {
+        return QStringLiteral("%1, %2").arg(game.relativeMotion().x()).arg(game.relativeMotion().y());
+    };
+    QTRY_VERIFY2(near(game.relativeMotion(), QPointF(-30 * across.x(), 6 * across.y())), qPrintable(said()));
+    const int presses = game.presses();
+    clickPointer(QPoint(40, 64));
+    QTRY_COMPARE(game.presses(), presses + 1);
+}
+
 // A popup of the game's lies where the game's surface coordinates put it,
 // which KWin draws unenlarged, and over the bar left of the picture here. The
 // pointer there is the popup's, at the popup's own coordinates, and the game
