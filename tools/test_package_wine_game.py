@@ -49,6 +49,24 @@ class WineGameTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, self.assertRaises(RuntimeError):
             pg.executable(Path(directory))
 
+    def test_fails_where_the_package_could_not_be_removed(self) -> None:
+        """Runs that passed do not pass the check where removal failed."""
+
+        def passed(_package: str, result: dict[str, object], _directory: Path) -> None:
+            result["passed"] = True
+
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.object(pg, "game_run", side_effect=passed),
+            mock.patch("package_check.manager", return_value=(("apt-get",), ("apt-get", "purge"))),
+            mock.patch("package_check.output", side_effect=RuntimeError("purge failed")),
+            mock.patch("builtins.print"),
+        ):
+            report = Path(directory) / "report.json"
+            outcome = pg.main(["--package", "p.deb", "--report", str(report)])
+            self.assertEqual(outcome, 1)
+            self.assertIn('"removal": "purge failed"', report.read_text())
+
     def test_keeps_the_settings_where_windows_does(self) -> None:
         """SuperTuxKart for Windows reads its settings from %APPDATA% in the prefix."""
         self.assertIn("AppData/Roaming/supertuxkart", str(pg.SETTINGS))

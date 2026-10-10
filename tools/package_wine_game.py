@@ -189,6 +189,8 @@ def main(argv: list[str] | None = None) -> int:
             pc.output(list(remove), timeout=600)
         except RuntimeError as error:
             result["removal"] = str(error)
+            # A machine left with the package installed has not passed.
+            result["passed"] = False
         Path(options.report).write_text(json.dumps(result, indent=1, ensure_ascii=False) + "\n")
     print(json.dumps(result, indent=1, ensure_ascii=False))
     return 0 if result.get("passed") else 1
