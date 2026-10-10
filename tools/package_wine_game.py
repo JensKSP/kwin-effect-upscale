@@ -216,13 +216,20 @@ def try_input(
     found["clicked at"] = list(target)
     before = directory / f"wine-supertuxkart-{driver}-question.png"
     after = directory / f"wine-supertuxkart-{driver}-answered.png"
+    # The machine's directory outlives a run: a picture left by an earlier
+    # one must not stand in for one that could not be taken now.
+    for picture in (before, after):
+        picture.unlink(missing_ok=True)
     pointer.move(target)
     time.sleep(2)
-    found["question picture"] = ps.picture(before, environment)
+    question = ps.picture(before, environment)
     pointer.click()
     time.sleep(5)
-    found["answered picture"] = ps.picture(after, environment)
-    missing = [picture.name for picture in (before, after) if not picture.exists()]
+    answer = ps.picture(after, environment)
+    found["question picture"], found["answered picture"] = question, answer
+    # ps.picture() names the picture only where it took it.
+    taken = ((before, question), (after, answer))
+    missing = [picture.name for picture, name in taken if name != picture.name]
     if missing:
         # A picture that could not be taken says nothing about the game's input.
         found["capture missing"] = missing
