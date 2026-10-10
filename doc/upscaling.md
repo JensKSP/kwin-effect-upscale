@@ -2993,8 +2993,11 @@ the connections of a prefix whose program a profile names in
 with a smaller screen, without changing how the game is started. Wreckfest
 through Proton was accepted this way on wzpc (KWin 6.3.6, 2026-10-03; see
 [the prefix's screen](#games-that-ignore-resizing-a-smaller-screen-in-their-prefix));
-other games, other Proton versions and the other Direct3D and Vulkan paths
-remain untested.
+a probe drawing through OpenGL, Direct3D 9, 11 and 12 and Vulkan, borderless
+and exclusive, was enlarged on Wine 10.0's X11 and Wayland drivers in a
+Debian 13 machine without a graphics card (2026-10-10). Other games, other
+Proton versions, DXVK, vkd3d-proton and real graphics hardware remain
+untested.
 An effect-only universal resolution override remains unproven.
 
 ### Resolution-control direction after the experiments
