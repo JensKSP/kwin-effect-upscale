@@ -48,30 +48,47 @@ NEEDED = (
     "g++-mingw-w64-x86-64",
     "libvulkan-dev",
     "mesa-vulkan-drivers",
+    "dxvk",
+    "dxvk-wine64",
     "python3-pil",
 )
 APIS = ("opengl", "d3d9", "d3d11", "d3d12", "vulkan")
+# Who translates the probe's Direct3D: Wine itself, with WineD3D and vkd3d,
+# for every API, or DXVK, as Proton does, for Direct3D 9 and 11. Each has a
+# prefix of its own, so that neither's libraries stand in for the other's.
+TRANSLATIONS = {"wine": APIS, "dxvk": ("d3d9", "d3d11")}
 MODES = ("borderless", "exclusive")
 # Wine's display drivers, each named as the effect names the window system
 # that driver speaks.
 DRIVERS = ("wayland", "x11")
 PREFIX = Path("/home") / pc.USER / ".wine-upscale"
+PREFIXES = {"wine": PREFIX, "dxvk": Path("/home") / pc.USER / ".wine-upscale-dxvk"}
 # No Mono or Gecko installer asking at the prefix's first start, nor Wine's log.
-WINE = {"WINEPREFIX": str(PREFIX), "WINEDEBUG": "-all", "WINEDLLOVERRIDES": "mscoree,mshtml="}
+WINE = {"WINEDEBUG": "-all", "WINEDLLOVERRIDES": "mscoree,mshtml="}
 # A channel brighter than this is lit, a darker one is not.
 BRIGHT = 200
 TAKE_ALL = ("kwriteconfig6", "--file", "kwinrc", "--group", "Effect-upscale")
 TAKE_ALL_KEY = ("--key", "UnlistedApplications")
 
 
-def wayland_only(environment: dict[str, str]) -> dict[str, str]:
+def prefixed(translation: str) -> dict[str, str]:
+    """Wine's settings for the prefix of @p translation."""
+    return WINE | {"WINEPREFIX": str(PREFIXES[translation])}
+
+
+def wayland_only(environment: dict[str, str], translation: str = "wine") -> dict[str, str]:
     """Give a Wine program the session's environment, without the X11 display to fall back on."""
-    return {key: value for key, value in environment.items() if key != "DISPLAY"} | WINE
+    without = {key: value for key, value in environment.items() if key != "DISPLAY"}
+    return without | prefixed(translation)
 
 
-def for_driver(environment: dict[str, str], driver: str) -> dict[str, str]:
+def for_driver(
+    environment: dict[str, str], driver: str, translation: str = "wine"
+) -> dict[str, str]:
     """Give a Wine program the session's environment as the driver it runs on needs it."""
-    return wayland_only(environment) if driver == "wayland" else environment | WINE
+    if driver == "wayland":
+        return wayland_only(environment, translation)
+    return environment | prefixed(translation)
 
 
 def build_probe(directory: Path) -> Path:
@@ -92,7 +109,9 @@ def build_probe(directory: Path) -> Path:
     return probe
 
 
-def wine(*command: str, timeout: float = 900, required: bool = True) -> None:
+def wine(
+    *command: str, translation: str = "wine", timeout: float = 900, required: bool = True
+) -> None:
     """Run a Wine command as the tester, without pipes, and raise if it failed and was required.
 
     Wine leaves its server and its desktop running after the command, holding
@@ -100,7 +119,7 @@ def wine(*command: str, timeout: float = 900, required: bool = True) -> None:
     closed, and the reading never ends (wineboot, 2026-10-07).
     """
     done = subprocess.run(
-        pc.as_user(*command, environment=wayland_only({})),
+        pc.as_user(*command, environment=wayland_only({}, translation)),
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -112,7 +131,7 @@ def wine(*command: str, timeout: float = 900, required: bool = True) -> None:
         raise RuntimeError(message)
 
 
-def stop_wine() -> None:
+def stop_wine(translation: str = "wine") -> None:
     """End the prefix's server and everything it runs, and wait until it has.
 
     The server is ended rather than asked to shut the prefix down: Wine's own
@@ -122,21 +141,28 @@ def stop_wine() -> None:
     registry as it ends.
     """
     # Neither has anything to do where the server has ended on its own.
-    wine("wineserver", "-k", timeout=60, required=False)
-    wine("wineserver", "-w", timeout=60, required=False)
+    wine("wineserver", "-k", translation=translation, timeout=60, required=False)
+    wine("wineserver", "-w", translation=translation, timeout=60, required=False)
 
 
-def make_prefix() -> None:
-    """Make the tester's prefix, and stop it."""
-    wine("wineboot", "--init")
-    stop_wine()
+def make_prefix(translation: str) -> None:
+    """Make the tester's prefix for @p translation, with DXVK in it where that is DXVK, and stop it.
+
+    Debian's dxvk-setup links DXVK's libraries into the prefix and overrides
+    Wine's own with them, Direct3D 9 to 11 and DXGI.
+    """
+    wine("wineboot", "--init", translation=translation)
+    stop_wine(translation)
+    if translation == "dxvk":
+        wine("dxvk-setup", "install", "--yes", "--stable", translation=translation, timeout=300)
+        stop_wine(translation)
 
 
-def set_driver(driver: str) -> None:
+def set_driver(driver: str, translation: str = "wine") -> None:
     """Set the prefix's graphics driver, which Wine reads when its server starts."""
     drivers = ("reg", "add", r"HKCU\Software\Wine\Drivers", "/v", "Graphics", "/d", driver)
-    wine("wine", *drivers, "/f")
-    stop_wine()
+    wine("wine", *drivers, "/f", translation=translation)
+    stop_wine(translation)
 
 
 def split_at_middle(picture: Path) -> str:
@@ -161,10 +187,10 @@ def split_at_middle(picture: Path) -> str:
 def run_case(
     probe: Path, environment: dict[str, str], name: str, directory: Path
 ) -> dict[str, object]:
-    """Run the probe for one driver, API and mode until the effect enlarges it, then picture it."""
-    driver, api, mode = name.split()
-    output = probe.with_name(f"{driver}-{api}-{mode}.txt")
-    picture = directory / f"wine-{driver}-{api}-{mode}.png"
+    """Run the probe for one driver, translation, API and mode until it is enlarged; picture it."""
+    driver, translation, api, mode = name.split()
+    output = probe.with_name(f"{driver}-{translation}-{api}-{mode}.txt")
+    picture = directory / f"wine-{driver}-{translation}-{api}-{mode}.png"
     seen: dict[str, object] = {}
 
     def enlarged() -> str:
@@ -198,14 +224,14 @@ def run_case(
     taken = str(seen.get("picture", "")).endswith(".png")
     case["picture splits"] = split_at_middle(picture) if found and taken else ""
     case["passed"] = bool(found and case["picture splits"])
-    stop_wine()
+    stop_wine(translation)
     return case
 
 
 def probe_runs(
     probe: Path, session: pc.Session, result: dict[str, object], directory: Path
 ) -> None:
-    """Run every driver, API and mode in turn, and pass where every one was enlarged."""
+    """Run every driver, translation, API and mode in turn; pass where every one was enlarged."""
     # The desktop before the games, under All games, which tells the desktop's
     # own programs nothing: its panel spans the screen. To be read by eye.
     result["desktop picture"] = ps.picture(
@@ -214,12 +240,13 @@ def probe_runs(
     cases: dict[str, dict[str, object]] = {}
     result["cases"] = cases
     for driver in DRIVERS:
-        set_driver(driver)
-        environment = for_driver(session.environment, driver)
-        for api in APIS:
-            for mode in MODES:
-                name = f"{driver} {api} {mode}"
-                cases[name] = run_case(probe, environment, name, directory)
+        for translation, apis in TRANSLATIONS.items():
+            set_driver(driver, translation)
+            environment = for_driver(session.environment, driver, translation)
+            for api in apis:
+                for mode in MODES:
+                    name = f"{driver} {translation} {api} {mode}"
+                    cases[name] = run_case(probe, environment, name, directory)
     result["passed"] = all(case["passed"] for case in cases.values())
 
 
@@ -232,7 +259,8 @@ def wine_run(package: str, result: dict[str, object], directory: Path) -> None:
     pc.output([*install, *NEEDED], timeout=3600)
     result["wine"] = pc.output(["wine", "--version"]).strip()
     probe = build_probe(Path(tempfile.mkdtemp(prefix="wine-probe-")))
-    make_prefix()
+    for translation in TRANSLATIONS:
+        make_prefix(translation)
     pc.output([*install, package], timeout=1800)
     pc.output(pc.as_user(*TAKE_ALL, *TAKE_ALL_KEY, "true"))
     try:

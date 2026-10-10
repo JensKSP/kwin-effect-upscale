@@ -37,6 +37,13 @@ class WineTest(unittest.TestCase):
         self.assertEqual(environment["WAYLAND_DISPLAY"], "wayland-0")
         self.assertEqual(environment["WINEPREFIX"], str(pw.PREFIX))
 
+    def test_keeps_each_translation_in_its_own_prefix(self) -> None:
+        """DXVK's libraries must never stand in for Wine's own in the other cases."""
+        wine = pw.for_driver({}, "x11", "wine")["WINEPREFIX"]
+        dxvk = pw.for_driver({}, "x11", "dxvk")["WINEPREFIX"]
+        self.assertEqual(wine, str(pw.PREFIX))
+        self.assertNotEqual(wine, dxvk)
+
     def test_gives_each_driver_its_display(self) -> None:
         """Wine's X11 driver needs the X11 display; its Wayland driver must not fall back to it."""
         session = {"DISPLAY": ":0", "WAYLAND_DISPLAY": "wayland-0"}
@@ -52,14 +59,14 @@ class WineTest(unittest.TestCase):
         )
 
     def test_runs_every_driver_api_and_mode(self) -> None:
-        """Twenty cases, and the check passes only where every one of them did."""
+        """Twenty-eight cases, and the check passes only where every one of them did."""
         ran: list[str] = []
 
         def case(
             _probe: Path, _environment: dict[str, str], name: str, _directory: Path
         ) -> dict[str, object]:
             ran.append(name)
-            return {"passed": name != "x11 d3d12 exclusive"}
+            return {"passed": name != "x11 wine d3d12 exclusive"}
 
         session = mock.Mock(environment={"DISPLAY": ":0"})
         result: dict[str, object] = {}
@@ -69,9 +76,11 @@ class WineTest(unittest.TestCase):
             mock.patch("package_session.picture", return_value="wine-desktop.png"),
         ):
             pw.probe_runs(Path("probe.exe"), session, result, Path())
-        self.assertEqual(len(ran), 20)
-        self.assertEqual(len(set(ran)), 20)
-        self.assertIn("wayland vulkan borderless", ran)
+        self.assertEqual(len(ran), 28)
+        self.assertEqual(len(set(ran)), 28)
+        self.assertIn("wayland wine vulkan borderless", ran)
+        self.assertIn("x11 dxvk d3d11 exclusive", ran)
+        self.assertNotIn("x11 dxvk vulkan exclusive", ran)
         self.assertFalse(result["passed"])
 
     def test_finds_the_picture_split_at_the_middle(self) -> None:
