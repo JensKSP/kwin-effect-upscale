@@ -49,6 +49,8 @@ private Q_SLOTS:
     void leavesATitleBarAboveAPresentedGame();
     void mapsTouchOntoAPresentedGame();
     void letsAPresentedGameLockThePointer();
+    void keepsInputAcrossReconfigurations_data();
+    void keepsInputAcrossReconfigurations();
     void coversTheScreenItWasGiven();
     void presentsAServedGameThatSetsNoMode();
     void winePrefixEligibility_data();

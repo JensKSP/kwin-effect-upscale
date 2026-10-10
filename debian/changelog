@@ -1,3 +1,26 @@
+kwin-effect-upscale (0.4.0) unstable; urgency=medium
+
+  * All applications is now All games. Without an entry of its own, a
+    program is upscaled only when it is recognized as a game: a program
+    that Wine or Proton runs, a program in a Steam library, or a program
+    that a desktop entry in the Games category starts. The desktop's own
+    programs keep their full screen. An entry still applies to whatever
+    program it names.
+  * The X11 session proxy recognizes a Proton game by the launcher that
+    starts it. A game that an entry describes, such as Wreckfest, is
+    therefore told the smaller screen as soon as it starts. The proxy also
+    tells KWin 6.3 the real process of a sandboxed X11 program, so Flatpak
+    games are upscaled through X11 as well.
+  * Wine's Wayland driver is presented: a fullscreen window of the told size
+    and the picture of its only subsurface are enlarged across the output.
+  * An X11 game is asked for the listed mode nearest to the wished size where
+    Xwayland lists no mode of that size.
+  * Touch and a Wayland window's pen are mapped onto the upscaled picture,
+    and the pointer is taken from a decoration the picture hides.
+  * The effect and its settings speak German, French and Spanish.
+
+ -- Jens Koehler <kwin-effect-upscale@koehler-speyer.de>  Sat, 10 Oct 2026 22:32:47 +0200
+
 kwin-effect-upscale (0.3.0) unstable; urgency=medium
 
   * Auto reaches every program it applies to. A starting Wayland program is
