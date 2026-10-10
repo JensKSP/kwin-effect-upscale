@@ -835,7 +835,7 @@ multiplies the matrix without reaching a user who is not already covered.
 | Fedora | the current release | 43 |
 | openSUSE | Tumbleweed, which rolls and is current by construction | Tumbleweed |
 | Arch | rolling, current by construction | rolling |
-| FreeBSD | the current production release | 15.0 |
+| FreeBSD | the current production release | 15.1 |
 
 When a distribution publishes a new stable release, the target moves to it and
 the previous one is dropped rather than kept beside it. The package builds take
@@ -4096,7 +4096,7 @@ cannot, and Flatpak does not apply to a compositor plugin.
 | Arch | `PKGBUILD` built with `makepkg` in `containers/arch` | a rolling KWin is why the package pins the exact KWin it was built against |
 | Fedora | RPM spec built with `rpmbuild` in `containers/fedora` | shares one spec with openSUSE; they differ only in what KWin is called |
 | openSUSE | the same spec built in `containers/opensuse` | Tumbleweed rolls, so the same exact-version pin applies |
-| FreeBSD | `pkg create` from the manifest template `packaging/freebsd/manifest.ucl.in`, in a FreeBSD 15.0 virtual machine | amd64 only; a binary package, not a port, which belongs to the ports tree |
+| FreeBSD | `pkg create` from the manifest template `packaging/freebsd/manifest.ucl.in`, in a FreeBSD 15.1 virtual machine | amd64 only; a binary package, not a port, which belongs to the ports tree |
 
 The recipes live under `packaging/` and are templates: their build
 dependencies are filled in from `debian/control` at build time, because that
