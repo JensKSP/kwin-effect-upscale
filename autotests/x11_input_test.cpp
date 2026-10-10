@@ -256,6 +256,48 @@ void UpscaleX11IntegrationTest::letsAPresentedGameLockThePointer()
     QTRY_VERIFY2_WITH_TIMEOUT(status().contains(QStringLiteral("pointerLock: engaged")), qPrintable(status()), 5000);
 }
 
+// Input was lost once after the effect had read an edited list twice and the
+// game then took the pointer for mouse look (Wreckfest through Proton,
+// 2026-10-03, at its own size; not seen again). Here the list is read twice
+// with the game showing, the game then takes the pointer, and a click has to
+// reach it, presented and at its own size alike.
+void UpscaleX11IntegrationTest::keepsInputAcrossReconfigurations_data()
+{
+    QTest::addColumn<bool>("presented");
+    QTest::newRow("native") << false;
+    QTest::newRow("presented") << true;
+}
+
+void UpscaleX11IntegrationTest::keepsInputAcrossReconfigurations()
+{
+    QFETCH(bool, presented);
+    configure(presented);
+    X11Client target(false);
+    QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 1920, 1080), false));
+    QVERIFY(target.waitForMapping());
+    target.fullscreen(true);
+    QTRY_VERIFY(target.isFullscreen());
+    if (presented) {
+        QTRY_VERIFY2(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()));
+    }
+    movePointer(logical(QPoint(400, 300)));
+    QTRY_VERIFY(target.lastMotion() != QPoint(-1, -1));
+    configure(presented);
+    configure(presented);
+    QVERIFY(target.takePointer());
+    movePointer(logical(QPoint(404, 304)));
+    if (presented) {
+        QTRY_VERIFY2_WITH_TIMEOUT(status().contains(QStringLiteral("pointerLock: engaged")), qPrintable(status()), 5000);
+    }
+    const int presses = target.presses();
+    const QPoint at = logical(QPoint(404, 304));
+    QSaveFile click(QString::fromLocal8Bit(qgetenv("XDG_RUNTIME_DIR")) + QStringLiteral("/upscale-test-click"));
+    QVERIFY(click.open(QIODevice::WriteOnly));
+    QVERIFY(click.write(QByteArray::number(at.x()) + ' ' + QByteArray::number(at.y())) > 0);
+    QVERIFY(click.commit());
+    QTRY_COMPARE(target.presses(), presses + 1);
+}
+
 // Over a decoration KWin's pointer focus goes to no window at all, and its
 // decoration filter takes the motion. The title bar of a window the picture
 // hides lies under the game there, and the game has to see the pointer move
