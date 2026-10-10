@@ -248,6 +248,12 @@ remain identified as optional in the permanent documentation.
   (the same switch also lets a workflow approve one), or have the run open
   its pull request with another token, or have it stop at the branch and the
   summary. The branch is his to keep or delete.
+  Jens allowed Actions to create pull requests on 2026-10-10; the setting
+  reads `can_approve_pull_request_reviews: true` since, and the default
+  workflow token became `write` with it, which no workflow here relies on, as
+  each declares its own permissions. `hook-updates-2026-10-05` was deleted
+  the same day at his word. Whether the next Monday's run opens its pull
+  request is still to be seen.
 - For Jens (item 89a): `gh auth refresh -s notifications`, granting the CLI
   the scope that reads his notification settings for failed scheduled runs
   and security alerts; the agent then reads and reports them.
