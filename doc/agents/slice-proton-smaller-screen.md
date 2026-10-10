@@ -1233,10 +1233,19 @@ Moved here from the open list on 2026-10-03, by its item numbers. The
   folder and a player's settings for a 4K screen (fullscreen, OpenGL). The
   proxy answered its connections under All games with 2560 × 1440, and the
   effect enlarged the game's 2560 × 1440 to 3840 × 2160 with FSR 1, on Wine's
-  X11 driver and on its Wayland driver alike. What the gate asks beyond that
-  was not run there: input, a confined pointer included, and the slot switched
-  Off giving the full size at the next start, which need a pointer driven in
-  the session or Jens's machine.
+  X11 driver and on its Wayland driver alike. The rest of the gate ran the
+  same evening, which Jens had made a condition of the 0.4.0 tag, with an
+  absolute pointer the check makes through uinput, as QEMU's tablet is. The
+  game opens on a question with a "No" button. On the Wayland driver a click
+  where the enlarged picture shows that button, (1372, 1620) on the output and
+  below the unscaled window, answered it. Through the proxy KWin engaged the
+  confinement Wine asks for, `confinement 1` in the effect's journal, and a
+  confined pointer passes one to one (K15, the interim mapping of 29a), so a
+  click where the game itself has the button, (914, 1080), answered it; the
+  cursor the system draws stays where KWin keeps it, which is K15's. With All
+  games' four slots Off the game came up at its full 3840 × 2160, not
+  enlarged. The status named SuperTuxKart throughout. Item 31 is met in the
+  package machine.
 - A warm prefix with real games (item 27): Proton's wineserver lifetime and a
   real launcher started before the game, with the games of items 30 and 31.
   [The switch](#a-warm-prefix-measured-and-fixed-2026-09-29) is measured only
