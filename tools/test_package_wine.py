@@ -83,6 +83,16 @@ class WineTest(unittest.TestCase):
         self.assertNotIn("x11 dxvk vulkan exclusive", ran)
         self.assertFalse(result["passed"])
 
+    def test_ends_the_server_of_a_case_that_failed(self) -> None:
+        """A case that raises still ends its server, so the next starts afresh."""
+        with (
+            mock.patch("package_check.watch", side_effect=RuntimeError("lost the session")),
+            mock.patch.object(pw, "stop_wine") as stop,
+            self.assertRaises(RuntimeError),
+        ):
+            pw.run_case(Path("probe.exe"), {}, "x11 dxvk d3d11 exclusive", Path())
+        stop.assert_called_once_with("dxvk")
+
     def test_finds_the_picture_split_at_the_middle(self) -> None:
         """A probe enlarged whole splits red from blue at the middle of the output."""
         with mock.patch.dict(sys.modules, {"PIL": picture_module(3840, 1920)}):
