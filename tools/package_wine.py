@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import shutil
 import subprocess
 import sys
@@ -181,7 +182,9 @@ def run_case(
             return "enlarged"
         return ""
 
-    command = f"exec wine {probe} {api} {mode} 120 > {output} 2>&1"
+    command = (
+        f"exec wine {shlex.quote(str(probe))} {api} {mode} 120 > {shlex.quote(str(output))} 2>&1"
+    )
     found = pc.watch(["sh", "-c", command], environment, 150, enlarged)
     # The probe's own words, without the graphics stack's warnings about a
     # machine that has no graphics card.

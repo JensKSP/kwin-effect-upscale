@@ -88,7 +88,7 @@ public:
         uint32_t index = 0;
         const VkResult acquired = vkAcquireNextImageKHR(m_device, m_swapChain, UINT64_MAX, m_acquired, VK_NULL_HANDLE, &index);
         if (acquired == VK_ERROR_OUT_OF_DATE_KHR) {
-            chain(width, height, error);
+            chain(int(wanted.width), int(wanted.height), error);
             return;
         }
         vkResetFences(m_device, 1, &m_done);
