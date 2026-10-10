@@ -137,7 +137,7 @@ TARGETS = (
         container="",
         image="",
         architectures=("amd64",),
-        release="15.0",
+        release="15.1",
         bootstrap="pkg install -y python3",
     ),
 )
