@@ -267,7 +267,7 @@ void UpscaleConfigTest::displayDefaults()
     // The announcement is on in both build types; the persistent views follow
     // the build configuration of this binary and nothing else.
     QVERIFY(detection->isChecked());
-    QCOMPARE(timeout->value(), 3);
+    QCOMPARE(timeout->value(), 5);
     QCOMPARE(statistics->isChecked(), KWin::upscaleDebugBuild);
     QCOMPARE(developer->isChecked(), KWin::upscaleDebugBuild);
     // Each display is its own switch now: nothing above them can grey one
