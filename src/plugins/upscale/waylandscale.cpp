@@ -41,7 +41,7 @@ static constexpr int patienceInFrames = 30;
 bool UpscaleWaylandScale::requestedPresentation(const Window *window) const
 {
     const QRectF resized = resizedGeometry(window);
-    if (!resized.isEmpty() && window->isRequestedFullScreen() && window->moveResizeGeometry() == resized) {
+    if (!resized.isEmpty() && window->isRequestedFullScreen() && holdsResize(window, resized)) {
         return true;
     }
     return upscaleRequestCoversOutput(window) && (window->isFullScreen() || !window->nextDecoration());

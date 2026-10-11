@@ -39,6 +39,7 @@ private Q_SLOTS:
     void aProgramThatExitsBeforeRestoration();
     void anOutputVersionWithoutScaleIsLeftAlone();
     void aSurfaceScaleFollowsTheOutputScale();
+    void keepsAResizeTheClientRoundedThroughItsBuffer();
     void aGameThatCrashesIsLetGo_data();
     void aGameThatCrashesIsLetGo();
     void crashingGamesLeaveNothingBehind();

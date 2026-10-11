@@ -129,6 +129,7 @@ private:
     bool requestedPresentation(const Window *window) const;
     static bool resize(Window *window, Request &request);
     static void restoreGeometry(Window *window, const Request &request);
+    static bool holdsResize(const Window *window, const QRectF &geometry);
     void watchInitialSizes();
     void requestInitialSize(Window *window);
 
