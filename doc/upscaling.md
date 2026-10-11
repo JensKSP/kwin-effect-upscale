@@ -2304,6 +2304,7 @@ that a later mismatch can be traced rather than guessed at.
 | Wreckfest | Steam build 16986367 | class and instance `steam_app_228380`, X11 connection program `wine://.*/Wreckfest/Wreckfest(?:_x64)?[.]exe` | its windows' process: Wine's `explorer.exe /desktop`, which every Proton game shares | X11 fullscreen: Auto, through the session proxy's smaller screen | follows the global |
 | glmark2 | 2023.01 | program `.*/glmark2-wayland` | class `com.github.glmark2.glmark2`, instance `glmark2-wayland` | Wayland fullscreen: advertised screen scale | follows the global |
 | vkmark | 2025.01 | program `.*/vkmark` | class `com.github.vkmark.vkmark`, instance `vkmark` | Wayland fullscreen: advertised screen mode and scale | follows the global |
+| Quake II RTX | 1.8.0, Steam build 17873149 | program `.*/Quake II RTX/q2rtx` | class, instance and desktop file `q2rtx` | Wayland fullscreen: Auto, through the smaller fullscreen configure | follows the global |
 
 Left 4 Dead 2's listed X11 buffer request was first measured as no validated
 way to reduce its internal rendering: on that native build its menu kept a
@@ -2340,6 +2341,16 @@ observes at runtime holds - a smaller buffer that still covers the screen - and
 gives it back otherwise. That observation is a safeguard, not a measurement: a
 presentation is supported for a game once it has been measured, as the one in
 the table was.
+
+Quake II RTX is built on SDL 2.32.10 and goes fullscreen through SDL's
+desktop fullscreen, which reads no mode, so the advertisement made when it
+binds its output does not reach it. Measured natively on Wayland at scale 1.45
+on 2026-10-11, it answered the fractional surface scale by shrinking its
+window instead of its buffer, and followed Auto's smaller fullscreen
+configure: 1920 × 1080 at Performance on a 3840 × 2160 output, about 328
+frames per second against about 121 at full size. SDL 2 starts it through
+Xwayland unless `SDL_VIDEODRIVER=wayland` is set, and that path has not been
+measured for it, so the entry states the Wayland slot alone.
 
 Two details in that table are the reason identities are measured.
 
