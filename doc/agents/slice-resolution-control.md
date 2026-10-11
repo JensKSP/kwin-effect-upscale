@@ -5113,3 +5113,68 @@ wishlist entry:
 
 The workaround is `src/plugins/upscale/logicalsize.cpp`, with the session tests
 named in [the fix of item 15](#a-defect-this-review-found-in-shipped-code).
+
+## SDL 1.2, 2 and 3 against the effect's levers, 2026-10-11
+
+Jens asked for this review after Quake II RTX (SDL 2 desktop fullscreen) was
+refused on pcjensd at scale 1.45, as recorded in the
+[FSR slice](slice-fsr1-hdr-vrr.md#round-2-with-the-effect-2026-10-11). Read in
+source, nothing run unless stated: SDL `release-2.32.10` (`5d24957`, the
+commit Quake II RTX pins), SDL `release-3.4.18` (`829a65d`), SDL 1.2
+`release-1.2.15` (`457d4e5`), sdl12-compat `release-1.2.68` (Debian 13's
+`libsdl1.2debian`) and `release-1.2.78`, Xwayland 24.1.6 and KWin v6.3.6.
+Clones are under `build/hdr-apps/src/`.
+
+**Which driver runs.** SDL 2 tries X11 before Wayland (`SDL_video.c:78-83`),
+so an SDL 2 game in a Plasma session uses Xwayland unless
+`SDL_VIDEODRIVER=wayland`. SDL 3 prefers Wayland only on a compositor with
+`wp_fifo_manager_v1` (`SDL_waylandvideo.c:494-501`); KWin 6.3.6 has none
+(`wayland-info` on pcjensd), so SDL 3 games use Xwayland there too.
+sdl12-compat runs on SDL 2 and inherits its X11 default. The X11 levers are
+therefore the default path for every SDL generation on the target.
+
+**Wayland, SDL 2 and 3, by case.**
+
+| Case | Buffer from | Advertised mode | Fractional scale | Smaller configure |
+| --- | --- | --- | --- | --- |
+| Exclusive fullscreen with a mode | the mode | reaches it | ignored | destination only |
+| Desktop fullscreen, high-DPI | configure × fractional scale, rounded | ignored | follows, live | follows, live |
+| Desktop fullscreen, not high-DPI | configure × 1 | ignored | ignored | follows, live |
+| Borderless window at display bounds | bounds × scale or × 1 | via bounds only | high-DPI only | resizable only |
+
+SDL rounds `configure × scale` half up (`lroundf`, SDL 2
+`SDL_waylandwindow.c:138-140`; SDL 3 `PointToPixel`), so KWin 6.3.6's
+fullscreen configure of 2648 × 1490 at 1.45 gives a 3840 × 2161 buffer: one
+row past a 2160 output on the unmodified path.
+
+**X11, SDL 2 and 3.** The drawable is the X window size from ConfigureNotify,
+live; high-DPI has no effect. Exclusive modes go through RandR
+(`XRRSetCrtcConfig`), which Xwayland emulates per client. Resizing the window
+and the session proxy's smaller screen both reach it.
+
+**SDL 1.2.** Classic 1.2.15 has no Wayland backend; on X11 it switches modes
+through XF86VidMode, which Xwayland 24.1.6 emulates per client with a
+viewport, so a 1280 × 720 request already presents a 1280 × 720 buffer. With
+no switch it centres the game in a full-size black window. sdl12-compat, what
+Debian 13 ships, maps fullscreen to SDL 2 desktop fullscreen and scales the
+game's own image into the full window itself (renderer logical size, or an
+FBO blitted to the drawable on every swap), except for quirked OpenGL games.
+Its drawable follows the X window size per frame, so the X11 resize reaches it.
+
+**Findings and status.**
+
+- Quake II RTX's window was 2648.28 × 1491.03 logical (3840 × 2162). From the
+  sources an unmodified SDL 2 window would be 1490 high and 2161 pixels; a
+  logical 1491 came from somewhere, possibly the effect's own advertisement.
+  Open: a `WAYLAND_DEBUG=1` run to see which configure and scale SDL received.
+- Coverage refused a window running past the output by rounding. Fixed on
+  2026-10-11 in the working tree: `upscaleReachesFarEdge()` and
+  `upscaleFrameCovers()`, used by the coverage gate, X11 validation (whose
+  frame and destination comparisons were exact) and the smaller-configure
+  rung (whose geometry comparison was exact). Jens's principle: whole buffers
+  cannot always match a fractional output, and the effect copes with that
+  instead of refusing.
+- Open, to observe: Quake II RTX through its default X11 path; an SDL 3 game
+  through Xwayland; an sdl12-compat game through X11 resize.
+- Not handled, optional: classic SDL 1.2's centred image inside a full-size
+  window, which would need the effect to crop a known region.
