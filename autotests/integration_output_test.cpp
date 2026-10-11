@@ -226,3 +226,59 @@ void UpscaleIntegrationTest::aSurfaceScaleFollowsTheOutputScale()
     configureResolution(false, false, Stored::Quality);
     QTRY_VERIFY2(game.preferredScale() == 120 * after, qPrintable(QString::number(game.preferredScale()) + QLatin1Char('\n') + status()));
 }
+
+// Auto switched on over a client that is already running, so it was never told
+// a smaller screen, at a fractional scale. Measured 2026-10-11 with Quake II
+// RTX at scale 1.45: the smaller fullscreen configure was answered, KWin took
+// the size the client committed, rounded through whole buffer pixels, as the
+// window's geometry, and the request, compared with that exactly, was dropped
+// the moment it succeeded. With nothing told to make the smaller window
+// count as covering its output, the game rendered small and was not enlarged.
+void UpscaleIntegrationTest::keepsAResizeTheClientRoundedThroughItsBuffer()
+{
+    WaylandClient game;
+    QVERIFY(game.initialize());
+    QSocketNotifier notifier(game.descriptor(), QSocketNotifier::Read);
+    connect(&notifier, &QSocketNotifier::activated, this, [&game]() {
+        game.dispatch();
+    });
+    const int before = game.advertisedScale();
+    const auto restore = qScopeGuard([this, before]() {
+        setOutputScale(before);
+        stopAdvertising();
+    });
+    const QDBusReply<bool> loaded = m_effects.call(QStringLiteral("loadEffect"), QStringLiteral("upscale_test_driver"));
+    QVERIFY(loaded.isValid() && loaded.value());
+    setOutputScale(1.45);
+    writeCatalogue(integrationEntry(QStringLiteral("MethodWaylandFullScreen=Off\nMinimumPixels=0\nOrder=1\n")));
+    configureResolution(true, false, Stored::Quality);
+    configureDisplay(false, false);
+    // KWin keeps a fullscreen window's size across the scale change; going
+    // fullscreen afresh gives it the output's new logical size.
+    game.fullscreen(false);
+    game.fullscreen(true);
+    QTRY_VERIFY_WITH_TIMEOUT((game.show(QSize(128, 128)), game.configuredSize() == QSize(88, 88)), 10000);
+    QVERIFY(game.show(QSize(128, 128)));
+    QVERIFY(game.presentFrames(5));
+    QVERIFY2(status().contains(QStringLiteral("Inactive")), qPrintable(status()));
+    writeCatalogue(integrationEntry(QStringLiteral("MethodWaylandFullScreen=Auto\nMinimumPixels=0\nOrder=1\n")));
+    configureResolution(true, false, Stored::Quality);
+    // The client ignores the scale and draws its buffer at the configured
+    // size times the output's scale, rounded, as SDL does: 59 logical units
+    // are 85.55 pixels, drawn as 86, which KWin makes a 59.31 unit window.
+    QTRY_VERIFY2_WITH_TIMEOUT((game.presentFrames(1), game.configuredSize().width() < 88),
+                              qPrintable(QString::number(game.configuredSize().width()) + QLatin1Char(' ') + QString::number(game.preferredScale()) + QLatin1Char('\n') + status()),
+                              10000);
+    const QSize configured = game.configuredSize();
+    QCOMPARE(configured, QSize(59, 59));
+    QVERIFY(game.show(QSize(86, 86)));
+    QTRY_VERIFY2_WITH_TIMEOUT((game.presentFrames(1), status().contains(QStringLiteral("Supplied input: 86 × 86")) && status().contains(QStringLiteral("FSR 1, sharpening"))),
+                              qPrintable(status()), 10000);
+    QVERIFY(game.presentFrames(40));
+    QCOMPARE(game.configuredSize(), configured);
+    QVERIFY2(status().contains(QStringLiteral("FSR 1, sharpening")), qPrintable(status()));
+    // Switched off again, the window is given its whole output back.
+    writeCatalogue(integrationEntry(QStringLiteral("MethodWaylandFullScreen=Off\nMinimumPixels=0\nOrder=1\n")));
+    configureResolution(false, false, Stored::Quality);
+    QTRY_VERIFY_WITH_TIMEOUT((game.presentFrames(1), game.configuredSize() == QSize(88, 88)), 10000);
+}

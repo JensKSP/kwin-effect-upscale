@@ -6,6 +6,8 @@
 
 #include "waylandscale.h"
 
+#include "eligibility.h"
+
 #include "effect/effectwindow.h"
 #include "window.h"
 
@@ -39,10 +41,21 @@ void UpscaleWaylandScale::restoreGeometry(Window *window, const Request &request
 {
     // Leaving fullscreen has already scheduled the application's normal
     // geometry. Restore only a fullscreen rectangle still owned by us.
-    if (request.resizing && !window->isDeleted() && window->isRequestedFullScreen()
-        && window->moveResizeGeometry() == request.geometry && window->output()) {
+    if (request.resizing && !window->isDeleted() && window->isRequestedFullScreen() && holdsResize(window, request.geometry)) {
         window->moveResize(window->output()->geometryF());
     }
+}
+
+// Whether the geometry KWin holds for the window is still the smaller one
+// this effect asked for. Not compared exactly: once the client answers, KWin
+// takes the size it committed, which is the request rounded through whole
+// buffer pixels. Measured 2026-10-11 with Quake II RTX at scale 1.45: asked
+// for 1766 x 993, it committed 1766.21 x 993.10. Compared exactly, the request
+// was dropped the moment it succeeded, and the full size was never given back.
+bool UpscaleWaylandScale::holdsResize(const Window *window, const QRectF &geometry)
+{
+    const UpscaleOutput *output = window->output();
+    return output && upscaleFrameCovers(window->moveResizeGeometry(), geometry, output->scale());
 }
 
 QRectF UpscaleWaylandScale::resizedGeometry(const Window *window) const
