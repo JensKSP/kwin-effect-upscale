@@ -186,3 +186,24 @@ Note=Auto advertises the smaller mode at startup and presents the resulting full
 Note[de]=Automatisch kündigt beim Start den kleineren Modus an und stellt die entstehende Vollbildoberfläche über die Ausgabe dar, auch bei Desktop-Skalierung eins. Das Programm ignoriert spätere Größen aus der Konfiguration.
 Note[es]=Automático anuncia el modo más pequeño al iniciar y muestra la superficie de pantalla completa resultante sobre toda la salida, también con escala de escritorio uno. El cliente ignora los tamaños de configuración posteriores.
 Note[fr]=Automatique annonce le mode plus petit au démarrage et affiche la surface plein écran obtenue sur toute la sortie, y compris à l’échelle de bureau un. Le client ignore les tailles de configuration ultérieures.
+
+[Application-quake2rtx]
+Name=Quake II RTX
+MeasuredVersion=1.8.0, Steam build 17873149
+# Its window: class, instance and desktop file q2rtx. KWin resolves its
+# process to .../steamapps/common/Quake II RTX/q2rtx under Steam's soldier
+# runtime as well. It is built on SDL 2.32.10 and makes its window fullscreen
+# through SDL's desktop fullscreen, which reads no mode. Measured natively on
+# Wayland (SDL_VIDEODRIVER=wayland) on a 3840 x 2160 output at scale 1.45 on
+# 2026-10-11: it ignored the advertised mode, answered the fractional scale by
+# shrinking its window rather than its buffer, and followed Auto's smaller
+# fullscreen configure, rendering 1920 x 1080 at Performance. SDL 2 uses
+# Xwayland unless told otherwise; that path has not been measured for it.
+Executable=.*/Quake II RTX/q2rtx
+ExecutableMatch=RegularExpression
+MethodWaylandFullScreen=Auto
+Order=70
+Note=On Wayland its desktop fullscreen ignores the advertised mode and follows the smaller fullscreen size Auto asks for. SDL 2 starts it through Xwayland unless SDL_VIDEODRIVER=wayland is set; that path has not been measured yet.
+Note[de]=Unter Wayland ignoriert sein Desktop-Vollbild den angekündigten Modus und folgt der kleineren Vollbildgröße, die Automatisch anfordert. SDL 2 startet es über Xwayland, sofern nicht SDL_VIDEODRIVER=wayland gesetzt ist; dieser Weg ist noch nicht gemessen.
+Note[es]=En Wayland, su pantalla completa de escritorio ignora el modo anunciado y sigue el tamaño de pantalla completa más pequeño que pide Automático. SDL 2 lo inicia mediante Xwayland salvo que se establezca SDL_VIDEODRIVER=wayland; esa vía aún no se ha medido.
+Note[fr]=Sous Wayland, son plein écran de bureau ignore le mode annoncé et suit la taille plein écran plus petite que demande Automatique. SDL 2 le lance via Xwayland sauf si SDL_VIDEODRIVER=wayland est défini ; cette voie n’a pas encore été mesurée.
