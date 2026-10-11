@@ -34,6 +34,12 @@ UpscaleDisplay::~UpscaleDisplay() = default;
 void UpscaleDisplay::reconfigure()
 {
     hide();
+    // Changed settings are announced afresh, as the handbook asks; hiding
+    // alone, which also happens whenever focus briefly leaves the game, is not.
+    m_announced.clear();
+    m_announcement.clear();
+    m_announcedAt.invalidate();
+    m_expiry.stop();
 }
 
 void UpscaleDisplay::applySettings(const UpscaleSettings &settings)
@@ -301,11 +307,12 @@ void UpscaleDisplay::hide()
     const bool wasDrawn = m_drawn;
     m_drawn = false;
     releaseBlocks();
-    m_announced.clear();
-    m_announcement.clear();
-    m_announcedAt.invalidate();
+    // Which window was announced, and when, is kept: focus that leaves the game
+    // and returns would otherwise announce the same window again with a full
+    // timeout, every time, so the message never seemed to go away (seen with
+    // Extreme Tux Racer on pcjensd, 2026-10-11). A different window, or the
+    // same one after reconfigure(), is announced anew.
     m_composed.invalidate();
-    m_expiry.stop();
     resetSampling();
     // Only a loaded effect has a compositor to ask, and only a display that
     // reached the screen leaves anything behind to erase.
