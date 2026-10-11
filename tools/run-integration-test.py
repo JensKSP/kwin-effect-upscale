@@ -139,6 +139,15 @@ def main() -> int:
             UPSCALE_TEST_OUTPUT_COUNT=str(outputs),
         )
         environment.pop("QT_QPA_PLATFORM", None)
+        # A desktop with the effect installed routes its X11 clients through
+        # the proxy: its login exports this and puts the proxy's Xwayland on
+        # PATH. Inherited, the session ran the installed proxy rather than
+        # the stock Xwayland CI runs, which is neither the build under test
+        # nor able to start here: its socket under this runtime directory is
+        # longer than a socket address holds. Without it, the proxy's
+        # Xwayland hands over to the stock one at once, as on a login that
+        # does not route.
+        environment.pop("UPSCALE_X11_SESSION_ROUTED", None)
         environment["QT_PLUGIN_PATH"] = str(build / "bin")
         command = [
             str(compositor),
@@ -187,8 +196,34 @@ def main() -> int:
         # Instrumentation also observes allocations in the distribution KWin
         # process, so its startup and shutdown need more time again.
         timeout = 900 if preload else 600
+        # The session bus of a desktop starts any service installed for it,
+        # and a desktop has the portals installed: KWin asks for one, and the
+        # document portal it starts mounts itself at XDG_RUNTIME_DIR/doc,
+        # which is this directory. Ended with the bus, it left that mount
+        # broken and the directory impossible to remove, measured 2026-10-11
+        # on the NVIDIA workstation, after every case had passed. The bus here
+        # carries what the session itself registers and starts nothing else,
+        # which is what a container without those services already gave it.
+        bus = runtime / "session-bus.conf"
+        bus.write_text(
+            "<busconfig>\n"
+            "  <type>session</type>\n"
+            "  <keep_umask/>\n"
+            # Not under this directory: deep in a build tree, its path does
+            # not fit a socket address.
+            f"  <listen>unix:tmpdir={tempfile.gettempdir()}</listen>\n"
+            "  <auth>EXTERNAL</auth>\n"
+            '  <policy context="default">\n'
+            '    <allow send_destination="*" eavesdrop="true"/>\n'
+            '    <allow eavesdrop="true"/>\n'
+            '    <allow own="*"/>\n'
+            "  </policy>\n"
+            "</busconfig>\n"
+        )
         return subprocess.call(
-            ["dbus-run-session", "--", *command], env=environment, timeout=timeout
+            ["dbus-run-session", f"--config-file={bus}", "--", *command],
+            env=environment,
+            timeout=timeout,
         )
 
 
