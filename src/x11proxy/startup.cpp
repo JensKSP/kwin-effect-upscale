@@ -28,6 +28,15 @@ bool socketFlags(int descriptor, bool nonblocking)
     return flags >= 0 && fcntl(descriptor, F_SETFD, FD_CLOEXEC) == 0
         && (!nonblocking || fcntl(descriptor, F_SETFL, flags | O_NONBLOCK) == 0);
 }
+bool startupFailed(const QString &step, const QString &reason)
+{
+    qCritical().noquote() << "Cannot initialize Upscale X11 session:" << step + QStringLiteral(": ") + reason;
+    return false;
+}
+QString systemError(int error)
+{
+    return QString::fromStdString(std::error_code(error, std::generic_category()).message());
+}
 int startDirect(const QString &program, const QStringList &arguments)
 {
     QList<QByteArray> strings{QFile::encodeName(program)};
@@ -40,7 +49,7 @@ int startDirect(const QString &program, const QStringList &arguments)
     }
     pointers.push_back(nullptr);
     execv(pointers.front(), pointers.data());
-    qCritical() << "Cannot execute stock Xwayland:" << QString::fromStdString(std::error_code(errno, std::generic_category()).message());
+    qCritical() << "Cannot execute stock Xwayland:" << systemError(errno);
     return 127;
 }
 quint32 peerProcess(int descriptor)
@@ -78,11 +87,11 @@ bool Startup::descriptorArgument(const QString &argument, int descriptor, int ba
         }
     } else if (argument == QLatin1String("-wm")) {
         if (windowManager >= 0) {
-            return false;
+            return startupFailed(argument, QStringLiteral("given more than once"));
         }
         int pair[2];
         if (socketpair(AF_UNIX, SOCK_STREAM, 0, pair) != 0) {
-            return false;
+            return startupFailed(QStringLiteral("window manager socket pair"), systemError(errno));
         }
         windowManager = descriptor;
         windowManagerBackend = pair[0];
@@ -105,21 +114,33 @@ bool Startup::parse(const QStringList &original, int backendListener)
             continue;
         }
         if (++index >= original.size()) {
-            return false;
+            return startupFailed(argument, QStringLiteral("no descriptor follows it"));
         }
         bool valid = false;
         const int descriptor = original[index].toInt(&valid);
-        if (!valid || descriptor < 0 || fcntl(descriptor, F_GETFD) < 0) {
-            return false;
+        if (!valid || descriptor < 0) {
+            return startupFailed(argument, QStringLiteral("%1 is not a descriptor").arg(original[index]));
+        }
+        if (fcntl(descriptor, F_GETFD) < 0) {
+            return startupFailed(argument + QLatin1Char(' ') + original[index], systemError(errno));
         }
         if (!descriptorArgument(argument, descriptor, backendListener)) {
             return false;
         }
     }
+    if (listeners.isEmpty()) {
+        return startupFailed(QStringLiteral("-listenfd"), QStringLiteral("missing"));
+    }
+    if (windowManager < 0) {
+        return startupFailed(QStringLiteral("-wm"), QStringLiteral("missing"));
+    }
     bool valid = false;
     const int wayland = qEnvironmentVariableIntValue("WAYLAND_SOCKET", &valid);
-    if (!valid || wayland < 0 || fcntl(wayland, F_GETFD) < 0 || listeners.isEmpty() || windowManager < 0) {
-        return false;
+    if (!valid || wayland < 0) {
+        return startupFailed(QStringLiteral("WAYLAND_SOCKET"), QStringLiteral("not set to a descriptor"));
+    }
+    if (fcntl(wayland, F_GETFD) < 0) {
+        return startupFailed(QStringLiteral("WAYLAND_SOCKET %1").arg(wayland), systemError(errno));
     }
     childDescriptors.append(wayland);
     // Do not leave an orphaned backend resetting itself after proxy failure.

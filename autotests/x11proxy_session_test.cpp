@@ -12,6 +12,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QProcess>
+#include <QRegularExpression>
 #include <QScopeGuard>
 #include <QTemporaryDir>
 #include <QTest>
@@ -190,6 +191,25 @@ void ProxySessionTest::effectSwitchedOffMidSession()
     QVERIFY(bus.registerObject(path, &m_effect, QDBusConnection::ExportAllSlots));
     QCOMPARE(screenOfAnotherProgram(), QByteArrayLiteral("2560x1440"));
     QVERIFY(disconnectClient(firstClient));
+}
+
+// A runtime directory deep enough that the backend socket's path does not fit a
+// socket address is named as that, not as whatever errno last held: measured
+// 2026-10-11, a nested session under a build tree was told "File exists".
+void ProxySessionTest::namesASocketPathTooLongForItsAddress()
+{
+    const QByteArray runtime = qgetenv("XDG_RUNTIME_DIR");
+    const auto restore = qScopeGuard([&runtime]() {
+        qputenv("XDG_RUNTIME_DIR", runtime);
+    });
+    const QString deep = m_directory.filePath(QString(120, QLatin1Char('d')));
+    QVERIFY(QDir().mkpath(deep));
+    QVERIFY(QFile::setPermissions(deep, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner));
+    qputenv("XDG_RUNTIME_DIR", QFile::encodeName(deep));
+    QTest::ignoreMessage(QtCriticalMsg,
+                         QRegularExpression(QStringLiteral("^Cannot initialize Upscale X11 session: backend socket .*/x11: "
+                                                           "longer than the \\d+ bytes a socket address holds$")));
+    QVERIFY(!startSession(QStringLiteral("X17")));
 }
 
 int main(int argc, char **argv)
