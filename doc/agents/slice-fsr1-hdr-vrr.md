@@ -201,6 +201,172 @@ configure KWin sent at target scale 0.725 (`snapToPixels` in
 its window, and restore the output geometry explicitly after withdrawing it.
 Not yet checked: HDR and pointer aim while scaled.
 
+**SuperTuxKart, round 2.** Jens's session had stored the old key `Preset=5`,
+which the effect maps to Performance; on his request it now uses the default,
+`Resolution=2` (Quality), with the previous file kept as
+`kwinrc.before-default-resolution-2026-10-11`. At Performance the game was
+told 1920 × 1080, delivered it and was enlarged with VRR on; Jens: it looked
+fine. At Quality, after its configuration was set back to 3840 × 2160, it was
+told and delivered 2560 × 1440, scaled in all 19 readings while in front, VRR
+on during the race.
+
+**Defect found: the advertisement leaks into the game's settings.**
+SuperTuxKart saves the screen mode it was told as its own resolution when it
+exits: `real_width` and `real_height` read 1920 × 1080 after the Performance
+run and 2560 × 1440 after the Quality run. With the effect off it would keep
+rendering at that size, stretched by KWin, until the player chose its
+resolution again. Open: the advertised-mode method needs a design that leaves
+a game's saved choice intact; recorded in its entry's note meanwhile.
+SuperTuxKart's own render resolution (`scale_rtts_factor`) and Quake II RTX's
+own scaling and FSR shrink and enlarge the 3D scene inside the game and supply
+a full-size picture. Jens: the effect is the replacement for a game's own
+scaling, with its resolution, filter, sharpening and later modes, so the
+user can find the best combination; both entries' notes advise leaving the
+game's scaler off and letting the effect replace it.
+
+**Closing HDR and VRR on this host, plan of 2026-10-11.** Jens asked to run
+the tests needed to call HDR and VRR working, and nothing else. Each run is
+proposed, confirmed, run and judged before the next one. The effect's
+`supportInformation` shows the destination transfer function and
+`scaling=1`, the probe shows `VRR_ENABLED`, and Jens reads the picture and
+the monitor's refresh rate. Scaling always blocks direct scanout, so each scaled
+run also covers that matrix condition.
+
+1. SDR game on the HDR output, scaled, with VRR: SuperTuxKart at 3840 × 2160,
+   Quality. Colours and brightness as with the effect off, toggled during the
+   run; monitor at the game's 120 Hz cap, then at a second cap. The OSD
+   timeout of 5 s is checked in the same run.
+2. PQ game, scaled, with VRR: Quake II RTX with `vid_hdr 1` on Wayland.
+   Highlights and colours compared with the effect off; monitor following a
+   frame cap such as 90; HDR switched off and on in the game while scaled
+   (transition); alt-tab out and back (fallback and return); pointer aim.
+3. scRGB, scaled: Godot's `hdr_output` demo, if it presents extended linear
+   sRGB here (the transfer function in `supportInformation` tells) and takes
+   a smaller buffer. Otherwise a minimal scRGB Vulkan client is needed.
+
+**Run 1, 2026-10-11, observed.** New build (`eff90c78f7-dirty`, built
+14:36:13Z, with the OSD fix and the 5 s default) loaded through the reload
+tool; `OsdTimeout=30` removed from Jens's kwinrc. SuperTuxKart, Wayland,
+3840 × 2160 fullscreen, cap 120, Quality: told and delivered 2560 × 1440,
+enlarged to 3840 × 2160, `scaling=1` and `scanout=blocked` in 49 of 54
+readings (the rest were start and exit), about 110 frames per second
+presented during the race, the effect reporting that HDR follows KWin's
+colour management. Probe: `VRR_ENABLED=1` in 100 of 111 samples, `0` at start
+and after exit. Jens: it worked. The comparison with the effect switched off
+did not happen, because the game was closed first; it moves to run 2. The game
+again saved 2560 × 1440 as its own resolution (the open leak defect) and was
+set back to 3840 × 2160.
+
+**Run 2, 2026-10-11, observed.** Quake II RTX, Wayland, `vid_hdr 1`,
+`cl_async 1`, `r_maxfps 90`, same build as run 1. Told 2560 × 1440, delivered
+2561 × 1440 (SDL's rounding, accepted since the coverage fix), enlarged to
+3840 × 2160 with `scaling=1` in 108 of 113 readings; the others were the
+start (2917 × 1434, before the configure arrived) and one reading at exit.
+Presented 90.91 frames per second in every reading after loading, exactly
+the cap. Probe: `VRR_ENABLED=1` in 220 of 229 samples, `0` at start and after
+exit. Jens: it was fine. The comparison with the effect switched off did not
+happen, because the game was closed before he asked for it.
+Asked afterwards, Jens confirmed: the monitor read about 90 Hz, HDR switched
+off and on in the game's menu kept the picture right while scaled, alt-tab out
+and back worked, and aiming with the mouse was normal.
+
+**Run 3, 2026-10-11: Quake II RTX not scaled, defect found.** The same start
+as run 2, five minutes later, with a script meant to switch the effect off and
+on once scaling began. Scaling never began, so the script never acted; the
+effect stayed loaded throughout. The game supplied 3840 × 2162 for about 35 s
+at about 62 frames per second, and the effect correctly reported that the
+buffer was not smaller than the destination. The journal shows the difference
+from run 2. In both runs step one (`preferred_scale`) was answered by SDL with
+a 2560 × 1441 buffer, and KWin's configure at the lowered target scale moved
+the requested geometry to 1490.69 logical rows on an output of 1489.66
+(`snapToPixels` at 0.9667 on the 1490.34 the 2161-row buffer had made). In run 2
+step two had already been sent by then, and the request was matched by the
+resized geometry. In run 3 the answer came first. `upscaleRequestCoversOutput()`
+still held the requested geometry to one device pixel on every edge (it is
+1.5 here), so `requestedPresentation()` failed, the recheck released the request,
+and step two was never sent. The coverage fix of this morning had missed this
+fourth comparison. Fixed: it uses `upscaleFrameCovers()` like the committed
+frame. Natively built without warnings; `upscale-placement`,
+`upscale-resolution` and `upscale-integration` passed. A KWin conformance
+case that reproduces the race needs the `containers/wayland-tests` image,
+which pcjensd does not have; not written yet. Jens also saw the persistent
+statistics and developer view all the time, because his kwinrc sets
+`OsdStatistics=true` and `OsdDeveloper=true` explicitly (both off by
+default in a release build). Who set them is not known.
+
+**Run 4, 2026-10-11: the fix, repeated starts.** Fixed build (built
+15:02:56Z) loaded through the reload tool. Quake II RTX started six times
+with the run 2 command line, each closed by this agent with SIGTERM after
+about 10 s in the game. One start overlapped another because a helper script
+was killed by its own process match. In all six the journal shows step one
+answered with 2560 × 1441, step two sent 50 to 57 ms after the scale request,
+and the game then supplying 2561 × 1440. The effect reported `scaling=1`
+2 to 4 s after start in every non-overlapping run.
+
+**Run 5, 2026-10-11: comparison with the effect off, PQ.** Quake II RTX as in
+run 2, scaled (2560 × 1441 to 3840 × 2160) from 17:55:38. At 17:57:08 a timer
+unloaded the effect, and the game returned to native size at once. Loading
+it again failed, because `tools/reload-upscale.py` deletes its temporary
+plugin copy once KWin has loaded it, so no file under that name remained.
+That is a property of the test tool. The effect stayed off for two minutes and was loaded
+again with the reload tool at 17:59:06. Jens: brightness and colours were the same
+with and without the effect. **Open, suspicious:** after loading again into
+the running game, step two brought it back to 2561 × 1440 in a 1766 × 993
+window, but for the ten seconds until Jens closed it the effect reported the
+window as not covering its output and the ladder as exhausted ("choose
+2560 × 1440 in the game"), where fresh starts scaled within 2 to 4 s.
+Enabling the effect over a running game is to be investigated. Further
+off/on comparisons switch the game's entry through the configuration, which
+keeps the effect loaded.
+
+**The switch-on defect, found and fixed, 2026-10-11.** KWin takes the size a
+client commits as the window's move-resize geometry once no configure is
+pending (`XdgSurfaceWindow::maybeUpdateMoveResizeGeometry`, KWin 6.3.6).
+After step two Quake II RTX committed 1766.21 × 993.10 for the requested
+1766 × 993. `requestedPresentation()` and `restoreGeometry()` compared that
+geometry with the request exactly. The first therefore dropped the request the moment it
+succeeded. The second, on withdrawal, did not give the full size back, which is
+the second half of the open point above. On a fresh start this went unnoticed,
+because the told mode of 2560 × 1440 made the smaller window count as
+covering its output on its own; over a running game nothing had been told,
+so it was neither enlarged nor restored. Both now ask `holdsResize()`, which
+allows the client's rounding (`upscaleFrameCovers()`). Regression test
+`keepsAResizeTheClientRoundedThroughItsBuffer` in `upscale-integration`:
+scale 1.45, Auto switched on over a running client that was told nothing, the
+client drawing SDL's rounded buffer; it failed without the fix at the
+enlargement check and passed with it, natively (27 passed, 5 skipped). Not yet
+installed: installing needs Jens's password. The hardware check over a running
+game waits for him, also because of the rule in the Proton slice (item 101)
+against reloading while a game runs, which run 5 broke.
+
+**Unattended runs while Jens was away, 2026-10-11 evening**, installed build
+of 15:02:56Z (without `holdsResize()`), screen saver and power management
+inhibited with `kde-inhibit` for the duration, container checks running
+beside them, so frame rates are not results:
+
+- Quake II RTX through its default X11 path (no `SDL_VIDEODRIVER`), started
+  fresh, closed after 60 s: told 2560 × 1440 as its X11 window size, supplied
+  it, enlarged to 3840 × 2160, `presentation=x11-fullscreen`, `scaling=1` in
+  25 readings, pointer input translated; probe `VRR_ENABLED=1` throughout
+  play. Whether it presented HDR through Xwayland was not judged.
+- glmark2-wayland 2023.01, `--fullscreen`, shipped entry AdvertisedScale: told
+  scale 1, supplied 2648 × 1490, the nearest to 2560 × 1440 a whole scale can
+  tell, enlarged to 3840 × 2160, `scaling=1`.
+- vkmark 2025.01, `--winsys wayland --fullscreen`, shipped entry Auto: told
+  and supplied 2560 × 1440, enlarged, `scaling=1`. With glmark2 this closes the
+  recommended values left open in the application-profiles slice for a scaled
+  desktop.
+- Godot 4.7.2's `hdr_output` demo, native Wayland, Vulkan, `--fullscreen
+  --max-fps 90`, under a temporary entry in Jens's `kwinupscalerc` (program
+  `.*/Godot_v4.7.2-stable_linux.x86_64`, Auto), removed afterwards. Its
+  surface's image description, read with `WAYLAND_DEBUG=1`, is
+  `set_tf_named(5)`, extended linear, with sRGB primaries: scRGB. It
+  follows step one: `preferred_scale(116)`, supplied 2560 × 1441, enlarged to
+  3840 × 2160, `scaling=1`, 90 frames per second presented, the description
+  unchanged while scaled; probe `VRR_ENABLED=1` in 45 of 58 samples, `0` at
+  start and after exit. Measured, not judged: the picture, negative scRGB
+  values and highlights wait for Jens. This is run 3 of the plan.
+
 KWin's support information
 reports only the configured `Adaptive Sync: automatic`, never whether it is
 active, which is why the probe exists.
