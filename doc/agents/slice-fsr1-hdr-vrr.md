@@ -378,22 +378,48 @@ beside them, so frame rates are not results:
   start and after exit. Measured, not judged: the picture, negative scRGB
   values and highlights wait for Jens. This is run 3 of the plan.
 
-**Native `upscale-x11-integration` on pcjensd, narrowed, 2026-10-11.** Run
-again natively after the commits above: this time the second case
-(`initialWindowedMapping(windowed-timeout)`) hung until QTest's 300 s limit,
-instead of the seven input failures seen in the morning. The log shows why the
-X11 side never comes up: the nested KWin starts the X11 proxy session as its
-Xwayland, the proxy refuses with "Cannot initialize Upscale X11 session: File
-exists", and KWin stops Xwayland after four crashes, so the test's X11 client
-blocks in `xcb_connect`. "File exists" is a stale `errno`, most likely left by
-`QTemporaryDir`'s name retries; the failing step is one of `Session::listen()`
-or `Startup::parse()`'s descriptor and argument checks, and the message does
-not say which. The same test passes in the container, so what differs natively
-is the real session beside it (shared `/tmp/.X11-unix`, the runtime
-directory). Not pursued further: it needs more nested sessions on the desktop
-GPU, and the run itself is environmental. Worth fixing either way: the proxy's
-start-up error should name the step that failed, not `errno` from an unrelated
-call.
+**Native `upscale-x11-integration` on pcjensd, cause found and fixed,
+2026-10-11.** Run natively, the second case
+(`initialWindowedMapping(windowed-timeout)`) hung until QTest's 300 s limit:
+the nested KWin's Xwayland was the X11 proxy, which refused to start with
+"Cannot initialize Upscale X11 session: File exists", and KWin stopped
+Xwayland after four crashes. Two defects stood behind that. The harness
+passed the desktop's `UPSCALE_X11_SESSION_ROUTED=1` and the proxy's launcher
+directory on `PATH` to the nested session, so it ran the installed proxy, not
+the stock Xwayland CI runs; and the proxy reported `errno` once the whole start
+had failed, which had nothing to do with the step that failed. With each step
+reporting its own failure, the message reads `backend socket
+…/build/native/integration-d5u2alid/upscale-x11-MvlXKo/x11: longer than the 107
+bytes a socket address holds`: the runtime directory under the build tree makes
+a 114 byte path. Fixed: `tools/run-integration-test.py` drops the routing
+variable, so the launcher hands over to stock Xwayland at once; every start
+step of the proxy (`Session::listen()`, `watchSignals()`, `Startup::parse()`)
+names what failed and the system's reason taken where it failed; the startup
+and session tests cover the messages. A second leak showed once X11 came up:
+the nested session bus activated the desktop's portals, the document portal
+mounted itself at the runtime directory's `doc`, and when the bus ended the
+broken mount made removing the directory fail after every case had passed
+(`upscale-x11-scaled`, 20 passed, reported failed). The harness now gives the
+bus a configuration of its own that starts no services, its socket in the
+system temporary directory because the build path does not fit that address
+either. Observed after both fixes, native: `upscale-integration`,
+`-integration-outputs` and `upscale-x11-scaled` pass; `upscale-x11-integration`
+48 passed, 7 failed, 7 skipped.
+
+**New finding: input unmapped after an X11 retry, intermittent.** The seven
+failures are the pointer and touch cases (`movesThePointerOverAHiddenTitleBar`,
+`mapsTouchOntoAPresentedGame`, `letsAPresentedGameLockThePointer`,
+`keepsInputAcrossReconfigurations` both rows, `keepsEmulatedPointerCoverage`
+both rows). Not the environment: run with only `HOME`, `PATH`, `USER` and
+`LANG` the three first cases failed in two of four runs too, and splitting the
+desktop's variables in halves found no variable that decides it. The first
+failure in each run follows a retry: the test window commits a 3840 × 2160
+buffer after the effect asked for 1920 × 1080 (KWin's fullscreen geometry
+arriving after the request), the effect logs "X11 validation unmet", restores
+and asks again, and reports "presented by this effect" with the input region
+1920 × 1080 and pointer scale 0.5; the touch at 300, 200 nevertheless reaches
+the game at 299, 199, unmapped. The cases after it fail with it. Open: why
+input is not mapped after the retry, and whether a game can reach that path.
 
 **Frame-time attempt, Quake II RTX, 2026-10-11 18:42, not a result.**
 `tools/measure-frame-times.py` (now addressing a reloaded build by its name,
