@@ -180,10 +180,13 @@ bool upscaleRequestCoversOutput(const Window *window)
     }
     const double scale = output->scale();
     const QRectF requested = window->moveResizeGeometry();
-    const QRectF screen = output->geometryF();
-    return upscaleSamePixel(requested.x(), screen.x(), scale) && upscaleSamePixel(requested.y(), screen.y(), scale)
-        && upscaleSamePixel(requested.x() + requested.width(), screen.x() + screen.width(), scale)
-        && upscaleSamePixel(requested.y() + requested.height(), screen.y() + screen.height(), scale);
+    // The same rule as the committed frame: a fullscreen request runs past the
+    // output by what rounding produces. KWin itself snaps the configure to the
+    // pixel grid of the window's target scale, which is the scale this effect
+    // lowered; measured 2026-10-11, Quake II RTX was asked for 1491 logical
+    // rows on a 1489.66 output, and holding the request to one pixel took the
+    // scale back before the smaller fullscreen configure was ever sent.
+    return upscaleFrameCovers(requested, output->geometryF(), scale);
 }
 
 // Which of the six cells this window presents in. Answerable here and not
