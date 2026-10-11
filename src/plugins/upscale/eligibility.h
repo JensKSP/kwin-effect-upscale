@@ -159,7 +159,21 @@ UpscaleRectF upscalePresentedFrame(const EffectWindow *window);
 bool upscaleDrawnCovers(EffectWindow *drawn, EffectWindow *window);
 
 /**
- * Whether the window's frame sits exactly on its output, in device pixels.
+ * Whether @p frame covers @p screen at output scale @p scale, as far as whole
+ * buffers allow.
+ *
+ * Its near edges lie within one device pixel of the screen's and its far edges
+ * reach the screen's far edges (upscaleReachesFarEdge()): short by one pixel at
+ * most, past by no more than the client's rounding. Every comparison of a
+ * window against the screen it should fill goes through this, so that the
+ * rounding no client can avoid on a fractionally scaled output is accepted in
+ * one place and refused nowhere.
+ */
+bool upscaleFrameCovers(const QRectF &frame, const QRectF &screen, double scale);
+
+/**
+ * Whether the window's frame sits on its output, in device pixels, as far as
+ * whole buffers allow (upscaleFrameCovers()).
  *
  * Fullscreen is a state, not a size. A client can hold that state while its
  * window is still being sized during startup, and a window this effect has
