@@ -8,6 +8,7 @@
 
 #if KWIN_BUILD_X11
 #include "compatibility.h"
+#include "resolution.h"
 #include "runtime.h"
 #include "windowidentity.h"
 #include "x11geometry.h"
@@ -60,10 +61,14 @@ QString UpscaleX11Resolution::unmetCondition(const Request &request)
         return i18nc("A reason, after “request failed:” or “failure”", "the application has not confirmed the requested resolution through its X11 mode");
     }
     // KWin's frame is what the buffer is presented across, by Xwayland or by
-    // this effect, so it has to have stayed on the output either way.
+    // this effect, so it has to have stayed on the output either way - as
+    // nearly as whole pixels allow at the output's scale, not to the last
+    // fraction of a logical unit, which no window can match on a fractionally
+    // scaled output.
     const QRectF frame = window->frameGeometry();
     const QRectF output = window->output()->geometryF();
-    if (frame != output) {
+    const double scale = window->output()->scale();
+    if (!upscaleFrameCovers(frame, output, scale)) {
         return i18nc("A reason, after “request failed:” or “failure”", "the window stopped covering its output: it is %1 × %2 at %3, %4 where the output is "
                                                                        "%5 × %6 at %7, %8",
                      frame.width(), frame.height(), frame.x(), frame.y(),
@@ -74,7 +79,7 @@ QString UpscaleX11Resolution::unmetCondition(const Request &request)
     // A surface at any other size is the one thing the scaler cannot stand
     // in for, because KWin clips the window's paint to it.
     const QSizeF destination = surface->destinationSize();
-    if (destination != frame.size()) {
+    if (!upscaleSamePixel(destination.width(), frame.width(), scale) || !upscaleSamePixel(destination.height(), frame.height(), scale)) {
         return i18nc("A reason, after “request failed:” or “failure”", "the supplied buffer is presented at %1 × %2 rather than at the window's %3 × %4",
                      destination.width(), destination.height(), frame.width(), frame.height());
     }

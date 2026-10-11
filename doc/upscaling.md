@@ -93,9 +93,16 @@ may differ between the two client types and require separate validation.
 
 The effect acts on a window when all of this holds:
 
-- the window is fullscreen, or it is a normal undecorated window covering its
-  output to within one device pixel and either a profile describes its
-  application or it is a game's and **All games** is checked (see
+- the window is fullscreen, or it is a normal undecorated window, and either
+  way it covers its output as nearly as whole buffers allow: its near edges
+  within one device pixel of the output's, its far edges at most one pixel
+  short and no further past than a client's rounding can carry them, which is
+  one logical pixel of configure plus one device pixel of buffer. On a
+  fractionally scaled output no window can match the output exactly, so the
+  effect copes with that rounding instead of refusing over it: Quake II RTX's
+  SDL 2 window ended two device pixels past a 3840 × 2160 output at scale 1.45
+  and was refused until 2026-10-11. Either way a profile describes its
+  application, or it is a game's and **All games** is checked (see
   [what All games reaches](#what-all-games-reaches)), and
 - its buffer is smaller than the output area it covers, and
 - the effect is enabled, the application's rule permits scaling, and the output

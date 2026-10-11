@@ -56,6 +56,28 @@ int main()
     assert(!upscaleSamePixel(3838.0 / 2.7, 3840.0 / 2.7, 2.7));
     assert(!upscaleSamePixel(1420.0, 1422.0, 1.0));
     assert(!upscaleSamePixel(1421.0, 1422.0, 1.01));
+    // A far edge may run past its output by what a whole logical configure and
+    // a rounded buffer add, and fall short by one pixel only. Measured on a
+    // 3840 x 2160 output at scale 1.45, 2648.28 x 1489.66 logical: Quake II
+    // RTX's SDL 2 window was 2648.28 x 1491.03, two device pixels past.
+    assert(upscaleReachesFarEdge(2162.0 / 1.45, 2160.0 / 1.45, 1.45));
+    assert(upscaleReachesFarEdge(1491.0344827586207, 1489.6551724137931, 1.45));
+    // SDL 3.4 rounds a configure of 1490 to 2161 pixels; a 2649 wide window is
+    // 3841.05 against 3840.
+    assert(upscaleReachesFarEdge(2161.0 / 1.45, 2160.0 / 1.45, 1.45));
+    assert(upscaleReachesFarEdge(2649.0, 3840.0 / 1.45, 1.45));
+    // Exact and one short still hold, as before.
+    assert(upscaleReachesFarEdge(2160.0 / 1.45, 2160.0 / 1.45, 1.45));
+    assert(upscaleReachesFarEdge(1489.0, 2160.0 / 1.45, 1.45));
+    assert(upscaleReachesFarEdge(3839.0 / 2.7, 3840.0 / 2.7, 2.7));
+    // Two short is an uncovered strip at any scale; past what rounding can
+    // add is a window larger than its screen.
+    assert(!upscaleReachesFarEdge(2158.0 / 1.45, 2160.0 / 1.45, 1.45));
+    assert(!upscaleReachesFarEdge(3838.0 / 2.7, 3840.0 / 2.7, 2.7));
+    assert(!upscaleReachesFarEdge(1420.0, 1422.0, 1.0));
+    assert(!upscaleReachesFarEdge(2163.0 / 1.45, 2160.0 / 1.45, 1.45));
+    assert(!upscaleReachesFarEdge(1425.0, 1422.0, 1.0));
+    assert(upscaleReachesFarEdge(1424.0, 1422.0, 1.0));
     assert(canUpscale({1920, 1080}, output));
     assert(canUpscale({2560, 1440}, output));
     assert(canUpscale({2259, 1271}, output));

@@ -42,8 +42,13 @@ bool upscaleDrawnOverOutput(const EffectWindow *window)
         return false;
     }
     if (resizedGeometry && window->isFullScreen()) {
+        // The client sizes its window from the smaller configure and rounds
+        // its buffer to whole pixels, so its geometry matches the request as
+        // nearly as the output's scale allows, not exactly; a window that
+        // differs by that rounding is the window that answered.
         const QRectF requested = resizedGeometry(internal);
-        if (!requested.isEmpty() && internal->clientGeometry() == requested && screen->geometryF().contains(requested)) {
+        if (!requested.isEmpty() && upscaleFrameCovers(internal->clientGeometry(), requested, screen->scale())
+            && screen->geometryF().contains(requested)) {
             return true;
         }
     }
@@ -75,7 +80,8 @@ bool upscaleDrawnOverOutput(const EffectWindow *window)
     // units, and can be larger than the output; its picture is the told size
     // all the same, and from the output's corner it is drawn over the output.
     const SurfaceItem *picture = upscalePictureSurface(window);
-    return window->isFullScreen() && picture && upscaleSuppliedSize(picture) == told && client.topLeft() == output.topLeft();
+    return window->isFullScreen() && picture && upscaleSuppliedSize(picture) == told && upscaleSamePixel(client.x(), output.x(), scale)
+        && upscaleSamePixel(client.y(), output.y(), scale);
 }
 
 UpscaleRectF upscalePresentedFrame(const EffectWindow *window)

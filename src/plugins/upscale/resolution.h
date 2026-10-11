@@ -150,6 +150,32 @@ inline bool upscaleSamePixel(double first, double second, double scale)
     return std::abs(first - second) * scale <= 1.0 + 1e-6;
 }
 
+/**
+ * Whether a window's far edge reaches an output's far edge.
+ *
+ * Short and past are not the same question. A window ending short of its
+ * output leaves a strip uncovered, so it may fall short by no more than the
+ * one device pixel upscaleSamePixel() allows. A window ending past its output
+ * covers every pixel of it, and what lies past the edge is never shown, so it
+ * may overshoot by as much as rounding produces and no more.
+ *
+ * That rounding happens twice on a fractionally scaled output. The fullscreen
+ * configure is in whole logical pixels, so it can end up to one logical pixel
+ * past a fractional output edge; the client then multiplies it by the scale and
+ * rounds to a whole buffer, which can add one device pixel more. SDL 3.4 rounds
+ * a configure of 1490 at scale 1.45 to a 2161 pixel buffer for a 2160 pixel
+ * output. Quake II RTX, built on SDL 2 in desktop fullscreen, committed 2162
+ * for 2160 on a 3840 x 2160 output at scale 1.45 (pcjensd, 2026-10-11): two
+ * pixels past, which the one pixel allowed for either direction had refused,
+ * so Auto never asked it to render smaller.
+ */
+inline bool upscaleReachesFarEdge(double window, double output, double scale)
+{
+    const double past = (window - output) * scale;
+    // The same millionth of a pixel as upscaleSamePixel(), for the same reason.
+    return past >= -1.0 - 1e-6 && past <= scale + 1.0 + 1e-6;
+}
+
 inline bool canUpscale(UpscaleSize input, UpscaleSize output)
 {
     return upscaleSizing(input, output) == UpscaleSizing::Supported;

@@ -117,6 +117,16 @@ static bool showingOnItsOutput(EffectWindow *window)
     return focused && internal && focused->allMainWindows().contains(internal);
 }
 
+// A window running a rounding margin past the far edges is drawn into its own
+// geometry like any other; the screen's edge cuts off what lies past it, which
+// is never more than the client's rounding added.
+bool upscaleFrameCovers(const QRectF &frame, const QRectF &screen, double scale)
+{
+    return upscaleSamePixel(frame.x(), screen.x(), scale) && upscaleSamePixel(frame.y(), screen.y(), scale)
+        && upscaleReachesFarEdge(frame.x() + frame.width(), screen.x() + screen.width(), scale)
+        && upscaleReachesFarEdge(frame.y() + frame.height(), screen.y() + screen.height(), scale);
+}
+
 // Whether the window occupies the whole screen it was given. This is a gate,
 // not a measurement of where to draw: the scaler is given the window's own
 // geometry as its destination, so a window that passes here is one whose
@@ -139,9 +149,7 @@ bool upscaleCoversOutput(const EffectWindow *window)
     const Window *internal = window->window();
     const QSize given = internal ? upscaleServedScreen(internal->pid()) : QSize();
     const auto covers = [&frame, scale](const QRectF &rectangle) {
-        return upscaleSamePixel(frame.x(), rectangle.x(), scale) && upscaleSamePixel(frame.y(), rectangle.y(), scale)
-            && upscaleSamePixel(frame.x() + frame.width(), rectangle.x() + rectangle.width(), scale)
-            && upscaleSamePixel(frame.y() + frame.height(), rectangle.y() + rectangle.height(), scale);
+        return upscaleFrameCovers(frame, rectangle, scale);
     };
     if (covers(output)) {
         // A display change may withdraw a connection's smaller advertisement.
@@ -158,7 +166,9 @@ bool upscaleCoversOutput(const EffectWindow *window)
     // The far edges, not the dimensions. Rounding each of an origin and a
     // width to the output's values still permits their sum to land a pixel
     // short or a pixel over, which is a strip left uncovered or drawn past the
-    // screen. Where the edges agree, every pixel between them is covered.
+    // screen. A far edge may fall short by one pixel and run past by what
+    // rounding adds (upscaleReachesFarEdge()); between edges that hold, every
+    // pixel is covered.
     return covers(output);
 }
 
