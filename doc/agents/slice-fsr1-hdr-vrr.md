@@ -224,6 +224,17 @@ scaling, with its resolution, filter, sharpening and later modes, so the
 user can find the best combination; both entries' notes advise leaving the
 game's scaler off and letting the effect replace it.
 
+**Status, 2026-10-11 evening.** Runs 1 to 3 of the plan below have been carried
+out and recorded under it: SDR on the HDR output (SuperTuxKart), PQ (Quake II
+RTX, including the comparison with the effect off, the in-game HDR switch,
+alt-tab and aiming) and scRGB (Godot, measured), each scaled with
+`VRR_ENABLED=1`. The handbook's
+[HDR and VRR section](../upscaling.md#hdr-and-variable-refresh-rate) now
+states the compatibility with that evidence. Still open for this slice: Jens's
+visual verdict on the scRGB run, HDR on the television, the integer-geometry
+refusal after a told mode, the start-up flash of a told client, and the
+remaining matrix rows (image quality, cost matrix, lifecycle on the TV).
+
 **Closing HDR and VRR on this host, plan of 2026-10-11.** Jens asked to run
 the tests needed to call HDR and VRR working, and nothing else. Each run is
 proposed, confirmed, run and judged before the next one. The effect's
@@ -366,6 +377,92 @@ beside them, so frame rates are not results:
   unchanged while scaled; probe `VRR_ENABLED=1` in 45 of 58 samples, `0` at
   start and after exit. Measured, not judged: the picture, negative scRGB
   values and highlights wait for Jens. This is run 3 of the plan.
+
+**Native `upscale-x11-integration` on pcjensd, narrowed, 2026-10-11.** Run
+again natively after the commits above: this time the second case
+(`initialWindowedMapping(windowed-timeout)`) hung until QTest's 300 s limit,
+instead of the seven input failures seen in the morning. The log shows why the
+X11 side never comes up: the nested KWin starts the X11 proxy session as its
+Xwayland, the proxy refuses with "Cannot initialize Upscale X11 session: File
+exists", and KWin stops Xwayland after four crashes, so the test's X11 client
+blocks in `xcb_connect`. "File exists" is a stale `errno`, most likely left by
+`QTemporaryDir`'s name retries; the failing step is one of `Session::listen()`
+or `Startup::parse()`'s descriptor and argument checks, and the message does
+not say which. The same test passes in the container, so what differs natively
+is the real session beside it (shared `/tmp/.X11-unix`, the runtime
+directory). Not pursued further: it needs more nested sessions on the desktop
+GPU, and the run itself is environmental. Worth fixing either way: the proxy's
+start-up error should name the step that failed, not `errno` from an unrelated
+call.
+
+**Frame-time attempt, Quake II RTX, 2026-10-11 18:42, not a result.**
+`tools/measure-frame-times.py` (now addressing a reloaded build by its name,
+`effect_control.effect_name()`), presets native, quality and performance,
+two passes, game restarted per run, `r_maxfps 1000`, HDR and VRR on, machine
+idle. Supplied 3840 × 2161, 2561 × 1440 and 1920 × 1080 as asked (the
+quality and performance runs scaled), but the client committed 62.5 frames per second in
+every run: the game holds that rate where it was left, at its menu, so the
+runs say nothing about rendering cost. One quality run measured nothing; Jens
+used the machine briefly during it. A cost run needs a scene that renders
+uncapped, for example a timedemo, chosen first.
+
+**Frame times with uncapped benchmarks, 2026-10-11 19:20, HDR and VRR on.**
+`tools/measure-frame-times.py`, two passes each, machine idle, the client's
+own FPS read from its output. glmark2-wayland 2023.01 terrain: at Native it
+renders 5296 × 2980 by itself (it rounds the desktop's 1.45 up to scale 2 and
+KWin scales its picture down), about 1380 frames per second; at Quality and
+Performance the effect tells it scale 1, it renders 2648 × 1490, enlarged,
+about 2850: +106 %, outside the spread, in both passes. vkmark 2025.01 cube,
+immediate presentation: 3840 × 2160, 2560 × 1440 and 1920 × 1080 as asked,
+the reduced runs scaled in every reading, the client's rate +9 to +10 %,
+within the spread: the cube is not bound by pixels at 4K on this GPU, so it
+says nothing about cost. The tool leaves the last preset in `kwinrc`; Jens's
+Quality was restored after each run (it had been left at Performance once).
+
+**Found while measuring: a told client shows its small picture before it
+is enlarged.** Jens saw vkmark covering only part of the screen at some starts.
+Polled every 50 ms: its window appears with the told 2560 × 1440 buffer on
+a 1280 × 720 logical surface, and for about 0.2 s, until the effect has
+selected it, KWin draws it at that size in the corner; after that it is
+enlarged in every reading, and still captures (Spectacle) of vkmark and
+glmark2 show the whole output covered. Not intended; cosmetic, not specific to HDR or VRR:
+the effect should take over a window it told the smaller mode from that
+window's first frame.
+
+What Jens saw for longer was a different thing, found in the native runs:
+at Native the effect leaves vkmark alone, and vkmark puts its 3840 × 2160
+buffer on a 1920 × 1080 logical surface, reckoning with the scale 2 KWin
+announces on `wl_output` for the 1.45 desktop, and ignores the fullscreen
+configure. Its window covers 72 % of the output, top left, with the desktop
+beside it (captured; `getWindowInfo` 1920 × 1080 fullscreen; the effect
+reported it inactive as not covering its output). Not the effect's doing,
+by reasoning, since it does not act on the window at Native; not checked with
+the effect unloaded. An idea, outside this slice: a fullscreen window whose
+buffer already has the output's pixels could be presented over the whole
+output one to one.
+
+**Switching on over a running game, on hardware, 2026-10-11 19:45.** Build
+`33b9143` (with `holdsResize()`) installed with Jens's password and loaded
+through the reload tool. Quake II RTX on Wayland, started with its entry
+switched off in Jens's user layer (`MethodWaylandFullScreen=Off`): 3840 × 2161,
+not scaled. Entry switched on through the configuration: scaled within one
+second (2560 × 1441 to 3840 × 2160) and held for 20 s. Switched off again:
+within one second back to its full window (2648.28 × 1491.03 logical,
+3840 × 2162), the full size given back. The user layer was restored afterwards,
+which switched it on a third time. Jens: aiming and the desktop pointer
+worked. Run 5's open point is closed.
+
+**Integer geometry with HDR and VRR, 2026-10-11 19:55.** vkmark,
+`--fullscreen -p fifo`, Geometry=1 (integer), captured. At Performance, told
+1920 × 1080, enlarged by exactly two to 3840 × 2160 over the whole output;
+probe `VRR_ENABLED=1` in 15 of 18 samples. At Quality, told 2560 × 1440,
+the effect refused ("the fitting integer factor is not two, the only one FSR 1
+enlarges by"), and what the screen showed was vkmark's 1280 × 720 logical
+surface in the top left corner over the desktop: the client had already been
+told the smaller mode, and the refusal leaves it where KWin puts it. Defect,
+outside HDR and VRR: with integer geometry the effect must not tell a
+resolution it will then refuse to enlarge, or must present what it told
+centred with bars. The settings were restored (Geometry removed, Quality).
 
 KWin's support information
 reports only the configured `Adaptive Sync: automatic`, never whether it is

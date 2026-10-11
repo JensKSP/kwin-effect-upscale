@@ -1222,6 +1222,14 @@ Moved here from the open list on 2026-10-03, by its item numbers. The
   reconfigured twice to load an edited game list; at 10:58:02 the game took a
   pointer lock over its window. Whether the reload caused it is not known; it
   was not seen again. No reload while a game runs until it is understood.
+  Revised by Jens on 2026-10-11: reconfiguring over a running game is allowed,
+  and the agent checks the pointer itself instead of asking him. That means the effect's
+  `Input observed` journal lines and the `pointerLock`, `pointerConfinement`
+  and `inputBounds` lines of its support information, before and after, plus
+  KWin's pointer position read through a KWin script. On pcjensd that day,
+  Quake II RTX held a pointer lock through three reconfigurations (entry
+  switched on, off, on); Jens confirmed aiming in the game and the desktop
+  pointer afterwards. Not seen again.
 - For Jens to file, with 2e's report: the proposal to KWin of a per-window
   presentation transform its input honours (item 29b, K15), its text
   [above](#proposal-prepared-for-kde-a-presentation-transform-kwins-input-honours-item-29b-2026-09-29).
