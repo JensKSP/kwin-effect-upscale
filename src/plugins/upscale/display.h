@@ -113,6 +113,9 @@ public:
      * nothing to repaint keeps the pixels it last composited, so without that
      * frame the blocks stay on the desktop after the game that they described
      * has gone, with later window repaints drawing over them.
+     *
+     * The announcement is not forgotten: the same window shown again carries
+     * on with what is left of its timeout instead of being announced anew.
      */
     void hide();
 

@@ -181,6 +181,16 @@ void UpscaleDisplayTest::visibilityAndSampling()
     display.update(state, nullptr);
     QVERIFY(!display.activeFor(nullptr));
     QCOMPARE(paint(display), background);
+    // Nor must focus that leaves the game and comes back, which hides the
+    // display in between.
+    display.hide();
+    display.update(state, nullptr);
+    QVERIFY(!display.activeFor(nullptr));
+    QCOMPARE(paint(display), background);
+    // Changed settings do announce again.
+    display.reconfigure();
+    display.update(state, nullptr);
+    QVERIFY(display.activeFor(nullptr));
     display.hide();
     QCOMPARE(glGetError(), GLenum(GL_NO_ERROR));
     display.hide();
