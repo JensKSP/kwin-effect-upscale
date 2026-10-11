@@ -2493,6 +2493,17 @@ the current slices and not implemented capabilities:
 - **Sharpening at native resolution:** optionally run sharpening without
   enlargement. Keep it explicitly enabled and explain its processing cost and
   possible loss of direct scanout. Native-resolution bypass remains the default.
+- **HDR expansion of SDR games:** optionally present an SDR game on an HDR
+  output with highlights extended towards the display's peak luminance, as
+  Windows does with Auto HDR. The colour path already decodes and re-encodes
+  every captured pixel at input resolution, so inverse tone mapping would join
+  an existing pass rather than add one. It changes how a game looks, not only
+  how sharp it is: menus, text and HUD elements share the buffer and brighten
+  with it. It is therefore an opt-in per application profile, off by default,
+  judged against the unexpanded picture on a real HDR display. It reaches only
+  games the effect processes, so a game at native size would not get it.
+  Prerequisite: accepted HDR upscaling, with SDR content on an HDR output
+  matching KWin's own rendering of the same buffer.
 
 ### Launching through a launcher’s own options
 

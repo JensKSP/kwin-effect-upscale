@@ -50,6 +50,161 @@ first run and record what changed. Turning HDR or adaptive sync on is a
 change of the test conditions: record when, how and who turned it on, and
 put the settings back as found afterwards unless Jens keeps them.
 
+Read again on 2026-10-11 at the start of the session: kernel 7.2.9-zabbly+,
+driver 615.71.09 and KWin `4:6.3.6-1` unchanged. DP-3 at 3840 × 2160, 240 Hz,
+scale 1.45, now with **HDR enabled** (SDR brightness 600 nits, peak 604 nits),
+**wide colour gamut enabled** and **VRR Automatic**. Jens turned these on
+himself before this session and keeps them on; this
+host is where HDR and VRR are made to work. The decision on 2026-10-10 is
+settled as one document: HDR stays in this slice. Native configure stopped on
+the missing `libxcb-res0-dev`, the only unmet build dependency of
+`debian/control` here.
+
+Jens confirmed the GPU, HDR and adaptive sync configuration with Left 4 Dead 2
+on 2026-10-11; this agent did not observe that run. His order for the session:
+find an open-source game that outputs HDR and is affected by VRR, confirm the
+effect with it on this host, then check every game we support for how it
+behaves with HDR and VRR and fix what needs fixing.
+
+What this host offers, read with `wayland-info` and `vulkaninfo`: KWin
+announces `wp_color_manager_v1` and `frog_color_management_factory_v1`, and
+the NVIDIA Vulkan driver offers `VK_EXT_swapchain_colorspace` with the
+HDR10 ST 2084 and extended sRGB linear colour spaces. A native Wayland Vulkan
+client can therefore present PQ and scRGB here. VRR needs only a fullscreen
+client with a varying frame rate; HDR output is what narrows the choice.
+
+Candidates found by searching, none of them run yet:
+
+- Quake II RTX, GPL, Vulkan. Reported to present HDR on Wayland with
+  `SDL_VIDEODRIVER=wayland`; heavy enough on its ray tracing path to vary its
+  frame rate. Its own resolution scaling has to be off for our tests.
+- Godot 4.7's `misc/hdr_output` demo from `godot-demo-projects`: HDR on
+  Wayland through Vulkan, Forward+ or Mobile renderer, with the display
+  driver set to `wayland` and Request HDR Output enabled. A controlled
+  reference rather than a game.
+- RetroArch with its Vulkan driver, HDR since 1.10.0; an emulator front end.
+
+`libxcb-res0-dev` was installed with Jens's permission, and the native
+Release build of `30453cd` then passed (564 steps, no compiler warnings). It
+is not installed; the effect is not loaded in the session.
+
+### Baseline without the effect, 2026-10-11
+
+Round 1 establishes HDR and VRR on this host with the effect unloaded
+(`isEffectLoaded upscale` false); round 2 repeats each case with it. VRR is
+read from the CRTC's `VRR_ENABLED` property with a small read-only libdrm
+probe under `build/hdr-apps/`, which opens the card without becoming DRM
+master; the actual refresh rate is read by Jens from the monitor.
+
+Godot 4.7.2's `misc/hdr_output` demo, native Wayland, Vulkan, RTX 5090,
+assets imported once with `--headless --import`:
+
+| Case | Observed |
+| --- | --- |
+| Windowed | Jens: the demo reports HDR active, its sweeps exceed desktop white. Probe: `VRR_ENABLED=0`, as Automatic intends |
+| `--fullscreen` | Jens: fullscreen, HDR unchanged. Probe: `VRR_ENABLED=1` |
+| Demo closed | Probe: `VRR_ENABLED=0` again |
+| `--fullscreen --max-fps 90` | Godot: 90 fps for all 54 reported seconds. Probe: `VRR_ENABLED=1`. Jens: the monitor ran at about 90 Hz |
+
+Godot warns that KWin 6.3.6 lacks the FIFO protocol and that its frame
+pacing is degraded; it did not show in these runs. Quake II RTX, Steam app 1089130, the native Linux build with the shareware
+levels. Started outside Steam its binary needs `libssl.so.1.1`, which
+Debian 13 does not ship, so it runs through Steam's soldier runtime:
+`SDL_VIDEODRIVER=wayland SteamLinuxRuntime_soldier/run -- ./q2rtx +set vid_hdr 1
++set vid_fullscreen 1 +set vid_vsync 0 +set drs_enable 0`. Its first start
+creates only `~/.quake2rtx`. Probe: `VRR_ENABLED=1` while it ran, `0` after it
+closed. Jens: HDR and fullscreen worked; in a second run with `scr_fps 1`
+the monitor's refresh followed the game at about 120 Hz. It statically links SDL2 with
+the Wayland driver and `SDL_VIDEO_WAYLAND_MODE_EMULATION`, and has its own
+dynamic resolution (`drs_*`) and FSR (`flt_fsr_*`). Its own scaling keeps the
+swapchain at output size, so it never gives the effect a smaller buffer; round
+2 has to switch it off and obtain the smaller buffer through a fullscreen mode
+instead, which is what its profile has to record.
+
+SuperTuxKart 1.4 (Debian), native Wayland, its configuration set to
+fullscreen 3840 × 2160 with the FPS display; the previous file is kept beside
+it as `config.xml.before-hdr-vrr-2026-10-11`. Its Vulkan renderer on this
+driver could not read a version ("Can not find version for '' ''"), fell
+back to the fixed pipeline and warned that OpenGL was too old: a defect of
+SuperTuxKart's experimental renderer here, with the effect not loaded. Its
+OpenGL renderer started normally (OpenGL 4.3, RTX 5090) and is the one its
+profile uses. Jens: it worked on the HDR output, and in a race
+the monitor read 120 Hz, the game's own `max_fps` cap, where fixed refresh
+would have stayed at 240. One probe sample about 15 s after start read
+`VRR_ENABLED=0`, most likely before the race went fullscreen.
+
+Extreme Tux Racer 0.8.4 (Debian), Xwayland, its own settings fullscreen at
+automatic resolution. Probe, once a second: one `0` at start, `1` for the
+twenty seconds it ran fullscreen, `0` after it closed. Jens: it worked.
+
+### Round 2: with the effect, 2026-10-11
+
+The native build of `30453cd` (plus uncommitted documents) was installed with
+Jens's permission and enabled in his session; its startup line and
+`supportInformation` name that commit. All games is off on this host
+(`UnknownApplications=false`), so only listed games are acted on.
+
+Quake II RTX, started exactly as in round 1. Without an entry it was not
+recognized, as All games off intends. With a provisional entry in Jens's
+`~/.config/kwinupscalerc` (program `.*/Quake II RTX/q2rtx`, Wayland fullscreen
+Auto) the overlay appeared and the effect advertised 1920 × 1080 as a screen
+mode. Measured identity: KWin resolves the process to
+`…/steamapps/common/Quake II RTX/q2rtx` through the soldier runtime; class,
+instance and desktop file `q2rtx`; Steam build 17873149, version 1.8.0.
+
+**The gap.** The game ignored the mode and supplied 3840 × 2162 in every
+reading. Its source (NVIDIA/Q2RTX `f2526e9`, `src/unix/video/sdl.c` and
+`src/client/refresh.c`) explains why: `vid_fullscreen 1`, the default, selects
+`desktop`, which is `SDL_WINDOW_FULLSCREEN_DESKTOP` and reads no mode. KWin's
+`getWindowInfo` reported the window at 0,0, fullscreen, 2648.28 × 1491.03
+logical, which is 3840 × 2162 device pixels on an output of 2648.28 × 1489.66
+(3840 × 2160): exact in width, two device pixels too tall, constant over 26
+readings. `upscaleCoversOutput` allows one device pixel, so `placementRefusal`
+returns `NotCoveringOutput`, `upscaleWindowAwaitingBuffer` never offers the
+window to Auto, and the fractional-scale and smaller-configure steps that
+exist for exactly this kind of client never run. Asking the player to change
+the game's fullscreen setting is not a fix: obtaining the smaller buffer is
+the effect's job. Jens asked for a systematic review of the latest SDL 1.2
+(sdl12-compat), SDL2 and SDL3 fullscreen and borderless cases against the
+effect's levers before fixing; that review's findings belong to the
+[resolution-control slice](slice-resolution-control.md).
+
+During play presented and submitted frames both settled at about 121 per
+second with `VRR_ENABLED=1`; the lower early figures were loading inside the
+rolling window.
+
+**Fixed and observed, 2026-10-11.** Far edges may now run past the output by
+the client's rounding (`upscaleReachesFarEdge()`, `upscaleFrameCovers()`;
+also X11 validation and the resized-geometry match). `upscale-resolution`
+passed natively. In English locale every native CTest entry passed except
+`upscale-x11-integration`, 48 passed, 7 failed, 7 skipped, all seven pointer
+and touch input cases; the unchanged `30453cd` built in a detached checkout
+failed the same seven, so they belong to running it natively here. Container
+builds, clang-tidy and both pre-commit stages have not run yet.
+
+The build was installed and loaded without a logout through
+`tools/reload-upscale.py --gui` (running build 11:27:59Z). Quake II RTX, same
+start, with `WAYLAND_DEBUG=1`: delivered 1920 × 1080 to a 3840 × 2160
+destination, `scaling=1`, about 328 presented frames per second (worst
+6.2 ms) against about 121 at native 4K in round 1; its window 1324.14 × 744.83
+logical. Jens: it worked, with much higher frame rates.
+
+The Wayland trace shows the ladder: the advertised `wl_output.mode(3, 1920,
+1080)` was ignored; KWin configured 2648 × 1490; step one sent
+`preferred_scale(87)`, and SDL 2 answered by shrinking its viewport
+destination to 960 × 540 rather than its buffer, so the request was
+withdrawn; step two configured 1324 × 745 and the buffer followed. The 1491
+came from KWin: SDL's 2161 row buffer made the window 1490.34 logical, and the
+configure KWin sent at target scale 0.725 (`snapToPixels` in
+`xdgshellwindow.cpp:726`) rounded 1080.5 up, giving 1491, which then held at
+1.45. Open for Jens: skip step one for a window that answers it by shrinking
+its window, and restore the output geometry explicitly after withdrawing it.
+Not yet checked: HDR and pointer aim while scaled.
+
+KWin's support information
+reports only the configured `Adaptive Sync: automatic`, never whether it is
+active, which is why the probe exists.
+
 **Order of work**, against the [acceptance matrix](#required-acceptance-matrix):
 
 1. Build natively in `build/` and run the effect in Jens's session in SDR
