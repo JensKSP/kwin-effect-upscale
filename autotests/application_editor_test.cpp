@@ -140,9 +140,9 @@ void UpscaleApplicationEditorTest::editsTheApplicationList()
     QCOMPARE(programMatch->currentIndex(), int(KWin::UpscaleStringMatch::RegularExpression));
     QCOMPARE(method->currentText(), KWin::upscaleMethodLabel(KWin::UpscaleMethod::Auto));
     QCOMPARE(list->item(kart)->checkState(), Qt::Checked);
-    // A shipped entry's note records what was measured, for the people who
-    // maintain the list; it is not shown beside the fields.
-    QVERIFY2(note->text().isEmpty(), qPrintable(note->text()));
+    // A shipped entry's note says what a player needs to know about the game,
+    // and is shown beside its fields.
+    QVERIFY2(note->text().contains(QStringLiteral("saves the resolution it was told")), qPrintable(note->text()));
     // An entry this build ships comes back with the next package, so removing
     // it would not remove anything.
     QVERIFY(!remove->isEnabled());

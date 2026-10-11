@@ -193,6 +193,10 @@ msgid "On-Screen Display"
 msgstr "Affichage à l’écran"
 
 #, kde-format
+msgid "Added by you. %1"
+msgstr "Ajoutée par vous. %1"
+
+#, kde-format
 msgid "Added by you."
 msgstr "Ajoutée par vous."
 

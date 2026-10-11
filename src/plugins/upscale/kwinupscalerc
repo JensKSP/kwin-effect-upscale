@@ -86,10 +86,10 @@ X11ConnectionExecutable=/(?:.*/)?supertuxkart
 ExecutableMatch=RegularExpression
 MethodWaylandFullScreen=Auto
 Order=10
-Note=Auto advertises the mode for OpenGL exclusive fullscreen. Vulkan desktop fullscreen follows the surface scale or, at desktop scale one, the smaller fullscreen configure.
-Note[de]=Automatisch kündigt den Modus für das exklusive OpenGL-Vollbild an. Das Vulkan-Desktop-Vollbild folgt der Oberflächenskalierung oder, bei Desktop-Skalierung eins, der kleineren Vollbildkonfiguration.
-Note[es]=Automático anuncia el modo para la pantalla completa exclusiva de OpenGL. La pantalla completa de escritorio de Vulkan sigue la escala de superficie o, con escala de escritorio uno, la configuración de pantalla completa más pequeña.
-Note[fr]=Automatique annonce le mode pour le plein écran exclusif OpenGL. Le plein écran de bureau Vulkan suit l’échelle de surface ou, à l’échelle de bureau un, la configuration plein écran plus petite.
+Note=Auto advertises the mode for OpenGL exclusive fullscreen. Vulkan desktop fullscreen follows the surface scale or, at desktop scale one, the smaller fullscreen configure. It saves the resolution it was told as its own setting when it exits, so with the effect off it keeps rendering at that size until its resolution is chosen again. Its own render resolution shrinks only the 3D scene and enlarges it itself; leave it at 100% and let the effect replace it, with its own resolution, filter and sharpening.
+Note[de]=Automatisch kündigt den Modus für das exklusive OpenGL-Vollbild an. Das Vulkan-Desktop-Vollbild folgt der Oberflächenskalierung oder, bei Desktop-Skalierung eins, der kleineren Vollbildkonfiguration. Beim Beenden speichert es die mitgeteilte Auflösung als eigene Einstellung; ohne den Effekt rendert es daher in dieser Größe weiter, bis seine Auflösung wieder gewählt wird. Seine eigene Renderauflösung verkleinert nur die 3D-Szene und vergrößert sie selbst; lassen Sie sie auf 100 % und ersetzen Sie sie durch den Effekt mit dessen Auflösung, Filter und Schärfung.
+Note[es]=Automático anuncia el modo para la pantalla completa exclusiva de OpenGL. La pantalla completa de escritorio de Vulkan sigue la escala de superficie o, con escala de escritorio uno, la configuración de pantalla completa más pequeña. Al salir guarda como ajuste propio la resolución que se le comunicó, así que sin el efecto sigue renderizando a ese tamaño hasta que se vuelva a elegir su resolución. Su propia resolución de renderizado reduce solo la escena 3D y la amplía por sí misma; déjela al 100 % y sustitúyala por el efecto, con su resolución, filtro y nitidez.
+Note[fr]=Automatique annonce le mode pour le plein écran exclusif OpenGL. Le plein écran de bureau Vulkan suit l’échelle de surface ou, à l’échelle de bureau un, la configuration plein écran plus petite. En quittant, il enregistre comme réglage propre la résolution qui lui a été annoncée ; sans l’effet, il continue donc à effectuer son rendu à cette taille jusqu’à ce que sa résolution soit choisie de nouveau. Sa propre résolution de rendu ne réduit que la scène 3D et l’agrandit elle-même ; laissez-la à 100 % et remplacez-la par l’effet, avec sa résolution, son filtre et sa netteté.
 
 [Application-extremetuxracer]
 Name=Extreme Tux Racer
@@ -198,12 +198,14 @@ MeasuredVersion=1.8.0, Steam build 17873149
 # 2026-10-11: it ignored the advertised mode, answered the fractional scale by
 # shrinking its window rather than its buffer, and followed Auto's smaller
 # fullscreen configure, rendering 1920 x 1080 at Performance. SDL 2 uses
-# Xwayland unless told otherwise; that path has not been measured for it.
+# Xwayland unless told otherwise; started that way on 2026-10-11, the same
+# host, it took the 2560 x 1440 window Auto asked for at Quality and was
+# enlarged, pointer input translated.
 Executable=.*/Quake II RTX/q2rtx
 ExecutableMatch=RegularExpression
 MethodWaylandFullScreen=Auto
 Order=70
-Note=On Wayland its desktop fullscreen ignores the advertised mode and follows the smaller fullscreen size Auto asks for. SDL 2 starts it through Xwayland unless SDL_VIDEODRIVER=wayland is set; that path has not been measured yet.
-Note[de]=Unter Wayland ignoriert sein Desktop-Vollbild den angekündigten Modus und folgt der kleineren Vollbildgröße, die Automatisch anfordert. SDL 2 startet es über Xwayland, sofern nicht SDL_VIDEODRIVER=wayland gesetzt ist; dieser Weg ist noch nicht gemessen.
-Note[es]=En Wayland, su pantalla completa de escritorio ignora el modo anunciado y sigue el tamaño de pantalla completa más pequeño que pide Automático. SDL 2 lo inicia mediante Xwayland salvo que se establezca SDL_VIDEODRIVER=wayland; esa vía aún no se ha medido.
-Note[fr]=Sous Wayland, son plein écran de bureau ignore le mode annoncé et suit la taille plein écran plus petite que demande Automatique. SDL 2 le lance via Xwayland sauf si SDL_VIDEODRIVER=wayland est défini ; cette voie n’a pas encore été mesurée.
+Note=On Wayland its desktop fullscreen ignores the advertised mode and follows the smaller fullscreen size Auto asks for. Started as usual, SDL 2 runs it through Xwayland, where it takes the smaller window Auto asks for as well. Its own resolution scale and FSR shrink and enlarge the 3D view inside the game; leave them off and let the effect replace them, with its own resolution, filter and sharpening.
+Note[de]=Unter Wayland ignoriert sein Desktop-Vollbild den angekündigten Modus und folgt der kleineren Vollbildgröße, die Automatisch anfordert. Normal gestartet, läuft es mit SDL 2 über Xwayland und übernimmt auch dort das kleinere Fenster, das Automatisch anfordert. Seine eigene Auflösungsskalierung und sein FSR verkleinern und vergrößern die 3D-Ansicht im Spiel; lassen Sie sie aus und ersetzen Sie sie durch den Effekt mit dessen Auflösung, Filter und Schärfung.
+Note[es]=En Wayland, su pantalla completa de escritorio ignora el modo anunciado y sigue el tamaño de pantalla completa más pequeño que pide Automático. Iniciado de la forma habitual, SDL 2 lo ejecuta mediante Xwayland, donde también acepta la ventana más pequeña que pide Automático. Su propia escala de resolución y su FSR reducen y amplían la vista 3D dentro del juego; déjelos desactivados y sustitúyalos por el efecto, con su resolución, filtro y nitidez.
+Note[fr]=Sous Wayland, son plein écran de bureau ignore le mode annoncé et suit la taille plein écran plus petite que demande Automatique. Lancé normalement, SDL 2 le fait passer par Xwayland, où il accepte aussi la fenêtre plus petite que demande Automatique. Sa propre mise à l’échelle de la résolution et son FSR réduisent et agrandissent la vue 3D dans le jeu ; laissez-les désactivés et remplacez-les par l’effet, avec sa résolution, son filtre et sa netteté.

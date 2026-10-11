@@ -2350,8 +2350,10 @@ on 2026-10-11, it answered the fractional surface scale by shrinking its
 window instead of its buffer, and followed Auto's smaller fullscreen
 configure: 1920 × 1080 at Performance on a 3840 × 2160 output, about 328
 frames per second against about 121 at full size. SDL 2 starts it through
-Xwayland unless `SDL_VIDEODRIVER=wayland` is set, and that path has not been
-measured for it, so the entry states the Wayland slot alone.
+Xwayland unless `SDL_VIDEODRIVER=wayland` is set. Started that way on the same
+host, it took the 2560 × 1440 window Auto asked for at Quality and was
+enlarged, with pointer input translated. The X11 slots follow the global
+Auto, so the entry states the Wayland slot alone.
 
 Two details in that table are the reason identities are measured.
 

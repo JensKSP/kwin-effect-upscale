@@ -178,13 +178,17 @@ void UpscaleApplicationEditor::showNote(const UpscaleApplication &application)
     if (problem.isEmpty()) {
         problem = upscaleAdvertisementProblem(application);
     }
-    // A shipped entry's own note is not shown: it records what was measured
-    // for the people who maintain the list, and next to the fields it read as
-    // a description of what the fields do.
+    // Otherwise the entry's note, in the user's language as KConfig reads it:
+    // what was measured with this game that a player needs, such as a game
+    // saving the resolution it was told, or a scaler of its own the effect can
+    // replace. Shown since Jens decided so on 2026-10-11; before, a shipped
+    // note was hidden as a record for the people who maintain the list.
     if (!problem.isEmpty()) {
         m_note->setText(problem);
+    } else if (application.shipped) {
+        m_note->setText(application.note);
     } else {
-        m_note->setText(application.shipped ? QString() : i18n("Added by you."));
+        m_note->setText(application.note.isEmpty() ? i18n("Added by you.") : i18n("Added by you. %1", application.note));
     }
 }
 
