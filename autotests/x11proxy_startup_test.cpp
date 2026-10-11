@@ -8,7 +8,9 @@
 #include <QCoreApplication>
 #include <QTemporaryDir>
 #include <QTest>
+#include <cerrno>
 #include <sys/socket.h>
+#include <system_error>
 #include <unistd.h>
 class ProxyStartupTest : public QObject
 {
@@ -16,6 +18,7 @@ class ProxyStartupTest : public QObject
 private Q_SLOTS:
     void eitherSwitchDisablesRouting();
     void authenticatedPeer();
+    void namesTheArgumentItCannotUse();
 };
 void ProxyStartupTest::eitherSwitchDisablesRouting()
 {
@@ -41,6 +44,30 @@ void ProxyStartupTest::authenticatedPeer()
 #else
     QVERIFY(pid == 0 || pid == static_cast<quint32>(getpid()));
 #endif
+}
+// Each refusal names the argument it could not use, and the system's reason only
+// where a call gave one.
+void ProxyStartupTest::namesTheArgumentItCannotUse()
+{
+    int pair[2];
+    QCOMPARE(socketpair(AF_UNIX, SOCK_STREAM, 0, pair), 0);
+    const QString open = QString::number(pair[0]);
+    qunsetenv("WAYLAND_SOCKET");
+    const QString prefix = QStringLiteral("Cannot initialize Upscale X11 session: ");
+    const auto refused = [&](const QStringList &arguments, const QString &message) {
+        QTest::ignoreMessage(QtCriticalMsg, qPrintable(prefix + message));
+        UpscaleX11::Startup startup;
+        return !startup.parse(arguments, pair[1]);
+    };
+    QVERIFY(refused({QStringLiteral("-wm")}, QStringLiteral("-wm: no descriptor follows it")));
+    QVERIFY(refused({QStringLiteral("-wm"), QStringLiteral("x")}, QStringLiteral("-wm: x is not a descriptor")));
+    QVERIFY(refused({QStringLiteral("-wm"), open}, QStringLiteral("-listenfd: missing")));
+    QVERIFY(refused({QStringLiteral("-listenfd"), open}, QStringLiteral("-wm: missing")));
+    QVERIFY(refused({QStringLiteral("-listenfd"), open, QStringLiteral("-wm"), open}, QStringLiteral("WAYLAND_SOCKET: not set to a descriptor")));
+    close(pair[0]);
+    const QString closed = QString::fromStdString(std::error_code(EBADF, std::generic_category()).message());
+    QVERIFY(refused({QStringLiteral("-wm"), open}, QStringLiteral("-wm %1: %2").arg(open, closed)));
+    close(pair[1]);
 }
 int main(int argc, char **argv)
 {

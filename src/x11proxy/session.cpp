@@ -14,7 +14,6 @@
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <system_error>
 #include <unistd.h>
 namespace UpscaleX11
 {
@@ -86,29 +85,40 @@ Session::~Session()
 bool Session::listen()
 {
     if (!m_directory.isValid()) {
-        return false;
+        return startupFailed(QStringLiteral("runtime directory %1").arg(m_directory.path()), m_directory.errorString());
     }
     m_backendPath = QFile::encodeName(m_directory.path() + QStringLiteral("/x11"));
     sockaddr_un address{};
     address.sun_family = AF_UNIX;
+    // A local socket's address holds its path, and only so many bytes of it.
+    // The runtime directory makes that path, and a desktop's is short; a
+    // directory deep in a build tree is not.
     if (m_backendPath.size() >= static_cast<qsizetype>(sizeof(address.sun_path))) {
-        return false;
+        return startupFailed(QStringLiteral("backend socket %1").arg(QFile::decodeName(m_backendPath)),
+                             QStringLiteral("longer than the %1 bytes a socket address holds").arg(static_cast<int>(sizeof(address.sun_path) - 1)));
     }
     std::memcpy(address.sun_path, m_backendPath.constData(), static_cast<std::size_t>(m_backendPath.size() + 1));
     m_backendListener = socket(AF_UNIX, SOCK_STREAM, 0);
-    return m_backendListener >= 0 && socketFlags(m_backendListener)
-        && bind(m_backendListener, reinterpret_cast<const sockaddr *>(&address), sizeof(address)) == 0
-        && ::listen(m_backendListener, 128) == 0;
+    if (m_backendListener < 0 || !socketFlags(m_backendListener)) {
+        return startupFailed(QStringLiteral("backend socket"), systemError(errno));
+    }
+    if (bind(m_backendListener, reinterpret_cast<const sockaddr *>(&address), sizeof(address)) != 0) {
+        return startupFailed(QStringLiteral("binding %1").arg(QFile::decodeName(m_backendPath)), systemError(errno));
+    }
+    if (::listen(m_backendListener, 128) != 0) {
+        return startupFailed(QStringLiteral("listening on %1").arg(QFile::decodeName(m_backendPath)), systemError(errno));
+    }
+    return true;
 }
 bool Session::watchSignals()
 {
     int pair[2];
     if (socketpair(AF_UNIX, SOCK_STREAM, 0, pair) != 0) {
-        return false;
+        return startupFailed(QStringLiteral("signal socket pair"), systemError(errno));
     }
     m_signalSockets = {pair[0], pair[1]};
     if (!socketFlags(pair[0]) || !socketFlags(pair[1])) {
-        return false;
+        return startupFailed(QStringLiteral("signal socket pair"), systemError(errno));
     }
     signalWriteDescriptor = pair[1];
     std::signal(SIGTERM, terminateHandler);
@@ -131,7 +141,6 @@ bool Session::watchSignals()
 bool Session::start(const QStringList &arguments)
 {
     if (!listen() || !m_startup.parse(arguments, m_backendListener) || !watchSignals()) {
-        qCritical() << "Cannot initialize Upscale X11 session:" << QString::fromStdString(std::error_code(errno, std::generic_category()).message());
         return false;
     }
     // KWin itself asks XRes for client PIDs. Keep its WM channel in the
@@ -139,7 +148,7 @@ bool Session::start(const QStringList &arguments)
     new Relay(m_startup.windowManager, m_startup.windowManagerBackend, this, {.size = {}, .timing = {}, .registry = &m_registry, .pid = static_cast<quint32>(getppid())});
     for (const int listener : std::as_const(m_startup.listeners)) {
         if (!socketFlags(listener)) {
-            return false;
+            return startupFailed(QStringLiteral("-listenfd %1").arg(listener), systemError(errno));
         }
         auto *notifier = new QSocketNotifier(listener, QSocketNotifier::Read, this);
         connect(notifier, &QSocketNotifier::activated, this, [this, listener]() {

@@ -88,6 +88,7 @@ private Q_SLOTS:
     void aLauncherNamesTheProgramBeforeItStarts();
     void aWarmPrefixIsShownTheLaterScreen();
     void effectSwitchedOffMidSession();
+    void namesASocketPathTooLongForItsAddress();
 
 private:
     // Starts a session listening at @p name, as KWin starts one. What KWin
