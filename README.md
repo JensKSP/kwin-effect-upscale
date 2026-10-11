@@ -23,8 +23,11 @@ front of Xwayland, which KWin starts from the next login on; see
 > with a smaller render target while KWin still presented the result on the same
 > 3840 x 2160 display. See [Measured](#measured).
 >
-> Image quality, HDR, VRR and broad game compatibility still require more
-> real-world testing, and its settings may still change.
+> HDR and VRR work: games were enlarged on an HDR monitor with adaptive sync
+> active, in SDR, PQ and scRGB (see
+> [HDR and variable refresh rate](doc/upscaling.md#hdr-and-variable-refresh-rate)).
+> Image quality and broad game compatibility still require more real-world
+> testing, and its settings may still change.
 
 [![CI](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/ci.yml/badge.svg)](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/ci.yml)
 [![Nightly](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/nightly.yml/badge.svg)](https://github.com/JensKSP/kwin-effect-upscale/actions/workflows/nightly.yml)
@@ -262,14 +265,14 @@ Verified so far:
 - KWin receives the smaller image;
 - the effect upscales it to a physical 3840 x 2160 display;
 - the Xwayland path works end to end with Extreme Tux Racer;
+- HDR and VRR, together, with SDR, PQ and scRGB games enlarged on an HDR
+  monitor with adaptive sync active (NVIDIA RTX 5090);
 - virtual sessions verify resolution changes and client isolation.
 
 Still requiring broader real-world acceptance:
 
 - image quality;
-- HDR;
-- VRR;
-- HDR and VRR together;
+- HDR on televisions and with other GPUs;
 - physical input behaviour;
 - more GPUs and displays;
 - televisions;

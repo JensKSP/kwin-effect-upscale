@@ -713,10 +713,40 @@ which must be stated plainly wherever it is offered.
 
 ## HDR and variable refresh rate
 
-HDR and VRR are required, including simultaneous HDR upscaling and VRR. Their
-acceptance is postponed to a version after 0.3.0 (Jens, 2026-09-29); until
-then the effect follows KWin's colour management and presentation as below,
-without an accepted HDR or VRR path.
+HDR and VRR are required, including simultaneous HDR upscaling and VRR.
+
+**The effect is compatible with HDR and VRR.** It renders in the colour space
+KWin gives the output and leaves presentation timing to KWin, and both were
+observed on real hardware with scaling active: on pcjensd (below), an RTX 5090
+driving an LG ULTRAGEAR+ over DisplayPort at 3840 × 2160 and 240 Hz, scale
+1.45, with HDR, wide colour gamut and adaptive sync (Automatic) switched on in
+the display settings, on 2026-10-11. Adaptive sync was read from the CRTC's
+`VRR_ENABLED` property with a read-only libdrm probe, and the refresh rate the
+monitor showed was read by Jens; the picture was judged by Jens.
+
+| Case | Client | Observed with the effect enlarging the game |
+| --- | --- | --- |
+| SDR game on the HDR output, VRR | SuperTuxKart 1.4, Wayland, OpenGL | 2560 × 1440 to 3840 × 2160, direct scanout blocked, about 110 presented frames per second, VRR on throughout the race; Jens: it worked |
+| PQ game, VRR | Quake II RTX 1.8.0, Wayland, Vulkan, HDR on | 2561 × 1440 to 3840 × 2160, 90.9 presented frames per second at a cap of 90, VRR on, the monitor at about 90 Hz; Jens: picture, HDR switched off and on in the game, alt-tab and aiming all right |
+| PQ, effect off against on | the same | brightness and colours the same with and without the effect (Jens) |
+| scRGB game, VRR | Godot 4.7.2 `hdr_output` demo, Wayland, Vulkan | its surface described as extended linear with sRGB primaries; 2560 × 1441 to 3840 × 2160 at 90 frames per second, VRR on |
+| X11 game, VRR | Quake II RTX through Xwayland | 2560 × 1440 to 3840 × 2160, pointer input translated, VRR on |
+| Benchmarks, VRR | glmark2 2023.01, vkmark 2025.01 | enlarged at their stated methods; glmark2 drew 106 % more frames than at its own size |
+| Integer geometry, VRR | vkmark at Performance | 1920 × 1080 enlarged by exactly two, VRR on |
+
+What that rests on is in the code: capture keeps the destination's colour
+description, so KWin converts and tone-maps once, at input resolution; a
+linear (scRGB) destination is filtered in floating point through a bounded
+signed domain and restored afterwards; PQ, sRGB and gamma 2.2 are filtered in
+their encoding at ten bits ([implemented render path](#implemented-render-path)).
+The effect asks for no presentation mode and repaints only when KWin does, so
+KWin's adaptive presentation applies to the composited, enlarged frame as it
+does to any other.
+
+Not covered by those runs: HDR on the television, which stays the formal HDR
+acceptance for HDR-aware FSR (Jens, 2026-10-10); Jens's visual verdict on the
+scRGB demo, which was measured, not looked at; whether Quake II RTX presented
+HDR through Xwayland; and AMD and other drivers.
 The effect must preserve KWin's colour management and adaptive presentation
 when the client, output and driver support them. SDR content on an HDR output,
 HDR content using PQ or scRGB, and transitions between SDR and HDR belong in
@@ -4171,13 +4201,13 @@ read without them, and they outlive the slice that first observed them.
 
 | Part | pcjensd |
 | --- | --- |
-| Distribution | Debian 13 (trixie), kernel 7.2.6-zabbly+ |
+| Distribution | Debian 13 (trixie), kernel 7.2.9-zabbly+ (7.2.6 when first recorded) |
 | CPU | AMD Ryzen 9 9950X3D, 16 cores / 32 threads |
 | Memory | 62 GiB |
 | GPU | NVIDIA GeForce RTX 5090 (GB202, `10de:2b85`), 32 GiB VRAM |
 | Driver | `nvidia-driver` 615.71.09-2, proprietary; `nvidia_drm` with `modeset=1` and `fbdev=1` |
 | Display | LG ULTRAGEAR+ on DisplayPort (`DP-3`), 3840 × 2160 at 240 Hz, scale 1.45 |
-| Display state | SDR; HDR disabled, wide colour gamut disabled, VRR set to never |
+| Display state | Since 2026-10-11: HDR enabled (SDR brightness 600 nits, peak 604 nits), wide colour gamut enabled, adaptive sync Automatic, turned on by Jens. Before: SDR, VRR never |
 | Session | Plasma 6.3.6 on Wayland, KWin 6.3.6, Qt 6.8.2 |
 | Compositing | OpenGL through EGL; KWin reports the context as OpenGL 3.1, GLSL 1.40 |
 
@@ -4186,9 +4216,9 @@ card's **GPU class as `Unknown`**, so any behaviour that depends on KWin
 recognising the hardware is untested here by definition. And the display is
 **driven at 240 Hz**, which leaves well under five milliseconds per frame: a
 performance result from this host is a statement about that budget, not about a
-60 Hz one. HDR and VRR are both off at the time of writing, so neither has been
-exercised; turning either on is a change of test conditions and is recorded as
-one.
+60 Hz one. HDR and adaptive sync have been on since 2026-10-11, which is where
+the [HDR and VRR](#hdr-and-variable-refresh-rate) observations come from;
+changing either is a change of test conditions and is recorded as one.
 
 The [pipeline slice](agents/slice-build-release-pipeline.md) records validation and
 remaining hosted, BSD and hardware acceptance work.
