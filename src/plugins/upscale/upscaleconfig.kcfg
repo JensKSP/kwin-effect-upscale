@@ -89,6 +89,6 @@ SPDX-License-Identifier: GPL-2.0-or-later
         <entry name="OsdAnnouncementPosition" type="Int"><default>0</default><min>0</min><max>3</max></entry>
         <entry name="OsdStatisticsPosition" type="Int"><default>1</default><min>0</min><max>3</max></entry>
         <entry name="OsdDeveloperPosition" type="Int"><default>3</default><min>0</min><max>3</max></entry>
-        <entry name="OsdTimeout" type="Int"><default>3</default><min>1</min><max>60</max></entry>
+        <entry name="OsdTimeout" type="Int"><default>5</default><min>1</min><max>60</max></entry>
     </group>
 </kcfg>

@@ -1381,7 +1381,8 @@ same timed message: actual input/output dimensions or scale and the active
 shader path, including sharpening when active. If processing is bypassed or
 unsupported, state that instead of naming the configured shader as active.
 The summary can be disabled independently. Use a bounded, positive timeout,
-initially three seconds; the summary shares it and does not extend it on every
+five seconds by default (Jens, 2026-10-11: five to ten, short enough not to
+stay in the way); the summary shares it and does not extend it on every
 frame. After a user changes an effective setting, one brief updated summary may
 appear with the same timeout, without claiming a new game detection.
 
