@@ -47,6 +47,8 @@ class ConfigureTest(unittest.TestCase):
         self.stored = ""
         # What kreadconfig6 answers instead of the value written, if anything.
         self.read_back: str | None = None
+        # What KWin lists as loaded.
+        self.loaded = "blur\nupscale"
         patcher = mock.patch("effect_control.run_command", side_effect=self.answer)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -62,7 +64,16 @@ class ConfigureTest(unittest.TestCase):
         output = ""
         if arguments[0] == "kreadconfig6":
             output = self.stored if self.read_back is None else self.read_back
+        if arguments[-1] == "org.kde.kwin.Effects.loadedEffects":
+            output = self.loaded
         return subprocess.CompletedProcess(arguments, 0, output, "")
+
+    def test_addresses_a_reloaded_build_by_its_name(self) -> None:
+        """reload-upscale.py loads the effect under a name of its own."""
+        self.loaded = "blur\nupscale_reload_0123abcd\nslide"
+        self.assertEqual(configure("quality", sharpening=False), "")
+        told = [call[-1] for call in self.calls if "reconfigureEffect" in call[-2]]
+        self.assertEqual(told, ["upscale_reload_0123abcd"])
 
     def test_writes_the_resolution_key(self) -> None:
         """The legacy Preset key is ignored once a Resolution key exists."""

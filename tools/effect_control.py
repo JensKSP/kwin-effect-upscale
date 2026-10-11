@@ -55,10 +55,30 @@ def qdbus() -> str:
     raise SystemExit(missing)
 
 
+# reload-upscale.py loads a fresh build under a name of its own, which KWin
+# then reports in place of the installed effect's.
+LOADED_NAME = re.compile(r"upscale(_reload_[0-9a-f]+)?")
+
+
+def effect_name(tool: str) -> str:
+    """Name the effect as KWin has it loaded, installed or reloaded."""
+    listed = run_command([tool, "org.kde.KWin", "/Effects", "org.kde.kwin.Effects.loadedEffects"])
+    for name in listed.stdout.split():
+        if LOADED_NAME.fullmatch(name):
+            return name
+    return "upscale"
+
+
 def status(tool: str) -> str:
     """Ask the running effect for its current state, accumulated."""
     result = run_command(
-        [tool, "org.kde.KWin", "/Effects", "org.kde.kwin.Effects.supportInformation", "upscale"]
+        [
+            tool,
+            "org.kde.KWin",
+            "/Effects",
+            "org.kde.kwin.Effects.supportInformation",
+            effect_name(tool),
+        ]
     )
     return result.stdout
 
@@ -87,7 +107,13 @@ def configure(preset: str, *, sharpening: bool) -> str:
         if written.returncode != 0:
             return f"could not set {key}={value}: {written.stderr.strip() or 'no reason given'}"
     applied = run_command(
-        [qdbus(), "org.kde.KWin", "/Effects", "org.kde.kwin.Effects.reconfigureEffect", "upscale"]
+        [
+            qdbus(),
+            "org.kde.KWin",
+            "/Effects",
+            "org.kde.kwin.Effects.reconfigureEffect",
+            effect_name(qdbus()),
+        ]
     )
     if applied.returncode != 0:
         return f"the effect was not told to re-read its settings: {applied.stderr.strip()}"
