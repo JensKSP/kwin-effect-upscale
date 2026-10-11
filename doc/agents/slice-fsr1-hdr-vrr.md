@@ -14,7 +14,92 @@ matrix with real games (74), and aspect ratio with integer scaling, specified
 and not implemented (76). **Decided by Jens on 2026-09-29 (item 75):** HDR and
 VRR are postponed to a later version; when they are taken up, VRR is accepted
 on the NVIDIA host (pcjensd) and on wzpc. This release's gates therefore leave
-out the HDR and VRR parts below.
+out the HDR and VRR parts below. **Taken up by Jens on 2026-10-11**, after
+0.4.0, on pcjensd; the [handoff](#handoff-to-the-workstation-2026-10-11)
+says where the work starts.
+
+## Handoff to the workstation, 2026-10-11
+
+Work moves from wzpc to pcjensd, the NVIDIA host. The branch is
+`fsr/hdr-vrr`, started from `a8ee501`, the merge of 0.4.0. The tag `v0.4.0`
+is set on that commit once master's checks on it pass.
+
+**What is there.** The colour path is implemented, not refused: an HDR
+destination is a supported case. `supportsUpscaleColors()`
+(`compatibility.h`) accepts the sRGB, gamma 2.2, PQ and linear transfer
+functions with a finite positive reference luminance and a luminance range;
+anything else is `UpscaleRefusal::UnsupportedColors`, remembered for the
+window. The capture is taken at buffer size by KWin's item renderer in the
+destination's encoding. A non-linear destination, PQ among them, is filtered
+directly in that encoding in `GL_RGB10_A2`; a linear destination, KWin's
+scRGB-like target, keeps a floating-point capture and filters in a working
+encoding in `GL_RGBA32F` (`upscaleFilterFormat()`). The shader and
+configuration tests cover these conversions on the virtual backend. A
+statement made on 2026-10-10 while K12 was decided, that HDR or PQ buffers
+were refused, was wrong; what is open is acceptance on a real HDR output, not
+support. On VRR, KWin 6.3.6 selects adaptive presentation independently of
+direct scanout, which is the path the effect relies on; that is a reading of
+KWin's code, not an observation.
+
+**The host.** [Hardware acceptance hosts](../upscaling.md#hardware-acceptance-hosts)
+records pcjensd as found: Debian 13, kernel 7.2.6-zabbly+, RTX 5090 with the
+proprietary driver 615.71.09, nvidia_drm modeset=1, KWin 6.3.6, the LG
+ULTRAGEAR+ on DP-3 at 3840 × 2160, 240 Hz, scale 1.45, SDR, HDR and wide
+colour gamut off, adaptive sync never. Read the versions again before the
+first run and record what changed. Turning HDR or adaptive sync on is a
+change of the test conditions: record when, how and who turned it on, and
+put the settings back as found afterwards unless Jens keeps them.
+
+**Order of work**, against the [acceptance matrix](#required-acceptance-matrix):
+
+1. Build natively in `build/` and run the effect in Jens's session in SDR
+   first: the scaled frame, `upscale` in `activeEffects`, fallback, and the
+   NVIDIA driver's answer to the capture formats. The GPU class KWin reports
+   there is `Unknown`, so the GLES and storage paths may differ from wzpc.
+2. HDR on: SDR content on the HDR output, then PQ and scRGB clients, then
+   switching between SDR and HDR while scaled. Look for clipped highlights,
+   banding in gradients, wide-gamut colours, negative scRGB values, and any
+   second conversion: the scaled picture must match KWin's own stretch of the
+   same buffer in colour, and differ only in detail.
+3. Adaptive sync on: presentation with scaling active and direct scanout
+   blocked, in SDR and in HDR, across frame rates within the monitor's range.
+   A setting that reads enabled is no evidence; the presentation mode and the
+   output's refresh have to be observed.
+4. Where time allows on the same hardware: K10's real Direct3D, Vulkan, DXVK,
+   vkd3d-proton and Proton games, and K13, from a list prepared for that
+   session first, as the [known limitations](slice-known-limitations.md)
+   record.
+
+Jens decided on 2026-10-10 that HDR-aware FSR is a work package of its own,
+accepted on his television, which is wzpc's output. Ask him at the start
+whether that means a slice document split from this one, and keep the
+television run as the HDR acceptance; pcjensd is where it is developed and
+first seen. After HDR, his order stays as recorded there: K16 X11 pen, the
+K12 lifts, vkd3d-proton in the Wine check, K10 and K13, sandboxed Steam on
+his machine, and the refreshed KWin proposal 29b, which he files.
+
+**Working notes that live on wzpc only**, repeated here because the next
+session starts without them:
+
+- Build the check images from `containers/` on pcjensd; wzpc's tags such as
+  `upscale-check:trixie-a0` do not exist there. Never run two compositor
+  test sessions on the desktop GPU at once; parallel nested sessions froze
+  wzpc. `tools/conformance-vm.py` keeps the virtual-backend tests off it.
+- `pre-commit run --all-files` lints only files Git knows; mark new files
+  with `git add -N` before the final lint, or CI finds what the local lint
+  skipped.
+- Give every long command a hard limit that also ends its container: `timeout
+  -k`, named containers removed with `podman rm -f`. In Wine, `wineserver -k`
+  before `wineserver -w`, since the Wine desktop keeps the server alive.
+- Wait with relative times; a clock time like `date -d '23:41 UTC'` read
+  after midnight waits a day.
+- CodeRabbit reviews about once an hour and does not queue a refused request;
+  a reply in a thread is not its verdict. A pull request's text is changed
+  with `gh api -X PATCH repos/{owner}/{repo}/pulls/N`, since `gh pr edit`
+  fails on this repository.
+- Commit by explicit path; the checkout may be shared. Temporary files, VMs,
+  containers, images and merged branches are cleaned up once a series of
+  tasks is done.
 
 ## Start state
 
