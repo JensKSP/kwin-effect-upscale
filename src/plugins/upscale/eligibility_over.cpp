@@ -107,4 +107,15 @@ bool upscaleDrawnCovers(EffectWindow *drawn, EffectWindow *window)
     return effects->activeWindow() == drawn && internal && internal->layer() < ActiveLayer;
 }
 
+void upscaleClaimOpening(EffectWindow *window, QObject *claimant)
+{
+    const auto claim = [window, claimant]() {
+        if (!window->data(WindowAddedGrabRole).value<void *>() && windowRefusal(window) == UpscaleRefusal::None) {
+            window->setData(WindowAddedGrabRole, QVariant::fromValue(static_cast<void *>(claimant)));
+        }
+    };
+    claim();
+    QObject::connect(window, &EffectWindow::windowFullScreenChanged, claimant, claim);
+}
+
 } // namespace KWin

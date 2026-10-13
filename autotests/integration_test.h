@@ -54,6 +54,7 @@ private Q_SLOTS:
     void drawsAWindowOfTheToldSizeOverItsOutput();
     void drawsAWindowOfTheToldPixelsOverItsOutput();
     void advertisesAWholeFactorsShareUnderInteger();
+    void enlargesAToldWindowFromItsFirstFrame();
     void autoResizesAClientThatIgnoresScale();
     void autoConfiguresAnIntegerClientBeforeItsFirstBuffer_data();
     void autoConfiguresAnIntegerClientBeforeItsFirstBuffer();

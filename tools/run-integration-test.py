@@ -31,6 +31,11 @@ def main() -> int:
     binary = Path(sys.argv[1]).resolve()
     build = binary.parent.parent
     x11 = "--x11" in sys.argv[2:]
+    # KWin animates nothing on a software renderer, which is what this session
+    # draws with, and loads none of its animation effects. A case about what an
+    # animation does to the effect asks for them; KWin reads the override once,
+    # so such cases have a session of their own.
+    animations = "--animations" in sys.argv[2:]
     # The scale the session's outputs run at. A real desktop rarely runs a 4K
     # screen at one: the machine these tests describe runs it at three, which
     # puts every logical size a third of the pixels it is made of. Input and
@@ -139,6 +144,8 @@ def main() -> int:
             UPSCALE_TEST_OUTPUT_COUNT=str(outputs),
         )
         environment.pop("QT_QPA_PLATFORM", None)
+        if animations:
+            environment["KWIN_EFFECTS_FORCE_ANIMATIONS"] = "1"
         # A desktop with the effect installed routes its X11 clients through
         # the proxy: its login exports this and puts the proxy's Xwayland on
         # PATH. Inherited, the session ran the installed proxy rather than
@@ -171,7 +178,9 @@ def main() -> int:
                     *(
                         argument
                         for argument in sys.argv[2:]
-                        if not argument.startswith(("--x11", "--scale=", "--outputs="))
+                        if not argument.startswith(
+                            ("--x11", "--animations", "--scale=", "--outputs=")
+                        )
                     ),
                 ]
             ),

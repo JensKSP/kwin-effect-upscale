@@ -151,6 +151,16 @@ if(KWin_VERSION VERSION_LESS 6.7)
             drawsAWindowOfTheToldPixelsOverItsOutput
     )
     set_tests_properties(upscale-integration-outputs PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
+    # KWin's animations, which a software-rendered session runs only when told
+    # to, and only for the case about what an opening animation does.
+    add_test(
+        NAME upscale-integration-animated
+        COMMAND
+            ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-integration-test.py
+            $<TARGET_FILE:upscale_integration_test> --animations
+            enlargesAToldWindowFromItsFirstFrame
+    )
+    set_tests_properties(upscale-integration-animated PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE)
     # A game's X11 window in a process of its own; see x11_game_standin.cpp.
     add_executable(upscale_test_x11_game x11_game_standin.cpp x11_client.cpp x11_client_pointer.cpp)
     target_link_libraries(upscale_test_x11_game PRIVATE Qt6::Core XCB::XCB XCB::RANDR XCB::SHAPE)
@@ -215,6 +225,7 @@ if(KWin_VERSION VERSION_LESS 6.7)
     set(sessions
         upscale-integration
         upscale-integration-outputs
+        upscale-integration-animated
         upscale-x11-integration
         upscale-x11-scaled
     )

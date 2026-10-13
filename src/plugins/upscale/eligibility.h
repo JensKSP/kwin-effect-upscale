@@ -125,6 +125,20 @@ UpscalePresentation upscalePresentationOf(EffectWindow *window);
 bool upscalePresentation(EffectWindow *window);
 
 /**
+ * Keeps KWin's opening animations off @p window while the effect would enlarge
+ * it, now or once it goes fullscreen, in the name of @p claimant.
+ *
+ * Scale and Fade animate a window in for 200 and 150 ms, and a pass they scale
+ * or fade is one the effect hands back, so a window of the told size was drawn
+ * as it is, small in the corner, until the animation had ended (vkmark on
+ * pcjensd, 2026-10-11). KWin's effects keep off a window another of them has
+ * claimed with WindowAddedGrabRole, and cancel an animation they began when the
+ * claim comes after it, as it does for an X11 game that goes fullscreen once it
+ * is mapped. A claim another effect made first is left as it is.
+ */
+void upscaleClaimOpening(EffectWindow *window, QObject *claimant);
+
+/**
  * Tells eligibility the screen mode, in device pixels, the effect told the
  * Wayland client of a window about that window's output, or an invalid size.
  * Set by the effect, which keeps what it told; unset, nothing was told.
