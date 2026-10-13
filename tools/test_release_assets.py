@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Exercise release validation with real Debian archives and corrupted inventories."""
 
-import datetime
+import datetime as dt
 import hashlib
 import re
 import subprocess
@@ -74,7 +74,7 @@ class ReleaseAssetsTest(unittest.TestCase):
             repository="owner/kwin-effect-upscale",
             tag=f"v{self.version}",
             commit="0123456789abcdef0123456789abcdef01234567",
-            created=datetime.datetime(2026, 9, 28, tzinfo=datetime.UTC),
+            created=dt.datetime(2026, 9, 28, tzinfo=dt.UTC),
             source=Path(__file__).resolve().parent.parent,
         )
 

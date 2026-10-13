@@ -4,7 +4,7 @@
 """Validate the full release inventory before checksum generation and signing."""
 
 import argparse
-import datetime
+import datetime as dt
 import os
 import subprocess
 from pathlib import Path
@@ -27,7 +27,7 @@ def origin(version: str, channel: str) -> Origin:
         repository=os.environ["GITHUB_REPOSITORY"],
         tag="nightly" if channel == "nightly" else f"v{version}",
         commit=commit.strip(),
-        created=datetime.datetime.fromtimestamp(int(epoch), datetime.UTC),
+        created=dt.datetime.fromtimestamp(int(epoch), dt.UTC),
         source=ROOT,
     )
 
