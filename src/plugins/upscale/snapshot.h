@@ -92,8 +92,9 @@ struct UpscaleSnapshot
     // Custom's share, in basis points as resolutionRatio() takes it.
     int percentage = 10000;
     double sharpening = 0;
-    // How the picture is sampled, where it lies on the output in device
-    // pixels, and the whole factor Integer enlarged it by.
+    // How the picture is laid and sampled, where it lies on the output in
+    // device pixels, and the whole factor Integer enlarged it by.
+    UpscaleGeometry geometry = UpscaleGeometry::Fit;
     UpscaleFilter filter = UpscaleFilter::Fsr;
     QRect picture;
     int factor = 0;

@@ -340,6 +340,22 @@ UpscaleFilter UpscaleSettings::filter() const
     return value(UpscaleSetting::Filter) == int(UpscaleFilter::Nearest) ? UpscaleFilter::Nearest : UpscaleFilter::Fsr;
 }
 
+double UpscaleSettings::requestRatio() const
+{
+    const double ratio = resolutionRatio(resolution(), value(UpscaleSetting::Percentage));
+    return geometry() == UpscaleGeometry::Integer ? 1.0 / upscaleWholeFactor(ratio) : ratio;
+}
+
+UpscaleSize UpscaleSettings::requestSize(UpscaleSize pixels) const
+{
+    return upscaleRequestSize(pixels, resolutionRatio(resolution(), value(UpscaleSetting::Percentage)), geometry());
+}
+
+bool UpscaleSettings::honours(UpscaleSize size, UpscaleSize output) const
+{
+    return upscalePicture(size, output, geometry(), filter()).sizing == UpscaleSizing::Supported;
+}
+
 // The global layer as the effect last read it, once it asks for that; see
 // upscaleKeepGlobalSettings().
 struct UpscaleKeptGlobal

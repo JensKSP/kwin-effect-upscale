@@ -37,10 +37,11 @@ void UpscaleResolutionPreview::build(QFormLayout *form, QWidget *parent, const Q
     watchScreens();
 }
 
-void UpscaleResolutionPreview::show(ResolutionPreset preset, int basisPoints, int minimumPixels)
+void UpscaleResolutionPreview::show(ResolutionPreset preset, int basisPoints, UpscaleGeometry geometry, int minimumPixels)
 {
     m_preset = preset;
     m_basisPoints = basisPoints;
+    m_geometry = geometry;
     m_minimumPixels = minimumPixels;
     update();
 }
@@ -75,7 +76,8 @@ void UpscaleResolutionPreview::update()
             lines.append(i18nc("%1 is a screen", "%1: not upscaled, at or below the limit", name));
             continue;
         }
-        const UpscaleSize desired = desiredResolution(output, m_preset, m_basisPoints);
+        // What the game is told, which Integer makes a whole factor's share.
+        const UpscaleSize desired = upscaleRequestSize(output, resolutionRatio(m_preset, m_basisPoints), m_geometry);
         lines.append(i18nc("%1 is a screen, %2 × %3 the render resolution", "%1: renders at %2 × %3", name,
                            QString::number(desired.width), QString::number(desired.height)));
     }

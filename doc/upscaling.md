@@ -611,6 +611,20 @@ drawn by KWin as usual: content no smaller than its output, content FSR would
 have to enlarge more than twice, content no whole factor fits, and FSR asked for
 a whole factor other than two. Nothing is silently downscaled or cropped.
 
+What a game is asked to render follows from the same rule, decided by Jens on
+2026-10-13. A resolution names a share of the output, and Integer enlarges by
+whole factors only, so under Integer the effect asks for the share of the whole
+factor nearest the resolution's: Quality, Balanced and Performance ask for half
+the output, which is enlarged twice and fills it, and Ultra Quality comes out
+at the whole output, which asks for nothing. Of two factors equally near, the
+larger is taken, since a resolution below native asked for less. Asking for the
+resolution's own share would ask for a buffer Integer enlarges by one, which
+FSR refuses and Nearest leaves as small as it was asked. The status names the
+size asked for and its factor beside the resolution's share, and the settings'
+preview shows that size. A game told a mode of its output's list, as on X11, is
+told the wish itself or nothing, because any other listed mode the scaler takes
+is enlarged by one. A game that chooses its own size is laid out as above.
+
 The destination is calculated in the output's device pixels, independently of
 the desktop scale, and the one pixel by which opposite bars can differ goes to
 the bottom and the right. The bars are drawn black, which is zero in every

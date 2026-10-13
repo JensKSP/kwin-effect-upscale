@@ -189,9 +189,15 @@ static QString desiredText(const UpscaleSnapshot &snapshot)
     }
     // A wish, not what the game drew: the method that asked for it and the
     // size that arrived are reported beside it.
-    return i18n("%1, %2% of the destination (%3)", presetName(snapshot.preset),
-                qRound(resolutionRatio(snapshot.preset, snapshot.percentage) * 100),
-                upscaleSizeText(QSize(snapshot.desired.width, snapshot.desired.height)));
+    const double ratio = resolutionRatio(snapshot.preset, snapshot.percentage);
+    const QString desired = upscaleSizeText(QSize(snapshot.desired.width, snapshot.desired.height));
+    if (snapshot.geometry == UpscaleGeometry::Integer) {
+        // What Integer asks for is not the share named, and saying so is
+        // what explains a game told half the screen at Quality.
+        return i18n("%1, %2% of the destination, %3 for a whole factor of %4", presetName(snapshot.preset), qRound(ratio * 100),
+                    desired, upscaleWholeFactor(ratio));
+    }
+    return i18n("%1, %2% of the destination (%3)", presetName(snapshot.preset), qRound(ratio * 100), desired);
 }
 
 static QString selection(const UpscaleSnapshot &snapshot)

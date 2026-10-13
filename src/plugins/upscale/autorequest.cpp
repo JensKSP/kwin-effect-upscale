@@ -85,8 +85,8 @@ static double autoRatio(EffectWindow *window, const UpscaleApplication *claimed,
     }
     // resolutionRatio() answers Native with one, which is also the answer for
     // asking nothing, so Native, which asks for nothing smaller, needs no test
-    // of its own.
-    return resolutionRatio(settings.resolution(), settings.value(UpscaleSetting::Percentage));
+    // of its own; nor does Integer at a whole factor of one.
+    return settings.requestRatio();
 }
 
 // Whether Auto has a Wayland window to ask, or is waiting for one to answer.

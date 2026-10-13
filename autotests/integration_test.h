@@ -53,6 +53,7 @@ private Q_SLOTS:
     void mapsTouchOntoThePicture();
     void drawsAWindowOfTheToldSizeOverItsOutput();
     void drawsAWindowOfTheToldPixelsOverItsOutput();
+    void advertisesAWholeFactorsShareUnderInteger();
     void autoResizesAClientThatIgnoresScale();
     void autoConfiguresAnIntegerClientBeforeItsFirstBuffer_data();
     void autoConfiguresAnIntegerClientBeforeItsFirstBuffer();

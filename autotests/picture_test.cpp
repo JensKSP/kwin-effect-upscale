@@ -26,6 +26,8 @@ private Q_SLOTS:
     void placesThePicture_data();
     void placesThePicture();
     void choosesTheNearestListedSize();
+    void asksForAWholeFactorsShare();
+    void reachesAWholeFactorsShareInScaleSteps();
 };
 
 void PictureTest::placesThePicture_data()
@@ -94,6 +96,59 @@ void PictureTest::choosesTheNearestListedSize()
     QCOMPARE(nearestListedSize({{1920, 1080}, {2560, 1440}}, {2240, 1260}, output), (UpscaleSize{2560, 1440}));
     // Neither the output's own size, another shape, nor one below half is offered.
     QCOMPARE(nearestListedSize({{3840, 2160}, {2048, 1536}, {1600, 900}}, {2259, 1271}, output), (UpscaleSize{0, 0}));
+}
+
+// Integer is told the share of the whole factor nearest the resolution's, so
+// that what it asks for is what it enlarges (Jens, 2026-10-13): Quality's two
+// thirds is told half, which FSR enlarges by two, rather than 2560 × 1440,
+// which it refused under Integer.
+void PictureTest::asksForAWholeFactorsShare()
+{
+    const UpscaleSize output{3840, 2160};
+    const auto whole = UpscaleGeometry::Integer;
+    QCOMPARE(upscaleWholeFactor(resolutionRatio(ResolutionPreset::UltraQuality, 0)), 1);
+    QCOMPARE(upscaleWholeFactor(resolutionRatio(ResolutionPreset::Quality, 0)), 2);
+    QCOMPARE(upscaleWholeFactor(resolutionRatio(ResolutionPreset::Balanced, 0)), 2);
+    QCOMPARE(upscaleWholeFactor(resolutionRatio(ResolutionPreset::Performance, 0)), 2);
+    QCOMPARE(upscaleWholeFactor(resolutionRatio(ResolutionPreset::Native, 0)), 1);
+    // Three quarters lies as near the whole output as half of it: the smaller
+    // wins, since a resolution below native asked for less. Just above, all.
+    QCOMPARE(upscaleWholeFactor(0.75), 2);
+    QCOMPARE(upscaleWholeFactor(0.7501), 1);
+    QCOMPARE(upscaleWholeFactor(0.3), 3);
+    QCOMPARE(upscaleWholeFactor(0.0), 1);
+    QCOMPARE(upscaleRequestSize(output, resolutionRatio(ResolutionPreset::Quality, 0), whole), (UpscaleSize{1920, 1080}));
+    QCOMPARE(upscaleRequestSize(output, resolutionRatio(ResolutionPreset::UltraQuality, 0), whole), output);
+    QCOMPARE(upscaleRequestSize(output, resolutionRatio(ResolutionPreset::Quality, 0), UpscaleGeometry::Fit),
+             (UpscaleSize{2560, 1440}));
+    // Half an odd output is divided down, so that two times it still fits.
+    const UpscaleSize odd = upscaleRequestSize({1365, 767}, 0.5, whole);
+    QCOMPARE(odd, (UpscaleSize{682, 383}));
+    QCOMPARE(upscalePicture(odd, {1365, 767}, whole, UpscaleFilter::Fsr).sizing, UpscaleSizing::Supported);
+    // An X11 output's list offers Integer the wish itself or nothing.
+    const std::vector<UpscaleSize> listed{{3840, 2160}, {2560, 1440}, {1920, 1080}, {1280, 720}};
+    QCOMPARE(upscaleNearestListedSize(listed, {1920, 1080}, output, whole), (UpscaleSize{1920, 1080}));
+    QCOMPARE(upscaleNearestListedSize({{3840, 2160}, {2560, 1440}}, {1920, 1080}, output, whole), (UpscaleSize{0, 0}));
+    QCOMPARE(upscaleNearestListedSize({{3840, 2160}, {2560, 1440}}, {1920, 1080}, output, UpscaleGeometry::Fit),
+             (UpscaleSize{2560, 1440}));
+}
+
+// A client moved in whole steps of the output's scale is told the step Integer
+// enlarges by the factor asked for, or nothing where no step gives it.
+void PictureTest::reachesAWholeFactorsShareInScaleSteps()
+{
+    const UpscaleSize output{3840, 2160};
+    const auto whole = UpscaleGeometry::Integer;
+    // At scale two, one is half the output, twice enlarged.
+    QCOMPARE(upscaleReachableScale(output, 2, ResolutionPreset::Quality, 0, whole), 1);
+    // At scale three, a third is enlarged three times and two thirds once:
+    // neither is two. Fit takes two thirds, Quality's own share.
+    QCOMPARE(upscaleReachableScale(output, 3, ResolutionPreset::Quality, 0, whole), 0);
+    QCOMPARE(upscaleReachableScale(output, 3, ResolutionPreset::Quality, 0, UpscaleGeometry::Fit), 2);
+    // Two fifths is enlarged twice, between bars.
+    QCOMPARE(upscaleReachableScale(output, 2.5, ResolutionPreset::Performance, 0, whole), 1);
+    // A factor of one asks nothing.
+    QCOMPARE(upscaleReachableScale(output, 2, ResolutionPreset::UltraQuality, 0, whole), 0);
 }
 
 QTEST_GUILESS_MAIN(PictureTest)

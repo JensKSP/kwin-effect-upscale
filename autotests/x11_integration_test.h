@@ -74,7 +74,7 @@ private Q_SLOTS:
     void anUnnamedProgramIsHeldAtItsFirstMapping();
     void reenteringFullscreenAtOnce();
     void fitsAnEmulatedModeBetweenBars();
-    void centresAPresentedWindowByAWholeFactor();
+    void asksAWholeFactorsShareUnderInteger();
     void scalesAWindowOfAFractionalLogicalSize();
     void answersUnlistedGamesUnderAllGames();
     void presentsAProcessShownItsGamesScreen();

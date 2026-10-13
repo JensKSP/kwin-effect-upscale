@@ -1113,6 +1113,10 @@ msgid "%1, %2% of the destination (%3)"
 msgstr "%1, %2 % del destino (%3)"
 
 #, kde-format
+msgid "%1, %2% of the destination, %3 for a whole factor of %4"
+msgstr "%1, %2 % del destino, %3 para un factor entero de %4"
+
+#, kde-format
 msgctxt ""
 "A window's state, one of three listed after “Selection:”, joined by commas"
 msgid "active"

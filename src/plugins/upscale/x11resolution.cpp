@@ -206,7 +206,7 @@ static bool upscaleX11ResizeWanted(const UpscaleApplication *application, const 
         return false;
     }
     const UpscaleSettings settings = upscaleSettingsForWindow(window);
-    if (!settings.acts() || settings.resolution() == ResolutionPreset::Native) {
+    if (!settings.acts() || settings.requestRatio() >= 1.0) {
         return false;
     }
     const UpscaleMethod method = upscaleMethodFor(application, presentation);
@@ -224,9 +224,8 @@ QSize upscaleWantedSize(const Window *window)
     if (!settings.acts() || !exceedsMinimumPixels({pixels.width(), pixels.height()}, settings.value(UpscaleSetting::MinimumPixels))) {
         return {};
     }
-    const UpscaleSize size = desiredResolution({pixels.width(), pixels.height()}, settings.resolution(),
-                                               settings.value(UpscaleSetting::Percentage));
-    if (!canUpscale(size, {pixels.width(), pixels.height()}) || size.width > 65535 || size.height > 65535) {
+    const UpscaleSize size = settings.requestSize({pixels.width(), pixels.height()});
+    if (!settings.honours(size, {pixels.width(), pixels.height()}) || size.width > 65535 || size.height > 65535) {
         return {};
     }
     return QSize(size.width, size.height);
@@ -316,7 +315,8 @@ UpscaleX11Resolution::Request UpscaleX11Resolution::requestFor(X11Window *window
                           qRound(window->output()->geometryF().y() * scale));
     // A game checks its mode against the ones the output lists and refuses
     // any other, so a wish the list lacks asks for the listed mode nearest it.
-    const QSize size = upscaleX11ListedSize(position, upscaleWantedSize(window), window->output()->pixelSize());
+    const QSize size = upscaleX11ListedSize(position, upscaleWantedSize(window), window->output()->pixelSize(),
+                                            upscaleSettingsForWindow(window).geometry());
     if (size.isEmpty()) {
         return {};
     }

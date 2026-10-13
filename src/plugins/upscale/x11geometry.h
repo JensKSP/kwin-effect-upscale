@@ -8,6 +8,8 @@
 
 #include "config-kwin.h"
 
+#include "picture.h"
+
 #if KWIN_BUILD_X11
 #include <QByteArray>
 #include <QPoint>
@@ -25,9 +27,10 @@ bool upscaleX11ModeAvailable(const QPoint &position, const QSize &size);
 /**
  * The mode to ask for @p wanted on the output at @p position: the wish where
  * the output lists it, otherwise the listed mode nearest to it that the
- * scaler enlarges to @p output, or nothing where none is.
+ * scaler enlarges to @p output, or nothing where none is; under Integer the
+ * wish or nothing, see upscaleNearestListedSize().
  */
-QSize upscaleX11ListedSize(const QPoint &position, const QSize &wanted, const QSize &output);
+QSize upscaleX11ListedSize(const QPoint &position, const QSize &wanted, const QSize &output, UpscaleGeometry geometry);
 /** RandR mode timing encoded little-endian for connection policy, or empty. */
 QByteArray upscaleX11ModeTiming(const QPoint &position, const QSize &size);
 bool upscaleX11PrimaryOutput(const QPoint &position);

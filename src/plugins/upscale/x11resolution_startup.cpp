@@ -118,7 +118,7 @@ bool UpscaleX11Resolution::holdMap(xcb_generic_event_t *generic)
         settings.setActs(false);
     }
     const UpscaleMethod method = upscaleMethodFor(application, UpscalePresentation::X11FullScreen);
-    if (!settings.acts() || settings.resolution() == ResolutionPreset::Native
+    if (!settings.acts() || settings.requestRatio() >= 1.0
         || (method != UpscaleMethod::Auto && method != UpscaleMethod::X11Resize)
         || (info.windowType(NET::AllTypesMask) != NET::Normal && info.windowType(NET::AllTypesMask) != NET::Unknown)) {
         return false;
