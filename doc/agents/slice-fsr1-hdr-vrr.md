@@ -231,9 +231,11 @@ alt-tab and aiming) and scRGB (Godot, measured), each scaled with
 `VRR_ENABLED=1`. The handbook's
 [HDR and VRR section](../upscaling.md#hdr-and-variable-refresh-rate) now
 states the compatibility with that evidence. Still open for this slice: Jens's
-visual verdict on the scRGB run, HDR on the television, the integer-geometry
-refusal after a told mode, the start-up flash of a told client, and the
-remaining matrix rows (image quality, cost matrix, lifecycle on the TV).
+visual verdict on the scRGB run, HDR on the television, and the remaining
+matrix rows (image quality, cost matrix, lifecycle on the TV). The
+integer-geometry refusal after a told mode and the start-up flash of a told
+client were fixed on 2026-10-13, see below; neither fix has been seen on
+hardware yet.
 
 **Closing HDR and VRR on this host, plan of 2026-10-11.** Jens asked to run
 the tests needed to call HDR and VRR working, and nothing else. Each run is
@@ -489,6 +491,32 @@ told the smaller mode, and the refusal leaves it where KWin puts it. Defect,
 outside HDR and VRR: with integer geometry the effect must not tell a
 resolution it will then refuse to enlarge, or must present what it told
 centred with bars. The settings were restored (Geometry removed, Quality).
+
+**Both defects fixed, 2026-10-13, on wzpc, in the containers.** Integer:
+Jens chose that the effect asks for the share of the whole factor nearest
+the resolution's (`upscaleWholeFactor()`, `UpscaleSettings::requestSize()`):
+Quality, Balanced and Performance ask for half, Ultra Quality for nothing;
+scale steps and X11 listed modes are taken only where they give that factor,
+the status names the factor, and the settings' preview shows the asked size.
+The handbook's [aspect ratio and integer scaling](../upscaling.md#aspect-ratio-and-integer-scaling)
+states it. Tests: `asksForAWholeFactorsShare` and
+`reachesAWholeFactorsShareInScaleSteps` in `upscale-picture`, the status in
+`upscale-snapshot`, `advertisesAWholeFactorsShareUnderInteger` in the Wayland
+session and `asksAWholeFactorsShareUnderInteger` in the X11 session, which
+replaces `centresAPresentedWindowByAWholeFactor`: that case had the effect
+ask for 2560 × 1440 at Integer and show it at one, which the rule no longer
+does. Against the unchanged effect the two session cases failed, told
+85 × 85 and 2560 × 1440; with the fix they pass. The start-up flash was
+KWin's Scale effect, which animates a new window in for 200 ms, the 0.2 s
+measured: its passes are scaled and translucent, so the effect handed them
+back. The effect now claims the opening of a window it will enlarge with
+`WindowAddedGrabRole` (`upscaleClaimOpening()`), which Scale and Fade
+respect. `enlargesAToldWindowFromItsFirstFrame`, in a session of its own,
+`upscale-integration-animated`, where `KWIN_EFFECTS_FORCE_ANIMATIONS=1` lets
+the software-rendered session load Scale: drawn five frames before the first
+enlargement without the claim, enlarged from the first with it. Neither fix
+has run on pcjensd or the television, and the conformance machine, whose
+upstream animation cases run with the effect loaded, has not run either.
 
 KWin's support information
 reports only the configured `Adaptive Sync: automatic`, never whether it is
@@ -1400,7 +1428,7 @@ factor one, odd bars, no whole factor and the refusals;
 buffer on the 128 × 128 session and checks two positions and the confined clamp
 at both edges; `fitsAnEmulatedModeBetweenBars` sets a 1440 × 1080 mode itself
 and is skipped before KWin 6.6; `centresAPresentedWindowByAWholeFactor` asks for
-2560 × 1440 with Integer and Nearest. Seen failing against the defect each
+2560 × 1440 with Integer and Nearest (replaced on 2026-10-13, see above). Seen failing against the defect each
 guards: the Wayland case with the filter's motion handling disabled, (20, 64)
 unmapped, and with only the clamp disabled, x −11.3; the own-mode case with X11
 excluded again, (254, 100) stretched, on KWin 6.6; the whole-factor case before
