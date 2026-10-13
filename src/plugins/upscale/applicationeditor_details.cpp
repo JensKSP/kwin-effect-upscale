@@ -166,7 +166,7 @@ void UpscaleApplicationEditor::updatePreview()
         return application->overrides[std::size_t(setting)].value_or(m_global.value(setting));
     };
     m_preview->show(ResolutionPreset(effective(UpscaleSetting::Resolution)), effective(UpscaleSetting::Percentage),
-                    effective(UpscaleSetting::MinimumPixels));
+                    UpscaleGeometry(effective(UpscaleSetting::Geometry)), effective(UpscaleSetting::MinimumPixels));
 }
 
 void UpscaleApplicationEditor::showNote(const UpscaleApplication &application)

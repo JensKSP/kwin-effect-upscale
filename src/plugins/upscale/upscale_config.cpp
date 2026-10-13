@@ -328,7 +328,8 @@ void UpscaleEffectConfig::updatePreview()
     m_percentage->setToolTip(i18n("Share of the screen's width and height the game renders at. Snaps to the "
                                   "common resolutions of %1.",
                                   largest.name));
-    m_preview->show(preset, m_percentage->value(), upscaleResolutionPixels(m_minimumPixels, UpscaleConfig::minimumPixels()));
+    m_preview->show(preset, m_percentage->value(), UpscaleGeometry(m_geometry->currentIndex()),
+                    upscaleResolutionPixels(m_minimumPixels, UpscaleConfig::minimumPixels()));
     if (m_editor && m_methods) {
         UpscaleMethods methods;
         m_methods->store(methods);

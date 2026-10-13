@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include "resolution.h"
+#include "picture.h"
 
 #include <QObject>
 
@@ -40,7 +40,7 @@ public:
     void build(QFormLayout *form, QWidget *parent, const QString &name);
 
     /** Show what these values give; @p basisPoints is Custom's share. */
-    void show(ResolutionPreset preset, int basisPoints, int minimumPixels);
+    void show(ResolutionPreset preset, int basisPoints, UpscaleGeometry geometry, int minimumPixels);
 
 private:
     void watchScreens();
@@ -49,6 +49,7 @@ private:
     QLabel *m_label = nullptr;
     ResolutionPreset m_preset = ResolutionPreset::Native;
     int m_basisPoints = 10000;
+    UpscaleGeometry m_geometry = UpscaleGeometry::Fit;
     int m_minimumPixels = 0;
 };
 

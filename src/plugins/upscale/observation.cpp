@@ -48,7 +48,7 @@ static bool nearestReachable(const UpscaleSnapshot &state)
         return false;
     }
     const UpscaleSize pixels{state.destination.width(), state.destination.height()};
-    const int step = reachableScale(pixels, state.outputScale, state.preset, state.percentage);
+    const int step = upscaleReachableScale(pixels, state.outputScale, state.preset, state.percentage, state.geometry);
     const UpscaleSize nearest = step > 0 ? scaledRequest(pixels, state.outputScale, step) : UpscaleSize{};
     return QSize(nearest.width, nearest.height) == state.advertised;
 }
@@ -57,6 +57,7 @@ static bool nearestReachable(const UpscaleSnapshot &state)
 static void describePicture(UpscaleSnapshot &state, EffectWindow *window, const UpscaleSettings &settings)
 {
     state.sharpening = settings.sharpening();
+    state.geometry = settings.geometry();
     state.filter = settings.filter();
     if (const UpscalePicture placed = upscalePictureOf(window); placed.sizing == UpscaleSizing::Supported) {
         state.picture = QRect(placed.x, placed.y, placed.width, placed.height);
@@ -71,7 +72,8 @@ static void describeOutput(UpscaleSnapshot &state, UpscaleOutput *output)
     state.destination = output->pixelSize();
     state.outputScale = output->scale();
     state.outputArea = output->geometryF();
-    state.desired = desiredResolution({state.destination.width(), state.destination.height()}, state.preset, state.percentage);
+    state.desired = upscaleRequestSize({state.destination.width(), state.destination.height()},
+                                       resolutionRatio(state.preset, state.percentage), state.geometry);
     state.nearestReachable = nearestReachable(state);
 }
 

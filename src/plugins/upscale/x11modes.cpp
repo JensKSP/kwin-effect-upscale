@@ -83,12 +83,13 @@ static std::vector<UpscaleSize> listedModes(const QPoint &position)
     return listed;
 }
 
-QSize upscaleX11ListedSize(const QPoint &position, const QSize &wanted, const QSize &output)
+QSize upscaleX11ListedSize(const QPoint &position, const QSize &wanted, const QSize &output, UpscaleGeometry geometry)
 {
     if (wanted.isEmpty()) {
         return {};
     }
-    const UpscaleSize chosen = nearestListedSize(listedModes(position), {wanted.width(), wanted.height()}, {output.width(), output.height()});
+    const UpscaleSize chosen = upscaleNearestListedSize(listedModes(position), {wanted.width(), wanted.height()},
+                                                        {output.width(), output.height()}, geometry);
     return QSize(chosen.width, chosen.height);
 }
 

@@ -113,4 +113,89 @@ inline UpscalePicture upscalePicture(UpscaleSize input, UpscaleSize output, Upsc
     return picture;
 }
 
+/**
+ * The whole factor Integer asks a client's buffer to be enlarged by, for a
+ * resolution that asks for the share @p ratio of its output.
+ *
+ * Integer enlarges by whole factors only, so the share a resolution names
+ * would be told and then refused, or shown small between bars: on pcjensd,
+ * 2026-10-11, Quality told a game 2560 × 1440 on 3840 × 2160, and FSR, which
+ * enlarges by two and nothing else under Integer, refused it and left the game
+ * in the corner. The factor is the one whose share, its reciprocal, lies
+ * nearest the resolution's: Quality, Balanced and Performance ask for half the
+ * output, Ultra Quality for all of it, which is asking nothing. A tie goes to
+ * the larger factor, since a resolution below native asked for less. Decided
+ * by Jens on 2026-10-13.
+ */
+inline int upscaleWholeFactor(double ratio)
+{
+    if (!(ratio > 0.0) || ratio >= 1.0) {
+        return 1;
+    }
+    // The factor whose share is at or above the wish, and the next one below.
+    const int above = int(1.0 / ratio);
+    return 1.0 / above - ratio >= ratio - 1.0 / (above + 1) ? above + 1 : above;
+}
+
+/**
+ * The buffer a client is asked to commit on an @p output of that many device
+ * pixels, when its resolution asks for the share @p ratio.
+ *
+ * Integer divides rather than rounds: half an odd output rounded up would be
+ * enlarged by two past the output, which leaves one as the only whole factor.
+ * A factor of one asks for the output itself, which is asking nothing.
+ */
+inline UpscaleSize upscaleRequestSize(UpscaleSize output, double ratio, UpscaleGeometry geometry)
+{
+    if (geometry == UpscaleGeometry::Integer) {
+        const int factor = upscaleWholeFactor(ratio);
+        return {output.width / factor, output.height / factor};
+    }
+    return {int(std::round(output.width * ratio)), int(std::round(output.height * ratio))};
+}
+
+/**
+ * reachableScale() for @p geometry. Under Integer the step has to give a buffer
+ * Integer enlarges by the whole factor the resolution names, and the one
+ * nearest that factor's share is taken; where no step does, nothing is told,
+ * as for a wish no step reaches.
+ */
+inline int upscaleReachableScale(UpscaleSize outputPixels, double outputScale, ResolutionPreset preset, int basisPoints,
+                                 UpscaleGeometry geometry)
+{
+    if (geometry != UpscaleGeometry::Integer) {
+        return reachableScale(outputPixels, outputScale, preset, basisPoints);
+    }
+    const int factor = upscaleWholeFactor(resolutionRatio(preset, basisPoints));
+    int best = 0;
+    double bestDistance = 0;
+    for (int candidate = 1; factor > 1 && double(candidate) < outputScale; ++candidate) {
+        const UpscaleSize size = scaledRequest(outputPixels, outputScale, candidate);
+        if (size.width <= 0 || size.height <= 0 || std::min(outputPixels.width / size.width, outputPixels.height / size.height) != factor) {
+            continue;
+        }
+        const double distance = std::abs((candidate / outputScale) - (1.0 / factor));
+        if (best == 0 || distance < bestDistance) {
+            best = candidate;
+            bestDistance = distance;
+        }
+    }
+    return best;
+}
+
+/**
+ * nearestListedSize() for @p geometry. Under Integer the wish is the only
+ * listed mode that will do: the nearest other one the scaler takes lies
+ * between half the output and all of it, which Integer enlarges by one, the
+ * factor FSR refuses and that leaves the picture as small as it was asked.
+ */
+inline UpscaleSize upscaleNearestListedSize(const std::vector<UpscaleSize> &listed, UpscaleSize wanted, UpscaleSize outputPixels,
+                                            UpscaleGeometry geometry)
+{
+    if (geometry != UpscaleGeometry::Integer) {
+        return nearestListedSize(listed, wanted, outputPixels);
+    }
+    return std::ranges::find(listed, wanted) != listed.end() ? wanted : UpscaleSize{0, 0};
+}
+
 } // namespace KWin

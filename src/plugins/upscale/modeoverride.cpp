@@ -127,7 +127,7 @@ UpscaleModeOverride::Advertisement UpscaleModeOverride::advertisementFor(OutputI
         // This kind of client presents whatever size it picked through a
         // viewport that still covers the screen, so any calculated size is
         // reachable and the wish needs no adjusting.
-        const UpscaleSize desired = desiredResolution(destination, preset, percentage);
+        const UpscaleSize desired = settings.requestSize(destination);
         const QSize size(desired.width, desired.height);
         // Advertising the size the output already has says nothing, and the
         // scaler would have nothing to enlarge either.
@@ -135,7 +135,7 @@ UpscaleModeOverride::Advertisement UpscaleModeOverride::advertisementFor(OutputI
     }
     // The other methods move a client only in whole steps of the output's own
     // scale, so the wish is answered with the nearest step that is reachable.
-    const int scale = reachableScale(destination, handle->scale(), preset, percentage);
+    const int scale = upscaleReachableScale(destination, handle->scale(), preset, percentage, settings.geometry());
     if (scale <= 0) {
         return {};
     }

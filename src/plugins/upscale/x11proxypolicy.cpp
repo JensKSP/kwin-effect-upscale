@@ -137,8 +137,8 @@ static QSize connectionSize(const UpscaleApplication *selected, EffectsHandler *
     }
     const QSize pixels = screens.first()->pixelSize();
     const UpscaleSize output{pixels.width(), pixels.height()};
-    const UpscaleSize desired = desiredResolution(output, settings.resolution(), settings.value(UpscaleSetting::Percentage));
-    if (!exceedsMinimumPixels(output, settings.value(UpscaleSetting::MinimumPixels)) || !canUpscale(desired, output)) {
+    const UpscaleSize desired = settings.requestSize(output);
+    if (!exceedsMinimumPixels(output, settings.value(UpscaleSetting::MinimumPixels)) || !settings.honours(desired, output)) {
         answer[QStringLiteral("reason")] = QStringLiteral("native resolution or output below threshold");
         return {};
     }
@@ -242,7 +242,8 @@ QVariantMap UpscaleIdentityService::x11ConnectionPolicy(uint pid, const QStringL
 #if KWIN_BUILD_X11
     // The mode the program is told has to be one Xwayland lists, as a game
     // checks it against them: the wish, or the listed mode nearest to it.
-    const QSize listed = upscaleX11ListedSize(QPoint(0, 0), desired, m_handler->screens().first()->pixelSize());
+    const QSize listed = upscaleX11ListedSize(QPoint(0, 0), desired, m_handler->screens().first()->pixelSize(),
+                                              upscaleResolveSettings(selected).geometry());
     const QByteArray timing = upscaleX11ModeTiming(QPoint(0, 0), listed);
     if (timing.isEmpty()) {
         answer[QStringLiteral("reason")] = QStringLiteral("requested size absent from Xwayland modes");

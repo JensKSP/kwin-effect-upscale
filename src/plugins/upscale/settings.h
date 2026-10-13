@@ -176,6 +176,18 @@ public:
     /** How the picture is sampled. */
     UpscaleFilter filter() const;
 
+    /**
+     * The share of its output a client is asked to render, and the buffer that
+     * is on an output of @p pixels: the resolution's own, or under Integer the
+     * whole factor's nearest it; see upscaleWholeFactor(). Asking for the
+     * whole output is asking nothing.
+     */
+    double requestRatio() const;
+    UpscaleSize requestSize(UpscaleSize pixels) const;
+
+    /** Whether the scaler enlarges a buffer of @p size on an @p output. */
+    bool honours(UpscaleSize size, UpscaleSize output) const;
+
 private:
     bool m_acts = false;
     std::array<int, upscaleSettingCount> m_values{};

@@ -375,3 +375,27 @@ void UpscaleIntegrationTest::drawsAWindowOfTheToldPixelsOverItsOutput()
     QTRY_VERIFY2(status().contains(QStringLiteral("Supplied input: 85 × 85")) && status().contains(QStringLiteral("FSR 1, sharpening")),
                  qPrintable(status()));
 }
+
+// Integer enlarges by whole factors, and FSR by two alone under it, so Quality's
+// two thirds would be told and then refused, and the game left as small as it
+// was told in the corner (vkmark on pcjensd, 2026-10-11). The share told under
+// Integer is the whole factor's nearest it, half of the 128 × 128 screen.
+void UpscaleIntegrationTest::advertisesAWholeFactorsShareUnderInteger()
+{
+    const QDBusReply<bool> loaded = m_effects.call(QStringLiteral("loadEffect"), QStringLiteral("upscale_test_driver"));
+    QVERIFY(loaded.isValid() && loaded.value());
+    const auto unload = qScopeGuard([this]() {
+        writeCatalogue(QString());
+        configureResolution(true, false, {});
+        m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
+    });
+    writeCatalogue(integrationEntry(QStringLiteral("MethodWaylandFullScreen=AdvertisedMode\nMinimumPixels=0\nOrder=1\nGeometry=Integer\n")));
+    configureResolution(true, false, Stored::Quality);
+    WaylandClient game;
+    QVERIFY(game.initialize(true));
+    QCOMPARE(game.advertisedMode(), QSize(64, 64));
+    QVERIFY(game.show(QSize(64, 64)));
+    game.resize(QSize(64, 64));
+    QTRY_VERIFY2(status().contains(QStringLiteral("Supplied input: 64 × 64")) && status().contains(QStringLiteral("enlarged 2 times")),
+                 qPrintable(status()));
+}

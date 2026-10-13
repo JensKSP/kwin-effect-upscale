@@ -251,6 +251,12 @@ void UpscaleSnapshotTest::developerInformationCoversTheState()
     }
     QVERIFY(developer.contains(QStringLiteral("active, fullscreen, selected")));
     QVERIFY2(developer.contains(QStringLiteral("Quality, 67% of the destination (2560 × 1440)")), qPrintable(developer));
+    // Integer asks for a whole factor's share, and says which beside Quality's.
+    UpscaleSnapshot whole = snapshot;
+    whole.geometry = UpscaleGeometry::Integer;
+    whole.desired = UpscaleSize{1920, 1080};
+    const QString integer = upscaleDeveloperInformation(whole);
+    QVERIFY2(integer.contains(QStringLiteral("Quality, 67% of the destination, 1920 × 1080 for a whole factor of 2")), qPrintable(integer));
     QVERIFY(developer.contains(QStringLiteral("buffer format XR24")));
     QVERIFY(developer.contains(QStringLiteral("scanout blocked by this effect: yes")));
     QVERIFY(developer.contains(QStringLiteral("gamma 2.2")));

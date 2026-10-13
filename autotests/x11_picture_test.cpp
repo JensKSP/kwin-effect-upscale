@@ -52,30 +52,34 @@ void UpscaleX11IntegrationTest::fitsAnEmulatedModeBetweenBars()
     QTRY_COMPARE(target.lastMotion(), QPoint(1002, 1000));
 }
 
-// A whole factor of one, stated by the game's entry: the 2560 × 1440 the
-// effect asked for is shown as it is, centred, 640 and 360 pixels in.
-void UpscaleX11IntegrationTest::centresAPresentedWindowByAWholeFactor()
+// Integer, stated by the game's entry, asks for the share of the whole factor
+// nearest the resolution's, so Quality's two thirds become a half: 1920 × 1080,
+// enlarged twice over the whole output. Quality's own 2560 × 1440 was asked
+// before and refused, since FSR enlarges by two alone under Integer, and the
+// game was left as small as it was asked (pcjensd, 2026-10-11).
+void UpscaleX11IntegrationTest::asksAWholeFactorsShareUnderInteger()
 {
     KConfigGroup entry(KSharedConfig::openConfig(QStringLiteral("kwinupscalerc")), QStringLiteral("Application-test"));
     entry.writeEntry("Geometry", QStringLiteral("Integer"));
-    entry.writeEntry("Filter", QStringLiteral("Nearest"));
     entry.sync();
     X11Client below(false);
     QVERIFY(below.show(QByteArrayLiteral("upscale-x11-below"), QRect(0, 0, 3840, 2160), false));
     configure(true, Stored::Quality);
     X11Client target(false);
-    QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 1920, 1080), false));
+    QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 1600, 900), false));
     QVERIFY(target.waitForMapping());
     target.fullscreen(true);
     QTRY_VERIFY(target.isFullscreen());
+    QTRY_COMPARE(target.geometry().size(), QSize(1920, 1080));
     QTRY_VERIFY2(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()));
-    QTRY_VERIFY2(status().contains(QStringLiteral("Nearest neighbor, enlarged 1 time")), qPrintable(status()));
+    QTRY_VERIFY2(status().contains(QStringLiteral("FSR 1, sharpening")) && status().contains(QStringLiteral("enlarged 2 times")),
+                 qPrintable(status()));
     movePointer(logical(QPoint(700, 400)));
     QTRY_VERIFY(target.lastMotion() != QPoint(-1, -1));
-    movePointer(logical(QPoint(640 + 300, 360 + 300)));
+    movePointer(logical(QPoint(600, 600)));
     QTRY_COMPARE(target.lastMotion(), QPoint(300, 300));
-    movePointer(logical(QPoint(640 + 2400, 360 + 1200)));
-    QTRY_COMPARE(target.lastMotion(), QPoint(2400, 1200));
+    movePointer(logical(QPoint(3000, 2000)));
+    QTRY_COMPARE(target.lastMotion(), QPoint(1500, 1000));
 }
 
 // Quality's 2560 × 1440 is no whole number of logical units on a desktop
