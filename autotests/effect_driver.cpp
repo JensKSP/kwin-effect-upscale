@@ -34,6 +34,7 @@
 #include <KSharedConfig>
 
 #include <QFile>
+#include <QHash>
 #include <QStandardPaths>
 #include <QTimer>
 
@@ -119,6 +120,9 @@ class UpscaleTestDriver : public Effect
     // The active window's internal ID, as KWin's window picker names it.
     Q_PROPERTY(QString activeWindowId READ activeWindowId)
     Q_PROPERTY(QString captured READ captured)
+    // Per window class, the frames it was drawn until the effect first
+    // enlarged it, that one included: one where it was enlarged from the start.
+    Q_PROPERTY(QString drawnUntilCaptured MEMBER m_drawnUntilCaptured)
     Q_PROPERTY(bool blocksScanout READ blocksDirectScanout)
     // What a test waits for before judging what a reconfiguration did to an
     // X11 window, rather than a delay that may or may not cover it.
@@ -250,6 +254,8 @@ public:
     void reconfigure(ReconfigureFlags flags) override
     {
         m_captured.clear();
+        m_drawn.clear();
+        m_drawnUntilCaptured.clear();
         m_context->makeCurrent();
         // Only a paint pass sees the render target's colour description, so a
         // test cannot reach one through the effect's own settings.
@@ -426,6 +432,7 @@ public:
     void drawWindow(const RenderTarget &target, const RenderViewport &viewport, EffectWindow *window,
                     int mask, const UpscaleRegion &region, WindowPaintData &data) override
     {
+        ++m_drawn[window->window()->resourceClass()];
         m_context->makeCurrent();
         if (m_active) {
             // A zero luminance range is a colour description no transfer
@@ -458,6 +465,7 @@ public:
                 const QString identity = window->window()->resourceClass();
                 if (!m_captured.contains(identity)) {
                     m_captured.append(identity);
+                    m_drawnUntilCaptured += identity + QLatin1Char(':') + QString::number(m_drawn.value(identity)) + QLatin1Char(' ');
                 }
                 std::array<float, 4> pixel;
                 glReadPixels(64, 64, 1, 1, GL_RGBA, GL_FLOAT, pixel.data());
@@ -482,6 +490,8 @@ private:
     bool m_unsupportedColors = false;
     std::unique_ptr<EglDisplay> m_display;
     QStringList m_captured;
+    QHash<QString, int> m_drawn;
+    QString m_drawnUntilCaptured;
     std::shared_ptr<EglContext> m_context;
     std::unique_ptr<UpscaleEffect> m_effect;
     std::unique_ptr<GLTexture> m_texture;

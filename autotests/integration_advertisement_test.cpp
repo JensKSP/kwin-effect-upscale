@@ -399,3 +399,38 @@ void UpscaleIntegrationTest::advertisesAWholeFactorsShareUnderInteger()
     QTRY_VERIFY2(status().contains(QStringLiteral("Supplied input: 64 × 64")) && status().contains(QStringLiteral("enlarged 2 times")),
                  qPrintable(status()));
 }
+
+// A window opens with KWin's Scale effect animating it in, 200 ms in which its
+// pass is scaled and translucent and the effect hands it back. A window of the
+// told size was drawn as it is for that long, small in the corner (vkmark on
+// pcjensd, 2026-10-11). The effect claims the opening of a window it enlarges,
+// as KWin's effects claim one from each other, so that it is enlarged from the
+// first frame it is drawn in.
+void UpscaleIntegrationTest::enlargesAToldWindowFromItsFirstFrame()
+{
+    // Loaded by default where KWin animates, and only there; see the session
+    // upscale-integration-animated. Asked first, so that a skip leaves nothing
+    // loaded for the cases after it.
+    m_effects.call(QStringLiteral("loadEffect"), QStringLiteral("scale"));
+    const QDBusReply<bool> scale = m_effects.call(QStringLiteral("isEffectLoaded"), QStringLiteral("scale"));
+    if (!scale.isValid() || !scale.value()) {
+        QSKIP("KWin animates nothing in this session");
+    }
+    const QDBusReply<bool> loaded = m_effects.call(QStringLiteral("loadEffect"), QStringLiteral("upscale_test_driver"));
+    QVERIFY(loaded.isValid() && loaded.value());
+    const auto unload = qScopeGuard([this]() {
+        writeCatalogue(QString());
+        configureResolution(true, false, {});
+        m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("scale"));
+        m_effects.call(QStringLiteral("unloadEffect"), QStringLiteral("upscale_test_driver"));
+    });
+    writeCatalogue(integrationEntry(QStringLiteral("MethodWaylandFullScreen=AdvertisedMode\nMinimumPixels=0\nOrder=1\n")));
+    configureResolution(true, false, Stored::Quality);
+    WaylandClient game;
+    QVERIFY(game.initialize(true));
+    QCOMPARE(game.advertisedMode(), QSize(85, 85));
+    QVERIFY(game.show(QSize(85, 85)));
+    game.resize(QSize(85, 85));
+    QTRY_VERIFY2(status().contains(QStringLiteral("drawnUntilCaptured: org.kde.upscale.integrationtest:")), qPrintable(status()));
+    QVERIFY2(status().contains(QStringLiteral("drawnUntilCaptured: org.kde.upscale.integrationtest:1 ")), qPrintable(status()));
+}

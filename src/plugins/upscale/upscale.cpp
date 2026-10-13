@@ -177,6 +177,7 @@ void UpscaleEffect::releaseWhatTheGameLeftBehind()
 
 void UpscaleEffect::watchWindow(EffectWindow *window)
 {
+    upscaleClaimOpening(window, this);
     connect(window, &QObject::destroyed, this, [this, window]() {
         m_renderedInputs.remove(window);
         m_passRefusals.remove(window);

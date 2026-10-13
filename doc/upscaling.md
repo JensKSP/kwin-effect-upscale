@@ -826,6 +826,15 @@ an already enlarged, 8-bit sRGB window. Separate windows and cursors continue
 through the ordinary effect chain; surfaces with child items are initially
 unsupported rather than scaling their contents together.
 
+A pass another effect scales or makes translucent is handed back to KWin. KWin's
+opening animations, Scale and Fade, make every new window such a pass for its
+first 200 and 150 ms, and a game told a smaller mode was drawn at that size in a
+corner until they ended. So the effect claims the opening of a window it will
+enlarge with `WindowAddedGrabRole`, by which KWin's effects keep off a window
+another of them has claimed, and the game opens enlarged from its first frame,
+without the animation. A window that becomes eligible by going fullscreen is
+claimed then, and an animation already running is cancelled.
+
 Capture and optional EASU intermediates use RGB10_A2 for non-linear destination
 transfers (sRGB, gamma 2.2 and PQ), filtering directly in that encoding. Linear
 destinations use RGBA32F to retain signed and extended-range values. KWin’s
