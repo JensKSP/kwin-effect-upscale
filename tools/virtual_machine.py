@@ -16,7 +16,7 @@ the commands; this is what they share.
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 import hashlib
 import re
 import shlex
@@ -237,7 +237,7 @@ def create(machine: Machine, replace: bool) -> None:  # noqa: FBT001 - One comma
             " ".join(host[:2]),
         )
     )
-    stamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%d%H%M%S")
+    stamp = dt.datetime.now(dt.UTC).strftime("%Y%m%d%H%M%S")
     (directory / "meta-data").write_text(
         f"instance-id: upscale-{machine.name}-{stamp}\nlocal-hostname: upscale-{machine.name}\n"
     )

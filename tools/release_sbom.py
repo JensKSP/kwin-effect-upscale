@@ -23,7 +23,7 @@ a reader could take for "none".
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 import hashlib
 import json
 import re
@@ -49,7 +49,7 @@ class Origin:
     repository: str
     tag: str
     commit: str
-    created: datetime.datetime
+    created: dt.datetime
     # The checkout the release was built from, for debian/copyright.
     source: Path
 
@@ -310,9 +310,7 @@ class Document:
                 f"/spdx/{self.origin.commit}"
             ),
             "creationInfo": {
-                "created": self.origin.created.astimezone(datetime.UTC).strftime(
-                    "%Y-%m-%dT%H:%M:%SZ"
-                ),
+                "created": self.origin.created.astimezone(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "creators": [f"Tool: {PROJECT}-release-tools-{self.version}"],
             },
             "packages": self.packages,

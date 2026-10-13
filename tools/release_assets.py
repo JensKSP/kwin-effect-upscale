@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Validate release contents and create deterministic package metadata."""
 
-import datetime
+import datetime as dt
 import email.utils
 import hashlib
 import re
@@ -70,7 +70,7 @@ def validate_version(version: str) -> str:
 
 def package_changelog(version: str, commit: str, epoch: int, maintainer: str) -> str:
     """Derive the entire generated changelog entry from fixed build inputs."""
-    date = email.utils.format_datetime(datetime.datetime.fromtimestamp(epoch, datetime.UTC))
+    date = email.utils.format_datetime(dt.datetime.fromtimestamp(epoch, dt.UTC))
     return (
         f"kwin-effect-upscale ({version}) unstable; urgency=medium\n\n"
         f"  * Build of commit {commit}.\n\n"

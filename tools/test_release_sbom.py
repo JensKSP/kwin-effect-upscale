@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Check that a release's SPDX document says what its files are and need."""
 
-import datetime
+import datetime as dt
 import hashlib
 import json
 import re
@@ -54,7 +54,7 @@ class ReleaseSbomTest(unittest.TestCase):
             repository="owner/kwin-effect-upscale",
             tag=f"v{VERSION}",
             commit="0123456789abcdef0123456789abcdef01234567",
-            created=datetime.datetime(2026, 9, 28, 12, tzinfo=datetime.UTC),
+            created=dt.datetime(2026, 9, 28, 12, tzinfo=dt.UTC),
             source=ROOT,
         )
 
