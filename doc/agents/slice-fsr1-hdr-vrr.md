@@ -446,6 +446,16 @@ effect-off row of `keepsInputAcrossReconfigurations`, whose pointer motion did
 not arrive within five seconds in a run that took 36 s instead of 21, and that
 case alone then passed six runs of six. Not seen on pcjensd yet.
 
+That row failed again in CI on PR #34 and in 3 of 12 runs of the five cases in
+the conformance machine, 2026-10-16. Not the effect, which is off in it, and
+not a lock left by the case before: KWin reported no constraint at the start
+of every run, and releasing the grab does not end Xwayland's lock anyway,
+which lasts as long as the window's hidden cursor. The window was fullscreen,
+focused and active, it received an EnterNotify where the previous case had
+left Xwayland's pointer, and the one move that followed brought it no
+MotionNotify. The case now moves between two points until a motion arrives:
+12 runs of 12 passed.
+
 **Frame-time attempt, Quake II RTX, 2026-10-11 18:42, not a result.**
 `tools/measure-frame-times.py` (now addressing a reloaded build by its name,
 `effect_control.effect_name()`), presets native, quality and performance,
