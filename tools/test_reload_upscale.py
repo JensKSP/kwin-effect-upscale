@@ -12,6 +12,7 @@ from unittest import mock
 
 MODULE = runpy.run_path(str(Path(__file__).with_name("reload-upscale.py")))
 reload_plugin = MODULE["reload_plugin"]
+switch_off = MODULE["switch_off"]
 
 
 def privileged(arguments: list[str], *, gui: bool, failure: str) -> None:
@@ -94,6 +95,26 @@ class ReloadTest(unittest.TestCase):
         active, loaded = self.exercise("identity")
         self.assertEqual(active, {"blur", "upscale"})
         self.assertEqual(loaded[-1], "upscale")
+
+    def test_off_unloads_whichever_copy_runs(self) -> None:
+        """A fresh copy is unloaded by its own name, and nothing is loaded."""
+        active = {"upscale_reload_0123", "blur"}
+        loaded = []
+
+        def bus(method: str, *arguments: str) -> str:
+            if method == "loadedEffects":
+                return "\n".join(sorted(active))
+            if method == "unloadEffect":
+                active.discard(arguments[0])
+            elif method == "loadEffect":
+                loaded.append(arguments[0])
+            return ""
+
+        with mock.patch.dict(switch_off.__globals__, {"bus": bus}):
+            self.assertIn("upscale_reload_0123", switch_off())
+            self.assertEqual(switch_off(), "Upscale was not loaded.")
+        self.assertEqual(active, {"blur"})
+        self.assertEqual(loaded, [])
 
 
 if __name__ == "__main__":

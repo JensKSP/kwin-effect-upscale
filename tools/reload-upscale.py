@@ -51,14 +51,42 @@ def installed_plugin() -> Path:
     return Path(directory) / "kwin/effects/plugins/upscale.so"
 
 
-def replace_effect(active: list[str], name: str) -> str:
-    """Finish unloading before loading and verifying the replacement."""
+def running_copies() -> list[str]:
+    """Name the effect as KWin has it loaded: the installed name or a fresh copy's."""
+    return [
+        name
+        for name in bus("loadedEffects").splitlines()
+        if name == "upscale" or name.startswith(PREFIX)
+    ]
+
+
+def unload(active: list[str]) -> None:
+    """Unload each running copy and confirm that KWin has let go of all of them."""
     for previous in active:
         bus("unloadEffect", previous)
     remaining = set(bus("loadedEffects").splitlines()).intersection(active)
     if remaining:
         message = f"KWin has not unloaded: {', '.join(sorted(remaining))}"
         raise RuntimeError(message)
+
+
+def switch_off() -> str:
+    """Unload whichever copy runs, for a comparison with the effect off.
+
+    A fresh copy's file is removed once KWin has loaded it, so KWin cannot load
+    it again by its name: on 2026-10-11 a timer that unloaded and reloaded the
+    copy by name left the effect off. Switching back on is a reload.
+    """
+    active = running_copies()
+    unload(active)
+    if not active:
+        return "Upscale was not loaded."
+    return f"Upscale switched off ({', '.join(active)}). Run this tool again to switch it on."
+
+
+def replace_effect(active: list[str], name: str) -> str:
+    """Finish unloading before loading and verifying the replacement."""
+    unload(active)
     if bus("loadEffect", name) != "true":
         message = "KWin refused the fresh plugin copy."
         raise RuntimeError(message)
@@ -75,11 +103,7 @@ def reload_plugin(source: Path, *, gui: bool) -> str:
     if source.name != "upscale.so":
         message = "--plugin must name the installed upscale.so."
         raise ValueError(message)
-    active = [
-        name
-        for name in bus("loadedEffects").splitlines()
-        if name == "upscale" or name.startswith(PREFIX)
-    ]
+    active = running_copies()
     name = PREFIX + uuid.uuid4().hex
     staged = source.with_name(name + ".so")
     install = shutil.which("install")
@@ -159,8 +183,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plugin", type=Path, help="installed upscale.so, if outside Qt's prefix")
     parser.add_argument("--gui", action="store_true", help="show the outcome in a KDE dialog")
-    parser.add_argument(
+    action = parser.add_mutually_exclusive_group()
+    action.add_argument(
         "--install-launcher", action="store_true", help="add desktop and menu icons"
+    )
+    action.add_argument(
+        "--off", action="store_true", help="unload the running copy; run again to switch it on"
     )
     arguments = parser.parse_args()
     work = ROOT / "build/reload-upscale"
@@ -172,6 +200,8 @@ def main() -> int:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             if arguments.install_launcher:
                 message = install_launcher(arguments.plugin)
+            elif arguments.off:
+                message = switch_off()
             else:
                 status = reload_plugin(arguments.plugin or installed_plugin(), gui=arguments.gui)
                 message = "Upscale reloaded without restarting KWin.\n\n" + status
