@@ -5166,7 +5166,11 @@ Its drawable follows the X window size per frame, so the X11 resize reaches it.
 - Quake II RTX's window was 2648.28 × 1491.03 logical (3840 × 2162). From the
   sources an unmodified SDL 2 window would be 1490 high and 2161 pixels; a
   logical 1491 came from somewhere, possibly the effect's own advertisement.
-  Open: a `WAYLAND_DEBUG=1` run to see which configure and scale SDL received.
+  Answered the same day by a `WAYLAND_DEBUG=1` run, recorded in the
+  [FSR slice](slice-fsr1-hdr-vrr.md#round-2-with-the-effect-2026-10-11): the
+  1491 came from KWin. SDL's 2161-row buffer made the window 1490.34 logical,
+  and the configure KWin sent at the lowered target scale rounded it up
+  (`snapToPixels`, `xdgshellwindow.cpp:726`); it then held at 1.45.
 - Coverage refused a window running past the output by rounding. Fixed on
   2026-10-11 in the working tree: `upscaleReachesFarEdge()` and
   `upscaleFrameCovers()`, used by the coverage gate, X11 validation (whose
@@ -5174,7 +5178,10 @@ Its drawable follows the X window size per frame, so the X11 resize reaches it.
   rung (whose geometry comparison was exact). Jens's principle: whole buffers
   cannot always match a fractional output, and the effect copes with that
   instead of refusing.
-- Open, to observe: Quake II RTX through its default X11 path; an SDL 3 game
-  through Xwayland; an sdl12-compat game through X11 resize.
+- Observed on pcjensd on 2026-10-11, among the
+  [unattended runs](slice-fsr1-hdr-vrr.md#round-2-with-the-effect-2026-10-11):
+  Quake II RTX through its default X11 path, told 2560 × 1440 as its window
+  size, enlarged, pointer input translated. Open, to observe: an SDL 3 game
+  through Xwayland, and an sdl12-compat game through X11 resize.
 - Not handled, optional: classic SDL 1.2's centred image inside a full-size
   window, which would need the effect to crop a known region.
