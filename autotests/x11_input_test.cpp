@@ -285,8 +285,12 @@ void UpscaleX11IntegrationTest::keepsInputAcrossReconfigurations()
     if (presented) {
         UPSCALE_TRY_PRESENTED(judged);
     }
-    movePointer(logical(QPoint(400, 300)));
-    QTRY_VERIFY(target.lastMotion() != QPoint(-1, -1));
+    // One move after the window has mapped can reach it without a motion: with
+    // the effect off, the window fullscreen, focused and unconstrained, the game
+    // saw none in 3 of 12 runs in the conformance machine (2026-10-16), and in
+    // CI once. Move between two points until one arrives.
+    int moves = 0;
+    QTRY_VERIFY((movePointer(logical(QPoint(400 + ((moves++ % 2) * 2), 300))), target.lastMotion() != QPoint(-1, -1)));
     configure(presented);
     configure(presented);
     QVERIFY(target.takePointer());
