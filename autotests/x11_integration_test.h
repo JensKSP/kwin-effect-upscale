@@ -26,6 +26,18 @@
 #define UPSCALE_TRY_JUDGED(before, count) \
     QTRY_VERIFY2_WITH_TIMEOUT(judgements() >= (before) + (count), qPrintable(status()), 30000)
 
+// Waits until a request the effect presents has been judged once, then for the
+// presentation. "presented by this effect" is reported from the moment the
+// smaller buffer arrives, before validation; a request judged unmet is then
+// restored and asked once more, so input sent in between reaches a window back
+// at its full size, unmapped, as it should. Natively on pcjensd (2026-10-11)
+// and in the conformance machine (2026-10-14) the full-size buffer arrived
+// after the request often enough that cases sent their input in that gap.
+// @p before is judgements() from before the request was started.
+#define UPSCALE_TRY_PRESENTED(before) \
+    UPSCALE_TRY_JUDGED(before, 1);    \
+    QTRY_VERIFY2_WITH_TIMEOUT(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()), 30000)
+
 class UpscaleX11IntegrationTest : public QObject
 {
     Q_OBJECT

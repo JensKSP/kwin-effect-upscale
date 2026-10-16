@@ -22,9 +22,10 @@ void UpscaleX11IntegrationTest::reportsWhatItObserved()
     target.reportProcess();
     QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 1920, 1080), false));
     QVERIFY(target.waitForMapping());
+    const int judged = judgements();
     target.fullscreen(true);
     QTRY_VERIFY(target.isFullscreen());
-    QTRY_VERIFY2(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()));
+    UPSCALE_TRY_PRESENTED(judged);
     const QRegularExpression active(QStringLiteral("^activeWindowId: (\\S+)$"), QRegularExpression::MultilineOption);
     const QString id = active.match(status()).captured(1);
     QVERIFY2(!id.isEmpty(), qPrintable(status()));

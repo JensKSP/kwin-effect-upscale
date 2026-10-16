@@ -68,10 +68,11 @@ void UpscaleX11IntegrationTest::asksAWholeFactorsShareUnderInteger()
     X11Client target(false);
     QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 1600, 900), false));
     QVERIFY(target.waitForMapping());
+    const int judged = judgements();
     target.fullscreen(true);
     QTRY_VERIFY(target.isFullscreen());
-    QTRY_COMPARE(target.geometry().size(), QSize(1920, 1080));
-    QTRY_VERIFY2(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()));
+    UPSCALE_TRY_PRESENTED(judged);
+    QCOMPARE(target.geometry().size(), QSize(1920, 1080));
     QTRY_VERIFY2(status().contains(QStringLiteral("FSR 1, sharpening")) && status().contains(QStringLiteral("enlarged 2 times")),
                  qPrintable(status()));
     movePointer(logical(QPoint(700, 400)));
