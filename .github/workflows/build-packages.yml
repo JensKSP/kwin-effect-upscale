@@ -133,12 +133,12 @@ jobs:
             # installed, both plugins are loaded, and it is reinstalled and
             # removed again.
             python3 -B tools/test-package.py "$TARGET" build/artifacts
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: deliverable-${{ matrix.target }}-${{ matrix.architecture }}
           path: build/artifacts/*
           if-no-files-found: error
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: reports-build-${{ matrix.target }}-${{ matrix.architecture }}
@@ -168,12 +168,12 @@ jobs:
       - name: Make artifacts readable
         if: always()
         run: sudo chown -R "$(id -u):$(id -g)" build
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: deliverable-source
           path: build/artifacts/*.tar.gz
           if-no-files-found: error
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: reports-source
