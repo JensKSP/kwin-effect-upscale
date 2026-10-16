@@ -282,3 +282,53 @@ void UpscaleIntegrationTest::keepsAResizeTheClientRoundedThroughItsBuffer()
     configureResolution(false, false, Stored::Quality);
     QTRY_VERIFY_WITH_TIMEOUT((game.presentFrames(1), game.configuredSize() == QSize(88, 88)), 10000);
 }
+
+// The geometry KWin requests for a window may run past its output by the
+// client's rounding, as its committed frame may. Measured 2026-10-11 with Quake
+// II RTX at scale 1.45: KWin snapped the request to 1490.69 logical rows on a
+// 1489.66 row output, 1.5 device pixels past, and the one pixel the request
+// was held to took the scale back. Here the client draws its 32 logical units
+// at 4.05 as 130 pixels, 2 past the 128 pixel output: held to one pixel, Auto
+// asked nothing at all. Once the client answers, its request is kept.
+void UpscaleIntegrationTest::keepsARequestKWinSnappedPastItsOutput()
+{
+    WaylandClient game;
+    QVERIFY(game.initialize());
+    QSocketNotifier notifier(game.descriptor(), QSocketNotifier::Read);
+    connect(&notifier, &QSocketNotifier::activated, this, [&game]() {
+        game.dispatch();
+    });
+    const int before = game.advertisedScale();
+    const auto restore = qScopeGuard([this, before]() {
+        setOutputScale(before);
+        stopAdvertising();
+    });
+    const QDBusReply<bool> loaded = m_effects.call(QStringLiteral("loadEffect"), QStringLiteral("upscale_test_driver"));
+    QVERIFY(loaded.isValid() && loaded.value());
+    setOutputScale(4.05);
+    writeCatalogue(integrationEntry(QStringLiteral("MethodWaylandFullScreen=Off\nMinimumPixels=0\nOrder=1\n")));
+    configureResolution(true, false, Stored::Quality);
+    configureDisplay(false, false);
+    game.fullscreen(false);
+    game.fullscreen(true);
+    // The client draws its configure at the scale it was last told, rounded,
+    // as SDL does: 32 logical units at 4.05 are 129.6 pixels, drawn as 130.
+    const auto draw = [&game]() {
+        const double scale = game.preferredScale() / 120.0;
+        const QSize configured = game.configuredSize();
+        return game.show(QSize(qRound(configured.width() * scale), qRound(configured.height() * scale)));
+    };
+    QTRY_VERIFY_WITH_TIMEOUT((draw(), game.configuredSize() == QSize(32, 32) && game.preferredScale() == 486), 10000);
+    QVERIFY(draw());
+    QVERIFY(game.presentFrames(5));
+    writeCatalogue(integrationEntry(QStringLiteral("MethodWaylandFullScreen=Auto\nMinimumPixels=0\nOrder=1\n")));
+    configureResolution(true, false, Stored::Quality);
+    QTRY_VERIFY2_WITH_TIMEOUT((draw(), game.presentFrames(1), game.preferredScale() < 486),
+                              qPrintable(QString::number(game.preferredScale()) + QLatin1Char('\n') + status()), 10000);
+    QVERIFY(draw());
+    QTRY_VERIFY2_WITH_TIMEOUT((game.presentFrames(1), status().contains(QStringLiteral("FSR 1, sharpening"))), qPrintable(status()), 10000);
+    // Answered, so it is kept: the scale is not taken back over the frames after.
+    QVERIFY(game.presentFrames(40));
+    QVERIFY2(game.preferredScale() < 486 && status().contains(QStringLiteral("FSR 1, sharpening")),
+             qPrintable(QString::number(game.preferredScale()) + QLatin1Char('\n') + status()));
+}

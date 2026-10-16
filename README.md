@@ -648,6 +648,11 @@ it does not build or install a new version. Administrative authentication may
 be requested to copy and remove a temporary plugin file. KWin and applications
 keep running. The last successful result is in `build/reload-upscale/latest.log`.
 
+To compare with the effect switched off, `python3 -B tools/reload-upscale.py --off`
+unloads whichever copy is running, and running the tool again switches it back
+on. The temporary copy cannot be loaded again by its own name, because its file
+is removed once KWin has loaded it.
+
 This is a development shortcut: Qt can keep an unloaded library in memory, so
 the tool loads a copy under a fresh temporary effect name. The normal settings
 page may therefore report Upscale as unloaded, and its Apply button addresses

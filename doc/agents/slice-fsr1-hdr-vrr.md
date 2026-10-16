@@ -300,9 +300,13 @@ still held the requested geometry to one device pixel on every edge (it is
 and step two was never sent. The coverage fix of this morning had missed this
 fourth comparison. Fixed: it uses `upscaleFrameCovers()` like the committed
 frame. Natively built without warnings; `upscale-placement`,
-`upscale-resolution` and `upscale-integration` passed. A KWin conformance
-case that reproduces the race needs the `containers/wayland-tests` image,
-which pcjensd does not have; not written yet. Jens also saw the persistent
+`upscale-resolution` and `upscale-integration` passed. A case for it was
+written on 2026-10-14 in the integration session, where the effect's own test
+driver can set a fractional scale: `keepsARequestKWinSnappedPastItsOutput`, a
+client drawing 32 logical units at scale 4.05 as 130 pixels, two past the 128
+pixel output. With the one pixel the request was held to (`b75b1aa`
+reverted) Auto asked nothing and the case failed; with the fix it asks, the
+client answers and the request is kept. Jens also saw the persistent
 statistics and developer view all the time, because his kwinrc sets
 `OsdStatistics=true` and `OsdDeveloper=true` explicitly (both off by
 default in a release build). Who set them is not known.
@@ -321,7 +325,8 @@ run 2, scaled (2560 × 1441 to 3840 × 2160) from 17:55:38. At 17:57:08 a timer
 unloaded the effect, and the game returned to native size at once. Loading
 it again failed, because `tools/reload-upscale.py` deletes its temporary
 plugin copy once KWin has loaded it, so no file under that name remained.
-That is a property of the test tool. The effect stayed off for two minutes and was loaded
+That is a property of the test tool; since 2026-10-14 its `--off` switches the
+effect off, whichever copy runs, and running it again switches it on. The effect stayed off for two minutes and was loaded
 again with the reload tool at 17:59:06. Jens: brightness and colours were the same
 with and without the effect. **Open, suspicious:** after loading again into
 the running game, step two brought it back to 2561 × 1440 in a 1766 × 993
@@ -422,6 +427,34 @@ and asks again, and reports "presented by this effect" with the input region
 1920 × 1080 and pointer scale 0.5; the touch at 300, 200 nevertheless reaches
 the game at 299, 199, unmapped. The cases after it fail with it. Open: why
 input is not mapped after the retry, and whether a game can reach that path.
+
+**Explained and fixed, 2026-10-14, in the conformance machine.** Not reproduced
+in the container in eight runs; in the conformance machine every run went
+through the retry and three of four failed. The effect does what it should.
+"presented by this effect" is reported as soon as the smaller buffer arrives,
+before validation; when the full-size buffer then arrives, the request is
+judged unmet, the window is restored to its full size and asked once more three
+seconds later. The cases sent their input right after the first report, into
+that gap, where input reaching a full-size window unmapped is correct: 300, 200
+arrives as 299, 199. A game sees the same for those three seconds, and its
+input is mapped again once the second request holds. The cases now wait for
+the effect's first judgement before the presentation (`UPSCALE_TRY_PRESENTED`
+in `x11_integration_test.h`, used by the eight input cases, the report case and
+`asksAWholeFactorsShareUnderInteger`). Afterwards, five runs in the conformance
+machine, each with the retry: four passed whole; the fifth failed the
+effect-off row of `keepsInputAcrossReconfigurations`, whose pointer motion did
+not arrive within five seconds in a run that took 36 s instead of 21, and that
+case alone then passed six runs of six. Not seen on pcjensd yet.
+
+That row failed again in CI on PR #34 and in 3 of 12 runs of the five cases in
+the conformance machine, 2026-10-16. Not the effect, which is off in it, and
+not a lock left by the case before: KWin reported no constraint at the start
+of every run, and releasing the grab does not end Xwayland's lock anyway,
+which lasts as long as the window's hidden cursor. The window was fullscreen,
+focused and active, it received an EnterNotify where the previous case had
+left Xwayland's pointer, and the one move that followed brought it no
+MotionNotify. The case now moves between two points until a motion arrives:
+12 runs of 12 passed.
 
 **Frame-time attempt, Quake II RTX, 2026-10-11 18:42, not a result.**
 `tools/measure-frame-times.py` (now addressing a reloaded build by its name,

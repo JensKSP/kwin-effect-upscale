@@ -130,9 +130,10 @@ void UpscaleX11IntegrationTest::coversPointerWithoutEmulatedMode()
     QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 1920, 1080), false));
     QVERIFY(target.waitForMapping());
     // No mode request: this is what separates it from the emulated cases.
+    const int judged = judgements();
     target.fullscreen(true);
     QTRY_VERIFY(target.isFullscreen());
-    QTRY_VERIFY2(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()));
+    UPSCALE_TRY_PRESENTED(judged);
     // An offscreen pass of this window draws it at its own scale, which on an
     // output scaled beyond one differs from the screen's. That is not the pass
     // being presented and must not be reported as the reason this one was not.
@@ -167,9 +168,10 @@ void UpscaleX11IntegrationTest::aConfinedPointerReachesTheWholeWindow()
     X11Client target(false);
     QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 1920, 1080), false));
     QVERIFY(target.waitForMapping());
+    const int judged = judgements();
     target.fullscreen(true);
     QTRY_VERIFY(target.isFullscreen());
-    QTRY_VERIFY2(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()));
+    UPSCALE_TRY_PRESENTED(judged);
     movePointer(logical(QPoint(100, 100)));
     QTRY_VERIFY(target.lastMotion() != QPoint(-1, -1));
     QVERIFY(target.confinePointer());
@@ -217,9 +219,10 @@ void UpscaleX11IntegrationTest::keepsTheKeyboardWhereThePointerIs()
     X11Client target(false);
     QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 1920, 1080), false));
     QVERIFY(target.waitForMapping());
+    const int judged = judgements();
     target.fullscreen(true);
     QTRY_VERIFY(target.isFullscreen());
-    QTRY_VERIFY2(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()));
+    UPSCALE_TRY_PRESENTED(judged);
     QTRY_VERIFY(target.isFocused());
 
     // Into the part of the output the window's own rectangle does not cover,
@@ -243,9 +246,10 @@ void UpscaleX11IntegrationTest::letsAPresentedGameLockThePointer()
     X11Client target(false);
     QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 1920, 1080), false));
     QVERIFY(target.waitForMapping());
+    const int judged = judgements();
     target.fullscreen(true);
     QTRY_VERIFY(target.isFullscreen());
-    QTRY_VERIFY2(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()));
+    UPSCALE_TRY_PRESENTED(judged);
 
     // The cursor where the window's own rectangle is not, and the game taking
     // the pointer from there.
@@ -275,13 +279,18 @@ void UpscaleX11IntegrationTest::keepsInputAcrossReconfigurations()
     X11Client target(false);
     QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 1920, 1080), false));
     QVERIFY(target.waitForMapping());
+    const int judged = judgements();
     target.fullscreen(true);
     QTRY_VERIFY(target.isFullscreen());
     if (presented) {
-        QTRY_VERIFY2(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()));
+        UPSCALE_TRY_PRESENTED(judged);
     }
-    movePointer(logical(QPoint(400, 300)));
-    QTRY_VERIFY(target.lastMotion() != QPoint(-1, -1));
+    // One move after the window has mapped can reach it without a motion: with
+    // the effect off, the window fullscreen, focused and unconstrained, the game
+    // saw none in 3 of 12 runs in the conformance machine (2026-10-16), and in
+    // CI once. Move between two points until one arrives.
+    int moves = 0;
+    QTRY_VERIFY((movePointer(logical(QPoint(400 + ((moves++ % 2) * 2), 300))), target.lastMotion() != QPoint(-1, -1)));
     configure(presented);
     configure(presented);
     QVERIFY(target.takePointer());
@@ -377,9 +386,10 @@ void UpscaleX11IntegrationTest::movesThePointerOverAHiddenTitleBar()
     X11Client target(false);
     QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 1920, 1080), false));
     QVERIFY(target.waitForMapping());
+    const int judged = judgements();
     target.fullscreen(true);
     QTRY_VERIFY(target.isFullscreen());
-    QTRY_VERIFY2(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()));
+    UPSCALE_TRY_PRESENTED(judged);
     movePointer(QPoint(100, 100));
     QTRY_COMPARE(target.lastMotion(), QPoint(50, 50));
     movePointer(titleBar);
@@ -402,9 +412,10 @@ void UpscaleX11IntegrationTest::leavesATitleBarAboveAPresentedGame()
     X11Client target(false);
     QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 1920, 1080), false));
     QVERIFY(target.waitForMapping());
+    const int judged = judgements();
     target.fullscreen(true);
     QTRY_VERIFY(target.isFullscreen());
-    QTRY_VERIFY2(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()));
+    UPSCALE_TRY_PRESENTED(judged);
     movePointer(QPoint(100, 100));
     QTRY_COMPARE(target.lastMotion(), QPoint(50, 50));
 
@@ -440,9 +451,10 @@ void UpscaleX11IntegrationTest::mapsTouchOntoAPresentedGame()
     X11Client target(false);
     QVERIFY(target.show(QByteArrayLiteral("upscale-x11-test"), QRect(0, 0, 1920, 1080), false));
     QVERIFY(target.waitForMapping());
+    const int judged = judgements();
     target.fullscreen(true);
     QTRY_VERIFY(target.isFullscreen());
-    QTRY_VERIFY2(status().contains(QStringLiteral("presented by this effect")), qPrintable(status()));
+    UPSCALE_TRY_PRESENTED(judged);
     touchScreen("down 0 300 200");
     // Xwayland converts the touch to whole X pixels on its own terms, a pixel
     // short of the pointer's; unmapped, the press would be at 300, 200.
