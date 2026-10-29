@@ -188,6 +188,7 @@ add_test(NAME upscale-application COMMAND upscale_application_test)
 set(snapshot_test_sources
     snapshot_test.cpp
     snapshot_request_test.cpp
+    snapshot_filter_test.cpp
     ../src/plugins/upscale/application.cpp
     ../src/plugins/upscale/matching.cpp
     ../src/plugins/upscale/pattern.cpp

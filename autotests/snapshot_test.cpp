@@ -114,34 +114,6 @@ void UpscaleSnapshotTest::reportsThePathActuallyTaken()
     const QString nearestHeadsUp = upscaleHeadsUp(nearest);
     QVERIFY2(nearestHeadsUp.contains(QStringLiteral("Nearest neighbor")) && !nearestHeadsUp.contains(QStringLiteral("FSR")),
              qPrintable(nearestHeadsUp));
-    // Another filter is named with the RCAS that follows it, or without.
-    UpscaleSnapshot lanczos = snapshot;
-    lanczos.filter = UpscaleFilter::Lanczos;
-    QVERIFY2(upscaleDeveloperInformation(lanczos).contains(QStringLiteral("Lanczos with RCAS sharpening 50%")),
-             qPrintable(upscaleDeveloperInformation(lanczos)));
-    QVERIFY2(upscaleHeadsUp(lanczos).contains(QStringLiteral("Lanczos + RCAS")), qPrintable(upscaleHeadsUp(lanczos)));
-    lanczos.filter = UpscaleFilter::Bilinear;
-    lanczos.sharpening = 0;
-    QVERIFY2(upscaleDeveloperInformation(lanczos).contains(QStringLiteral("bilinear, no sharpening")),
-             qPrintable(upscaleDeveloperInformation(lanczos)));
-    QVERIFY2(upscaleHeadsUp(lanczos).contains(QStringLiteral("Bilinear")) && !upscaleHeadsUp(lanczos).contains(QStringLiteral("RCAS")),
-             qPrintable(upscaleHeadsUp(lanczos)));
-    // A filter that sharpens itself is not said to be followed by RCAS.
-    UpscaleSnapshot gsr = snapshot;
-    gsr.filter = UpscaleFilter::Gsr;
-    QVERIFY2(upscaleDeveloperInformation(gsr).contains(QStringLiteral("Snapdragon GSR 1 with its own sharpening 50%")),
-             qPrintable(upscaleDeveloperInformation(gsr)));
-    QVERIFY2(upscaleHeadsUp(gsr).contains(QStringLiteral("Snapdragon GSR 1, sharpened")) && !upscaleHeadsUp(gsr).contains(QStringLiteral("RCAS")),
-             qPrintable(upscaleHeadsUp(gsr)));
-    gsr.filter = UpscaleFilter::Nis;
-    QVERIFY2(upscaleDeveloperInformation(gsr).contains(QStringLiteral("NVIDIA Image Scaling with its own sharpening 50%")),
-             qPrintable(upscaleDeveloperInformation(gsr)));
-    // xBRZ never sharpens, and nothing says it does.
-    gsr.filter = UpscaleFilter::Xbrz;
-    gsr.sharpening = 0;
-    const QString xbrz = upscaleDeveloperInformation(gsr);
-    QVERIFY2(xbrz.contains(QStringLiteral("xBRZ")) && !xbrz.contains(QStringLiteral("xBRZ with")) && !xbrz.contains(QStringLiteral("xBRZ, no")),
-             qPrintable(xbrz));
     QVERIFY(!headsUp.contains(QStringLiteral("Client buffer updates")));
     QVERIFY(!headsUp.contains(QStringLiteral("compositor repaints")));
     QVERIFY(!headsUp.contains(QStringLiteral("percentile")));

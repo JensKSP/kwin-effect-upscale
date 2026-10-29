@@ -7,6 +7,7 @@
 #include "settings.h"
 
 #include "application.h"
+#include "filtertext.h"
 #include "legacysettings.h"
 #include "upscaleconfig.h"
 
@@ -101,29 +102,21 @@ static int geometryValue(const QString &name, int absent)
     return name == QLatin1String("Integer") ? int(UpscaleGeometry::Integer) : absent;
 }
 
-// The filter by name, as the resolution is. In enumerator order, which is the
-// order stored; a number outside it is read as FSR, as the runtime reads it.
-static constexpr std::array filterNames{
-    QLatin1StringView("FSR"),
-    QLatin1StringView("Nearest"),
-    QLatin1StringView("Bilinear"),
-    QLatin1StringView("Bicubic"),
-    QLatin1StringView("Lanczos"),
-    QLatin1StringView("GSR"),
-    QLatin1StringView("NIS"),
-    QLatin1StringView("xBRZ"),
-};
-static_assert(filterNames.size() == std::size_t(upscaleLastFilter) + 1);
-
+// The filter by name, as the resolution is; a number outside the list is
+// read as FSR, as the runtime reads it.
 static QString filterName(int value)
 {
-    return QString(filterNames[value >= 0 && value < int(filterNames.size()) ? std::size_t(value) : 0]);
+    return value >= 0 && value <= int(upscaleLastFilter) ? QString(upscaleFilterKey(UpscaleFilter(value))) : QStringLiteral("FSR");
 }
 
 static int filterValue(const QString &name, int absent)
 {
-    const auto found = std::ranges::find(filterNames, name);
-    return found != filterNames.end() ? int(found - filterNames.begin()) : absent;
+    for (int value = 0; value <= int(upscaleLastFilter); ++value) {
+        if (name == upscaleFilterKey(UpscaleFilter(value))) {
+            return value;
+        }
+    }
+    return absent;
 }
 
 static int globalStrength()

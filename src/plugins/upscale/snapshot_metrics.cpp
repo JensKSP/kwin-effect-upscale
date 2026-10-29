@@ -4,6 +4,7 @@
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
+#include "filtertext.h"
 #include "snapshot.h"
 
 #include <QSize>
@@ -83,6 +84,10 @@ QString upscaleMetrics(const UpscaleSnapshot &snapshot)
         append(QLatin1String("window"), QString(snapshot.application).replace(QLatin1Char(' '), QLatin1Char('-')));
     }
     append(QLatin1String("scaling"), QString::number(snapshot.scaling ? 1 : 0));
+    // The filter that drew, as kwinupscalerc names it, for what a run measured.
+    if (snapshot.scaling) {
+        append(QLatin1String("filter"), QString(upscaleFilterKey(snapshot.filter)));
+    }
     // Whether this frame cost the output its direct scanout. A comparison that
     // did not record it is comparing composition against scanout without
     // saying so, and the difference between those is part of what is measured.

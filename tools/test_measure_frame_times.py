@@ -40,7 +40,7 @@ Presented at 1.0/s, fixed refresh.
 Presented: 1.0/s average, 1% low 1.0/s, 99th percentile 1.0 ms (99 frames)
 metrics: presented=118.40 low=61.20 p99=20.400 worst=31.700 frames=1024 \
 client=117.90 repaints=118.20 interval=1.000 supplied=2560x1440 \
-destination=3840x2160 window=test-application scaling=1 selected=1 \
+destination=3840x2160 window=test-application scaling=1 filter=Lanczos selected=1 \
 windowsystem=wayland buffer=gpu""".replace("\\\n", "")
 
 # The same window before the first sampling interval has completed. The line is
@@ -93,6 +93,13 @@ class ParseStatusTest(unittest.TestCase):
         self.assertTrue(sample.scaling)
         self.assertEqual(sample.window_system, "wayland")
         self.assertEqual(sample.buffer_kind, "gpu")
+
+    def test_reads_the_filter_that_drew(self) -> None:
+        """A measurement records which filter it measured, and a summary keeps it."""
+        self.assertEqual(parse_status(SCALING).filter, "Lanczos")
+        self.assertEqual(parse_status(UNMEASURED).filter, "")
+        summary = summarize("test-application", "quality", [parse_status(SCALING)])
+        self.assertEqual(summary.filter, "Lanczos")
 
     def test_the_prose_above_the_machine_line_is_never_read(self) -> None:
         """Figures in the translated prose never reach the measurement."""

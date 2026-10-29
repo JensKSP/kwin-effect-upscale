@@ -18,6 +18,34 @@
 namespace KWin
 {
 
+/**
+ * How @p filter is spelled where a program reads it: in kwinupscalerc, where
+ * a number would be a puzzle, and in the status's metrics line. Never
+ * translated.
+ */
+inline QLatin1StringView upscaleFilterKey(UpscaleFilter filter)
+{
+    switch (filter) {
+    case UpscaleFilter::Fsr:
+        break;
+    case UpscaleFilter::Nearest:
+        return QLatin1StringView("Nearest");
+    case UpscaleFilter::Bilinear:
+        return QLatin1StringView("Bilinear");
+    case UpscaleFilter::Bicubic:
+        return QLatin1StringView("Bicubic");
+    case UpscaleFilter::Lanczos:
+        return QLatin1StringView("Lanczos");
+    case UpscaleFilter::Gsr:
+        return QLatin1StringView("GSR");
+    case UpscaleFilter::Nis:
+        return QLatin1StringView("NIS");
+    case UpscaleFilter::Xbrz:
+        return QLatin1StringView("xBRZ");
+    }
+    return QLatin1StringView("FSR");
+}
+
 /** The name of @p filter, as a list or the start of a line shows it. */
 inline QString upscaleFilterName(UpscaleFilter filter)
 {

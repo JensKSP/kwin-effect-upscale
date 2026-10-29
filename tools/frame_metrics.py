@@ -30,6 +30,7 @@ METRIC_FIELDS = {
     "supplied": ("supplied", str),
     "destination": ("destination", str),
     "scaling": ("scaling", bool),
+    "filter": ("filter", str),
     "selected": ("selected", bool),
     "window": ("window", str),
     "scanout": ("scanout", str),
@@ -57,6 +58,7 @@ class Sample:
     supplied: str = ""
     destination: str = ""
     scaling: bool = False
+    filter: str = ""
     selected: bool = False
     window: str = ""
     # Whether the output kept direct scanout for this frame. Losing it is part
@@ -137,6 +139,7 @@ class Summary:
     supplied: str = ""
     destination: str = ""
     scaling: bool = False
+    filter: str = ""
     window_system: str = ""
     buffer_kind: str = ""
     presented_rate: float | None = None
@@ -194,6 +197,7 @@ def summarize(game: str, preset: str, samples: list[Sample], window: str = "") -
     summary.supplied = last.supplied
     summary.destination = last.destination
     summary.scaling = any(sample.scaling for sample in useful)
+    summary.filter = next((sample.filter for sample in reversed(useful) if sample.filter), "")
     summary.window_system = last.window_system
     summary.scanout = last.scanout
     summary.buffer_kind = last.buffer_kind
