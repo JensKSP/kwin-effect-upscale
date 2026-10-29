@@ -62,6 +62,10 @@ void PictureTest::placesThePicture_data()
     QTest::newRow("integer three with bicubic") << QSize(1280, 720) << whole << UpscaleFilter::Bicubic << yes << QRect(0, 0, 3840, 2160) << 3;
     QTest::newRow("integer one with bilinear") << QSize(2560, 1440) << whole << UpscaleFilter::Bilinear << yes << QRect(640, 360, 2560, 1440) << 1;
     QTest::newRow("GSR further") << QSize(1280, 720) << fit << UpscaleFilter::Gsr << yes << QRect(0, 0, 3840, 2160) << 0;
+    // NIS keeps NVIDIA's range, which is FSR's.
+    QTest::newRow("NIS at most twice") << QSize(1280, 720) << fit << UpscaleFilter::Nis << UpscaleSizing::BelowHalf << QRect() << 0;
+    QTest::newRow("NIS twice") << QSize(1920, 1080) << fit << UpscaleFilter::Nis << yes << QRect(0, 0, 3840, 2160) << 0;
+    QTest::newRow("integer three with NIS") << QSize(1280, 720) << whole << UpscaleFilter::Nis << UpscaleSizing::FilterRange << QRect() << 3;
     // Bars that cannot be equal differ by one pixel, the extra one right.
     QTest::newRow("odd bars") << QSize(1999, 1000) << whole << nearest << yes << QRect(920, 580, 1999, 1000) << 1;
     QTest::newRow("no whole factor") << QSize(4000, 2000) << whole << nearest << UpscaleSizing::NoWholeFactor << QRect() << 0;

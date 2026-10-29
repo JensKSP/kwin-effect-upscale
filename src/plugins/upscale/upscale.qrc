@@ -8,10 +8,12 @@ SPDX-License-Identifier: GPL-2.0-or-later
         <file>shaders/sharpen.frag</file>
         <file>shaders/classic.frag</file>
         <file>shaders/gsr.frag</file>
+        <file>shaders/nis.frag</file>
     </qresource>
     <qresource prefix="/opengl/upscale">
         <file alias="workingcolor.glsl">shaders/workingcolor.glsl</file>
         <file alias="easu.glsl">shaders/easu.glsl</file>
         <file alias="rcas.glsl">shaders/rcas.glsl</file>
+        <file alias="nis_coefficients.glsl">shaders/nis_coefficients.glsl</file>
     </qresource>
 </RCC>

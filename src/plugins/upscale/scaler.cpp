@@ -214,7 +214,7 @@ bool UpscaleScaler::scale(const RenderTarget &target, const RenderViewport &view
     }
     const bool intermediate = upscaleRcasFollows(drawing);
     const ShaderBinder binder(filter);
-    upscaleSetFilterUniforms(filter, drawing, input->size(), outputSize, intermediate);
+    upscaleSetFilterUniforms(filter, drawing, input->size(), outputSize, targetColors(target), intermediate);
     // The direct shaders carry no transfer-function arithmetic, so they
     // declare none of these and asking for them would only log misses.
     if (!direct) {

@@ -551,7 +551,7 @@ licence that decides whether the shader may be carried here at all:
 | Scaler | Kind | Licence | Usable |
 | --- | --- | --- | --- |
 | AMD FSR 1 (EASU + RCAS) | upscale + sharpen | MIT | yes |
-| NVIDIA Image Scaling (NIS) | upscale + sharpen | MIT | yes |
+| NVIDIA Image Scaling (NIS) | upscale + sharpen | MIT | implemented |
 | Snapdragon GSR 1 | single pass, Lanczos-like 12-tap + adaptive sharpen | BSD-3-Clause | implemented |
 | Bilinear, bicubic (Catmull-Rom), Lanczos (three lobes) | classic | own implementation, GPL-2.0-or-later | implemented |
 | Nearest / integer scaling | pixel replication / geometry | own implementation | yes |
@@ -563,7 +563,7 @@ Decided by Jens on 2026-10-29: bilinear, bicubic, Lanczos, Snapdragon GSR 1,
 NIS and xBRZ join FSR 1 and nearest neighbour as choices of the scaling filter,
 globally and per game, each sharpened by its own sharpener under the existing
 sharpening setting. Bilinear, bicubic and Lanczos are implemented, with RCAS
-as their sharpener, and so is GSR, which sharpens itself; NIS and xBRZ are
+as their sharpener, and so are GSR and NIS, which sharpen themselves; xBRZ is
 planned, and CAS stays a candidate.
 The [scaling methods slice](agents/slice-scaling-methods.md) holds the plan.
 
@@ -594,7 +594,7 @@ black bars, and pixel art and older games can be enlarged by a whole number with
 nearest-neighbour sampling. Two settings decide it, each a global default with
 sparse application overrides like every other setting: **Picture size** (`Geometry`,
 Fit or Integer) and **Scaling filter** (`Filter`: FSR, Nearest, Bilinear,
-Bicubic, Lanczos or GSR), on the **Scaling** tab beside sharpening. They are separate
+Bicubic, Lanczos, GSR or NIS), on the **Scaling** tab beside sharpening. They are separate
 on purpose: nearest sampling alone is not integer scaling, and FSR can be laid
 either way within its range.
 
@@ -625,13 +625,22 @@ from Qualcomm's unsharpened 1 to its default of 2; it moves a pixel only where
 the green channel passes its edge vote, by at most 23/255, and RCAS never
 follows it. For a linear destination it filters the bounded working encoding
 shifted into -1 to 1, where its absolute thresholds see the contrast they were
-written for, as RCAS does. Under Integer, a whole factor of
+written for, as RCAS does. NVIDIA Image Scaling keeps NVIDIA's range, which is
+FSR's: more than one and at most two times per axis, and under Integer only
+two. It sharpens with its own unsharp mask, the strength being NVIDIA's
+sharpness from zero to one, except that zero leaves no mask at all where
+NVIDIA's zero still scales it by up to 0.025. NVIDIA's compute shader shares a
+tile between a block of output pixels; the effect's fragment program reads each
+pixel's own six by six neighbourhood, which is the same arithmetic on the same
+texels. The destination chooses its mode: SDR for sRGB and gamma 2.2, its PQ
+mode for PQ, and its linear mode for a linear destination, decoded to NVIDIA's
+unit of 80 nits. Under Integer, a whole factor of
 one enlarges nothing, and every filter draws it as the copy it is, unsharpened;
 the status then names nearest neighbour, which is what ran.
 A combination that cannot be honoured is refused by name and the window is
-drawn by KWin as usual: content no smaller than its output, content FSR would
-have to enlarge more than twice, content no whole factor fits, and FSR asked for
-a whole factor other than two. Nothing is silently downscaled or cropped.
+drawn by KWin as usual: content no smaller than its output, content FSR or NIS
+would have to enlarge more than twice, content no whole factor fits, and FSR or
+NIS asked for a whole factor other than two. Nothing is silently downscaled or cropped.
 
 What a game is asked to render follows from the same rule, decided by Jens on
 2026-10-13. A resolution names a share of the output, and Integer enlarges by

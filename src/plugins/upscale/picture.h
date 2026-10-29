@@ -41,20 +41,22 @@ enum class UpscaleFilter {
     Bicubic,
     Lanczos,
     Gsr,
+    Nis,
 };
 
 /** The last filter, for the bounds of a stored one. */
-inline constexpr UpscaleFilter upscaleLastFilter = UpscaleFilter::Gsr;
+inline constexpr UpscaleFilter upscaleLastFilter = UpscaleFilter::Nis;
 
 /**
  * Whether @p filter enlarges by more than one and at most two times.
  *
- * FSR documents a range of up to four times the input's pixels. The other
+ * FSR documents a range of up to four times the input's pixels, and NIS's
+ * configuration refuses a scale outside half to one per axis. The other
  * filters interpolate at any position and enlarge by any amount.
  */
 inline bool upscaleFilterAtMostTwice(UpscaleFilter filter)
 {
-    return filter == UpscaleFilter::Fsr;
+    return filter == UpscaleFilter::Fsr || filter == UpscaleFilter::Nis;
 }
 
 /**
@@ -68,11 +70,11 @@ inline bool upscaleFilterSharpens(UpscaleFilter filter)
 
 /**
  * Whether @p filter's sharpening is RCAS, run after it on what it drew. GSR
- * sharpens as part of its own filter.
+ * and NIS sharpen as part of their own filter.
  */
 inline bool upscaleFilterSharpensWithRcas(UpscaleFilter filter)
 {
-    return upscaleFilterSharpens(filter) && filter != UpscaleFilter::Gsr;
+    return upscaleFilterSharpens(filter) && filter != UpscaleFilter::Gsr && filter != UpscaleFilter::Nis;
 }
 
 /** Where the picture goes on its output, or why it cannot go anywhere. */
@@ -130,11 +132,12 @@ inline UpscalePicture upscaleFittedPicture(UpscaleSize input, UpscaleSize output
 /**
  * Where a supplied @p input goes on an @p output of that many device pixels.
  *
- * FSR enlarges by more than one and at most two on either axis; the others by
- * any amount above one, and Integer by one as well, which centres a smaller
- * picture without enlarging it. What cannot be honoured says why: a picture
- * no smaller than its output, one FSR would have to enlarge more than twice,
- * one no whole factor fits, and FSR asked for a whole factor other than two.
+ * FSR and NIS enlarge by more than one and at most two on either axis; the
+ * others by any amount above one, and Integer by one as well, which centres a
+ * smaller picture without enlarging it. What cannot be honoured says why: a
+ * picture no smaller than its output, one FSR or NIS would have to enlarge
+ * more than twice, one no whole factor fits, and FSR or NIS asked for a whole
+ * factor other than two.
  * The one pixel two bars can differ by goes to the bottom and the right.
  */
 inline UpscalePicture upscalePicture(UpscaleSize input, UpscaleSize output, UpscaleGeometry geometry, UpscaleFilter filter)

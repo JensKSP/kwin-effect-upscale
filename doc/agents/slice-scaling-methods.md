@@ -13,9 +13,9 @@ for each game. He decided the scope the same day: the classic filters
 (bilinear, bicubic, Lanczos), Snapdragon GSR 1, NVIDIA Image Scaling and xBRZ
 join FSR 1 and nearest neighbour. Each method sharpens with its own sharpener
 under the existing sharpening switch and strength. The work goes on branch
-`scaling/methods`, pull request #40. Bilinear, bicubic, Lanczos and
-Snapdragon GSR 1 are implemented with their settings, status and
-rendered-pixel tests; NIS and xBRZ follow. See
+`scaling/methods`, pull request #40. Bilinear, bicubic, Lanczos, Snapdragon
+GSR 1 and NVIDIA Image Scaling are implemented with their settings, status and
+rendered-pixel tests; xBRZ follows. See
 [progress](#progress-and-remaining-work).
 
 ## Start state and evidence
@@ -175,7 +175,18 @@ Jens and the TV, and never run at the same time as container checks.
   no difference. GSR also joins the constant-colour, corner, sharpening and
   clipping tests of `render_filter_test.cpp`. Passed in the Trixie container
   with GCC on OpenGL and OpenGL ES on 2026-10-29.
-- [ ] NVIDIA Image Scaling, with rendered-pixel tests.
+- [x] NVIDIA Image Scaling, with rendered-pixel tests. NVIDIA's shader is a
+  Vulkan-style compute shader that cannot run here, so `render_method_test.cpp`
+  holds the port to NVScaler's arithmetic where it finds no edge: every pixel
+  the six-tap filter of luma with NVIDIA's bank, read from the shader's own
+  resource, and the bilinear colour moved by the difference, within 2e-5 at
+  both strengths. A position exactly on one of the 64 phase boundaries, which
+  some pixel always is at a ratio of whole sizes, comes out of the single
+  precision interpolation on either side, so both phases are accepted there.
+  Past an edge, sharpness raises the total variation and nothing leaves zero to
+  one; `NVScalerUpdateConfig`'s values are checked against NVIDIA's numbers.
+  NIS also joins the shared tests. Passed in the Trixie container with GCC on
+  OpenGL and OpenGL ES on 2026-10-30.
 - [ ] xBRZ, with rendered-pixel tests.
 - [ ] Builds in both containers with GCC and Clang, both lint stages, tidy.
 - [ ] Production run in the conformance machine, one session per kind of pass.

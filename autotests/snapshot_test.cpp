@@ -133,6 +133,9 @@ void UpscaleSnapshotTest::reportsThePathActuallyTaken()
              qPrintable(upscaleDeveloperInformation(gsr)));
     QVERIFY2(upscaleHeadsUp(gsr).contains(QStringLiteral("Snapdragon GSR 1, sharpened")) && !upscaleHeadsUp(gsr).contains(QStringLiteral("RCAS")),
              qPrintable(upscaleHeadsUp(gsr)));
+    gsr.filter = UpscaleFilter::Nis;
+    QVERIFY2(upscaleDeveloperInformation(gsr).contains(QStringLiteral("NVIDIA Image Scaling with its own sharpening 50%")),
+             qPrintable(upscaleDeveloperInformation(gsr)));
     QVERIFY(!headsUp.contains(QStringLiteral("Client buffer updates")));
     QVERIFY(!headsUp.contains(QStringLiteral("compositor repaints")));
     QVERIFY(!headsUp.contains(QStringLiteral("percentile")));

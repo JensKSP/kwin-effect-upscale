@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: kwin-effect-upscale\n"
 "Report-Msgid-Bugs-To: https://github.com/JensKSP/kwin-effect-upscale/issues\n"
-"POT-Creation-Date: 2026-10-29 22:53+0000\n"
+"POT-Creation-Date: 2026-10-29 23:03+0000\n"
 "PO-Revision-Date: 2026-09-30 00:00+0200\n"
 "Last-Translator: \n"
 "Language-Team: Spanish\n"
@@ -316,6 +316,11 @@ msgid "Snapdragon GSR 1"
 msgstr "Snapdragon GSR 1"
 
 #, kde-format
+msgctxt "Scaling filter"
+msgid "NVIDIA Image Scaling"
+msgstr "NVIDIA Image Scaling"
+
+#, kde-format
 msgctxt "Scaling filter, within a sentence"
 msgid "FSR 1"
 msgstr "FSR 1"
@@ -344,6 +349,11 @@ msgstr "Lanczos"
 msgctxt "Scaling filter, within a sentence"
 msgid "Snapdragon GSR 1"
 msgstr "Snapdragon GSR 1"
+
+#, kde-format
+msgctxt "Scaling filter, within a sentence"
+msgid "NVIDIA Image Scaling"
+msgstr "NVIDIA Image Scaling"
 
 #, kde-format
 msgctxt ""
@@ -1022,17 +1032,17 @@ msgstr ""
 
 #, kde-format
 msgid ""
-"FSR 1 enlarges at most two times, as a whole-number multiple exactly two "
-"times. Bilinear, bicubic, Lanczos and Snapdragon GSR 1 enlarge by any "
-"amount. Each of these can sharpen: Snapdragon GSR 1 with its own edge "
-"sharpening, the others with RCAS. Nearest neighbor repeats each pixel "
-"exactly and never sharpens."
+"FSR 1 and NVIDIA Image Scaling enlarge at most two times, as a whole-number "
+"multiple exactly two times. Bilinear, bicubic, Lanczos and Snapdragon GSR 1 "
+"enlarge by any amount. Each of these can sharpen: NVIDIA Image Scaling and "
+"Snapdragon GSR 1 with their own sharpening, the others with RCAS. Nearest "
+"neighbor repeats each pixel exactly and never sharpens."
 msgstr ""
-"FSR 1 amplía como máximo dos veces, como múltiplo entero exactamente dos "
-"veces. Bilineal, bicúbico, Lanczos y Snapdragon GSR 1 amplían en cualquier "
-"medida. Cada uno de ellos puede enfocar: Snapdragon GSR 1 con su propio "
-"enfoque de bordes, los demás con RCAS. Vecino más cercano repite cada píxel "
-"exactamente y nunca enfoca."
+"FSR 1 y NVIDIA Image Scaling amplían como máximo dos veces, como múltiplo "
+"entero exactamente dos veces. Bilineal, bicúbico, Lanczos y Snapdragon GSR 1 "
+"amplían en cualquier medida. Cada uno de ellos puede enfocar: NVIDIA Image "
+"Scaling y Snapdragon GSR 1 con su propio enfoque, los demás con RCAS. Vecino "
+"más cercano repite cada píxel exactamente y nunca enfoca."
 
 #, kde-format
 msgctxt "A transfer function, completing “destination transfer %1”"

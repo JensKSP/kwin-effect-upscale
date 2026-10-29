@@ -24,6 +24,13 @@ License: BSD-3-Clause
 Comment: Snapdragon Game Super Resolution 1, commit d926f074, adapted to the
  effect's capture.
 
+Files: src/plugins/upscale/nisconfig.h
+       src/plugins/upscale/shaders/nis.frag
+       src/plugins/upscale/shaders/nis_coefficients.glsl
+Copyright: 2022 NVIDIA CORPORATION & AFFILIATES
+License: MIT
+Comment: NVIDIA Image Scaling, v1.0.3, ported to a fragment program.
+
 Files: .dockerignore
        .gitignore
        .kde-ci.yml

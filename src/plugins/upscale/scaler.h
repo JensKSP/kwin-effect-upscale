@@ -49,11 +49,12 @@ std::pair<QString, QByteArray> upscaleFilterSource(UpscaleFilter filter);
 
 /**
  * What @p shader, @p drawing's filter, is told before it draws an @p input
- * of that size at @p output, other than the colour description, which the
- * scaler sets where the program decodes; @p intermediate where it writes the
- * image RCAS sharpens afterwards.
+ * of that size at @p output into a destination of @p colors, other than the
+ * colour description itself, which the scaler sets where the program decodes;
+ * @p intermediate where it writes the image RCAS sharpens afterwards.
  */
-void upscaleSetFilterUniforms(GLShader *shader, const UpscaleDrawing &drawing, const QSize &input, const QSize &output, bool intermediate);
+void upscaleSetFilterUniforms(GLShader *shader, const UpscaleDrawing &drawing, const QSize &input, const QSize &output,
+                              const ColorDescription &colors, bool intermediate);
 
 class UpscaleScaler
 {

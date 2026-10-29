@@ -69,9 +69,9 @@
 # The settings that are a choice are spelled by name, as Method is: Resolution
 # is Native, UltraQuality, Quality, Balanced, Performance or Custom; Geometry is
 # Fit, which enlarges the picture as far as the filter allows without
-# stretching it, or Integer, the largest whole factor that fits; Filter is FSR,
-# which enlarges at most two times, Bilinear, Bicubic, Lanczos or GSR, which
-# enlarge by any amount, or Nearest, which repeats each pixel exactly.
+# stretching it, or Integer, the largest whole factor that fits; Filter is FSR
+# or NIS, which enlarge at most two times, Bilinear, Bicubic, Lanczos or GSR,
+# which enlarge by any amount, or Nearest, which repeats each pixel exactly.
 # Native connection patterns start with `/`, keeping them distinct from Wine
 # identities while a prefix is still starting and its program is not known.
 

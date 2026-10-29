@@ -39,6 +39,7 @@ constexpr std::array filters{
     std::pair{UpscaleFilter::Bicubic, "bicubic"},
     std::pair{UpscaleFilter::Lanczos, "lanczos"},
     std::pair{UpscaleFilter::Gsr, "gsr"},
+    std::pair{UpscaleFilter::Nis, "nis"},
 };
 
 // The kernels again, in double precision and written from their definitions
@@ -330,7 +331,7 @@ void UpscaleRenderFilterTest::sharpensAndClips_data()
     addFilterColumn(filters);
 }
 
-// RCAS follows each classic filter as it follows EASU, GSR sharpens itself,
+// RCAS follows each classic filter as it follows EASU, GSR and NIS sharpen themselves,
 // and a clipped region draws exactly its part of the full frame and nothing
 // beside it.
 void UpscaleRenderFilterTest::sharpensAndClips()
