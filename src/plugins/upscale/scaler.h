@@ -9,6 +9,7 @@
 #include "compatibility.h"
 #include "picture.h"
 
+#include <array>
 #include <memory>
 
 namespace KWin
@@ -64,8 +65,8 @@ private:
         std::unique_ptr<GLFramebuffer> framebuffer;
     };
 
-    void scale(const RenderTarget &target, const RenderViewport &viewport, GLTexture *input,
-               const UpscaleRectF &destination, const UpscaleRegion &region, double strength);
+    bool scale(const RenderTarget &target, const RenderViewport &viewport, GLTexture *input,
+               const UpscaleDrawing &drawing, const UpscaleRegion &region);
     void sharpen(const RenderTarget &target, const RenderViewport &viewport,
                  const UpscaleRectF &destination, const UpscaleRegion &region, double strength);
     void bars(const RenderViewport &viewport, const UpscaleRectF &frame, const UpscaleRectF &destination,
@@ -74,13 +75,23 @@ private:
     static void draw(GLShader *shader, GLTexture *texture, const RenderViewport &viewport,
                      const UpscaleRectF &destination, const UpscaleRegion &region);
 
+    // One program per filter space. Selecting with a uniform instead would
+    // keep the transfer-function arithmetic in the shader that does not need it.
+    struct Programs
+    {
+        std::unique_ptr<GLShader> working;
+        std::unique_ptr<GLShader> direct;
+        bool loaded = false;
+    };
+    // A filter's program for the space it filters in, compiled when the
+    // filter is first used, so that a session pays only for what it chose.
+    GLShader *program(UpscaleFilter filter, bool direct);
+
     Buffer m_input;
     Buffer m_scaled;
-    // One pair per filter space. Selecting with a uniform instead would keep
-    // the transfer-function arithmetic in the shader that does not need it.
-    std::unique_ptr<GLShader> m_easu;
+    // Nearest neighbour needs none, and draws with KWin's own.
+    std::array<Programs, std::size_t(upscaleLastFilter) + 1> m_filters;
     std::unique_ptr<GLShader> m_rcas;
-    std::unique_ptr<GLShader> m_easuDirect;
     std::unique_ptr<GLShader> m_rcasDirect;
     // One black pixel, stretched over each bar.
     std::unique_ptr<GLTexture> m_black;

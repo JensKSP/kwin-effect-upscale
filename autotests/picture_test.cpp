@@ -28,6 +28,7 @@ private Q_SLOTS:
     void choosesTheNearestListedSize();
     void asksForAWholeFactorsShare();
     void reachesAWholeFactorsShareInScaleSteps();
+    void drawsAWholeFactorOfOneAsACopy();
 };
 
 void PictureTest::placesThePicture_data()
@@ -56,6 +57,10 @@ void PictureTest::placesThePicture_data()
     QTest::newRow("integer two with FSR") << QSize(1920, 1080) << whole << fsr << yes << QRect(0, 0, 3840, 2160) << 2;
     QTest::newRow("integer one with FSR") << QSize(2560, 1440) << whole << fsr << UpscaleSizing::FilterRange << QRect() << 1;
     QTest::newRow("integer three with FSR") << QSize(1280, 720) << whole << fsr << UpscaleSizing::FilterRange << QRect() << 3;
+    // The classic filters enlarge by any amount, as nearest does.
+    QTest::newRow("Lanczos further") << QSize(640, 480) << fit << UpscaleFilter::Lanczos << yes << QRect(480, 0, 2880, 2160) << 0;
+    QTest::newRow("integer three with bicubic") << QSize(1280, 720) << whole << UpscaleFilter::Bicubic << yes << QRect(0, 0, 3840, 2160) << 3;
+    QTest::newRow("integer one with bilinear") << QSize(2560, 1440) << whole << UpscaleFilter::Bilinear << yes << QRect(640, 360, 2560, 1440) << 1;
     // Bars that cannot be equal differ by one pixel, the extra one right.
     QTest::newRow("odd bars") << QSize(1999, 1000) << whole << nearest << yes << QRect(920, 580, 1999, 1000) << 1;
     QTest::newRow("no whole factor") << QSize(4000, 2000) << whole << nearest << UpscaleSizing::NoWholeFactor << QRect() << 0;
@@ -149,6 +154,20 @@ void PictureTest::reachesAWholeFactorsShareInScaleSteps()
     QCOMPARE(upscaleReachableScale(output, 2.5, ResolutionPreset::Performance, 0, whole), 1);
     // A factor of one asks nothing.
     QCOMPARE(upscaleReachableScale(output, 2, ResolutionPreset::UltraQuality, 0, whole), 0);
+}
+
+// A whole factor of one enlarges nothing, so whatever was chosen draws it as
+// the copy it is, and the status names that rather than the filter.
+void PictureTest::drawsAWholeFactorOfOneAsACopy()
+{
+    const UpscaleSize output{3840, 2160};
+    const UpscalePicture one = upscalePicture({2560, 1440}, output, UpscaleGeometry::Integer, UpscaleFilter::Lanczos);
+    QCOMPARE(one.factor, 1);
+    QCOMPARE(upscaleDrawnFilter(UpscaleFilter::Lanczos, one), UpscaleFilter::Nearest);
+    const UpscalePicture two = upscalePicture({1920, 1080}, output, UpscaleGeometry::Integer, UpscaleFilter::Lanczos);
+    QCOMPARE(upscaleDrawnFilter(UpscaleFilter::Lanczos, two), UpscaleFilter::Lanczos);
+    const UpscalePicture fitted = upscalePicture({2560, 1440}, output, UpscaleGeometry::Fit, UpscaleFilter::Lanczos);
+    QCOMPARE(upscaleDrawnFilter(UpscaleFilter::Lanczos, fitted), UpscaleFilter::Lanczos);
 }
 
 QTEST_GUILESS_MAIN(PictureTest)

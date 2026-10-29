@@ -9,6 +9,7 @@
 
 #pragma once
 
+#include "filtertext.h"
 #include "snapshot.h"
 #include "warningtext.h"
 

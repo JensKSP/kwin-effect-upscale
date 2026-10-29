@@ -72,7 +72,7 @@ bool UpscaleScaler::Buffer::resize(const QSize &size, GLenum internalFormat)
 // or samplers and only a medium one for integers. Medium precision would
 // discard HDR detail while sampling and cannot address a 4K pixel grid.
 // KWin versions that supply their own preamble ignore this one's directive.
-static std::unique_ptr<GLShader> loadShader(const QString &path, bool direct = false)
+static std::unique_ptr<GLShader> loadShader(const QString &path, bool direct = false, const QByteArray &defines = QByteArray())
 {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) {
@@ -82,22 +82,53 @@ static std::unique_ptr<GLShader> loadShader(const QString &path, bool direct = f
         ? QByteArrayLiteral("#version 300 es\nprecision highp float;\nprecision highp sampler2D;\nprecision highp int;\n")
         : QByteArrayLiteral("#version 140\n");
     const QByteArray space = direct ? QByteArrayLiteral("#define UPSCALE_DIRECT 1\n") : QByteArray();
-    return ShaderManager::instance()->generateCustomShader(ShaderTrait::MapTexture, QByteArray(),
-                                                           preamble + space + file.readAll());
+    std::unique_ptr<GLShader> shader = ShaderManager::instance()->generateCustomShader(ShaderTrait::MapTexture, QByteArray(),
+                                                                                       preamble + space + defines + file.readAll());
+    return validShader(shader.get()) ? std::move(shader) : nullptr;
+}
+
+// The file and defines that make each filter's program. The three classic
+// filters are one program with the kernel chosen when it is compiled.
+static std::pair<QString, QByteArray> filterSource(UpscaleFilter filter)
+{
+    const QString classic = QStringLiteral(":/effects/upscale/shaders/classic.frag");
+    switch (filter) {
+    case UpscaleFilter::Fsr:
+    case UpscaleFilter::Nearest:
+        break;
+    case UpscaleFilter::Bilinear:
+        return {classic, QByteArrayLiteral("#define UPSCALE_KERNEL 0\n")};
+    case UpscaleFilter::Bicubic:
+        return {classic, QByteArrayLiteral("#define UPSCALE_KERNEL 1\n")};
+    case UpscaleFilter::Lanczos:
+        return {classic, QByteArrayLiteral("#define UPSCALE_KERNEL 2\n")};
+    }
+    return {QStringLiteral(":/effects/upscale/shaders/upscale.frag"), QByteArray()};
+}
+
+GLShader *UpscaleScaler::program(UpscaleFilter filter, bool direct)
+{
+    Programs &programs = m_filters[std::size_t(filter)];
+    if (!programs.loaded) {
+        const auto [path, defines] = filterSource(filter);
+        programs.working = loadShader(path, false, defines);
+        programs.direct = loadShader(path, true, defines);
+        programs.loaded = true;
+    }
+    return direct ? programs.direct.get() : programs.working.get();
 }
 
 bool UpscaleScaler::initialize()
 {
     ensureResources();
-    m_easu = loadShader(QStringLiteral(":/effects/upscale/shaders/upscale.frag"));
     m_rcas = loadShader(QStringLiteral(":/effects/upscale/shaders/sharpen.frag"));
-    m_easuDirect = loadShader(QStringLiteral(":/effects/upscale/shaders/upscale.frag"), true);
     m_rcasDirect = loadShader(QStringLiteral(":/effects/upscale/shaders/sharpen.frag"), true);
     QImage black(1, 1, QImage::Format_RGB32);
     black.fill(Qt::black);
     m_black = GLTexture::upload(black);
-    return m_black && validShader(m_easu.get()) && validShader(m_rcas.get())
-        && validShader(m_easuDirect.get()) && validShader(m_rcasDirect.get());
+    // FSR is the default, and its programs are compiled now so that a driver
+    // that cannot compile them is found before the first frame needs them.
+    return m_black && m_rcas && m_rcasDirect && program(UpscaleFilter::Fsr, false) && program(UpscaleFilter::Fsr, true);
 }
 
 void UpscaleScaler::setColorUniforms(GLShader *shader, const RenderTarget &target)
@@ -187,40 +218,46 @@ void UpscaleScaler::bars(const RenderViewport &viewport, const UpscaleRectF &fra
     }
 }
 
-// The two filter passes themselves. EASU enlarges, and where sharpening is
-// wanted it writes an intermediate for RCAS to sharpen in place afterwards,
-// which is the order AMD specifies and the only one RCAS supports.
-// EASU, the enlargement. With sharpening wanted it writes the intermediate
-// that RCAS then sharpens; otherwise it draws straight to the destination.
-void UpscaleScaler::scale(const RenderTarget &target, const RenderViewport &viewport, GLTexture *input,
-                          const UpscaleRectF &destination, const UpscaleRegion &region, double strength)
+// The enlargement, by EASU or a classic filter. With sharpening wanted it
+// writes an intermediate for RCAS to sharpen in place afterwards, which is the
+// order AMD specifies and the only one RCAS supports; otherwise it draws
+// straight to the destination.
+bool UpscaleScaler::scale(const RenderTarget &target, const RenderViewport &viewport, GLTexture *input,
+                          const UpscaleDrawing &drawing, const UpscaleRegion &region)
 {
     const QSize inputSize = input->size();
-    const QSize outputSize = (destination.size() * viewport.scale()).toSize();
+    const QSize outputSize = (drawing.destination.size() * viewport.scale()).toSize();
     const bool direct = upscaleFiltersDirectly(targetColors(target));
-    GLShader *easu = direct ? m_easuDirect.get() : m_easu.get();
-    const ShaderBinder binder(easu);
-    easu->setUniform("inputSize", QVector2D(float(inputSize.width()), float(inputSize.height())));
-    easu->setUniform("outputSize", QVector2D(float(outputSize.width()), float(outputSize.height())));
-    easu->setUniform("intermediate", int(strength > 0));
+    GLShader *filter = program(drawing.filter, direct);
+    if (!filter) {
+        return false;
+    }
+    const ShaderBinder binder(filter);
+    filter->setUniform("inputSize", QVector2D(float(inputSize.width()), float(inputSize.height())));
+    // The classic filters work from the input alone.
+    if (drawing.filter == UpscaleFilter::Fsr) {
+        filter->setUniform("outputSize", QVector2D(float(outputSize.width()), float(outputSize.height())));
+    }
+    filter->setUniform("intermediate", int(drawing.strength > 0));
     // The direct shaders carry no transfer-function arithmetic, so they
     // declare none of these and asking for them would only log misses.
     if (!direct) {
-        setColorUniforms(easu, target);
+        setColorUniforms(filter, target);
     }
-    if (strength <= 0) {
-        draw(easu, input, viewport, destination, region);
-        return;
+    if (drawing.strength <= 0) {
+        draw(filter, input, viewport, drawing.destination, region);
+        return true;
     }
     const RenderTarget scaledTarget(m_scaled.framebuffer.get());
     const UpscaleRectF rectangle(QPointF(), outputSize);
     const RenderViewport scaledViewport = captureViewport(rectangle, 1, scaledTarget);
     GLFramebuffer::pushFramebuffer(m_scaled.framebuffer.get());
-    draw(easu, input, scaledViewport, rectangle, unlimitedRegion());
+    draw(filter, input, scaledViewport, rectangle, unlimitedRegion());
     GLFramebuffer::popFramebuffer();
+    return true;
 }
 
-// RCAS, which sharpens without scaling and only ever runs on what EASU
+// RCAS, which sharpens without scaling and only ever runs on what a filter
 // produced. That order is the one AMD specifies and the only one it supports.
 void UpscaleScaler::sharpen(const RenderTarget &target, const RenderViewport &viewport,
                             const UpscaleRectF &destination, const UpscaleRegion &region, double strength)
@@ -286,7 +323,9 @@ bool UpscaleScaler::renderTexture(const RenderTarget &target, const RenderViewpo
 
     // The input is opaque. Blending stays off, as set above, also where KWin's
     // item renderer enabled it for a buffer with an unused alpha channel.
-    scale(target, viewport, input, destination, region, strength);
+    if (!scale(target, viewport, input, drawing, region)) {
+        return false;
+    }
     if (strength > 0) {
         sharpen(target, viewport, destination, region, strength);
     }

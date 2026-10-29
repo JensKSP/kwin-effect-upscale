@@ -114,6 +114,18 @@ void UpscaleSnapshotTest::reportsThePathActuallyTaken()
     const QString nearestHeadsUp = upscaleHeadsUp(nearest);
     QVERIFY2(nearestHeadsUp.contains(QStringLiteral("Nearest neighbor")) && !nearestHeadsUp.contains(QStringLiteral("FSR")),
              qPrintable(nearestHeadsUp));
+    // Another filter is named with the RCAS that follows it, or without.
+    UpscaleSnapshot lanczos = snapshot;
+    lanczos.filter = UpscaleFilter::Lanczos;
+    QVERIFY2(upscaleDeveloperInformation(lanczos).contains(QStringLiteral("Lanczos with RCAS sharpening 50%")),
+             qPrintable(upscaleDeveloperInformation(lanczos)));
+    QVERIFY2(upscaleHeadsUp(lanczos).contains(QStringLiteral("Lanczos + RCAS")), qPrintable(upscaleHeadsUp(lanczos)));
+    lanczos.filter = UpscaleFilter::Bilinear;
+    lanczos.sharpening = 0;
+    QVERIFY2(upscaleDeveloperInformation(lanczos).contains(QStringLiteral("bilinear, no sharpening")),
+             qPrintable(upscaleDeveloperInformation(lanczos)));
+    QVERIFY2(upscaleHeadsUp(lanczos).contains(QStringLiteral("Bilinear")) && !upscaleHeadsUp(lanczos).contains(QStringLiteral("RCAS")),
+             qPrintable(upscaleHeadsUp(lanczos)));
     QVERIFY(!headsUp.contains(QStringLiteral("Client buffer updates")));
     QVERIFY(!headsUp.contains(QStringLiteral("compositor repaints")));
     QVERIFY(!headsUp.contains(QStringLiteral("percentile")));

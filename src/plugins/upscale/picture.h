@@ -31,11 +31,39 @@ enum class UpscaleGeometry {
 /**
  * How the picture is sampled. Separate from the geometry: nearest sampling
  * alone is no integer scaling, and FSR can be laid either way within its range.
+ *
+ * Stored by number, so a new method goes at the end.
  */
 enum class UpscaleFilter {
     Fsr,
     Nearest,
+    Bilinear,
+    Bicubic,
+    Lanczos,
 };
+
+/** The last filter, for the bounds of a stored one. */
+inline constexpr UpscaleFilter upscaleLastFilter = UpscaleFilter::Lanczos;
+
+/**
+ * Whether @p filter enlarges by more than one and at most two times.
+ *
+ * FSR documents a range of up to four times the input's pixels. The other
+ * filters interpolate at any position and enlarge by any amount.
+ */
+inline bool upscaleFilterAtMostTwice(UpscaleFilter filter)
+{
+    return filter == UpscaleFilter::Fsr;
+}
+
+/**
+ * Whether @p filter has a sharpener. Nearest neighbour replicates each pixel
+ * exactly; sharpening it would only undo what it is chosen for.
+ */
+inline bool upscaleFilterSharpens(UpscaleFilter filter)
+{
+    return filter != UpscaleFilter::Nearest;
+}
 
 /** Where the picture goes on its output, or why it cannot go anywhere. */
 struct UpscalePicture
@@ -62,7 +90,7 @@ inline UpscalePicture upscaleWholePicture(UpscaleSize input, UpscaleSize output,
     if (factor == 1 && input == output) {
         return {.sizing = UpscaleSizing::NotSmaller};
     }
-    if (filter == UpscaleFilter::Fsr && factor != 2) {
+    if (upscaleFilterAtMostTwice(filter) && factor != 2) {
         return {.sizing = UpscaleSizing::FilterRange, .factor = factor};
     }
     return {.sizing = UpscaleSizing::Supported, .width = input.width * factor, .height = input.height * factor, .factor = factor};
@@ -78,7 +106,7 @@ inline UpscalePicture upscaleFittedPicture(UpscaleSize input, UpscaleSize output
     if (scale <= 1.0) {
         return {.sizing = UpscaleSizing::NotSmaller};
     }
-    if (filter == UpscaleFilter::Fsr && scale > 2.0) {
+    if (upscaleFilterAtMostTwice(filter) && scale > 2.0) {
         return {.sizing = UpscaleSizing::BelowHalf};
     }
     if (upscaleSameAspect(input, output)) {
@@ -92,8 +120,8 @@ inline UpscalePicture upscaleFittedPicture(UpscaleSize input, UpscaleSize output
 /**
  * Where a supplied @p input goes on an @p output of that many device pixels.
  *
- * FSR enlarges by more than one and at most two on either axis; Nearest by any
- * amount above one, and Integer by one as well, which centres a smaller
+ * FSR enlarges by more than one and at most two on either axis; the others by
+ * any amount above one, and Integer by one as well, which centres a smaller
  * picture without enlarging it. What cannot be honoured says why: a picture
  * no smaller than its output, one FSR would have to enlarge more than twice,
  * one no whole factor fits, and FSR asked for a whole factor other than two.
@@ -111,6 +139,25 @@ inline UpscalePicture upscalePicture(UpscaleSize input, UpscaleSize output, Upsc
         picture.y = (output.height - picture.height) / 2;
     }
     return picture;
+}
+
+/**
+ * The filter that draws @p picture when @p filter was chosen.
+ *
+ * A whole factor of one enlarges nothing, and every filter that takes it
+ * would only interpolate at the pixels' own centres or sharpen a picture at
+ * its own size; that is a copy, and drawn as one, so the status names what
+ * ran rather than a filter that did nothing.
+ */
+inline UpscaleFilter upscaleDrawnFilter(UpscaleFilter filter, const UpscalePicture &picture)
+{
+    return picture.factor == 1 ? UpscaleFilter::Nearest : filter;
+}
+
+/** The @p sharpening a @p drawn filter applies: none where it has no sharpener. */
+inline double upscaleDrawnSharpening(UpscaleFilter drawn, double sharpening)
+{
+    return upscaleFilterSharpens(drawn) ? sharpening : 0.0;
 }
 
 /**

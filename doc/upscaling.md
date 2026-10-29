@@ -553,11 +553,18 @@ licence that decides whether the shader may be carried here at all:
 | AMD FSR 1 (EASU + RCAS) | upscale + sharpen | MIT | yes |
 | NVIDIA Image Scaling (NIS) | upscale + sharpen | MIT | yes |
 | Snapdragon GSR 1 | single pass, Lanczos-like 12-tap + adaptive sharpen | BSD-3-Clause | yes |
-| Lanczos, bicubic (libplacebo implementations) | classic | LGPL-2.1-or-later; retain additional source notices | candidates |
+| Bilinear, bicubic (Catmull-Rom), Lanczos (three lobes) | classic | own implementation, GPL-2.0-or-later | implemented |
 | Nearest / integer scaling | pixel replication / geometry | own implementation | yes |
 | xBRZ (KWin zoom shader) | pixel-art reconstruction | GPL-2.0-or-later | candidate |
 | AMD CAS | sharpen with optional upscale | MIT | candidate |
 | MAKO Scaler | single pass | GPL-3.0-or-later | **no** |
+
+Decided by Jens on 2026-10-29: bilinear, bicubic, Lanczos, Snapdragon GSR 1,
+NIS and xBRZ join FSR 1 and nearest neighbour as choices of the scaling filter,
+globally and per game, each sharpened by its own sharpener under the existing
+sharpening setting. Bilinear, bicubic and Lanczos are implemented, with RCAS
+as their sharpener; GSR, NIS and xBRZ are planned, and CAS stays a candidate.
+The [scaling methods slice](agents/slice-scaling-methods.md) holds the plan.
 
 MAKO is ruled out as a source of code, not on quality: this project is
 `GPL-2.0-or-later`, and taking GPL-3 code would pin it to GPL-3 and rule out a
@@ -585,10 +592,10 @@ Fullscreen content whose aspect ratio differs from the output is fitted in with
 black bars, and pixel art and older games can be enlarged by a whole number with
 nearest-neighbour sampling. Two settings decide it, each a global default with
 sparse application overrides like every other setting: **Picture size** (`Geometry`,
-Fit or Integer) and **Scaling filter** (`Filter`, FSR or Nearest), on the
-**Scaling** tab beside sharpening. They are separate on purpose: nearest
-sampling alone is not integer scaling, and FSR can be laid either way within its
-range.
+Fit or Integer) and **Scaling filter** (`Filter`: FSR, Nearest, Bilinear,
+Bicubic or Lanczos), on the **Scaling** tab beside sharpening. They are separate
+on purpose: nearest sampling alone is not integer scaling, and FSR can be laid
+either way within its range.
 
 - **Fit, preserving the aspect ratio:** the complete supplied image is enlarged
   as far as the filter permits without stretching or cropping it, centred, and
@@ -606,7 +613,15 @@ FSR 1 keeps its range: it enlarges by more than one and at most two times, so
 with Integer only a factor of two, and Fit refuses content it would have to
 enlarge further. Nearest enlarges by any amount above one, and never sharpens:
 it replicates each pixel exactly, and the sharpening setting does not apply to
-it. A combination that cannot be honoured is refused by name and the window is
+it. Bilinear, bicubic and Lanczos enlarge by any amount as well, and RCAS
+sharpens what they drew as it sharpens EASU's result. Bicubic is Catmull-Rom,
+the cubic that passes through every pixel; Lanczos has three lobes. Both are
+held within the darkest and brightest pixel their taps read, so the overshoot
+of their negative lobes never draws a halo darker than black, which a linear
+destination would carry as negative light. Under Integer, a whole factor of
+one enlarges nothing, and every filter draws it as the copy it is, unsharpened;
+the status then names nearest neighbour, which is what ran.
+A combination that cannot be honoured is refused by name and the window is
 drawn by KWin as usual: content no smaller than its output, content FSR would
 have to enlarge more than twice, content no whole factor fits, and FSR asked for
 a whole factor other than two. Nothing is silently downscaled or cropped.
@@ -629,7 +644,7 @@ The destination is calculated in the output's device pixels, independently of
 the desktop scale, and the one pixel by which opposite bars can differ goes to
 the bottom and the right. The bars are drawn black, which is zero in every
 encoding a target can have, and the picture is filtered inside its own
-rectangle, so neither filter samples across the image boundary or sharpens a
+rectangle, so no filter samples across the image boundary or sharpens a
 bar. A buffer that already contains letterboxing is treated as supplied;
 automatic bar detection or cropping is outside this feature. The physical output
 mode is never changed.

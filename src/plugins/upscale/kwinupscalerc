@@ -70,7 +70,8 @@
 # is Native, UltraQuality, Quality, Balanced, Performance or Custom; Geometry is
 # Fit, which enlarges the picture as far as the filter allows without
 # stretching it, or Integer, the largest whole factor that fits; Filter is FSR,
-# which enlarges at most two times, or Nearest, which repeats each pixel exactly.
+# which enlarges at most two times, Bilinear, Bicubic or Lanczos, which enlarge
+# by any amount, or Nearest, which repeats each pixel exactly.
 # Native connection patterns start with `/`, keeping them distinct from Wine
 # identities while a prefix is still starting and its program is not known.
 

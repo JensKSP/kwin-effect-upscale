@@ -69,13 +69,8 @@ static QString refusalText(const UpscaleSnapshot &snapshot)
 // scaler being active.
 static QString processing(const UpscaleSnapshot &snapshot)
 {
-    if (snapshot.scaling && snapshot.filter == UpscaleFilter::Nearest) {
-        return i18nc("What the effect does with the buffer, after the sizes or a window's states", "nearest neighbor");
-    }
     if (snapshot.scaling) {
-        return snapshot.sharpening > 0
-            ? i18nc("What the effect does with the buffer, after the sizes or a window's states", "FSR 1 with RCAS sharpening %1%", qRound(snapshot.sharpening * 100))
-            : i18nc("What the effect does with the buffer, after the sizes or a window's states", "FSR 1, no sharpening");
+        return upscaleFilterClause(snapshot.filter, snapshot.sharpening);
     }
     if (snapshot.refusal != UpscaleRefusal::None) {
         return i18nc("%1 is a reason, written as a clause", "not scaling: %1", refusalText(snapshot));
@@ -284,8 +279,10 @@ static QString wishText(const UpscaleSnapshot &snapshot)
 // The filter at work, and how the picture lies where it leaves bars.
 static QString pictureText(const UpscaleSnapshot &snapshot)
 {
-    QString filter = snapshot.filter == UpscaleFilter::Nearest ? i18n("Nearest neighbor")
-                                                               : i18n("FSR 1, sharpening %1%", qRound(snapshot.sharpening * 100));
+    QString filter = upscaleFilterName(snapshot.filter);
+    if (upscaleFilterSharpens(snapshot.filter)) {
+        filter = i18nc("A scaling filter and its sharpening strength", "%1, sharpening %2%", filter, qRound(snapshot.sharpening * 100));
+    }
     if (snapshot.factor > 0) {
         return i18np("%2, enlarged %1 time", "%2, enlarged %1 times", snapshot.factor, filter);
     }

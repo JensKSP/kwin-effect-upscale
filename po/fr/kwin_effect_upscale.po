@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: kwin-effect-upscale\n"
 "Report-Msgid-Bugs-To: https://github.com/JensKSP/kwin-effect-upscale/issues\n"
-"POT-Creation-Date: 2026-10-07 06:52+0000\n"
+"POT-Creation-Date: 2026-10-29 22:19+0000\n"
 "PO-Revision-Date: 2026-09-30 00:00+0200\n"
 "Last-Translator: \n"
 "Language-Team: French\n"
@@ -193,12 +193,12 @@ msgid "On-Screen Display"
 msgstr "Affichage à l’écran"
 
 #, kde-format
-msgid "Added by you. %1"
-msgstr "Ajoutée par vous. %1"
-
-#, kde-format
 msgid "Added by you."
 msgstr "Ajoutée par vous."
+
+#, kde-format
+msgid "Added by you. %1"
+msgstr "Ajoutée par vous. %1"
 
 #, kde-format
 msgid "Add from Window"
@@ -286,6 +286,68 @@ msgstr "%1 (0x%2)"
 #, kde-format
 msgid "none"
 msgstr "aucun"
+
+#, kde-format
+msgctxt "Scaling filter"
+msgid "FSR 1"
+msgstr "FSR 1"
+
+#, kde-format
+msgctxt "Scaling filter"
+msgid "Nearest neighbor"
+msgstr "Plus proche voisin"
+
+#, kde-format
+msgctxt "Scaling filter"
+msgid "Bilinear"
+msgstr "Bilinéaire"
+
+#, kde-format
+msgctxt "Scaling filter"
+msgid "Bicubic"
+msgstr "Bicubique"
+
+#, kde-format
+msgctxt "Scaling filter"
+msgid "Lanczos"
+msgstr "Lanczos"
+
+#, kde-format
+msgctxt "Scaling filter, within a sentence"
+msgid "FSR 1"
+msgstr "FSR 1"
+
+#, kde-format
+msgctxt "Scaling filter, within a sentence"
+msgid "nearest neighbor"
+msgstr "plus proche voisin"
+
+#, kde-format
+msgctxt "Scaling filter, within a sentence"
+msgid "bilinear"
+msgstr "bilinéaire"
+
+#, kde-format
+msgctxt "Scaling filter, within a sentence"
+msgid "bicubic"
+msgstr "bicubique"
+
+#, kde-format
+msgctxt "Scaling filter, within a sentence"
+msgid "Lanczos"
+msgstr "Lanczos"
+
+#, kde-format
+msgctxt ""
+"What the effect does with the buffer, after the sizes or a window's states"
+msgid "%1, no sharpening"
+msgstr "%1, sans accentuation"
+
+#, kde-format
+msgctxt ""
+"What the effect does with the buffer, after the sizes or a window's states"
+msgid "%1 with RCAS sharpening %2%"
+msgstr "%1 avec accentuation RCAS %2 %"
 
 #, kde-format
 msgid "Program:"
@@ -567,10 +629,11 @@ msgstr ""
 msgctxt ""
 "A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
 msgid ""
-"the whole-number factor that fits is not two, the only one FSR 1 enlarges by."
+"the whole-number factor that fits is not two, the only one the scaling "
+"filter enlarges by."
 msgstr ""
-"le facteur entier qui tient n’est pas deux, le seul par lequel FSR 1 "
-"agrandit."
+"le facteur entier qui tient n’est pas deux, le seul par lequel le filtre de "
+"mise à l’échelle agrandit."
 
 #, kde-format
 msgctxt ""
@@ -930,16 +993,6 @@ msgid "Whole-number multiple"
 msgstr "Multiple entier"
 
 #, kde-format
-msgctxt "Scaling filter"
-msgid "FSR 1"
-msgstr "FSR 1"
-
-#, kde-format
-msgctxt "Scaling filter"
-msgid "Nearest neighbor"
-msgstr "Plus proche voisin"
-
-#, kde-format
 msgid ""
 "“Fit to the screen” enlarges the picture as far as the filter allows without "
 "stretching it. “Whole-number multiple” enlarges it by the largest whole "
@@ -954,12 +1007,13 @@ msgstr ""
 #, kde-format
 msgid ""
 "FSR 1 enlarges at most two times, as a whole-number multiple exactly two "
-"times, and can sharpen. Nearest neighbor repeats each pixel exactly and "
-"enlarges by any amount."
+"times. Bilinear, bicubic and Lanczos enlarge by any amount. Each of these "
+"can sharpen. Nearest neighbor repeats each pixel exactly and never sharpens."
 msgstr ""
-"FSR 1 agrandit au plus deux fois, exactement deux fois en multiple entier, "
-"et peut accentuer. Plus proche voisin répète chaque pixel à l’identique et "
-"agrandit de n’importe quelle valeur."
+"FSR 1 agrandit au plus deux fois, exactement deux fois en multiple entier. "
+"Bilinéaire, bicubique et Lanczos agrandissent de n’importe quelle valeur. "
+"Chacun d’eux peut accentuer. Plus proche voisin répète chaque pixel à "
+"l’identique et n’accentue jamais."
 
 #, kde-format
 msgctxt "A transfer function, completing “destination transfer %1”"
@@ -984,24 +1038,6 @@ msgstr "gamma 2.2"
 #, kde-format
 msgid "Supplied format: %1."
 msgstr "Format fourni : %1."
-
-#, kde-format
-msgctxt ""
-"What the effect does with the buffer, after the sizes or a window's states"
-msgid "nearest neighbor"
-msgstr "plus proche voisin"
-
-#, kde-format
-msgctxt ""
-"What the effect does with the buffer, after the sizes or a window's states"
-msgid "FSR 1 with RCAS sharpening %1%"
-msgstr "FSR 1 avec accentuation RCAS %1 %"
-
-#, kde-format
-msgctxt ""
-"What the effect does with the buffer, after the sizes or a window's states"
-msgid "FSR 1, no sharpening"
-msgstr "FSR 1, sans accentuation"
 
 #, kde-format
 msgctxt "%1 is a reason, written as a clause"
@@ -1111,12 +1147,12 @@ msgid "%1 (use the supplied buffer)"
 msgstr "%1 (utiliser le tampon fourni)"
 
 #, kde-format
-msgid "%1, %2% of the destination (%3)"
-msgstr "%1, %2 % de la destination (%3)"
-
-#, kde-format
 msgid "%1, %2% of the destination, %3 for a whole factor of %4"
 msgstr "%1, %2 % de la destination, %3 pour un facteur entier de %4"
+
+#, kde-format
+msgid "%1, %2% of the destination (%3)"
+msgstr "%1, %2 % de la destination (%3)"
 
 #, kde-format
 msgctxt ""
@@ -1220,12 +1256,9 @@ msgid "Select %1 × %2 in the game"
 msgstr "Sélectionnez %1 × %2 dans le jeu"
 
 #, kde-format
-msgid "Nearest neighbor"
-msgstr "Plus proche voisin"
-
-#, kde-format
-msgid "FSR 1, sharpening %1%"
-msgstr "FSR 1, accentuation %1 %"
+msgctxt "A scaling filter and its sharpening strength"
+msgid "%1, sharpening %2%"
+msgstr "%1, accentuation %2 %"
 
 #, kde-format
 msgid "%2, enlarged %1 time"
@@ -1449,12 +1482,9 @@ msgid "%1 ms/f"
 msgstr "%1 ms/i"
 
 #, kde-format
-msgid "FSR 1"
-msgstr "FSR 1"
-
-#, kde-format
-msgid "FSR 1 + RCAS"
-msgstr "FSR 1 + RCAS"
+msgctxt "A scaling filter followed by RCAS sharpening"
+msgid "%1 + RCAS"
+msgstr "%1 + RCAS"
 
 #, kde-format
 msgid "%1 → %2"

@@ -6,6 +6,7 @@ SPDX-License-Identifier: GPL-2.0-or-later
     <qresource prefix="/effects/upscale">
         <file>shaders/upscale.frag</file>
         <file>shaders/sharpen.frag</file>
+        <file>shaders/classic.frag</file>
     </qresource>
     <qresource prefix="/opengl/upscale">
         <file alias="workingcolor.glsl">shaders/workingcolor.glsl</file>

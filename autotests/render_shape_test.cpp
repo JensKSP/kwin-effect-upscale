@@ -176,6 +176,7 @@ void UpscaleRenderShapeTest::laysThePictureBetweenBars()
         return result[(size_t(y) * size_t(outputSize.width()) + size_t(x)) * 4 + size_t(channel)];
     };
     for (const auto &[inputSize, geometry, filter] : {std::tuple{QSize(8, 6), UpscaleGeometry::Fit, UpscaleFilter::Fsr},
+                                                      std::tuple{QSize(8, 6), UpscaleGeometry::Fit, UpscaleFilter::Lanczos},
                                                       std::tuple{QSize(4, 3), UpscaleGeometry::Integer, UpscaleFilter::Nearest}}) {
         const UpscalePicture picture = upscalePicture({inputSize.width(), inputSize.height()}, {16, 9}, geometry, filter);
         QCOMPARE(QRect(picture.x, picture.y, picture.width, picture.height), QRect(2, 0, 12, 9));

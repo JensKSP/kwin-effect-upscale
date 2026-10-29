@@ -88,18 +88,7 @@ void UpscaleRenderTest::constantColors()
     const QSize inputSize(8, 8);
     const QSize outputSize(16, 16);
     const TransferFunction transfer(static_cast<TransferFunction::Type>(transferType));
-#if UPSCALE_REGION_API
-    const double reference = ColorDescription::sRGB->referenceLuminance();
-#else
-    const double reference = ColorDescription::sRGB.referenceLuminance();
-#endif
-    double expected = transfer.nitsToEncoded(QVector3D(float(value * reference), 0, 0)).x();
-    const double normalized = (value * reference - transfer.minLuminance) / (transfer.maxLuminance - transfer.minLuminance);
-    if (transfer.type == TransferFunction::sRGB && normalized < 0.0031308) {
-        // KWin 6.3's CPU helper divides here; its shader and the sRGB inverse
-        // EOTF multiply by 12.92. Test the shader's specified transfer curve.
-        expected = std::max(12.92 * normalized, 0.0);
-    }
+    const double expected = upscaleEncodedConstant(value, transfer);
     std::vector<float> input(8 * 8 * 4, float(expected));
     for (size_t index = 3; index < input.size(); index += 4) {
         input[index] = 1;

@@ -59,6 +59,7 @@ not imply that already implemented diagnostics or resolution control are absent.
 | --- | --- |
 | About and logging, the on-screen displays passive and interactive, and the languages the texts ship in | [What the effect says](slice-development-infrastructure.md) |
 | FSR rendering, aspect ratio and integer scaling, HDR/VRR and acceptance | [FSR rendering](slice-fsr1-hdr-vrr.md) |
+| The other scaling methods, each with its own sharpening, globally and per game | [Scaling methods](slice-scaling-methods.md) |
 | Application matching, setting overrides and submitted applications | [The applications we know about](slice-application-profiles.md) |
 | Obtaining original smaller game buffers | [Resolution control](slice-resolution-control.md) |
 | Upstream Wayland compatibility and production scaling in the VM | [Wayland conformance](slice-wayland-conformance.md) |

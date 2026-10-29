@@ -62,6 +62,9 @@ static void describePicture(UpscaleSnapshot &state, EffectWindow *window, const 
     if (const UpscalePicture placed = upscalePictureOf(window); placed.sizing == UpscaleSizing::Supported) {
         state.picture = QRect(placed.x, placed.y, placed.width, placed.height);
         state.factor = placed.factor;
+        // What draws it, which a whole factor of one makes a copy.
+        state.filter = upscaleDrawnFilter(state.filter, placed);
+        state.sharpening = upscaleDrawnSharpening(state.filter, state.sharpening);
     }
 }
 
