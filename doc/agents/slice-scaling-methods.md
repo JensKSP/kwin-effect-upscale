@@ -14,8 +14,8 @@ for each game. He decided the scope the same day: the classic filters
 join FSR 1 and nearest neighbour. Each method sharpens with its own sharpener
 under the existing sharpening switch and strength. The work goes on branch
 `scaling/methods`, pull request #40. All six methods are implemented with
-their settings, status and rendered-pixel tests, and pass in the containers;
-what remains is the production run in the conformance machine and the full
+their settings, status and rendered-pixel tests, pass in the containers and
+in the conformance machine's production run; what remains is the full
 acceptance on hardware. See
 [progress](#progress-and-remaining-work).
 
@@ -195,8 +195,18 @@ Jens and the TV, and never run at the same time as container checks.
   nearest-neighbour copy at lower precision (0.09998 for 0.1), so the test
   compares with the input rather than with such a copy. Passed in the Trixie
   container with GCC on OpenGL and OpenGL ES on 2026-10-30.
-- [ ] Builds in both containers with GCC and Clang, both lint stages, tidy.
-- [ ] Production run in the conformance machine, one session per kind of pass.
+- [x] Builds in both containers with GCC and Clang, both lint stages, tidy.
+  On 2026-10-30, at the head of the series: the Trixie suite with GCC and with
+  Clang, every `upscale-` test passing, the render tests on OpenGL and OpenGL
+  ES; builds against KWin master in the neon container with both compilers;
+  clang-tidy; and both lint stages. Tidy found NVIDIA's variable names and a
+  metrics function one line over its size, both changed before the push.
+- [x] Production run in the conformance machine, one case per kind of pass
+  (`kwin_filter_test.cpp`): a fresh machine on 2026-10-30, KWin 6.3.6 from
+  Debian's source package, llvmpipe on vgem. All 27 cases passed, among them
+  `drawsWithEachKindOfFilter` for Lanczos, GSR, NIS and xBRZ: a fullscreen
+  256 × 144 buffer drawn onto 384 × 216, the metrics line naming the filter
+  asked for, and the output differing from KWin's own enlargement.
 - [ ] Handbook, notices and README updated.
 - [ ] Full acceptance on wzpc with Jens: image comparison, HDR, VRR, cost.
 
