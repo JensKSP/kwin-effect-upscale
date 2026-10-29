@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: kwin-effect-upscale\n"
 "Report-Msgid-Bugs-To: https://github.com/JensKSP/kwin-effect-upscale/issues\n"
-"POT-Creation-Date: 2026-10-29 22:19+0000\n"
+"POT-Creation-Date: 2026-10-29 22:53+0000\n"
 "PO-Revision-Date: 2026-09-30 00:00+0200\n"
 "Last-Translator: \n"
 "Language-Team: French\n"
@@ -313,6 +313,11 @@ msgid "Lanczos"
 msgstr "Lanczos"
 
 #, kde-format
+msgctxt "Scaling filter"
+msgid "Snapdragon GSR 1"
+msgstr "Snapdragon GSR 1"
+
+#, kde-format
 msgctxt "Scaling filter, within a sentence"
 msgid "FSR 1"
 msgstr "FSR 1"
@@ -338,6 +343,11 @@ msgid "Lanczos"
 msgstr "Lanczos"
 
 #, kde-format
+msgctxt "Scaling filter, within a sentence"
+msgid "Snapdragon GSR 1"
+msgstr "Snapdragon GSR 1"
+
+#, kde-format
 msgctxt ""
 "What the effect does with the buffer, after the sizes or a window's states"
 msgid "%1, no sharpening"
@@ -348,6 +358,12 @@ msgctxt ""
 "What the effect does with the buffer, after the sizes or a window's states"
 msgid "%1 with RCAS sharpening %2%"
 msgstr "%1 avec accentuation RCAS %2 %"
+
+#, kde-format
+msgctxt ""
+"What the effect does with the buffer, after the sizes or a window's states"
+msgid "%1 with its own sharpening %2%"
+msgstr "%1 avec sa propre accentuation %2 %"
 
 #, kde-format
 msgid "Program:"
@@ -1007,13 +1023,16 @@ msgstr ""
 #, kde-format
 msgid ""
 "FSR 1 enlarges at most two times, as a whole-number multiple exactly two "
-"times. Bilinear, bicubic and Lanczos enlarge by any amount. Each of these "
-"can sharpen. Nearest neighbor repeats each pixel exactly and never sharpens."
+"times. Bilinear, bicubic, Lanczos and Snapdragon GSR 1 enlarge by any "
+"amount. Each of these can sharpen: Snapdragon GSR 1 with its own edge "
+"sharpening, the others with RCAS. Nearest neighbor repeats each pixel "
+"exactly and never sharpens."
 msgstr ""
 "FSR 1 agrandit au plus deux fois, exactement deux fois en multiple entier. "
-"Bilinéaire, bicubique et Lanczos agrandissent de n’importe quelle valeur. "
-"Chacun d’eux peut accentuer. Plus proche voisin répète chaque pixel à "
-"l’identique et n’accentue jamais."
+"Bilinéaire, bicubique, Lanczos et Snapdragon GSR 1 agrandissent de n’importe "
+"quelle valeur. Chacun d’eux peut accentuer : Snapdragon GSR 1 avec sa propre "
+"accentuation des contours, les autres avec RCAS. Plus proche voisin répète "
+"chaque pixel à l’identique et n’accentue jamais."
 
 #, kde-format
 msgctxt "A transfer function, completing “destination transfer %1”"
@@ -1485,6 +1504,11 @@ msgstr "%1 ms/i"
 msgctxt "A scaling filter followed by RCAS sharpening"
 msgid "%1 + RCAS"
 msgstr "%1 + RCAS"
+
+#, kde-format
+msgctxt "A scaling filter with its own sharpening"
+msgid "%1, sharpened"
+msgstr "%1, accentué"
 
 #, kde-format
 msgid "%1 → %2"

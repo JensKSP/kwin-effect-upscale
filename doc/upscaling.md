@@ -552,7 +552,7 @@ licence that decides whether the shader may be carried here at all:
 | --- | --- | --- | --- |
 | AMD FSR 1 (EASU + RCAS) | upscale + sharpen | MIT | yes |
 | NVIDIA Image Scaling (NIS) | upscale + sharpen | MIT | yes |
-| Snapdragon GSR 1 | single pass, Lanczos-like 12-tap + adaptive sharpen | BSD-3-Clause | yes |
+| Snapdragon GSR 1 | single pass, Lanczos-like 12-tap + adaptive sharpen | BSD-3-Clause | implemented |
 | Bilinear, bicubic (Catmull-Rom), Lanczos (three lobes) | classic | own implementation, GPL-2.0-or-later | implemented |
 | Nearest / integer scaling | pixel replication / geometry | own implementation | yes |
 | xBRZ (KWin zoom shader) | pixel-art reconstruction | GPL-2.0-or-later | candidate |
@@ -563,7 +563,8 @@ Decided by Jens on 2026-10-29: bilinear, bicubic, Lanczos, Snapdragon GSR 1,
 NIS and xBRZ join FSR 1 and nearest neighbour as choices of the scaling filter,
 globally and per game, each sharpened by its own sharpener under the existing
 sharpening setting. Bilinear, bicubic and Lanczos are implemented, with RCAS
-as their sharpener; GSR, NIS and xBRZ are planned, and CAS stays a candidate.
+as their sharpener, and so is GSR, which sharpens itself; NIS and xBRZ are
+planned, and CAS stays a candidate.
 The [scaling methods slice](agents/slice-scaling-methods.md) holds the plan.
 
 MAKO is ruled out as a source of code, not on quality: this project is
@@ -593,7 +594,7 @@ black bars, and pixel art and older games can be enlarged by a whole number with
 nearest-neighbour sampling. Two settings decide it, each a global default with
 sparse application overrides like every other setting: **Picture size** (`Geometry`,
 Fit or Integer) and **Scaling filter** (`Filter`: FSR, Nearest, Bilinear,
-Bicubic or Lanczos), on the **Scaling** tab beside sharpening. They are separate
+Bicubic, Lanczos or GSR), on the **Scaling** tab beside sharpening. They are separate
 on purpose: nearest sampling alone is not integer scaling, and FSR can be laid
 either way within its range.
 
@@ -618,7 +619,13 @@ sharpens what they drew as it sharpens EASU's result. Bicubic is Catmull-Rom,
 the cubic that passes through every pixel; Lanczos has three lobes. Both are
 held within the darkest and brightest pixel their taps read, so the overshoot
 of their negative lobes never draws a halo darker than black, which a linear
-destination would carry as negative light. Under Integer, a whole factor of
+destination would carry as negative light. Snapdragon GSR 1 enlarges by any
+amount too and sharpens with its own edge sharpness, which the strength sets
+from Qualcomm's unsharpened 1 to its default of 2; it moves a pixel only where
+the green channel passes its edge vote, by at most 23/255, and RCAS never
+follows it. For a linear destination it filters the bounded working encoding
+shifted into -1 to 1, where its absolute thresholds see the contrast they were
+written for, as RCAS does. Under Integer, a whole factor of
 one enlarges nothing, and every filter draws it as the copy it is, unsharpened;
 the status then names nearest neighbour, which is what ran.
 A combination that cannot be honoured is refused by name and the window is

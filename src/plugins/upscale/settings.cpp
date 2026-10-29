@@ -109,6 +109,7 @@ static constexpr std::array filterNames{
     QLatin1StringView("Bilinear"),
     QLatin1StringView("Bicubic"),
     QLatin1StringView("Lanczos"),
+    QLatin1StringView("GSR"),
 };
 static_assert(filterNames.size() == std::size_t(upscaleLastFilter) + 1);
 

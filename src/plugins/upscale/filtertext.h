@@ -32,13 +32,16 @@ inline QString upscaleFilterName(UpscaleFilter filter)
         return i18nc("Scaling filter", "Bicubic");
     case UpscaleFilter::Lanczos:
         return i18nc("Scaling filter", "Lanczos");
+    case UpscaleFilter::Gsr:
+        return i18nc("Scaling filter", "Snapdragon GSR 1");
     }
     return QString();
 }
 
 /**
  * What @p filter did with a buffer, sharpened by @p sharpening, as a clause
- * of the status line after the sizes, naming the sharpener.
+ * of the status line after the sizes. The sharpener is named, because RCAS
+ * after a filter and a filter's own sharpening are different things.
  */
 inline QString upscaleFilterClause(UpscaleFilter filter, double sharpening)
 {
@@ -58,12 +61,17 @@ inline QString upscaleFilterClause(UpscaleFilter filter, double sharpening)
     case UpscaleFilter::Lanczos:
         name = i18nc("Scaling filter, within a sentence", "Lanczos");
         break;
+    case UpscaleFilter::Gsr:
+        name = i18nc("Scaling filter, within a sentence", "Snapdragon GSR 1");
+        break;
     }
     const int percent = qRound(sharpening * 100);
     if (percent <= 0) {
         return i18nc("What the effect does with the buffer, after the sizes or a window's states", "%1, no sharpening", name);
     }
-    return i18nc("What the effect does with the buffer, after the sizes or a window's states", "%1 with RCAS sharpening %2%", name, percent);
+    return upscaleFilterSharpensWithRcas(filter)
+        ? i18nc("What the effect does with the buffer, after the sizes or a window's states", "%1 with RCAS sharpening %2%", name, percent)
+        : i18nc("What the effect does with the buffer, after the sizes or a window's states", "%1 with its own sharpening %2%", name, percent);
 }
 
 } // namespace KWin

@@ -87,30 +87,11 @@ static std::unique_ptr<GLShader> loadShader(const QString &path, bool direct = f
     return validShader(shader.get()) ? std::move(shader) : nullptr;
 }
 
-// The file and defines that make each filter's program. The three classic
-// filters are one program with the kernel chosen when it is compiled.
-static std::pair<QString, QByteArray> filterSource(UpscaleFilter filter)
-{
-    const QString classic = QStringLiteral(":/effects/upscale/shaders/classic.frag");
-    switch (filter) {
-    case UpscaleFilter::Fsr:
-    case UpscaleFilter::Nearest:
-        break;
-    case UpscaleFilter::Bilinear:
-        return {classic, QByteArrayLiteral("#define UPSCALE_KERNEL 0\n")};
-    case UpscaleFilter::Bicubic:
-        return {classic, QByteArrayLiteral("#define UPSCALE_KERNEL 1\n")};
-    case UpscaleFilter::Lanczos:
-        return {classic, QByteArrayLiteral("#define UPSCALE_KERNEL 2\n")};
-    }
-    return {QStringLiteral(":/effects/upscale/shaders/upscale.frag"), QByteArray()};
-}
-
 GLShader *UpscaleScaler::program(UpscaleFilter filter, bool direct)
 {
     Programs &programs = m_filters[std::size_t(filter)];
     if (!programs.loaded) {
-        const auto [path, defines] = filterSource(filter);
+        const auto [path, defines] = upscaleFilterSource(filter);
         programs.working = loadShader(path, false, defines);
         programs.direct = loadShader(path, true, defines);
         programs.loaded = true;
@@ -218,33 +199,28 @@ void UpscaleScaler::bars(const RenderViewport &viewport, const UpscaleRectF &fra
     }
 }
 
-// The enlargement, by EASU or a classic filter. With sharpening wanted it
-// writes an intermediate for RCAS to sharpen in place afterwards, which is the
-// order AMD specifies and the only one RCAS supports; otherwise it draws
-// straight to the destination.
+// The enlargement. Where RCAS is to sharpen it, it writes an intermediate for
+// RCAS to sharpen in place afterwards, which is the order AMD specifies and
+// the only one RCAS supports; otherwise, and for a filter that sharpens as part
+// of itself, it draws straight to the destination.
 bool UpscaleScaler::scale(const RenderTarget &target, const RenderViewport &viewport, GLTexture *input,
                           const UpscaleDrawing &drawing, const UpscaleRegion &region)
 {
-    const QSize inputSize = input->size();
     const QSize outputSize = (drawing.destination.size() * viewport.scale()).toSize();
     const bool direct = upscaleFiltersDirectly(targetColors(target));
     GLShader *filter = program(drawing.filter, direct);
     if (!filter) {
         return false;
     }
+    const bool intermediate = upscaleRcasFollows(drawing);
     const ShaderBinder binder(filter);
-    filter->setUniform("inputSize", QVector2D(float(inputSize.width()), float(inputSize.height())));
-    // The classic filters work from the input alone.
-    if (drawing.filter == UpscaleFilter::Fsr) {
-        filter->setUniform("outputSize", QVector2D(float(outputSize.width()), float(outputSize.height())));
-    }
-    filter->setUniform("intermediate", int(drawing.strength > 0));
+    upscaleSetFilterUniforms(filter, drawing, input->size(), outputSize, intermediate);
     // The direct shaders carry no transfer-function arithmetic, so they
     // declare none of these and asking for them would only log misses.
     if (!direct) {
         setColorUniforms(filter, target);
     }
-    if (drawing.strength <= 0) {
+    if (!intermediate) {
         draw(filter, input, viewport, drawing.destination, region);
         return true;
     }
@@ -278,7 +254,7 @@ bool UpscaleScaler::renderTexture(const RenderTarget &target, const RenderViewpo
                                   const UpscaleDrawing &drawing, const UpscaleRegion &region)
 {
     const UpscaleRectF &destination = drawing.destination;
-    const double strength = drawing.strength;
+    const bool sharpening = upscaleRcasFollows(drawing);
     if (!supportsUpscaleColors(targetColors(target))) {
         return false;
     }
@@ -311,13 +287,14 @@ bool UpscaleScaler::renderTexture(const RenderTarget &target, const RenderViewpo
         return true;
     }
     const QSize outputSize = (destination.size() * viewport.scale()).toSize();
-    if (strength > 0) {
+    if (sharpening) {
         if (!m_scaled.resize(outputSize, upscaleFilterFormat(targetColors(target)))) {
             return false;
         }
     } else {
         // A destination-sized floating point image is the largest allocation
-        // this effect makes. Switching sharpening off has to return it.
+        // this effect makes. Switching sharpening off, or to a filter that
+        // sharpens itself, has to return it.
         m_scaled.release();
     }
 
@@ -326,8 +303,8 @@ bool UpscaleScaler::renderTexture(const RenderTarget &target, const RenderViewpo
     if (!scale(target, viewport, input, drawing, region)) {
         return false;
     }
-    if (strength > 0) {
-        sharpen(target, viewport, destination, region, strength);
+    if (sharpening) {
+        sharpen(target, viewport, destination, region, drawing.strength);
     }
     return true;
 }

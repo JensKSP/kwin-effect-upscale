@@ -126,6 +126,13 @@ void UpscaleSnapshotTest::reportsThePathActuallyTaken()
              qPrintable(upscaleDeveloperInformation(lanczos)));
     QVERIFY2(upscaleHeadsUp(lanczos).contains(QStringLiteral("Bilinear")) && !upscaleHeadsUp(lanczos).contains(QStringLiteral("RCAS")),
              qPrintable(upscaleHeadsUp(lanczos)));
+    // A filter that sharpens itself is not said to be followed by RCAS.
+    UpscaleSnapshot gsr = snapshot;
+    gsr.filter = UpscaleFilter::Gsr;
+    QVERIFY2(upscaleDeveloperInformation(gsr).contains(QStringLiteral("Snapdragon GSR 1 with its own sharpening 50%")),
+             qPrintable(upscaleDeveloperInformation(gsr)));
+    QVERIFY2(upscaleHeadsUp(gsr).contains(QStringLiteral("Snapdragon GSR 1, sharpened")) && !upscaleHeadsUp(gsr).contains(QStringLiteral("RCAS")),
+             qPrintable(upscaleHeadsUp(gsr)));
     QVERIFY(!headsUp.contains(QStringLiteral("Client buffer updates")));
     QVERIFY(!headsUp.contains(QStringLiteral("compositor repaints")));
     QVERIFY(!headsUp.contains(QStringLiteral("percentile")));

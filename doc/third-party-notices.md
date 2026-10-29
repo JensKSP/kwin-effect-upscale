@@ -51,6 +51,53 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
+### Snapdragon Game Super Resolution 1
+
+The Snapdragon GSR 1 scaling filter is Qualcomm's single-pass shader,
+`sgsr/v1/include/glsl/sgsr1_shader_mobile.frag` at commit `d926f074`, in its
+RGBA operation mode. It is carried as `src/plugins/upscale/shaders/gsr.frag`,
+a shader resource inside the plugin.
+
+Changed from Qualcomm's reference: the texels its `textureGather` calls and its
+bilinear base tap read are fetched one by one, because the effect's capture is
+sampled nearest and OpenGL ES 3.0 has no gather; its edge sharpness is set by
+the effect's sharpening strength; and for a linear destination it filters the
+effect's bounded working encoding, shifted into -1 to 1, with its result kept
+in that range.
+
+- Copyright holder: Qualcomm Innovation Center, Inc.
+- License: BSD 3-Clause (`BSD-3-Clause`)
+
+```text
+Copyright (c) 2025, Qualcomm Innovation Center, Inc. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice,
+   this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+```
+
 Nothing else from a third party is compiled into the packages. The source tree
 also holds KWin's `.clang-format` (MIT, Christoph Cullmann and Gernot Gebhard),
 which formats the code and is not installed, and CI and tool configuration

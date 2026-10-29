@@ -13,8 +13,9 @@ for each game. He decided the scope the same day: the classic filters
 (bilinear, bicubic, Lanczos), Snapdragon GSR 1, NVIDIA Image Scaling and xBRZ
 join FSR 1 and nearest neighbour. Each method sharpens with its own sharpener
 under the existing sharpening switch and strength. The work goes on branch
-`scaling/methods`. Bilinear, bicubic and Lanczos are implemented with their
-settings, status and rendered-pixel tests; GSR, NIS and xBRZ follow. See
+`scaling/methods`, pull request #40. Bilinear, bicubic, Lanczos and
+Snapdragon GSR 1 are implemented with their settings, status and
+rendered-pixel tests; NIS and xBRZ follow. See
 [progress](#progress-and-remaining-work).
 
 ## Start state and evidence
@@ -165,7 +166,15 @@ Jens and the TV, and never run at the same time as container checks.
   reproduced by bilinear and Catmull-Rom, an edge held within its two levels
   and drawn steeper than bilinear, RCAS and clipping). Passed in the Trixie
   container with GCC on OpenGL and OpenGL ES on 2026-10-29.
-- [ ] Snapdragon GSR 1, with rendered-pixel tests.
+- [x] Snapdragon GSR 1, with rendered-pixel tests. Qualcomm's shader cannot
+  run here as written (it gathers), so `render_method_test.cpp` holds the port
+  to what it computes exactly: below the edge vote, its bilinear base tap at
+  any strength; past it, one correction for all three channels, never more than
+  23/255, and larger with the edge sharpness on a ramp. At a step both
+  strengths already reach the range the result is clamped to, so a step shows
+  no difference. GSR also joins the constant-colour, corner, sharpening and
+  clipping tests of `render_filter_test.cpp`. Passed in the Trixie container
+  with GCC on OpenGL and OpenGL ES on 2026-10-29.
 - [ ] NVIDIA Image Scaling, with rendered-pixel tests.
 - [ ] xBRZ, with rendered-pixel tests.
 - [ ] Builds in both containers with GCC and Clang, both lint stages, tidy.

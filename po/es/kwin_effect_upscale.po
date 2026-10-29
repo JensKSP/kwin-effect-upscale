@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: kwin-effect-upscale\n"
 "Report-Msgid-Bugs-To: https://github.com/JensKSP/kwin-effect-upscale/issues\n"
-"POT-Creation-Date: 2026-10-29 22:19+0000\n"
+"POT-Creation-Date: 2026-10-29 22:53+0000\n"
 "PO-Revision-Date: 2026-09-30 00:00+0200\n"
 "Last-Translator: \n"
 "Language-Team: Spanish\n"
@@ -311,6 +311,11 @@ msgid "Lanczos"
 msgstr "Lanczos"
 
 #, kde-format
+msgctxt "Scaling filter"
+msgid "Snapdragon GSR 1"
+msgstr "Snapdragon GSR 1"
+
+#, kde-format
 msgctxt "Scaling filter, within a sentence"
 msgid "FSR 1"
 msgstr "FSR 1"
@@ -336,6 +341,11 @@ msgid "Lanczos"
 msgstr "Lanczos"
 
 #, kde-format
+msgctxt "Scaling filter, within a sentence"
+msgid "Snapdragon GSR 1"
+msgstr "Snapdragon GSR 1"
+
+#, kde-format
 msgctxt ""
 "What the effect does with the buffer, after the sizes or a window's states"
 msgid "%1, no sharpening"
@@ -346,6 +356,12 @@ msgctxt ""
 "What the effect does with the buffer, after the sizes or a window's states"
 msgid "%1 with RCAS sharpening %2%"
 msgstr "%1 con enfoque RCAS %2 %"
+
+#, kde-format
+msgctxt ""
+"What the effect does with the buffer, after the sizes or a window's states"
+msgid "%1 with its own sharpening %2%"
+msgstr "%1 con su propio enfoque %2 %"
 
 #, kde-format
 msgid "Program:"
@@ -1007,13 +1023,16 @@ msgstr ""
 #, kde-format
 msgid ""
 "FSR 1 enlarges at most two times, as a whole-number multiple exactly two "
-"times. Bilinear, bicubic and Lanczos enlarge by any amount. Each of these "
-"can sharpen. Nearest neighbor repeats each pixel exactly and never sharpens."
+"times. Bilinear, bicubic, Lanczos and Snapdragon GSR 1 enlarge by any "
+"amount. Each of these can sharpen: Snapdragon GSR 1 with its own edge "
+"sharpening, the others with RCAS. Nearest neighbor repeats each pixel "
+"exactly and never sharpens."
 msgstr ""
 "FSR 1 amplía como máximo dos veces, como múltiplo entero exactamente dos "
-"veces. Bilineal, bicúbico y Lanczos amplían en cualquier medida. Cada uno de "
-"ellos puede enfocar. Vecino más cercano repite cada píxel exactamente y "
-"nunca enfoca."
+"veces. Bilineal, bicúbico, Lanczos y Snapdragon GSR 1 amplían en cualquier "
+"medida. Cada uno de ellos puede enfocar: Snapdragon GSR 1 con su propio "
+"enfoque de bordes, los demás con RCAS. Vecino más cercano repite cada píxel "
+"exactamente y nunca enfoca."
 
 #, kde-format
 msgctxt "A transfer function, completing “destination transfer %1”"
@@ -1486,6 +1505,11 @@ msgstr "%1 ms/f"
 msgctxt "A scaling filter followed by RCAS sharpening"
 msgid "%1 + RCAS"
 msgstr "%1 + RCAS"
+
+#, kde-format
+msgctxt "A scaling filter with its own sharpening"
+msgid "%1, sharpened"
+msgstr "%1, enfocado"
 
 #, kde-format
 msgid "%1 → %2"

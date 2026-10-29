@@ -103,6 +103,7 @@ if(KWin_VERSION VERSION_LESS 6.7)
         ../src/plugins/upscale/x11resolution_validate.cpp
         ../src/plugins/upscale/upscale.h
         ../src/plugins/upscale/scaler.cpp
+        ../src/plugins/upscale/scalerfilters.cpp
         ../src/plugins/upscale/upscale.qrc
     )
     kconfig_add_kcfg_files(driver_sources ../src/plugins/upscale/upscaleconfig.kcfgc)

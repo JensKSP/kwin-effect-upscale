@@ -143,7 +143,8 @@ QString upscaleHeadsUp(const UpscaleSnapshot &snapshot)
     if (snapshot.scaling) {
         QString filter = upscaleFilterName(snapshot.filter);
         if (snapshot.sharpening > 0) {
-            filter = i18nc("A scaling filter followed by RCAS sharpening", "%1 + RCAS", filter);
+            filter = upscaleFilterSharpensWithRcas(snapshot.filter) ? i18nc("A scaling filter followed by RCAS sharpening", "%1 + RCAS", filter)
+                                                                    : i18nc("A scaling filter with its own sharpening", "%1, sharpened", filter);
         }
         picture.append(filter);
         picture.append(i18n("%1 → %2", upscaleSuppliedForDisplay(snapshot, resolutionName(snapshot.supplied)),

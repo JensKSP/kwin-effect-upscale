@@ -29,6 +29,7 @@ add_executable(
     render_test.cpp
     ../src/plugins/upscale/overlay.cpp
     ../src/plugins/upscale/scaler.cpp
+    ../src/plugins/upscale/scalerfilters.cpp
     ../src/plugins/upscale/upscale.qrc
 )
 target_include_directories(upscale_render_test PRIVATE ../src/plugins/upscale)
@@ -59,6 +60,7 @@ add_executable(
     upscale_render_shape_test
     render_shape_test.cpp
     ../src/plugins/upscale/scaler.cpp
+    ../src/plugins/upscale/scalerfilters.cpp
     ../src/plugins/upscale/upscale.qrc
 )
 target_include_directories(upscale_render_shape_test PRIVATE ../src/plugins/upscale)
@@ -80,6 +82,7 @@ add_executable(
     upscale_render_filter_test
     render_filter_test.cpp
     ../src/plugins/upscale/scaler.cpp
+    ../src/plugins/upscale/scalerfilters.cpp
     ../src/plugins/upscale/upscale.qrc
 )
 target_include_directories(upscale_render_filter_test PRIVATE ../src/plugins/upscale)
@@ -93,6 +96,28 @@ if(KWin_VERSION VERSION_LESS 6.7)
     add_test(NAME upscale-render-filter-gles COMMAND upscale_render_filter_test)
     set_tests_properties(
         upscale-render-filter-gles
+        PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;KWIN_COMPOSE=O2ES;QT_QPA_PLATFORM=offscreen"
+    )
+endif()
+
+add_executable(
+    upscale_render_method_test
+    render_method_test.cpp
+    ../src/plugins/upscale/scaler.cpp
+    ../src/plugins/upscale/scalerfilters.cpp
+    ../src/plugins/upscale/upscale.qrc
+)
+target_include_directories(upscale_render_method_test PRIVATE ../src/plugins/upscale)
+target_link_libraries(upscale_render_method_test PRIVATE kwin Qt6::Test)
+add_test(NAME upscale-render-method COMMAND upscale_render_method_test)
+set_tests_properties(
+    upscale-render-method
+    PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;QT_QPA_PLATFORM=offscreen"
+)
+if(KWin_VERSION VERSION_LESS 6.7)
+    add_test(NAME upscale-render-method-gles COMMAND upscale_render_method_test)
+    set_tests_properties(
+        upscale-render-method-gles
         PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;KWIN_COMPOSE=O2ES;QT_QPA_PLATFORM=offscreen"
     )
 endif()

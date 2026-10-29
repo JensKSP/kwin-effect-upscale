@@ -40,10 +40,11 @@ enum class UpscaleFilter {
     Bilinear,
     Bicubic,
     Lanczos,
+    Gsr,
 };
 
 /** The last filter, for the bounds of a stored one. */
-inline constexpr UpscaleFilter upscaleLastFilter = UpscaleFilter::Lanczos;
+inline constexpr UpscaleFilter upscaleLastFilter = UpscaleFilter::Gsr;
 
 /**
  * Whether @p filter enlarges by more than one and at most two times.
@@ -63,6 +64,15 @@ inline bool upscaleFilterAtMostTwice(UpscaleFilter filter)
 inline bool upscaleFilterSharpens(UpscaleFilter filter)
 {
     return filter != UpscaleFilter::Nearest;
+}
+
+/**
+ * Whether @p filter's sharpening is RCAS, run after it on what it drew. GSR
+ * sharpens as part of its own filter.
+ */
+inline bool upscaleFilterSharpensWithRcas(UpscaleFilter filter)
+{
+    return upscaleFilterSharpens(filter) && filter != UpscaleFilter::Gsr;
 }
 
 /** Where the picture goes on its output, or why it cannot go anywhere. */

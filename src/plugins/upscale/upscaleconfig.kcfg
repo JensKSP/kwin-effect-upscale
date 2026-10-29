@@ -44,9 +44,9 @@ SPDX-License-Identifier: GPL-2.0-or-later
         <!-- Where the enlarged picture goes: 0 fits it to the screen keeping its
              aspect ratio, 1 enlarges it by a whole number. And how it is
              sampled: 0 FSR 1, 1 nearest neighbour, 2 bilinear, 3 bicubic,
-             4 Lanczos. A game's entry names them. -->
+             4 Lanczos, 5 Snapdragon GSR 1. A game's entry names them. -->
         <entry name="Geometry" type="Int"><default>0</default><min>0</min><max>1</max></entry>
-        <entry name="Filter" type="Int"><default>0</default><min>0</min><max>4</max></entry>
+        <entry name="Filter" type="Int"><default>0</default><min>0</min><max>5</max></entry>
         <!-- What the global profile says to a program no profile claimed, one
              answer per way the program can present itself. Auto throughout,
              so that All games asks every game it answers for in the way that

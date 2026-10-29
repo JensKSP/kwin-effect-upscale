@@ -143,9 +143,10 @@ QString upscaleSettingToolTip(UpscaleSetting setting)
                     "“Whole-number multiple” enlarges it by the largest whole factor that fits, for pixel art and older "
                     "games. Both leave black bars where the picture does not fill the screen.");
     case UpscaleSetting::Filter:
-        return i18n("FSR 1 enlarges at most two times, as a whole-number multiple exactly two times. Bilinear, bicubic "
-                    "and Lanczos enlarge by any amount. Each of these can sharpen. Nearest neighbor repeats each pixel "
-                    "exactly and never sharpens.");
+        return i18n("FSR 1 enlarges at most two times, as a whole-number multiple exactly two times. Bilinear, bicubic, "
+                    "Lanczos and Snapdragon GSR 1 enlarge by any amount. Each of these can sharpen: Snapdragon GSR 1 with "
+                    "its own edge sharpening, the others with RCAS. Nearest neighbor repeats each pixel exactly and never "
+                    "sharpens.");
     default:
         return QString();
     }

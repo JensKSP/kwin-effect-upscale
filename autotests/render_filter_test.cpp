@@ -25,10 +25,20 @@ Q_DECLARE_METATYPE(KWin::UpscaleFilter)
 namespace
 {
 
-constexpr std::array s_filters{
+// The kernels named after their definition, which are compared with it.
+constexpr std::array classicFilters{
     std::pair{UpscaleFilter::Bilinear, "bilinear"},
     std::pair{UpscaleFilter::Bicubic, "bicubic"},
     std::pair{UpscaleFilter::Lanczos, "lanczos"},
+};
+
+// Every filter but FSR, whose own tests are render_test.cpp's, and nearest
+// neighbour, a copy.
+constexpr std::array filters{
+    std::pair{UpscaleFilter::Bilinear, "bilinear"},
+    std::pair{UpscaleFilter::Bicubic, "bicubic"},
+    std::pair{UpscaleFilter::Lanczos, "lanczos"},
+    std::pair{UpscaleFilter::Gsr, "gsr"},
 };
 
 // The kernels again, in double precision and written from their definitions
@@ -105,10 +115,10 @@ std::vector<float> picture(const QSize &size, auto value)
     return pixels;
 }
 
-void addFilterColumn()
+void addFilterColumn(const auto &list)
 {
     QTest::addColumn<UpscaleFilter>("filter");
-    for (const auto &[filter, name] : s_filters) {
+    for (const auto &[filter, name] : list) {
         QTest::newRow(name) << filter;
     }
 }
@@ -154,7 +164,7 @@ void UpscaleRenderFilterTest::keepsAConstantColour_data()
     QTest::addColumn<int>("transferType");
     QTest::addColumn<double>("value");
     QTest::addColumn<double>("strength");
-    for (const auto &[filter, name] : s_filters) {
+    for (const auto &[filter, name] : filters) {
         for (const int transfer : {int(TransferFunction::sRGB), int(TransferFunction::linear), int(TransferFunction::PerceptualQuantizer), int(TransferFunction::gamma22)}) {
             for (const double value : {-0.5, 0.0, 0.18, 1.0, 5.0, 40.0}) {
                 for (const double strength : {0.0, 1.0}) {
@@ -194,7 +204,7 @@ void UpscaleRenderFilterTest::keepsAConstantColour()
 
 void UpscaleRenderFilterTest::keepsEachCorner_data()
 {
-    addFilterColumn();
+    addFilterColumn(filters);
 }
 
 // Four distinct quadrants, at a whole and at a fractional ratio, with and
@@ -228,7 +238,7 @@ void UpscaleRenderFilterTest::keepsEachCorner()
 
 void UpscaleRenderFilterTest::followsItsKernel_data()
 {
-    addFilterColumn();
+    addFilterColumn(classicFilters);
 }
 
 // Every pixel of an irregular picture at a ratio that is no whole number on
@@ -299,14 +309,14 @@ void UpscaleRenderFilterTest::staysWithinAnEdge()
     const std::vector<float> input = picture(inputSize, [](int x, int, int) {
         return x < 4 ? 0.2 : 0.8;
     });
-    std::array<double, s_filters.size()> rise{};
-    for (size_t index = 0; index < s_filters.size(); ++index) {
+    std::array<double, classicFilters.size()> rise{};
+    for (size_t index = 0; index < classicFilters.size(); ++index) {
         const std::vector<float> result = m_fixture.render(input, inputSize, outputSize, TransferFunction(TransferFunction::gamma22), 0,
-                                                           unlimitedRegion(), OutputTransform::Normal, {}, s_filters[index].first);
+                                                           unlimitedRegion(), OutputTransform::Normal, {}, classicFilters[index].first);
         QCOMPARE(result.size(), size_t(20 * 5 * 4));
         for (int x = 0; x < outputSize.width(); ++x) {
             const float value = channelAt(result, outputSize, x, 2);
-            QVERIFY2(value >= 0.2F - 1e-6F && value <= 0.8F + 1e-6F, qPrintable(QStringLiteral("%1 at %2: %3").arg(QLatin1String(s_filters[index].second)).arg(x).arg(value)));
+            QVERIFY2(value >= 0.2F - 1e-6F && value <= 0.8F + 1e-6F, qPrintable(QStringLiteral("%1 at %2: %3").arg(QLatin1String(classicFilters[index].second)).arg(x).arg(value)));
         }
         rise[index] = channelAt(result, outputSize, 10, 2) - channelAt(result, outputSize, 9, 2);
     }
@@ -317,11 +327,12 @@ void UpscaleRenderFilterTest::staysWithinAnEdge()
 
 void UpscaleRenderFilterTest::sharpensAndClips_data()
 {
-    addFilterColumn();
+    addFilterColumn(filters);
 }
 
-// RCAS follows each of them as it follows EASU, and a clipped region draws
-// exactly its part of the full frame and nothing beside it.
+// RCAS follows each classic filter as it follows EASU, GSR sharpens itself,
+// and a clipped region draws exactly its part of the full frame and nothing
+// beside it.
 void UpscaleRenderFilterTest::sharpensAndClips()
 {
     QFETCH(UpscaleFilter, filter);

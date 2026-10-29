@@ -182,15 +182,23 @@ class ReleaseSbomTest(unittest.TestCase):
         self.assertIn((ALIAS, "COPY_OF", DEB), relations)
         self.assertEqual({kind for element, kind, _ in relations if element == ALIAS}, {"COPY_OF"})
 
+    def test_qualcomms_shader_is_a_component_of_its_own(self) -> None:
+        """Snapdragon GSR 1 is listed beside AMD's shaders, under its own licence."""
+        gsr = self.package(self.document(), "Snapdragon Game Super Resolution 1")
+        self.assertEqual(gsr["versionInfo"], "commit d926f074")
+        self.assertEqual(gsr["licenseConcluded"], "BSD-3-Clause")
+        self.assertEqual(gsr["supplier"], "Organization: Qualcomm Innovation Center, Inc.")
+
     def test_licences(self) -> None:
-        """What installs carries the effect's and AMD's licences; the source all three."""
+        """What installs carries the effect's, AMD's and Qualcomm's licences; the source CC0 too."""
         document = self.document()
         self.assertEqual(
-            self.package(document, DEB)["licenseConcluded"], "GPL-2.0-or-later AND MIT"
+            self.package(document, DEB)["licenseConcluded"],
+            "GPL-2.0-or-later AND MIT AND BSD-3-Clause",
         )
         self.assertEqual(
             self.package(document, TARBALL)["licenseConcluded"],
-            "GPL-2.0-or-later AND MIT AND CC0-1.0",
+            "GPL-2.0-or-later AND MIT AND BSD-3-Clause AND CC0-1.0",
         )
         self.assertEqual(self.package(document, CHANGES)["licenseConcluded"], "NOASSERTION")
 
