@@ -182,8 +182,8 @@ class ReleaseSbomTest(unittest.TestCase):
         self.assertIn((ALIAS, "COPY_OF", DEB), relations)
         self.assertEqual({kind for element, kind, _ in relations if element == ALIAS}, {"COPY_OF"})
 
-    def test_qualcomms_and_nvidias_shaders_are_components_of_their_own(self) -> None:
-        """Snapdragon GSR 1 and NIS are listed beside AMD's shaders, each under its licence."""
+    def test_the_other_scalers_are_components_of_their_own(self) -> None:
+        """GSR, NIS and xBRZ are listed beside AMD's shaders, each under its licence."""
         gsr = self.package(self.document(), "Snapdragon Game Super Resolution 1")
         self.assertEqual(gsr["versionInfo"], "commit d926f074")
         self.assertEqual(gsr["licenseConcluded"], "BSD-3-Clause")
@@ -192,6 +192,10 @@ class ReleaseSbomTest(unittest.TestCase):
         self.assertEqual(nis["versionInfo"], "v1.0.3")
         self.assertEqual(nis["licenseConcluded"], "MIT")
         self.assertEqual(nis["supplier"], "Organization: NVIDIA CORPORATION & AFFILIATES")
+        xbrz = self.package(self.document(), "xBRZ from KWin's zoom effect")
+        self.assertEqual(xbrz["versionInfo"], "commit 5b9013c5")
+        self.assertEqual(xbrz["licenseConcluded"], "GPL-2.0-or-later")
+        self.assertEqual(xbrz["supplier"], "Person: Ritchie Frodomar <ritchie@kde.org>")
 
     def test_licences(self) -> None:
         """What installs carries the effect's, AMD's and Qualcomm's licences; the source CC0 too."""

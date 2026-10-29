@@ -555,16 +555,16 @@ licence that decides whether the shader may be carried here at all:
 | Snapdragon GSR 1 | single pass, Lanczos-like 12-tap + adaptive sharpen | BSD-3-Clause | implemented |
 | Bilinear, bicubic (Catmull-Rom), Lanczos (three lobes) | classic | own implementation, GPL-2.0-or-later | implemented |
 | Nearest / integer scaling | pixel replication / geometry | own implementation | yes |
-| xBRZ (KWin zoom shader) | pixel-art reconstruction | GPL-2.0-or-later | candidate |
+| xBRZ (KWin zoom shader) | pixel-art reconstruction | GPL-2.0-or-later | implemented |
 | AMD CAS | sharpen with optional upscale | MIT | candidate |
 | MAKO Scaler | single pass | GPL-3.0-or-later | **no** |
 
 Decided by Jens on 2026-10-29: bilinear, bicubic, Lanczos, Snapdragon GSR 1,
 NIS and xBRZ join FSR 1 and nearest neighbour as choices of the scaling filter,
 globally and per game, each sharpened by its own sharpener under the existing
-sharpening setting. Bilinear, bicubic and Lanczos are implemented, with RCAS
-as their sharpener, and so are GSR and NIS, which sharpen themselves; xBRZ is
-planned, and CAS stays a candidate.
+sharpening setting. All of them are implemented: bilinear, bicubic and Lanczos
+with RCAS as their sharpener, GSR and NIS sharpening themselves, and xBRZ, like
+nearest neighbour, never sharpening. CAS stays a candidate.
 The [scaling methods slice](agents/slice-scaling-methods.md) holds the plan.
 
 MAKO is ruled out as a source of code, not on quality: this project is
@@ -594,7 +594,7 @@ black bars, and pixel art and older games can be enlarged by a whole number with
 nearest-neighbour sampling. Two settings decide it, each a global default with
 sparse application overrides like every other setting: **Picture size** (`Geometry`,
 Fit or Integer) and **Scaling filter** (`Filter`: FSR, Nearest, Bilinear,
-Bicubic, Lanczos, GSR or NIS), on the **Scaling** tab beside sharpening. They are separate
+Bicubic, Lanczos, GSR, NIS or xBRZ), on the **Scaling** tab beside sharpening. They are separate
 on purpose: nearest sampling alone is not integer scaling, and FSR can be laid
 either way within its range.
 
@@ -634,7 +634,10 @@ tile between a block of output pixels; the effect's fragment program reads each
 pixel's own six by six neighbourhood, which is the same arithmetic on the same
 texels. The destination chooses its mode: SDR for sRGB and gamma 2.2, its PQ
 mode for PQ, and its linear mode for a linear destination, decoded to NVIDIA's
-unit of 80 nits. Under Integer, a whole factor of
+unit of 80 nits. xBRZ, from KWin's zoom effect, enlarges pixel art by any
+amount and redraws the edges it recognises between pixels of distinct colours,
+measuring their distance in linear light whatever the destination's encoding;
+like nearest neighbour it never sharpens. Under Integer, a whole factor of
 one enlarges nothing, and every filter draws it as the copy it is, unsharpened;
 the status then names nearest neighbour, which is what ran.
 A combination that cannot be honoured is refused by name and the window is

@@ -9,6 +9,7 @@ SPDX-License-Identifier: GPL-2.0-or-later
         <file>shaders/classic.frag</file>
         <file>shaders/gsr.frag</file>
         <file>shaders/nis.frag</file>
+        <file>shaders/xbrz.frag</file>
     </qresource>
     <qresource prefix="/opengl/upscale">
         <file alias="workingcolor.glsl">shaders/workingcolor.glsl</file>

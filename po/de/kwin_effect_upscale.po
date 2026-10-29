@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: kwin-effect-upscale\n"
 "Report-Msgid-Bugs-To: https://github.com/JensKSP/kwin-effect-upscale/issues\n"
-"POT-Creation-Date: 2026-10-29 23:03+0000\n"
+"POT-Creation-Date: 2026-10-29 23:10+0000\n"
 "PO-Revision-Date: 2026-09-30 00:00+0200\n"
 "Last-Translator: \n"
 "Language-Team: German\n"
@@ -322,6 +322,11 @@ msgid "NVIDIA Image Scaling"
 msgstr "NVIDIA Image Scaling"
 
 #, kde-format
+msgctxt "Scaling filter"
+msgid "xBRZ"
+msgstr "xBRZ"
+
+#, kde-format
 msgctxt "Scaling filter, within a sentence"
 msgid "FSR 1"
 msgstr "FSR 1"
@@ -355,6 +360,11 @@ msgstr "Snapdragon GSR 1"
 msgctxt "Scaling filter, within a sentence"
 msgid "NVIDIA Image Scaling"
 msgstr "NVIDIA Image Scaling"
+
+#, kde-format
+msgctxt "Scaling filter, within a sentence"
+msgid "xBRZ"
+msgstr "xBRZ"
 
 #, kde-format
 msgctxt ""
@@ -1039,14 +1049,16 @@ msgid ""
 "multiple exactly two times. Bilinear, bicubic, Lanczos and Snapdragon GSR 1 "
 "enlarge by any amount. Each of these can sharpen: NVIDIA Image Scaling and "
 "Snapdragon GSR 1 with their own sharpening, the others with RCAS. Nearest "
-"neighbor repeats each pixel exactly and never sharpens."
+"neighbor repeats each pixel exactly, and xBRZ redraws the edges of pixel "
+"art; neither sharpens."
 msgstr ""
 "FSR 1 und NVIDIA Image Scaling vergrößern höchstens um das Zweifache, als "
 "ganzzahliges Vielfaches genau um das Zweifache. Bilinear, Bikubisch, Lanczos "
 "und Snapdragon GSR 1 vergrößern um jeden Betrag. Jeder dieser Filter kann "
 "schärfen: NVIDIA Image Scaling und Snapdragon GSR 1 mit ihrer eigenen "
 "Schärfung, die anderen mit RCAS. Nächster Nachbar wiederholt jedes Pixel "
-"exakt und schärft nie."
+"exakt, und xBRZ zeichnet die Kanten von Pixelgrafik neu; keiner von beiden "
+"schärft."
 
 #, kde-format
 msgctxt "A transfer function, completing “destination transfer %1”"

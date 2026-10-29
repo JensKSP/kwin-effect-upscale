@@ -44,6 +44,17 @@ inline bool upscaleRcasFollows(const UpscaleDrawing &drawing)
     return drawing.strength > 0 && upscaleFilterSharpensWithRcas(drawing.filter);
 }
 
+/**
+ * Whether @p filter's program, compiled for a destination it can filter
+ * directly or not, decodes the destination's encoding. xBRZ always does: it
+ * measures how far apart two colours are in linear light, whatever the
+ * encoding they arrived in.
+ */
+inline bool upscaleProgramDecodes(UpscaleFilter filter, bool direct)
+{
+    return !direct || filter == UpscaleFilter::Xbrz;
+}
+
 /** The file and the defines each filter's program is made of. */
 std::pair<QString, QByteArray> upscaleFilterSource(UpscaleFilter filter);
 

@@ -146,7 +146,8 @@ QString upscaleSettingToolTip(UpscaleSetting setting)
         return i18n("FSR 1 and NVIDIA Image Scaling enlarge at most two times, as a whole-number multiple exactly two "
                     "times. Bilinear, bicubic, Lanczos and Snapdragon GSR 1 enlarge by any amount. Each of these can "
                     "sharpen: NVIDIA Image Scaling and Snapdragon GSR 1 with their own sharpening, the others with RCAS. "
-                    "Nearest neighbor repeats each pixel exactly and never sharpens.");
+                    "Nearest neighbor repeats each pixel exactly, and xBRZ redraws the edges of pixel art; neither "
+                    "sharpens.");
     default:
         return QString();
     }

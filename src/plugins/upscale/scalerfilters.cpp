@@ -38,6 +38,8 @@ std::pair<QString, QByteArray> upscaleFilterSource(UpscaleFilter filter)
         return {QStringLiteral(":/effects/upscale/shaders/gsr.frag"), QByteArray()};
     case UpscaleFilter::Nis:
         return {QStringLiteral(":/effects/upscale/shaders/nis.frag"), QByteArray()};
+    case UpscaleFilter::Xbrz:
+        return {QStringLiteral(":/effects/upscale/shaders/xbrz.frag"), QByteArray()};
     }
     return {QStringLiteral(":/effects/upscale/shaders/upscale.frag"), QByteArray()};
 }
@@ -79,6 +81,7 @@ void upscaleSetFilterUniforms(GLShader *shader, const UpscaleDrawing &drawing, c
     case UpscaleFilter::Lanczos:
         break;
     case UpscaleFilter::Fsr:
+    case UpscaleFilter::Xbrz:
         shader->setUniform("outputSize", QVector2D(float(output.width()), float(output.height())));
         break;
     case UpscaleFilter::Gsr:

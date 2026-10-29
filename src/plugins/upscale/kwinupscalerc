@@ -71,7 +71,8 @@
 # Fit, which enlarges the picture as far as the filter allows without
 # stretching it, or Integer, the largest whole factor that fits; Filter is FSR
 # or NIS, which enlarge at most two times, Bilinear, Bicubic, Lanczos or GSR,
-# which enlarge by any amount, or Nearest, which repeats each pixel exactly.
+# which enlarge by any amount, Nearest, which repeats each pixel exactly, or
+# xBRZ, which redraws the edges of pixel art.
 # Native connection patterns start with `/`, keeping them distinct from Wine
 # identities while a prefix is still starting and its program is not known.
 

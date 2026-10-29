@@ -142,6 +142,23 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
+### xBRZ from KWin's zoom effect
+
+The xBRZ filter is the pixel-pattern upscaler of KWin's zoom effect,
+`src/plugins/zoom/shaders/upscaler.frag` at commit `5b9013c5`, carried as
+`src/plugins/upscale/shaders/xbrz.frag`, a shader resource inside the plugin.
+It is licensed like this project, so it needs no notice beyond its copyright.
+
+Changed from KWin's shader: KWin master's colour management include, which
+KWin 6.3 does not have, is replaced by the effect's own decode into linear
+light in units of reference white, in which colour distances are measured as
+there, and its encode afterwards; texels are fetched at whole positions,
+clamped to the picture's edge; and the scale comes from the picture's sizes
+rather than the zoom level.
+
+- Copyright holder: Ritchie Frodomar
+- License: GNU General Public License, version 2 or later (`GPL-2.0-or-later`)
+
 Nothing else from a third party is compiled into the packages. The source tree
 also holds KWin's `.clang-format` (MIT, Christoph Cullmann and Gernot Gebhard),
 which formats the code and is not installed, and CI and tool configuration

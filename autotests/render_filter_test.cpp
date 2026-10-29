@@ -40,6 +40,7 @@ constexpr std::array filters{
     std::pair{UpscaleFilter::Lanczos, "lanczos"},
     std::pair{UpscaleFilter::Gsr, "gsr"},
     std::pair{UpscaleFilter::Nis, "nis"},
+    std::pair{UpscaleFilter::Xbrz, "xbrz"},
 };
 
 // The kernels again, in double precision and written from their definitions
@@ -328,7 +329,12 @@ void UpscaleRenderFilterTest::staysWithinAnEdge()
 
 void UpscaleRenderFilterTest::sharpensAndClips_data()
 {
-    addFilterColumn(filters);
+    QTest::addColumn<UpscaleFilter>("filter");
+    for (const auto &[filter, name] : filters) {
+        if (upscaleFilterSharpens(filter)) {
+            QTest::newRow(name) << filter;
+        }
+    }
 }
 
 // RCAS follows each classic filter as it follows EASU, GSR and NIS sharpen themselves,

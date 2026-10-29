@@ -5,9 +5,10 @@
 */
 
 // What the filters taken from others draw: Snapdragon GSR 1 and NVIDIA Image
-// Scaling, which sharpen as part of their filter. Neither reference shader
-// can run here as written, so each is held to what it computes exactly where
-// it finds no edge, and to its documented bounds where it does.
+// Scaling, which sharpen as part of their filter, and xBRZ, which redraws the
+// edges of pixel art. Neither of the first two reference shaders can run here
+// as written, so each is held to what it computes exactly where it finds no
+// edge, and to its documented bounds where it does.
 
 #include "nisconfig.h"
 #include "picture.h"
@@ -20,6 +21,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <set>
 #include <vector>
 
 using namespace KWin;
@@ -106,6 +108,7 @@ private Q_SLOTS:
     void nisFiltersLumaWhereItFindsNoEdge();
     void nisSharpensAnEdge();
     void nisKeepsNvidiasConfiguration();
+    void xbrzRedrawsADiagonal();
     void carriesQualcommsAndNvidiasNotices();
 
 private:
@@ -297,6 +300,41 @@ void UpscaleRenderMethodTest::nisKeepsNvidiasConfiguration()
         QCOMPARE(off.sharpStrengthMin, 0.0F);
         QCOMPARE(off.sharpStrengthScale, 0.0F);
     }
+}
+
+// A one-pixel diagonal line in pixel art. Nearest neighbour enlarges it into a
+// staircase of the two colours alone; xBRZ fills the steps along the diagonal
+// with blends between them, keeps the flat areas exactly, and invents no
+// colour outside the two. Each output pixel is compared with the input pixel
+// it replicates rather than with a nearest-neighbour rendering, which KWin's
+// own shader draws at lower precision on OpenGL ES.
+void UpscaleRenderMethodTest::xbrzRedrawsADiagonal()
+{
+    const QSize inputSize(8, 8);
+    const QSize outputSize(32, 32);
+    const std::vector<float> input = picture(inputSize, [](int x, int y, int) {
+        return x == y ? 0.9 : 0.1;
+    });
+    const std::vector<float> redrawn = render(m_fixture, input, inputSize, outputSize, UpscaleFilter::Xbrz, 0);
+    QCOMPARE(redrawn.size(), size_t(32 * 32 * 4));
+    std::set<int> levels;
+    int blended = 0;
+    for (int y = 0; y < outputSize.height(); ++y) {
+        for (int x = 0; x < outputSize.width(); ++x) {
+            const float value = at(redrawn, outputSize, x, y, 0);
+            const float replicated = at(input, inputSize, x / 4, y / 4, 0);
+            QVERIFY2(value >= 0.1F - 1e-4F && value <= 0.9F + 1e-4F, qPrintable(QStringLiteral("%1,%2: %3").arg(x).arg(y).arg(value)));
+            levels.insert(int(std::lround(value * 1000)));
+            blended += std::abs(value - replicated) > 1e-3 ? 1 : 0;
+            // Three source pixels from the line, where nothing within reach
+            // differs, the pixel is its source pixel's.
+            if (std::abs(x / 4 - y / 4) >= 3) {
+                QVERIFY2(std::abs(value - replicated) < 1e-5F, qPrintable(QStringLiteral("%1,%2: %3").arg(x).arg(y).arg(value, 0, 'g', 9)));
+            }
+        }
+    }
+    QVERIFY2(levels.size() > 2, qPrintable(QString::number(levels.size())));
+    QVERIFY(blended > 0);
 }
 
 // Qualcomm's and NVIDIA's licences ask for their notices to go with every

@@ -217,7 +217,7 @@ bool UpscaleScaler::scale(const RenderTarget &target, const RenderViewport &view
     upscaleSetFilterUniforms(filter, drawing, input->size(), outputSize, targetColors(target), intermediate);
     // The direct shaders carry no transfer-function arithmetic, so they
     // declare none of these and asking for them would only log misses.
-    if (!direct) {
+    if (upscaleProgramDecodes(drawing.filter, direct)) {
         setColorUniforms(filter, target);
     }
     if (!intermediate) {

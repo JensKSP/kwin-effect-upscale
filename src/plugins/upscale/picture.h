@@ -42,10 +42,11 @@ enum class UpscaleFilter {
     Lanczos,
     Gsr,
     Nis,
+    Xbrz,
 };
 
 /** The last filter, for the bounds of a stored one. */
-inline constexpr UpscaleFilter upscaleLastFilter = UpscaleFilter::Nis;
+inline constexpr UpscaleFilter upscaleLastFilter = UpscaleFilter::Xbrz;
 
 /**
  * Whether @p filter enlarges by more than one and at most two times.
@@ -61,11 +62,12 @@ inline bool upscaleFilterAtMostTwice(UpscaleFilter filter)
 
 /**
  * Whether @p filter has a sharpener. Nearest neighbour replicates each pixel
- * exactly; sharpening it would only undo what it is chosen for.
+ * exactly, and xBRZ redraws edges it recognises in pixel art; sharpening either
+ * would only undo what it is chosen for.
  */
 inline bool upscaleFilterSharpens(UpscaleFilter filter)
 {
-    return filter != UpscaleFilter::Nearest;
+    return filter != UpscaleFilter::Nearest && filter != UpscaleFilter::Xbrz;
 }
 
 /**

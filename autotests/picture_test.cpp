@@ -66,6 +66,7 @@ void PictureTest::placesThePicture_data()
     QTest::newRow("NIS at most twice") << QSize(1280, 720) << fit << UpscaleFilter::Nis << UpscaleSizing::BelowHalf << QRect() << 0;
     QTest::newRow("NIS twice") << QSize(1920, 1080) << fit << UpscaleFilter::Nis << yes << QRect(0, 0, 3840, 2160) << 0;
     QTest::newRow("integer three with NIS") << QSize(1280, 720) << whole << UpscaleFilter::Nis << UpscaleSizing::FilterRange << QRect() << 3;
+    QTest::newRow("integer nine with xBRZ") << QSize(320, 240) << whole << UpscaleFilter::Xbrz << yes << QRect(480, 0, 2880, 2160) << 9;
     // Bars that cannot be equal differ by one pixel, the extra one right.
     QTest::newRow("odd bars") << QSize(1999, 1000) << whole << nearest << yes << QRect(920, 580, 1999, 1000) << 1;
     QTest::newRow("no whole factor") << QSize(4000, 2000) << whole << nearest << UpscaleSizing::NoWholeFactor << QRect() << 0;

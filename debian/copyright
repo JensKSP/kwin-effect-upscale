@@ -31,6 +31,12 @@ Copyright: 2022 NVIDIA CORPORATION & AFFILIATES
 License: MIT
 Comment: NVIDIA Image Scaling, v1.0.3, ported to a fragment program.
 
+Files: src/plugins/upscale/shaders/xbrz.frag
+Copyright: 2026 Ritchie Frodomar <ritchie@kde.org>
+License: GPL-2.0-or-later
+Comment: xBRZ from KWin's zoom effect, commit 5b9013c5, adapted to the
+ effect's colour handling.
+
 Files: .dockerignore
        .gitignore
        .kde-ci.yml

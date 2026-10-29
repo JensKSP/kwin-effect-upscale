@@ -136,6 +136,12 @@ void UpscaleSnapshotTest::reportsThePathActuallyTaken()
     gsr.filter = UpscaleFilter::Nis;
     QVERIFY2(upscaleDeveloperInformation(gsr).contains(QStringLiteral("NVIDIA Image Scaling with its own sharpening 50%")),
              qPrintable(upscaleDeveloperInformation(gsr)));
+    // xBRZ never sharpens, and nothing says it does.
+    gsr.filter = UpscaleFilter::Xbrz;
+    gsr.sharpening = 0;
+    const QString xbrz = upscaleDeveloperInformation(gsr);
+    QVERIFY2(xbrz.contains(QStringLiteral("xBRZ")) && !xbrz.contains(QStringLiteral("xBRZ with")) && !xbrz.contains(QStringLiteral("xBRZ, no")),
+             qPrintable(xbrz));
     QVERIFY(!headsUp.contains(QStringLiteral("Client buffer updates")));
     QVERIFY(!headsUp.contains(QStringLiteral("compositor repaints")));
     QVERIFY(!headsUp.contains(QStringLiteral("percentile")));

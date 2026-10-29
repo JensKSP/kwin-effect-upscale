@@ -13,9 +13,10 @@ for each game. He decided the scope the same day: the classic filters
 (bilinear, bicubic, Lanczos), Snapdragon GSR 1, NVIDIA Image Scaling and xBRZ
 join FSR 1 and nearest neighbour. Each method sharpens with its own sharpener
 under the existing sharpening switch and strength. The work goes on branch
-`scaling/methods`, pull request #40. Bilinear, bicubic, Lanczos, Snapdragon
-GSR 1 and NVIDIA Image Scaling are implemented with their settings, status and
-rendered-pixel tests; xBRZ follows. See
+`scaling/methods`, pull request #40. All six methods are implemented with
+their settings, status and rendered-pixel tests, and pass in the containers;
+what remains is the production run in the conformance machine and the full
+acceptance on hardware. See
 [progress](#progress-and-remaining-work).
 
 ## Start state and evidence
@@ -187,7 +188,13 @@ Jens and the TV, and never run at the same time as container checks.
   one; `NVScalerUpdateConfig`'s values are checked against NVIDIA's numbers.
   NIS also joins the shared tests. Passed in the Trixie container with GCC on
   OpenGL and OpenGL ES on 2026-10-30.
-- [ ] xBRZ, with rendered-pixel tests.
+- [x] xBRZ, with rendered-pixel tests: a one-pixel diagonal is redrawn with
+  blends between its two colours, never outside them, while pixels three
+  source pixels from the line stay their source pixel's; xBRZ also joins the
+  constant-colour and corner tests. On OpenGL ES, KWin's own shader draws a
+  nearest-neighbour copy at lower precision (0.09998 for 0.1), so the test
+  compares with the input rather than with such a copy. Passed in the Trixie
+  container with GCC on OpenGL and OpenGL ES on 2026-10-30.
 - [ ] Builds in both containers with GCC and Clang, both lint stages, tidy.
 - [ ] Production run in the conformance machine, one session per kind of pass.
 - [ ] Handbook, notices and README updated.

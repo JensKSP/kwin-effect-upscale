@@ -36,6 +36,8 @@ inline QString upscaleFilterName(UpscaleFilter filter)
         return i18nc("Scaling filter", "Snapdragon GSR 1");
     case UpscaleFilter::Nis:
         return i18nc("Scaling filter", "NVIDIA Image Scaling");
+    case UpscaleFilter::Xbrz:
+        return i18nc("Scaling filter", "xBRZ");
     }
     return QString();
 }
@@ -69,6 +71,8 @@ inline QString upscaleFilterClause(UpscaleFilter filter, double sharpening)
     case UpscaleFilter::Nis:
         name = i18nc("Scaling filter, within a sentence", "NVIDIA Image Scaling");
         break;
+    case UpscaleFilter::Xbrz:
+        return i18nc("Scaling filter, within a sentence", "xBRZ");
     }
     const int percent = qRound(sharpening * 100);
     if (percent <= 0) {
