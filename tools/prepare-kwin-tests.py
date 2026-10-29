@@ -9,13 +9,23 @@ whose upstream changes could be mistaken for changes to this effect.
 """
 
 import argparse
+import re
 import shutil
 from pathlib import Path
 
 from kwin_conformance_fixtures import adapt_fixtures
 
 # This project's production test, compiled into KWin's integration tests.
-PRODUCTION_SOURCES = ("kwin_scaling_test.cpp", "kwin_scaling_test.h", "kwin_presentation_test.cpp")
+PRODUCTION_SOURCES = (
+    "kwin_scaling_test.cpp",
+    "kwin_scaling_test.h",
+    "kwin_presentation_test.cpp",
+    "kwin_filter_test.cpp",
+)
+
+
+# The registration of the production test, whatever sources it named then.
+PRODUCTION_REGISTRATION = re.compile(r"(integrationTest\(NAME testUpscaleProduction SRCS )[^)]*\)")
 
 
 def replace_once(path: Path, old: str, new: str) -> None:
@@ -89,8 +99,10 @@ def main() -> None:
                 "    FILES ${WaylandProtocols_DATADIR}/stable/viewporter/viewporter.xml)\n"
             )
     elif f"SRCS {sources})" not in registered:
-        # A tree prepared before the test had more than one source.
-        replace_once(registration, "SRCS kwin_scaling_test.cpp)", f"SRCS {sources})")
+        # A tree prepared before the test had the sources it has now.
+        registration.write_text(
+            PRODUCTION_REGISTRATION.sub(rf"\g<1>{sources})", registered, count=1)
+        )
     print(f"Prepared upstream test harness in {args.out}")
 
 

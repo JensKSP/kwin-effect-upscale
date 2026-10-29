@@ -7,7 +7,8 @@
 // KWin's production test with this effect loaded, built in KWin's own test
 // framework by tools/prepare-kwin-tests.py: scaling in kwin_scaling_test.cpp,
 // what a window drawn over its output does with input and stacking in
-// kwin_presentation_test.cpp.
+// kwin_presentation_test.cpp, and each kind of scaling filter in
+// kwin_filter_test.cpp.
 
 #pragma once
 
@@ -60,6 +61,8 @@ private Q_SLOTS:
     void presentsThePictureOfItsOnlySubsurface();
     void mapsAPenOntoThePicture();
     void keepsAPenWholeAcrossABar();
+    void drawsWithEachKindOfFilter_data();
+    void drawsWithEachKindOfFilter();
 
 private:
     void configure(bool enabled, const QString &method = QStringLiteral("Auto"));
