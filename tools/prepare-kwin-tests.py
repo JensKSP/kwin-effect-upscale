@@ -43,6 +43,26 @@ def copy_changed(source: Path, destination: Path) -> None:
         shutil.copyfile(source, destination)
 
 
+def register_production_test(registration: Path) -> None:
+    """Register the production test with the sources it has now, once."""
+    sources = " ".join(PRODUCTION_SOURCES)
+    registered = registration.read_text()
+    if "testUpscaleProduction" not in registered:
+        with registration.open("a") as stream:
+            stream.write(
+                f"\nintegrationTest(NAME testUpscaleProduction SRCS {sources})\n"
+                "qt6_generate_wayland_protocol_client_sources(testUpscaleProduction\n"
+                "    FILES ${WaylandProtocols_DATADIR}/stable/viewporter/viewporter.xml)\n"
+            )
+    elif f"SRCS {sources})" not in registered:
+        # A tree prepared before the test had the sources it has now.
+        updated, count = PRODUCTION_REGISTRATION.subn(rf"\g<1>{sources})", registered, count=1)
+        if count != 1:
+            message = f"expected one testUpscaleProduction registration in {registration}"
+            raise ValueError(message)
+        registration.write_text(updated)
+
+
 def main() -> None:
     """Prepare a fresh source copy without touching an existing build."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -88,21 +108,7 @@ def main() -> None:
             "    createOptions();",
             "    configureUpscaleConformance();\n    createOptions();",
         )
-    registration = integration / "CMakeLists.txt"
-    sources = " ".join(PRODUCTION_SOURCES)
-    registered = registration.read_text()
-    if "testUpscaleProduction" not in registered:
-        with registration.open("a") as stream:
-            stream.write(
-                f"\nintegrationTest(NAME testUpscaleProduction SRCS {sources})\n"
-                "qt6_generate_wayland_protocol_client_sources(testUpscaleProduction\n"
-                "    FILES ${WaylandProtocols_DATADIR}/stable/viewporter/viewporter.xml)\n"
-            )
-    elif f"SRCS {sources})" not in registered:
-        # A tree prepared before the test had the sources it has now.
-        registration.write_text(
-            PRODUCTION_REGISTRATION.sub(rf"\g<1>{sources})", registered, count=1)
-        )
+    register_production_test(integration / "CMakeLists.txt")
     print(f"Prepared upstream test harness in {args.out}")
 
 
