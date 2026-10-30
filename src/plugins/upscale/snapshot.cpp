@@ -360,6 +360,17 @@ static QString areaText(const UpscaleRectF &area)
                  upscaleFigureText(area.width(), 1), upscaleFigureText(area.height(), 1));
 }
 
+// The sharpener that ran and how strongly: RCAS after the filter, or the
+// filter's own, which GSR and NIS have instead.
+static QString sharpeningText(const UpscaleSnapshot &snapshot)
+{
+    if (snapshot.sharpening <= 0) {
+        return i18nc("No sharpening, completing “sharpening %1”", "off");
+    }
+    const QString sharpener = upscaleFilterSharpensWithRcas(snapshot.filter) ? QStringLiteral("RCAS") : QString(upscaleFilterKey(snapshot.filter));
+    return i18nc("A sharpener's name and strength, completing “sharpening %1”", "%1 %2%", sharpener, qRound(snapshot.sharpening * 100));
+}
+
 QString upscaleDeveloperInformation(const UpscaleSnapshot &snapshot)
 {
     QStringList lines;
@@ -384,7 +395,7 @@ QString upscaleDeveloperInformation(const UpscaleSnapshot &snapshot)
     }
     lines.append(i18n("Configuration: %1, desired %2, sharpening %3",
                       snapshot.enabled ? i18nc("The effect's state, completing “Configuration: %1”", "enabled") : i18nc("The effect's state, completing “Configuration: %1”", "disabled"), desiredText(snapshot),
-                      snapshot.sharpening > 0 ? i18n("RCAS %1%", qRound(snapshot.sharpening * 100)) : i18nc("No sharpening, completing “sharpening %1”", "off")));
+                      sharpeningText(snapshot)));
     lines.append(i18n("Coverage: window %1, output %2", areaText(snapshot.windowArea),
                       areaText(snapshot.outputArea)));
     lines.append(i18n("Geometry: supplied %1, destination %2, output scale %3",

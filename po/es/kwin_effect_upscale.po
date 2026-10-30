@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: kwin-effect-upscale\n"
 "Report-Msgid-Bugs-To: https://github.com/JensKSP/kwin-effect-upscale/issues\n"
-"POT-Creation-Date: 2026-10-29 23:10+0000\n"
+"POT-Creation-Date: 2026-10-30 01:18+0000\n"
 "PO-Revision-Date: 2026-09-30 00:00+0200\n"
 "Last-Translator: \n"
 "Language-Team: Spanish\n"
@@ -1367,6 +1367,16 @@ msgid "(%1; %2) %3 × %4"
 msgstr "(%1; %2) %3 × %4"
 
 #, kde-format
+msgctxt "No sharpening, completing “sharpening %1”"
+msgid "off"
+msgstr "desactivado"
+
+#, kde-format
+msgctxt "A sharpener's name and strength, completing “sharpening %1”"
+msgid "%1 %2%"
+msgstr "%1 %2 %"
+
+#, kde-format
 msgid "Build: %1"
 msgstr "Compilación: %1"
 
@@ -1420,15 +1430,6 @@ msgstr "activado"
 #, kde-format
 msgctxt "The effect's state, completing “Configuration: %1”"
 msgid "disabled"
-msgstr "desactivado"
-
-#, kde-format
-msgid "RCAS %1%"
-msgstr "RCAS %1 %"
-
-#, kde-format
-msgctxt "No sharpening, completing “sharpening %1”"
-msgid "off"
 msgstr "desactivado"
 
 #, kde-format

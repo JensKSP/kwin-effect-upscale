@@ -21,24 +21,31 @@ void UpscaleSnapshotTest::namesEachFilterWithItsSharpener()
     // Another filter is named with the RCAS that follows it, or without.
     UpscaleSnapshot lanczos = scaling();
     lanczos.filter = UpscaleFilter::Lanczos;
-    QVERIFY2(upscaleDeveloperInformation(lanczos).contains(QStringLiteral("Lanczos with RCAS sharpening 50%")),
+    QVERIFY2(upscaleDeveloperInformation(lanczos).contains(QStringLiteral("Lanczos with RCAS sharpening 50%"))
+                 && upscaleDeveloperInformation(lanczos).contains(QStringLiteral("sharpening RCAS 50%")),
              qPrintable(upscaleDeveloperInformation(lanczos)));
     QVERIFY2(upscaleHeadsUp(lanczos).contains(QStringLiteral("Lanczos + RCAS")), qPrintable(upscaleHeadsUp(lanczos)));
     lanczos.filter = UpscaleFilter::Bilinear;
     lanczos.sharpening = 0;
-    QVERIFY2(upscaleDeveloperInformation(lanczos).contains(QStringLiteral("bilinear, no sharpening")),
+    QVERIFY2(upscaleDeveloperInformation(lanczos).contains(QStringLiteral("bilinear, no sharpening"))
+                 && upscaleDeveloperInformation(lanczos).contains(QStringLiteral("sharpening off")),
              qPrintable(upscaleDeveloperInformation(lanczos)));
     QVERIFY2(upscaleHeadsUp(lanczos).contains(QStringLiteral("Bilinear")) && !upscaleHeadsUp(lanczos).contains(QStringLiteral("RCAS")),
              qPrintable(upscaleHeadsUp(lanczos)));
-    // A filter that sharpens itself is not said to be followed by RCAS.
+    // A filter that sharpens itself is not said to be followed by RCAS, and
+    // its own sharpener is named instead.
     UpscaleSnapshot gsr = scaling();
     gsr.filter = UpscaleFilter::Gsr;
-    QVERIFY2(upscaleDeveloperInformation(gsr).contains(QStringLiteral("Snapdragon GSR 1 with its own sharpening 50%")),
+    QVERIFY2(upscaleDeveloperInformation(gsr).contains(QStringLiteral("Snapdragon GSR 1 with its own sharpening 50%"))
+                 && upscaleDeveloperInformation(gsr).contains(QStringLiteral("sharpening GSR 50%"))
+                 && !upscaleDeveloperInformation(gsr).contains(QStringLiteral("RCAS")),
              qPrintable(upscaleDeveloperInformation(gsr)));
     QVERIFY2(upscaleHeadsUp(gsr).contains(QStringLiteral("Snapdragon GSR 1, sharpened")) && !upscaleHeadsUp(gsr).contains(QStringLiteral("RCAS")),
              qPrintable(upscaleHeadsUp(gsr)));
     gsr.filter = UpscaleFilter::Nis;
-    QVERIFY2(upscaleDeveloperInformation(gsr).contains(QStringLiteral("NVIDIA Image Scaling with its own sharpening 50%")),
+    QVERIFY2(upscaleDeveloperInformation(gsr).contains(QStringLiteral("NVIDIA Image Scaling with its own sharpening 50%"))
+                 && upscaleDeveloperInformation(gsr).contains(QStringLiteral("sharpening NIS 50%"))
+                 && !upscaleDeveloperInformation(gsr).contains(QStringLiteral("RCAS")),
              qPrintable(upscaleDeveloperInformation(gsr)));
     // xBRZ never sharpens, and nothing says it does.
     gsr.filter = UpscaleFilter::Xbrz;
