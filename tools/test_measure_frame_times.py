@@ -101,6 +101,13 @@ class ParseStatusTest(unittest.TestCase):
         summary = summarize("test-application", "quality", [parse_status(SCALING)])
         self.assertEqual(summary.filter, "Lanczos")
 
+    def test_a_run_drawn_by_two_filters_names_both(self) -> None:
+        """Medians over two filters are never labelled with only one of them."""
+        nearest = parse_status(SCALING.replace("filter=Lanczos", "filter=Nearest"))
+        summary = summarize("test-application", "quality", [parse_status(SCALING), nearest])
+        self.assertEqual(summary.filter, "Lanczos+Nearest")
+        self.assertIn("drawn by Lanczos, Nearest; the figures mix them", summary.notes)
+
     def test_the_prose_above_the_machine_line_is_never_read(self) -> None:
         """Figures in the translated prose never reach the measurement."""
         sample = parse_status(SCALING)
