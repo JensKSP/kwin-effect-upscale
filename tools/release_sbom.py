@@ -192,11 +192,14 @@ class Document:
                 message = f"No component name and version in the comment on {entry.files}"
                 raise ValueError(message)
             component = f"SPDXRef-Component-{index}"
+            holder = re.sub(r"^[0-9, -]+", "", entry.copyright)
+            # A holder named with an address is a person, as SPDX tells them apart.
+            supplier = ("Person: " if "<" in holder else "Organization: ") + holder
             self.add(
                 component,
                 parts[0],
                 versionInfo=parts[1],
-                supplier="Organization: " + re.sub(r"^[0-9, -]+", "", entry.copyright),
+                supplier=supplier,
                 downloadLocation=NOASSERTION,
                 licenseConcluded=entry.license,
                 licenseDeclared=entry.license,

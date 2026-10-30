@@ -30,6 +30,7 @@ METRIC_FIELDS = {
     "supplied": ("supplied", str),
     "destination": ("destination", str),
     "scaling": ("scaling", bool),
+    "filter": ("filter", str),
     "selected": ("selected", bool),
     "window": ("window", str),
     "scanout": ("scanout", str),
@@ -57,6 +58,7 @@ class Sample:
     supplied: str = ""
     destination: str = ""
     scaling: bool = False
+    filter: str = ""
     selected: bool = False
     window: str = ""
     # Whether the output kept direct scanout for this frame. Losing it is part
@@ -137,6 +139,7 @@ class Summary:
     supplied: str = ""
     destination: str = ""
     scaling: bool = False
+    filter: str = ""
     window_system: str = ""
     buffer_kind: str = ""
     presented_rate: float | None = None
@@ -194,6 +197,13 @@ def summarize(game: str, preset: str, samples: list[Sample], window: str = "") -
     summary.supplied = last.supplied
     summary.destination = last.destination
     summary.scaling = any(sample.scaling for sample in useful)
+    # Every filter that drew, in the order they first did. A window that fell
+    # to a factor of one is copied by nearest neighbor for that part of the
+    # run, and the run's medians then mix what the two filters cost.
+    drawn = list(dict.fromkeys(sample.filter for sample in useful if sample.filter))
+    summary.filter = "+".join(drawn)
+    if len(drawn) > 1:
+        summary.notes.append(f"drawn by {', '.join(drawn)}; the figures mix them")
     summary.window_system = last.window_system
     summary.scanout = last.scanout
     summary.buffer_kind = last.buffer_kind

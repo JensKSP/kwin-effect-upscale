@@ -30,6 +30,8 @@ private Q_SLOTS:
     void developerInformationCoversTheState();
     void namesEveryPresetAndTransferFunction();
     void metricsNameEveryPresentationTheSameInEveryLanguage();
+    void namesEachFilterWithItsSharpener();
+    void metricsNameTheFilterThatDrew();
     void reportsPresentedFramesAndTheirSlowTail();
     void namesTheClientItIsLookingAt();
     void separatesWhatWasRequestedFromWhatArrived();

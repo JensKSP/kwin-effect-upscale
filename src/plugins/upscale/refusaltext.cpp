@@ -63,7 +63,7 @@ static QString describeBufferRefusal(UpscaleRefusal refusal)
     case UpscaleRefusal::BufferNoWholeFactor:
         return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the supplied buffer is larger than the destination, so no whole-number multiple of it fits.");
     case UpscaleRefusal::BufferFilterRange:
-        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the whole-number factor that fits is not two, the only one FSR 1 enlarges by.");
+        return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the whole-number factor that fits is not two, the only one the scaling filter enlarges by.");
     case UpscaleRefusal::TransformedBuffer:
         return i18nc("A reason, after “Inactive:”, “not scaling:” or “was not scaled because”", "the supplied buffer is rotated or flipped.");
     case UpscaleRefusal::CroppedBuffer:

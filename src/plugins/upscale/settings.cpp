@@ -7,6 +7,7 @@
 #include "settings.h"
 
 #include "application.h"
+#include "filtertext.h"
 #include "legacysettings.h"
 #include "upscaleconfig.h"
 
@@ -101,17 +102,21 @@ static int geometryValue(const QString &name, int absent)
     return name == QLatin1String("Integer") ? int(UpscaleGeometry::Integer) : absent;
 }
 
+// The filter by name, as the resolution is; a number outside the list is
+// read as FSR, as the runtime reads it.
 static QString filterName(int value)
 {
-    return value == int(UpscaleFilter::Nearest) ? QStringLiteral("Nearest") : QStringLiteral("FSR");
+    return value >= 0 && value <= int(upscaleLastFilter) ? QString(upscaleFilterKey(UpscaleFilter(value))) : QStringLiteral("FSR");
 }
 
 static int filterValue(const QString &name, int absent)
 {
-    if (name == QLatin1String("FSR")) {
-        return int(UpscaleFilter::Fsr);
+    for (int value = 0; value <= int(upscaleLastFilter); ++value) {
+        if (name == upscaleFilterKey(UpscaleFilter(value))) {
+            return value;
+        }
     }
-    return name == QLatin1String("Nearest") ? int(UpscaleFilter::Nearest) : absent;
+    return absent;
 }
 
 static int globalStrength()
@@ -208,7 +213,7 @@ static const std::array<UpscaleSettingInfo, upscaleSettingCount> settingTable{{
     {UpscaleSetting::Sharpening, "Sharpening", UpscaleSettingType::Switch, 0, 1, globalSharpening, nullptr, nullptr},
     {UpscaleSetting::Strength, "Strength", UpscaleSettingType::Number, 0, 100, globalStrength, nullptr, nullptr},
     {UpscaleSetting::Geometry, "Geometry", UpscaleSettingType::Choice, 0, 1, globalGeometry, geometryName, geometryValue},
-    {UpscaleSetting::Filter, "Filter", UpscaleSettingType::Choice, 0, 1, globalFilter, filterName, filterValue},
+    {UpscaleSetting::Filter, "Filter", UpscaleSettingType::Choice, 0, int(upscaleLastFilter), globalFilter, filterName, filterValue},
     {UpscaleSetting::Osd, "Osd", UpscaleSettingType::Switch, 0, 1, globalOsd, nullptr, nullptr},
     {UpscaleSetting::OsdDetection, "OsdDetection", UpscaleSettingType::Switch, 0, 1, globalOsdDetection, nullptr, nullptr},
     {UpscaleSetting::OsdSummary, "OsdSummary", UpscaleSettingType::Switch, 0, 1, globalOsdSummary, nullptr, nullptr},
@@ -324,7 +329,7 @@ ResolutionPreset UpscaleSettings::resolution() const
 
 double UpscaleSettings::sharpening() const
 {
-    if (filter() == UpscaleFilter::Nearest) {
+    if (!upscaleFilterSharpens(filter())) {
         return 0;
     }
     return sharpeningAmount(switchedOn(UpscaleSetting::Sharpening), value(UpscaleSetting::Strength));
@@ -337,7 +342,8 @@ UpscaleGeometry UpscaleSettings::geometry() const
 
 UpscaleFilter UpscaleSettings::filter() const
 {
-    return value(UpscaleSetting::Filter) == int(UpscaleFilter::Nearest) ? UpscaleFilter::Nearest : UpscaleFilter::Fsr;
+    const int stored = value(UpscaleSetting::Filter);
+    return stored > 0 && stored <= int(upscaleLastFilter) ? UpscaleFilter(stored) : UpscaleFilter::Fsr;
 }
 
 double UpscaleSettings::requestRatio() const

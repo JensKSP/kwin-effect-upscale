@@ -25,6 +25,7 @@ set(upscale_SOURCES
     overlay.cpp
     placement.cpp
     scaler.cpp
+    scalerfilters.cpp
     snapshot.cpp
     snapshot_headsup.cpp
     snapshot_metrics.cpp

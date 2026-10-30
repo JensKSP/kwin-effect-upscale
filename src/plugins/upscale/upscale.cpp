@@ -493,10 +493,11 @@ UpscalePaintResult UpscaleEffect::drawWindow(const RenderTarget &target, const R
             const double pixels = window->screen()->scale();
             const UpscaleRectF destination(frame.x() + (picture.x / pixels), frame.y() + (picture.y / pixels), picture.width / pixels,
                                            picture.height / pixels);
+            const UpscaleFilter filter = upscaleDrawnFilter(m_frame.settings.filter(), picture);
             const UpscaleDrawing drawing{
                 .destination = destination,
-                .strength = m_frame.settings.sharpening(),
-                .filter = m_frame.settings.filter(),
+                .strength = upscaleDrawnSharpening(filter, m_frame.settings.sharpening()),
+                .filter = filter,
                 .frame = frame,
             };
             SurfaceItem *pictured = upscalePictureSurface(window);

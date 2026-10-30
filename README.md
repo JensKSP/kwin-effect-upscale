@@ -107,6 +107,9 @@ edges and useful detail while enlarging the frame.
 This project currently implements:
 
 - **FSR 1 / EASU** for spatial upscaling;
+- **bilinear**, **bicubic** and **Lanczos** filters, **Snapdragon GSR 1**,
+  **NVIDIA Image Scaling**, and for pixel art **nearest neighbour** and
+  **xBRZ**;
 - optional **RCAS** sharpening.
 
 Upscaling is not free, but the extra GPU work can be much smaller than
@@ -239,7 +242,9 @@ while the game's own frame production increased substantially.
 
 Implemented today:
 
-- FSR 1 / EASU upscaling;
+- FSR 1 / EASU upscaling, or bilinear, bicubic, Lanczos, Snapdragon GSR 1,
+  NVIDIA Image Scaling, nearest-neighbour or xBRZ filtering, chosen globally
+  and per game;
 - optional RCAS sharpening;
 - global scaling presets;
 - editable application profiles;

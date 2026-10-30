@@ -8,6 +8,7 @@
 // kept apart from settingcontrols.cpp only because that file would otherwise
 // pass the size limit.
 
+#include "filtertext.h"
 #include "settingcontrols.h"
 
 #include "resolution.h"
@@ -107,14 +108,7 @@ QString upscaleSettingChoiceLabel(UpscaleSetting setting, int value)
         }
     }
     if (setting == UpscaleSetting::Filter) {
-        switch (value) {
-        case int(UpscaleFilter::Fsr):
-            return i18nc("Scaling filter", "FSR 1");
-        case int(UpscaleFilter::Nearest):
-            return i18nc("Scaling filter", "Nearest neighbor");
-        default:
-            return QString();
-        }
+        return value >= 0 && value <= int(upscaleLastFilter) ? upscaleFilterName(UpscaleFilter(value)) : QString();
     }
     // The three position preferences share one list, in the order stored. The
     // stored number indexes it rather than being cast to a corner, so that a
@@ -149,8 +143,11 @@ QString upscaleSettingToolTip(UpscaleSetting setting)
                     "“Whole-number multiple” enlarges it by the largest whole factor that fits, for pixel art and older "
                     "games. Both leave black bars where the picture does not fill the screen.");
     case UpscaleSetting::Filter:
-        return i18n("FSR 1 enlarges at most two times, as a whole-number multiple exactly two times, and can sharpen. "
-                    "Nearest neighbor repeats each pixel exactly and enlarges by any amount.");
+        return i18n("FSR 1 and NVIDIA Image Scaling enlarge at most two times, as a whole-number multiple exactly two "
+                    "times. Bilinear, bicubic, Lanczos and Snapdragon GSR 1 enlarge by any amount. Each of these can "
+                    "sharpen: NVIDIA Image Scaling and Snapdragon GSR 1 with their own sharpening, the others with RCAS. "
+                    "Nearest neighbor repeats each pixel exactly, and xBRZ redraws the edges of pixel art; neither "
+                    "sharpens.");
     default:
         return QString();
     }

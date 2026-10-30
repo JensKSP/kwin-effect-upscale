@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <ranges>
+#include <utility>
 
 using namespace KWin;
 
@@ -334,6 +335,13 @@ void ApplicationTest::spellsEveryMethodAndPreset()
     const KWin::UpscaleSettings picture = KWin::upscaleResolveSettings(forInstance(QStringLiteral("roundtrip")));
     QCOMPARE(picture.geometry(), KWin::UpscaleGeometry::Integer);
     QCOMPARE(picture.filter(), KWin::UpscaleFilter::Nearest);
+    for (const auto &[name, filter] : {std::pair{"FSR", KWin::UpscaleFilter::Fsr}, std::pair{"Bilinear", KWin::UpscaleFilter::Bilinear},
+                                       std::pair{"Bicubic", KWin::UpscaleFilter::Bicubic}, std::pair{"Lanczos", KWin::UpscaleFilter::Lanczos},
+                                       std::pair{"GSR", KWin::UpscaleFilter::Gsr}, std::pair{"NIS", KWin::UpscaleFilter::Nis},
+                                       std::pair{"xBRZ", KWin::UpscaleFilter::Xbrz}}) {
+        writeUserConfig(QStringLiteral("[Application-roundtrip]\nInstance=roundtrip\nFilter=%1\n").arg(QLatin1String(name)));
+        QCOMPARE(KWin::upscaleResolveSettings(forInstance(QStringLiteral("roundtrip"))).filter(), filter);
+    }
 
     // A file from a later version can name a method this build does not
     // implement. Recognizing the application and asking it for nothing is the

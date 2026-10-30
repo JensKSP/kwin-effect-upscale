@@ -18,6 +18,7 @@
 #include <QDebug>
 #include <QSize>
 
+#include <algorithm>
 #include <memory>
 #include <vector>
 
@@ -55,6 +56,26 @@ struct UpscaleRenderFixture
     std::shared_ptr<EglContext> m_context;
     std::unique_ptr<UpscaleScaler> m_scaler;
 };
+
+/**
+ * A constant @p value in units of reference white, as @p transfer encodes it
+ * in a capture: what a constant picture has to come out as, whatever filtered it.
+ */
+inline double upscaleEncodedConstant(double value, const TransferFunction &transfer)
+{
+#if UPSCALE_REGION_API
+    const double reference = ColorDescription::sRGB->referenceLuminance();
+#else
+    const double reference = ColorDescription::sRGB.referenceLuminance();
+#endif
+    const double normalized = (value * reference - transfer.minLuminance) / (transfer.maxLuminance - transfer.minLuminance);
+    if (transfer.type == TransferFunction::sRGB && normalized < 0.0031308) {
+        // KWin 6.3's CPU helper divides here; its shader and the sRGB inverse
+        // EOTF multiply by 12.92. Test the shader's specified transfer curve.
+        return std::max(12.92 * normalized, 0.0);
+    }
+    return transfer.nitsToEncoded(QVector3D(float(value * reference), 0, 0)).x();
+}
 
 inline bool UpscaleRenderFixture::initialize()
 {

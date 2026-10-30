@@ -29,6 +29,7 @@ add_executable(
     render_test.cpp
     ../src/plugins/upscale/overlay.cpp
     ../src/plugins/upscale/scaler.cpp
+    ../src/plugins/upscale/scalerfilters.cpp
     ../src/plugins/upscale/upscale.qrc
 )
 target_include_directories(upscale_render_test PRIVATE ../src/plugins/upscale)
@@ -59,6 +60,7 @@ add_executable(
     upscale_render_shape_test
     render_shape_test.cpp
     ../src/plugins/upscale/scaler.cpp
+    ../src/plugins/upscale/scalerfilters.cpp
     ../src/plugins/upscale/upscale.qrc
 )
 target_include_directories(upscale_render_shape_test PRIVATE ../src/plugins/upscale)
@@ -72,6 +74,58 @@ if(KWin_VERSION VERSION_LESS 6.7)
     add_test(NAME upscale-render-shape-gles COMMAND upscale_render_shape_test)
     set_tests_properties(
         upscale-render-shape-gles
+        PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;KWIN_COMPOSE=O2ES;QT_QPA_PLATFORM=offscreen"
+    )
+endif()
+
+add_executable(
+    upscale_render_filter_test
+    render_filter_test.cpp
+    ../src/plugins/upscale/scaler.cpp
+    ../src/plugins/upscale/scalerfilters.cpp
+    ../src/plugins/upscale/upscale.qrc
+)
+target_include_directories(upscale_render_filter_test PRIVATE ../src/plugins/upscale)
+target_link_libraries(upscale_render_filter_test PRIVATE kwin Qt6::Test)
+# This test draws with every filter in every encoding, and nearly all of its
+# time goes into llvmpipe compiling those programs, not into the draws. Under
+# the sanitizers that took 75 s on a GitHub runner on 2026-10-29 and more than
+# the 120 s run-render-tests.py allows by default on a slower one the next day,
+# where every render test took twice as long. Its own bound keeps the
+# default's meaning for the rest.
+add_test(NAME upscale-render-filter COMMAND upscale_render_filter_test)
+set_tests_properties(
+    upscale-render-filter
+    PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;QT_QPA_PLATFORM=offscreen" TIMEOUT 300
+)
+if(KWin_VERSION VERSION_LESS 6.7)
+    add_test(NAME upscale-render-filter-gles COMMAND upscale_render_filter_test)
+    set_tests_properties(
+        upscale-render-filter-gles
+        PROPERTIES
+            ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;KWIN_COMPOSE=O2ES;QT_QPA_PLATFORM=offscreen"
+            TIMEOUT 300
+    )
+endif()
+
+add_executable(
+    upscale_render_method_test
+    render_method_test.cpp
+    ../src/plugins/upscale/scaler.cpp
+    ../src/plugins/upscale/scalerfilters.cpp
+    ../src/plugins/upscale/upscale.qrc
+)
+target_include_directories(upscale_render_method_test PRIVATE ../src/plugins/upscale)
+target_link_libraries(upscale_render_method_test PRIVATE kwin Qt6::Test)
+add_test(NAME upscale-render-method COMMAND upscale_render_method_test)
+set_tests_properties(
+    upscale-render-method
+    PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;QT_QPA_PLATFORM=offscreen"
+)
+if(KWin_VERSION VERSION_LESS 6.7)
+    add_test(NAME upscale-render-method-gles COMMAND upscale_render_method_test)
+    set_tests_properties(
+        upscale-render-method-gles
         PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;KWIN_COMPOSE=O2ES;QT_QPA_PLATFORM=offscreen"
     )
 endif()
@@ -142,6 +196,7 @@ add_test(NAME upscale-application COMMAND upscale_application_test)
 set(snapshot_test_sources
     snapshot_test.cpp
     snapshot_request_test.cpp
+    snapshot_filter_test.cpp
     ../src/plugins/upscale/application.cpp
     ../src/plugins/upscale/matching.cpp
     ../src/plugins/upscale/pattern.cpp

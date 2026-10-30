@@ -9,13 +9,23 @@ whose upstream changes could be mistaken for changes to this effect.
 """
 
 import argparse
+import re
 import shutil
 from pathlib import Path
 
 from kwin_conformance_fixtures import adapt_fixtures
 
 # This project's production test, compiled into KWin's integration tests.
-PRODUCTION_SOURCES = ("kwin_scaling_test.cpp", "kwin_scaling_test.h", "kwin_presentation_test.cpp")
+PRODUCTION_SOURCES = (
+    "kwin_scaling_test.cpp",
+    "kwin_scaling_test.h",
+    "kwin_presentation_test.cpp",
+    "kwin_filter_test.cpp",
+)
+
+
+# The registration of the production test, whatever sources it named then.
+PRODUCTION_REGISTRATION = re.compile(r"(integrationTest\(NAME testUpscaleProduction SRCS )[^)]*\)")
 
 
 def replace_once(path: Path, old: str, new: str) -> None:
@@ -31,6 +41,26 @@ def copy_changed(source: Path, destination: Path) -> None:
     """Keep unchanged framework headers from rebuilding every upstream binary."""
     if not destination.exists() or source.read_bytes() != destination.read_bytes():
         shutil.copyfile(source, destination)
+
+
+def register_production_test(registration: Path) -> None:
+    """Register the production test with the sources it has now, once."""
+    sources = " ".join(PRODUCTION_SOURCES)
+    registered = registration.read_text()
+    if "testUpscaleProduction" not in registered:
+        with registration.open("a") as stream:
+            stream.write(
+                f"\nintegrationTest(NAME testUpscaleProduction SRCS {sources})\n"
+                "qt6_generate_wayland_protocol_client_sources(testUpscaleProduction\n"
+                "    FILES ${WaylandProtocols_DATADIR}/stable/viewporter/viewporter.xml)\n"
+            )
+    elif f"SRCS {sources})" not in registered:
+        # A tree prepared before the test had the sources it has now.
+        updated, count = PRODUCTION_REGISTRATION.subn(rf"\g<1>{sources})", registered, count=1)
+        if count != 1:
+            message = f"expected one testUpscaleProduction registration in {registration}"
+            raise ValueError(message)
+        registration.write_text(updated)
 
 
 def main() -> None:
@@ -78,19 +108,7 @@ def main() -> None:
             "    createOptions();",
             "    configureUpscaleConformance();\n    createOptions();",
         )
-    registration = integration / "CMakeLists.txt"
-    sources = " ".join(PRODUCTION_SOURCES)
-    registered = registration.read_text()
-    if "testUpscaleProduction" not in registered:
-        with registration.open("a") as stream:
-            stream.write(
-                f"\nintegrationTest(NAME testUpscaleProduction SRCS {sources})\n"
-                "qt6_generate_wayland_protocol_client_sources(testUpscaleProduction\n"
-                "    FILES ${WaylandProtocols_DATADIR}/stable/viewporter/viewporter.xml)\n"
-            )
-    elif f"SRCS {sources})" not in registered:
-        # A tree prepared before the test had more than one source.
-        replace_once(registration, "SRCS kwin_scaling_test.cpp)", f"SRCS {sources})")
+    register_production_test(integration / "CMakeLists.txt")
     print(f"Prepared upstream test harness in {args.out}")
 
 

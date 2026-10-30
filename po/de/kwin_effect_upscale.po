@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: kwin-effect-upscale\n"
 "Report-Msgid-Bugs-To: https://github.com/JensKSP/kwin-effect-upscale/issues\n"
-"POT-Creation-Date: 2026-10-07 06:52+0000\n"
+"POT-Creation-Date: 2026-10-30 01:18+0000\n"
 "PO-Revision-Date: 2026-09-30 00:00+0200\n"
 "Last-Translator: \n"
 "Language-Team: German\n"
@@ -192,12 +192,12 @@ msgid "On-Screen Display"
 msgstr "Bildschirmanzeige"
 
 #, kde-format
-msgid "Added by you. %1"
-msgstr "Von Ihnen hinzugefügt. %1"
-
-#, kde-format
 msgid "Added by you."
 msgstr "Von Ihnen hinzugefügt."
+
+#, kde-format
+msgid "Added by you. %1"
+msgstr "Von Ihnen hinzugefügt. %1"
 
 #, kde-format
 msgid "Add from Window"
@@ -285,6 +285,104 @@ msgstr "%1 (0x%2)"
 #, kde-format
 msgid "none"
 msgstr "keine"
+
+#, kde-format
+msgctxt "Scaling filter"
+msgid "FSR 1"
+msgstr "FSR 1"
+
+#, kde-format
+msgctxt "Scaling filter"
+msgid "Nearest neighbor"
+msgstr "Nächster Nachbar"
+
+#, kde-format
+msgctxt "Scaling filter"
+msgid "Bilinear"
+msgstr "Bilinear"
+
+#, kde-format
+msgctxt "Scaling filter"
+msgid "Bicubic"
+msgstr "Bikubisch"
+
+#, kde-format
+msgctxt "Scaling filter"
+msgid "Lanczos"
+msgstr "Lanczos"
+
+#, kde-format
+msgctxt "Scaling filter"
+msgid "Snapdragon GSR 1"
+msgstr "Snapdragon GSR 1"
+
+#, kde-format
+msgctxt "Scaling filter"
+msgid "NVIDIA Image Scaling"
+msgstr "NVIDIA Image Scaling"
+
+#, kde-format
+msgctxt "Scaling filter"
+msgid "xBRZ"
+msgstr "xBRZ"
+
+#, kde-format
+msgctxt "Scaling filter, within a sentence"
+msgid "FSR 1"
+msgstr "FSR 1"
+
+#, kde-format
+msgctxt "Scaling filter, within a sentence"
+msgid "nearest neighbor"
+msgstr "nächster Nachbar"
+
+#, kde-format
+msgctxt "Scaling filter, within a sentence"
+msgid "bilinear"
+msgstr "bilinear"
+
+#, kde-format
+msgctxt "Scaling filter, within a sentence"
+msgid "bicubic"
+msgstr "bikubisch"
+
+#, kde-format
+msgctxt "Scaling filter, within a sentence"
+msgid "Lanczos"
+msgstr "Lanczos"
+
+#, kde-format
+msgctxt "Scaling filter, within a sentence"
+msgid "Snapdragon GSR 1"
+msgstr "Snapdragon GSR 1"
+
+#, kde-format
+msgctxt "Scaling filter, within a sentence"
+msgid "NVIDIA Image Scaling"
+msgstr "NVIDIA Image Scaling"
+
+#, kde-format
+msgctxt "Scaling filter, within a sentence"
+msgid "xBRZ"
+msgstr "xBRZ"
+
+#, kde-format
+msgctxt ""
+"What the effect does with the buffer, after the sizes or a window's states"
+msgid "%1, no sharpening"
+msgstr "%1, ohne Schärfung"
+
+#, kde-format
+msgctxt ""
+"What the effect does with the buffer, after the sizes or a window's states"
+msgid "%1 with RCAS sharpening %2%"
+msgstr "%1 mit RCAS-Schärfung %2 %"
+
+#, kde-format
+msgctxt ""
+"What the effect does with the buffer, after the sizes or a window's states"
+msgid "%1 with its own sharpening %2%"
+msgstr "%1 mit eigener Schärfung %2 %"
 
 #, kde-format
 msgid "Program:"
@@ -566,10 +664,11 @@ msgstr ""
 msgctxt ""
 "A reason, after “Inactive:”, “not scaling:” or “was not scaled because”"
 msgid ""
-"the whole-number factor that fits is not two, the only one FSR 1 enlarges by."
+"the whole-number factor that fits is not two, the only one the scaling "
+"filter enlarges by."
 msgstr ""
-"der passende ganzzahlige Faktor ist nicht zwei, der einzige, um den FSR 1 "
-"vergrößert."
+"der passende ganzzahlige Faktor ist nicht zwei, der einzige, um den der "
+"Skalierungsfilter vergrößert."
 
 #, kde-format
 msgctxt ""
@@ -932,16 +1031,6 @@ msgid "Whole-number multiple"
 msgstr "Ganzzahliges Vielfaches"
 
 #, kde-format
-msgctxt "Scaling filter"
-msgid "FSR 1"
-msgstr "FSR 1"
-
-#, kde-format
-msgctxt "Scaling filter"
-msgid "Nearest neighbor"
-msgstr "Nächster Nachbar"
-
-#, kde-format
 msgid ""
 "“Fit to the screen” enlarges the picture as far as the filter allows without "
 "stretching it. “Whole-number multiple” enlarges it by the largest whole "
@@ -956,13 +1045,20 @@ msgstr ""
 
 #, kde-format
 msgid ""
-"FSR 1 enlarges at most two times, as a whole-number multiple exactly two "
-"times, and can sharpen. Nearest neighbor repeats each pixel exactly and "
-"enlarges by any amount."
+"FSR 1 and NVIDIA Image Scaling enlarge at most two times, as a whole-number "
+"multiple exactly two times. Bilinear, bicubic, Lanczos and Snapdragon GSR 1 "
+"enlarge by any amount. Each of these can sharpen: NVIDIA Image Scaling and "
+"Snapdragon GSR 1 with their own sharpening, the others with RCAS. Nearest "
+"neighbor repeats each pixel exactly, and xBRZ redraws the edges of pixel "
+"art; neither sharpens."
 msgstr ""
-"FSR 1 vergrößert höchstens um das Zweifache, als ganzzahliges Vielfaches "
-"genau um das Zweifache, und kann schärfen. Nächster Nachbar wiederholt jedes "
-"Pixel exakt und vergrößert um jeden Betrag."
+"FSR 1 und NVIDIA Image Scaling vergrößern höchstens um das Zweifache, als "
+"ganzzahliges Vielfaches genau um das Zweifache. Bilinear, Bikubisch, Lanczos "
+"und Snapdragon GSR 1 vergrößern um jeden Betrag. Jeder dieser Filter kann "
+"schärfen: NVIDIA Image Scaling und Snapdragon GSR 1 mit ihrer eigenen "
+"Schärfung, die anderen mit RCAS. Nächster Nachbar wiederholt jedes Pixel "
+"exakt, und xBRZ zeichnet die Kanten von Pixelgrafik neu; keiner von beiden "
+"schärft."
 
 #, kde-format
 msgctxt "A transfer function, completing “destination transfer %1”"
@@ -987,24 +1083,6 @@ msgstr "Gamma 2.2"
 #, kde-format
 msgid "Supplied format: %1."
 msgstr "Geliefertes Format: %1."
-
-#, kde-format
-msgctxt ""
-"What the effect does with the buffer, after the sizes or a window's states"
-msgid "nearest neighbor"
-msgstr "nächster Nachbar"
-
-#, kde-format
-msgctxt ""
-"What the effect does with the buffer, after the sizes or a window's states"
-msgid "FSR 1 with RCAS sharpening %1%"
-msgstr "FSR 1 mit RCAS-Schärfung %1 %"
-
-#, kde-format
-msgctxt ""
-"What the effect does with the buffer, after the sizes or a window's states"
-msgid "FSR 1, no sharpening"
-msgstr "FSR 1, ohne Schärfung"
 
 #, kde-format
 msgctxt "%1 is a reason, written as a clause"
@@ -1114,12 +1192,12 @@ msgid "%1 (use the supplied buffer)"
 msgstr "%1 (den gelieferten Puffer verwenden)"
 
 #, kde-format
-msgid "%1, %2% of the destination (%3)"
-msgstr "%1, %2 % des Ziels (%3)"
-
-#, kde-format
 msgid "%1, %2% of the destination, %3 for a whole factor of %4"
 msgstr "%1, %2 % des Ziels, %3 für einen ganzzahligen Faktor von %4"
+
+#, kde-format
+msgid "%1, %2% of the destination (%3)"
+msgstr "%1, %2 % des Ziels (%3)"
 
 #, kde-format
 msgctxt ""
@@ -1224,12 +1302,9 @@ msgid "Select %1 × %2 in the game"
 msgstr "Wählen Sie %1 × %2 im Spiel"
 
 #, kde-format
-msgid "Nearest neighbor"
-msgstr "Nächster Nachbar"
-
-#, kde-format
-msgid "FSR 1, sharpening %1%"
-msgstr "FSR 1, Schärfung %1 %"
+msgctxt "A scaling filter and its sharpening strength"
+msgid "%1, sharpening %2%"
+msgstr "%1, Schärfung %2 %"
 
 #, kde-format
 msgid "%2, enlarged %1 time"
@@ -1296,6 +1371,16 @@ msgid "(%1; %2) %3 × %4"
 msgstr "(%1; %2) %3 × %4"
 
 #, kde-format
+msgctxt "No sharpening, completing “sharpening %1”"
+msgid "off"
+msgstr "aus"
+
+#, kde-format
+msgctxt "A sharpener's name and strength, completing “sharpening %1”"
+msgid "%1 %2%"
+msgstr "%1 %2 %"
+
+#, kde-format
 msgid "Build: %1"
 msgstr "Build: %1"
 
@@ -1350,15 +1435,6 @@ msgstr "aktiviert"
 msgctxt "The effect's state, completing “Configuration: %1”"
 msgid "disabled"
 msgstr "deaktiviert"
-
-#, kde-format
-msgid "RCAS %1%"
-msgstr "RCAS %1 %"
-
-#, kde-format
-msgctxt "No sharpening, completing “sharpening %1”"
-msgid "off"
-msgstr "aus"
 
 #, kde-format
 msgid "Configuration: %1, desired %2, sharpening %3"
@@ -1453,12 +1529,14 @@ msgid "%1 ms/f"
 msgstr "%1 ms/f"
 
 #, kde-format
-msgid "FSR 1"
-msgstr "FSR 1"
+msgctxt "A scaling filter followed by RCAS sharpening"
+msgid "%1 + RCAS"
+msgstr "%1 + RCAS"
 
 #, kde-format
-msgid "FSR 1 + RCAS"
-msgstr "FSR 1 + RCAS"
+msgctxt "A scaling filter with its own sharpening"
+msgid "%1, sharpened"
+msgstr "%1, geschärft"
 
 #, kde-format
 msgid "%1 → %2"

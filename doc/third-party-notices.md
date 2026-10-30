@@ -51,6 +51,114 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
+### Snapdragon Game Super Resolution 1
+
+The Snapdragon GSR 1 scaling filter is Qualcomm's single-pass shader,
+`sgsr/v1/include/glsl/sgsr1_shader_mobile.frag` at commit `d926f074`, in its
+RGBA operation mode. It is carried as `src/plugins/upscale/shaders/gsr.frag`,
+a shader resource inside the plugin.
+
+Changed from Qualcomm's reference: the texels its `textureGather` calls and its
+bilinear base tap read are fetched one by one, because the effect's capture is
+sampled nearest and OpenGL ES 3.0 has no gather; its edge sharpness is set by
+the effect's sharpening strength; and for a linear destination it filters the
+effect's bounded working encoding, shifted into -1 to 1, with its result kept
+in that range.
+
+- Copyright holder: Qualcomm Innovation Center, Inc.
+- License: BSD 3-Clause (`BSD-3-Clause`)
+
+```text
+Copyright (c) 2025, Qualcomm Innovation Center, Inc. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice,
+   this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+```
+
+### NVIDIA Image Scaling
+
+The NVIDIA Image Scaling filter is `NVScaler` from NVIDIA's Image Scaling SDK,
+version 1.0.3 (`NIS/NIS_Scaler.h` and `NIS/NIS_Config.h` at commit
+`35e13ba3`). It is carried as `src/plugins/upscale/shaders/nis.frag` and
+`nis_coefficients.glsl`, shader resources inside the plugin, and the part of
+`NVScalerUpdateConfig` that shapes the filter as
+`src/plugins/upscale/nisconfig.h`.
+
+Changed from NVIDIA's reference: the compute shader, which shares a tile of
+luma and edge maps between a block of output pixels, is a fragment program in
+which each output pixel reads its own six by six neighbourhood and derives the
+four edge maps it interpolates; its two filter banks are constants rather than
+a texture; its bilinear colour tap is computed from four texel fetches; an
+encoded destination's output is clamped to zero to one; a linear destination is
+filtered in NVIDIA's unit of 80 nits, with its luma kept from going negative;
+and a sharpness of zero leaves no unsharp mask.
+
+- Copyright holder: NVIDIA Corporation & Affiliates
+- License: MIT (`MIT`)
+
+```text
+The MIT License(MIT)
+
+Copyright(c) 2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files(the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and / or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions :
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+### xBRZ from KWin's zoom effect
+
+The xBRZ filter is the pixel-pattern upscaler of KWin's zoom effect,
+`src/plugins/zoom/shaders/upscaler.frag` at commit `5b9013c5`, carried as
+`src/plugins/upscale/shaders/xbrz.frag`, a shader resource inside the plugin.
+It is licensed like this project, so it needs no notice beyond its copyright.
+
+Changed from KWin's shader: KWin master's colour management include, which
+KWin 6.3 does not have, is replaced by the effect's own decode into linear
+light in units of reference white, in which colour distances are measured as
+there, and its encode afterwards; texels are fetched at whole positions,
+clamped to the picture's edge; and the scale comes from the picture's sizes
+rather than the zoom level.
+
+- Copyright holder: Ritchie Frodomar
+- License: GNU General Public License, version 2 or later (`GPL-2.0-or-later`)
+
 Nothing else from a third party is compiled into the packages. The source tree
 also holds KWin's `.clang-format` (MIT, Christoph Cullmann and Gernot Gebhard),
 which formats the code and is not installed, and CI and tool configuration
