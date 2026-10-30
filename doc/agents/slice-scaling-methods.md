@@ -219,6 +219,12 @@ Jens and the TV, and never run at the same time as container checks.
   `prepare-kwin-tests.py` reported success when the registration it rewrites
   was not found. The Trixie suite passed with GCC and Clang (38 tests each),
   the neon builds with both compilers, tidy, and both lint stages.
+  CodeRabbit approved; CI's address job then timed out in
+  `upscale-render-filter` on a runner where every render test took twice as
+  long as the day before. Its time is llvmpipe compiling every filter's
+  programs (75 s under the sanitizers on a normal runner; dropping a third of
+  the rows changed nothing without a shader cache), so the test has a 300 s
+  bound of its own instead of the runner's default of 120 s.
 - [ ] Full acceptance on wzpc with Jens: image comparison, HDR, VRR, cost.
 
 ## Sources
