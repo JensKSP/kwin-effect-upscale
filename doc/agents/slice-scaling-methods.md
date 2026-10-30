@@ -207,7 +207,18 @@ Jens and the TV, and never run at the same time as container checks.
   `drawsWithEachKindOfFilter` for Lanczos, GSR, NIS and xBRZ: a fullscreen
   256 × 144 buffer drawn onto 384 × 216, the metrics line naming the filter
   asked for, and the output differing from KWin's own enlargement.
-- [ ] Handbook, notices and README updated.
+- [x] Handbook, notices and README updated, each with the method that needed
+  it: the handbook's scaler table and picture rules, the README's feature
+  lists, and Qualcomm's, NVIDIA's and KWin's notices in the shaders,
+  `doc/third-party-notices.md` and `debian/copyright`, which the release SBOM
+  reads.
+- [x] First review of #40, 2026-10-30. CodeRabbit's three findings were
+  valid and are fixed: the developer information named RCAS as the sharpener
+  for GSR and NIS as well; a frame-time summary named only the last filter
+  of a run that a factor of one had partly drawn with nearest neighbour; and
+  `prepare-kwin-tests.py` reported success when the registration it rewrites
+  was not found. The Trixie suite passed with GCC and Clang (38 tests each),
+  the neon builds with both compilers, tidy, and both lint stages.
 - [ ] Full acceptance on wzpc with Jens: image comparison, HDR, VRR, cost.
 
 ## Sources
